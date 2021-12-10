@@ -1,4 +1,4 @@
-# build-service
+# build-definitions
 
 This repository contains components that are installed or managed by the build service team.
 
