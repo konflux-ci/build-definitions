@@ -11,21 +11,20 @@ The pipelines can be found in the `pipelines` directories.
 Once your configuration is set you can modify pipelines installed via this repository in two ways.
 
 ### Override mode. 
-Every time you run `dev-mode.sh`, it will take the current directory and package into a bundle into your own quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on workstation.
-Once you run the `dev-mode.sh` all pipelines will come from your project instead of from the installed repository. 
+Every time you run `dev-mode.sh`, it will take the current directory and package into a bundle into your own quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on your workstation.
+Once you run the `dev-mode.sh` all pipelines will come from your bundle instead of from the default installed by gitops into the cluster.  
 ### Gitops Mode
-Replace the file `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/build-templates/bundle-config.yaml` in your own fork (in dev mode). Next sync the default builds-definitions will come from the bundle you configure. 
+Replace the file `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/build-templates/bundle-config.yaml` in your own fork (dev mode). This will sync to the cluster and all builds-definitions will come from the bundle you configure. 
 
-Please test gitops mode when doing a new release into staging as it will be the only 
+Please test in _gitops mode_ when doing a new release into staging as it will be the best way to ensure that the deployment will function correctly when deployed via gitops. 
 
-Release bundles are currently manually maintained. (TODO, CI will automatically publish updates `infra-deployments`). 
+Releasing new bundles are currently manual. (TODO, CI will automatically publish updates `infra-deployments`) via a SHA/pull request. 
 
 ## Devmode for Tasks 
 
-The tasks can be found in the `tasks` directories. Replacing tasks in App Studio is more complex as we will currently  deliver tasks as cluster task. See `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/` to install new app studio cluster tasks via the gitops delivery mode. 
-For quick local innerloop style task development, you may install new Tasks in your local namespace manually and rebuild the task image to test new base images. 
+The tasks can be found in the `tasks` directories. Replacing tasks in App Studio is more complex as we will currently  deliver tasks as clustertask. See `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/` to install new app studio cluster tasks via the gitops delivery mode. 
+For quick local innerloop style task development, you may install new Tasks in your local namespace manually and create your new task image to test new function. 
 
-There is a default set of utils, which is delivered as a set of scripts in container to be leveraged by various tasks themselves. Tasks may be in their own container as well however many simple tasks are utiltities and will be packaged for app studio in a single container. 
-
+There is a container which is used to support multiple set of tasks called `quay.io/redhat-appstudio/appstudio-utils:v0.1` , which is a single container which is used by multiple tasks. Tasks may also be in their own container as well however many simple tasks are utiltities and will be packaged for app studio in a single container. Tasks can rely on other tasks in the system which are co-packed in a container allowing combined tasks (build-only vs build-deploy) which use the same core implementations. 
 
 
