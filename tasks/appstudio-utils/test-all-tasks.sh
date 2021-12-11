@@ -1,3 +1,6 @@
+#!/bin/bash
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 
 read -r -d '' PIPELINE <<'PIPELINE_DEF'
 apiVersion: tekton.dev/v1beta1
@@ -148,7 +151,7 @@ PVC
    
 echo "$PVC" | oc apply -f - 
 
-oc apply -f util-tasks/ 
+oc apply -f $SCRIPTDIR/util-tasks/ 
 echo "$PIPELINE" | oc apply -f -
 oc delete pr test-all-tasks  
 echo "$PRUN" | oc apply -f -
