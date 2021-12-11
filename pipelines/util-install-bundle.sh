@@ -18,7 +18,9 @@ OCILOCATION
 
 yq -M e ".data.default_build_bundle=\"$BUNDLE\"" $CM | oc apply -f -
 
-echo "Pipelines Configured to come from: "
+echo "Default Pipelines Configured to come from build-templates : "
+oc get cm build-pipelines-defaults -n build-templates -o yaml | yq e '.data' -
+echo "Override Pipelines Configured to come from $( oc project --short): "
 oc get cm build-pipelines-defaults  -o yaml | yq e '.data' -
   
 
