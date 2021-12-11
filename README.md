@@ -10,7 +10,8 @@ The pipelines can be found in the `pipelines` directories.
 
 Once your configuration is set you can modify pipelines installed via this repository in two ways.
 
-### Override mode. Every time you run `dev-mode.sh`, it will take the current directory and package into a bundle into your own quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on workstation.
+### Override mode. 
+Every time you run `dev-mode.sh`, it will take the current directory and package into a bundle into your own quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on workstation.
 Once you run the `dev-mode.sh` all pipelines will come from your project instead of from the installed repository. 
 ### Gitops Mode
 Replace the file `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/build-templates/bundle-config.yaml` in your own fork (in dev mode). Next sync the default builds-definitions will come from the bundle you configure. 
