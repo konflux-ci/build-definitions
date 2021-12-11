@@ -1,15 +1,21 @@
+#!/bin/bash
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 
 read -r -d '' PIPELINE <<'PIPELINE_DEF'
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: test-all-tasks
-  namespace: jdemo 
+  name: test-all-tasks 
 spec: 
   params:
   - description: 'Fully Qualified Image URL'
     name: test-image
     type: string
+  - description: 'For testing, a non-existant image'
+    name: non-existant-image
+    type: string
+    default: "quay.io/redhat-appstudio/appstudio-utils:not-real"
   tasks:
     - name: clone-repository
       params:
@@ -46,7 +52,7 @@ spec:
       workspaces:
         - name: source 
           workspace: workspace
-    - name: image-exists
+    - name: yes-image-exists
       taskRef:
         kind: Task
         name: image-exists
@@ -56,17 +62,29 @@ spec:
       workspaces:
         - name: source
           workspace: workspace 
+    - name: no-image-exists
+      taskRef:
+        kind: Task
+        name: image-exists
+      params:
+        - name: image-url 
+          value: "$(params.non-existant-image)"
+      workspaces:
+        - name: source
+          workspace: workspace 
     - name: post
       taskRef:
         kind: Task
         name: appstudio-utils 
       runAfter:
-        - image-exists
+        - no-image-exists
+        - yes-image-exists
       params:
         - name: SCRIPT 
           value: |
             #!/usr/bin/env bash 
-            echo "The image: $(params.test-image) exists: $(tasks.image-exists.results.exists)" 
+            echo "Image: $(params.test-image) exists: $(tasks.yes-image-exists.results.exists)" 
+            echo "Image: $(params.non-existant-image) exists: $(tasks.no-image-exists.results.exists)" 
       workspaces:
         - name: source 
           workspace: workspace 
@@ -80,7 +98,7 @@ spec:
         - name: SCRIPT 
           value: |
             #!/usr/bin/env bash 
-            echo "The image: $(params.test-image) exists: $(tasks.image-exists.results.exists)" 
+            echo "The image: $(params.test-image) exists: $(tasks.yes-image-exists.results.exists)" 
     - name: utils-no-script
       taskRef:
         kind: Task
@@ -99,16 +117,41 @@ metadata:
 spec:
   params:
     - name: test-image
-      value: "image-registry.openshift-image-registry.svc:5000/jdemo/devfile-sample-python-basic:0c840c9"  
+      value: "quay.io/redhat-appstudio/appstudio-utils:v0.1"  
   pipelineRef:
-    name: check-image-exists   
+    name: test-all-tasks   
   workspaces:
     - name: workspace
       persistentVolumeClaim:
         claimName: app-studio-default-workspace
       subPath: . 
 PRUN
-oc apply -f util-tasks/ 
+
+read -r -d '' PVC <<'PVC'
+apiVersion: v1
+items:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      finalizers:
+        - kubernetes.io/pvc-protection 
+      name: app-studio-default-workspace 
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeMode: Filesystem
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+PVC
+   
+echo "$PVC" | oc apply -f - 
+
+oc apply -f $SCRIPTDIR/util-tasks/ 
 echo "$PIPELINE" | oc apply -f -
 oc delete pr test-all-tasks  
 echo "$PRUN" | oc apply -f -

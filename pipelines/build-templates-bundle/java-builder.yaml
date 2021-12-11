@@ -11,8 +11,7 @@ metadata:
     "pipelines.openshift.io/used-by" : "build-cloud"
     "pipelines.openshift.io/runtime" : "java"
     "pipelines.openshift.io/strategy" : "s2i"
-  name: java-builder
-  namespace: build-templates
+  name: java-builder 
 spec:
   params:
     - description: 'Source Repository URL'
@@ -26,7 +25,23 @@ spec:
       name: path-context 
       type: string
   tasks:
+    - name: quick-build-test 
+      taskRef:
+        kind: ClusterTask
+        name: image-exists
+      params:
+        - name: image-url 
+          value: "$(params.output-image)"
+      workspaces:
+        - name: source
+          workspace: workspace
     - name: git-clone
+      when:
+      - input: $(tasks.quick-build-test.results.exists) 
+        operator: in
+        values: ["false"]
+      runAfter:
+        - quick-build-test 
       params:
         - name: url
           value: $(params.git-url)
@@ -90,6 +105,41 @@ spec:
             echo "Build repository: $(params.git-url)" 
             echo "Generated Image is in : $(params.output-image)"  
             echo 
+            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
+            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
+
+            echo "Output is in the following annotations:"
+            
+            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
+            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
+            
+            echo "Build Image is in 'build.appstudio.openshift.io/image' "
+            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
+
+            echo End Summary  
+      workspaces:
+        - name: manifest-dir 
+          workspace: workspace
+    - name: skip-rebuild-summary  
+      when:
+      - input: $(tasks.quick-build-test.results.exists) 
+        operator: in
+        values: ["true"]  
+      runAfter:
+        - quick-build-test
+      taskRef:
+        kind: ClusterTask
+        name: openshift-client
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash
+            echo  
+            echo "Build Summary:"
+            echo
+            echo "Build repository: $(params.git-url)" 
+            echo "Generated Image is in : $(params.output-image)"  
+            echo  
             oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
             oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
 
