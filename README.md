@@ -1,6 +1,6 @@
 # build-definitions
 
-This repository contains components that are installed or managed by the build service team.
+This repository contains components that are installed or managed by the managed CI and Build Team.
 
 This includes default Pipelines and Tasks. You need to have bootstrapped a working appstudio configuration from (see `https://github.com/redhat-appstudio/infra-deployments`) for the dev of pipelines or new tasks. 
 
