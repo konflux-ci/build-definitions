@@ -14,24 +14,7 @@ fi
 BUILD_TAG=$(date +"%Y-%m-%d-%H%M%S") 
 BUNDLE=quay.io/$MY_QUAY_USER/build-templates-bundle:v$BUILD_TAG
 
-$SCRIPTDIR/util-package-bundle.sh $BUNDLE
-  
-CM=$(mktemp)
-cat > $CM <<OCILOCATION
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: build-pipelines-defaults 
-data: 
-  default_build_bundle: "Your Bundle Here" 
-OCILOCATION
-
-yq -M e ".data.default_build_bundle=\"$BUNDLE\"" $CM | oc apply -f -
-
-echo "Pipelines Configured to come from: "
-oc get cm build-pipelines-defaults  -o yaml | yq e '.data' -
-  
-
-
-
-  
+# create a new bundle and install as default for this namespace
+$SCRIPTDIR/util-package-bundle.sh $BUNDLE 
+$SCRIPTDIR/util-install-bundle.sh $BUNDLE
+   

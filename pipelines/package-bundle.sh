@@ -9,7 +9,7 @@ BUNDLE=quay.io/redhat-appstudio/build-templates-bundle:v0.1.1
 
 echo "Warning: You are updating the default bundle in redhat-appstudio" 
 echo "This is disabled unless you pass -confirm on the cmdline"
-if ["$1" = "-confirm"]; then 
+if [ "$1" = "-confirm" ]; then 
     echo "Creating Release $BUNDLE "
 else 
     echo "Cannot push to redhat-appstudio without a -confirm on command line."
