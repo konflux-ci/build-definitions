@@ -2,7 +2,7 @@
 
 This directory the OCI bundle with default pipelines installed for build-definitions.
 
-In `package-bundle.sh` set this to the correct version.  
+Update `pipelines/release-build.sh` to set he release tag to a specific version.  
 
 Currently set manually (v0.1, v0.1.1), but when integrated into a CI, will shift to use git commit SHA. 
 

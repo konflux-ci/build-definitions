@@ -11,12 +11,23 @@ if [ "$REPO_USER" = "redhat-appstudio" ]; then
 fi 
 if [  -z "$MY_QUAY_USER" ]; then
     echo "MY_QUAY_USER is not set, skip this build."
-else 
-    echo "Using $MY_QUAY_USER to push results "
-    docker build -t quay.io/$MY_QUAY_USER/appstudio-utils:v0.1 .
-    docker push quay.io/$MY_QUAY_USER/appstudio-utils:v0.1 
-    exit 0 
+    exit 0
 fi 
+BUILD_TAG=$(date +"%Y-%m-%d-%H%M%S") 
+IMG="quay.io/$MY_QUAY_USER/appstudio-utils:$BUILD_TAG"
+echo "Using $MY_QUAY_USER to push results "
+docker build -t $IMG .
+docker push $IMG
+
+for TASK in util-tasks/*.yaml ; do
+    echo $TASK
+    cat $TASK | 
+        yq -M e ".spec.steps[0].image=\"$IMG\"" - | \
+        oc apply -f - 
+done 
+
+
+
  
 
  
