@@ -4,6 +4,11 @@ This repository contains components that are installed or managed by the managed
 
 This includes default Pipelines and Tasks. You need to have bootstrapped a working appstudio configuration from (see `https://github.com/redhat-appstudio/infra-deployments`) for the dev of pipelines or new tasks. 
 
+Pipelines are delivered into App Studio via `quay.io/redhat-appstudio/build-templates-bundle:v0.1.1` (the tag will be updated every change)
+
+Tasks are delivered into App Studio via Cluster tasks installedfrom `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/clustertasks` 
+App Studio specific cluster tasks will be found in this repository. Currently a set of utilties are bundled with App Studio in `quay.io/redhat-appstudio/appstudio-utils:v0.1` as a convenience but tasks may be run from different per-task containers in future. 
+
 ## Devmode for Pipelines 
 
 The pipelines can be found in the `pipelines` directories. 
