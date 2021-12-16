@@ -7,7 +7,7 @@
 # all other directories are live and have no marker (done)
  
 MARKER=.appstudio-mark-unused 
-
+ 
 cd workspace/source 
 echo "Cleanup:" 
 BEFORE=$(du -h . | tail -n 1)
@@ -16,8 +16,10 @@ for build in ./pv-* ; do
     if [ -d "$build" ]; then 
         echo "Directory: $build"
         echo "unused" > "$build/$MARKER"  
-    else   
-        echo "Warning - Some files prefixed with pv- $build"
+    else 
+        if [ -f "$build" ]; then   
+         echo "Warning - Some files prefixed with pv- $build"
+        fi
     fi 
 done 
 
@@ -34,7 +36,9 @@ for build in ./pv-* ; do
         echo "Removing: $(du -h $build | tail -n 1)" 
         rm -rf $build 
     else
-        echo "Keeping: $(du -h $build | tail -n 1)" 
+        if [ -d "$build" ]; then   
+            echo "Keeping: $(du -h $build | tail -n 1)" 
+        fi
     fi 
 done
 AFTER=$(du -h . | tail -n 1)
