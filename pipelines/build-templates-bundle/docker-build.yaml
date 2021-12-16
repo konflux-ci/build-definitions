@@ -11,6 +11,9 @@ spec:
     - description: 'Source Repository URL'
       name: git-url
       type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
     - description: 'Fully Qualified Output Image'
       name: output-image
       type: string
@@ -39,6 +42,8 @@ spec:
       params:
         - name: url
           value: $(params.git-url)
+        - name: revision
+          value: $(params.revision)
       taskRef:
         kind: ClusterTask
         name: git-clone
