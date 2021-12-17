@@ -18,10 +18,10 @@ spec:
     - description: 'Fully Qualified Output Image'
       name: output-image
       type: string
-    - default: .
-      description: The path to your source code
-      name: PATH_CONTEXT
+    - description: The path to your source code
+      name: path-context 
       type: string
+      default: .
   tasks:
     - name: quick-build-test 
       taskRef:
@@ -44,7 +44,7 @@ spec:
         - name: url
           value: $(params.git-url)
         - name: revision
-          value: $(params.revision)
+          value: "$(params.revision)"
       taskRef:
         kind: ClusterTask
         name: git-clone
