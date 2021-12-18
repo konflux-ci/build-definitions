@@ -11,18 +11,24 @@ spec:
     - description: 'Source Repository URL'
       name: git-url
       type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
+      default: main
     - description: 'Fully Qualified Output Image'
       name: output-image
       type: string
-    - default: .
-      description: The path to your source code
-      name: PATH_CONTEXT
+    - description: The path to your source code
+      name: path-context 
       type: string
+      default: .
   tasks:
     - name: clone-repository
       params:
         - name: url
           value: $(params.git-url)
+        - name: revision
+          value: "$(params.revision)"
       taskRef:
         kind: ClusterTask
         name: git-clone
