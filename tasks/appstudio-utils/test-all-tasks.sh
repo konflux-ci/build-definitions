@@ -45,7 +45,6 @@ spec:
       params:
         - name: SCRIPT 
           value: |
-            #!/usr/bin/env bash 
             echo "Devfile dockerfile : $(tasks.analyze-devfile.results.dockerfile)" 
             echo "Devfile path: $(tasks.analyze-devfile.results.path)" 
             echo "Devfile deploy: $(tasks.analyze-devfile.results.deploy)" 

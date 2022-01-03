@@ -1,5 +1,5 @@
 #!/usr/bin/env bash  
- echo "Removing Unused Build Directories" 
+echo "Removing Unused Build Directories"
 # GC algorithm
 # mark all build directories unused 
 # rm unused marker in live pipeline-runs
@@ -13,13 +13,11 @@ echo "Cleanup:"
 BEFORE=$(du -h . | tail -n 1)
 # mark all unused 
 for build in ./pv-* ; do   
-    if [ -d "$build" ]; then 
+    if [ -d "$build" ]; then
         echo "Directory: $build"
         echo "unused" > "$build/$MARKER"  
-    else 
-        if [ -f "$build" ]; then   
-         echo "Warning - Some files prefixed with pv- $build"
-        fi
+    elif [ -f "$build" ]; then
+        echo "Warning - Some files prefixed with pv- $build"
     fi 
 done 
 
@@ -33,20 +31,18 @@ kubectl get pipelineruns --no-headers -o custom-columns=":metadata.name" | \
 # if still marked unused, may be removed
 for build in ./pv-* ; do 
     if [ -f "$build/$MARKER" ]; then
-        echo "Removing: $(du -h $build | tail -n 1)" 
+        echo "Removing: $(du -hs $build)"
         rm -rf $build 
-    else
-        if [ -d "$build" ]; then   
-            echo "Keeping: $(du -h $build | tail -n 1)" 
-        fi
+    elif [ -d "$build" ]; then
+        echo "Keeping: $(du -hs $build)"
     fi 
 done
-AFTER=$(du -h . | tail -n 1)
+AFTER=$(du -hs .)
 
 CMD=$(basename $0)
-if [ -d "$1" ]; then 
+if [ -d "$1" ]; then
     echo "$CMD Before: $BEFORE After: $AFTER" 
     echo "$CMD Before: $BEFORE After: $AFTER" > $1/status  
 else
     echo "$CMD Before: $BEFORE After: $AFTER" 
-fi 
+fi

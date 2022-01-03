@@ -20,10 +20,3 @@ for TASK in util-tasks/*.yaml ; do
         yq -M e ".spec.steps[0].image=\"$IMG\"" - | \
         oc apply -f - 
 done 
-
-
-
- 
-
- 
- 
