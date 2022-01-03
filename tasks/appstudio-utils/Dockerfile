@@ -1,15 +1,8 @@
 FROM registry.access.redhat.com/ubi8/ubi   
-RUN dnf -y install  wget 
-RUN wget https://github.com/mikefarah/yq/releases/download/v4.15.1/yq_linux_amd64 -O /usr/bin/yq 
-RUN chmod +x /usr/bin/yq
-RUN dnf -y install  jq 
-RUN dnf -y install  skopeo  
-RUN wget https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.9/openshift-client-linux.tar.gz
-RUN tar xvf openshift-client-linux.tar.gz
-RUN mv oc /usr/bin/oc
-RUN mv kubectl /usr/bin/kubectl
-RUN chmod +x /usr/bin/oc
-RUN chmod +x /usr/bin/kubectl
-RUN mkdir /appstudio-utils
-COPY util-scripts   /appstudio-utils/util-scripts 
-RUN chmod +x /appstudio-utils/util-scripts/*.sh
+RUN dnf -y --setopt=tsflags=nodocs install \
+    jq \
+    skopeo && \
+    dnf clean all
+RUN curl -L https://github.com/mikefarah/yq/releases/download/v4.15.1/yq_linux_amd64 -o /usr/bin/yq
+RUN curl -L https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.9/openshift-client-linux.tar.gz | tar -xz -C /usr/bin/
+COPY util-scripts /appstudio-utils/util-scripts
