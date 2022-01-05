@@ -22,8 +22,28 @@ spec:
       name: path-context 
       type: string
       default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
   tasks:
+    - name: appstudio-init
+      params: 
+        - name: image-url 
+          value: "$(params.output-image)"
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-init
+      workspaces:
+        - name: source
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth   
     - name: clone-repository
+      runAfter:
+        -  appstudio-init
       params:
         - name: url
           value: $(params.git-url)
@@ -44,76 +64,24 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
-    - name: quick-build-test
+    - name: appstudio-configure-build
       runAfter:
-        - analyze-devfile
-      taskRef:
-        kind: ClusterTask
-        name: image-exists
-      params:
-        - name: image-url 
-          value: "$(params.output-image)"
-      workspaces:
-        - name: source
-          workspace: workspace
-    - name: skip-rebuild-summary 
+        - analyze-devfile 
       when:
-      - input: $(tasks.quick-build-test.results.exists) 
-        operator: in
-        values: ["true"]  
-      runAfter:
-        - quick-build-test
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client 
-      params:
-        - name: SCRIPT 
-          value: |
-            #!/usr/bin/env bash
-            echo  
-            echo "Build Summary:"
-            echo  
-            echo "Build repository: $(params.git-url)" 
-            echo "Generated Image is in : $(params.output-image)"  
-            echo "Image already existed:  $(tasks.quick-build-test.results.exists)"
-            echo from Devfile 
-            echo "Dockerfile: $(tasks.analyze-devfile.results.dockerfile)" 
-            echo "Build repository: $(tasks.analyze-devfile.results.path)" 
-            echo 
-
-            echo "encoding deploy yaml"
-            DEPLOYFILE="$(tasks.analyze-devfile.results.deploy)"
-            echo "Deploy Yaml: $(DEPLOYFILE)"
-            cat "$DEPLOYFILE"
-            echo "-----"
-            DEPLOY=$(cat $DEPLOYFILE | base64)
-            echo "$DEPLOY"
-
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
-            #this should be put into a gitops repo but will be passed thru to enable deploy 
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/deploy="$DEPLOY"
-
-            echo "Output is in the following annotations:"
-            
-            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
-            
-            echo "Build Image is in 'build.appstudio.openshift.io/image' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
- 
-            echo "Deploy Yaml Image is in 'build.appstudio.openshift.io/deploy' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/deploy}"' 
-
-            echo End Summary  
-      workspaces:
-        - name: manifest-dir 
-          workspace: workspace 
-    - name: build-container
-      when:
-      - input: $(tasks.quick-build-test.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists) 
         operator: in
         values: ["false"] 
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-configure-build
+      workspaces:
+        - name: source
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth      
+    - name: build-container
       params:
         - name: IMAGE
           value: >-
@@ -126,67 +94,60 @@ spec:
         - name: DOCKERFILE
           value: $(tasks.analyze-devfile.results.dockerfile)
         - name: CONTEXT
-          value: /workspace/source
+          value: $(params.path-context)
         - name: TLSVERIFY
           value: 'true'
         - name: FORMAT
           value: oci
-      runAfter:
-        - quick-build-test
+        - name: BUILD_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+        - name: PUSH_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+      runAfter: 
+        - appstudio-configure-build
       taskRef:
         kind: ClusterTask
         name: buildah
       workspaces:
         - name: source
-          workspace: workspace
+          workspace: workspace 
     - name: show-summary
       runAfter:
         - build-container 
       taskRef:
         kind: ClusterTask
-        name: openshift-client
-      params:
-        - name: SCRIPT 
-          value: |
-            #!/usr/bin/env bash
-            echo  
-            echo "Build Summary:"
-            echo  
-            echo "Build repository: $(params.git-url)" 
-            echo "Generated Image is in : $(params.output-image)"  
-            echo "Image already existed:  $(tasks.quick-build-test.results.exists)"
-            echo from Devfile 
-            echo "Dockerfile: $(tasks.analyze-devfile.results.dockerfile)" 
-            echo "Build repository: $(tasks.analyze-devfile.results.path)" 
-            echo 
-
-            echo "encoding deploy yaml"
-            DEPLOYFILE="$(tasks.analyze-devfile.results.deploy)"
-            echo "Deploy Yaml: $(DEPLOYFILE)"
-            cat "$DEPLOYFILE"
-            echo "-----"
-            DEPLOY=$(cat $DEPLOYFILE | base64)
-            echo "$DEPLOY"
-
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
-            #this should be put into a gitops repo but will be passed thru to enable deploy 
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/deploy="$DEPLOY"
-
-            echo "Output is in the following annotations:"
-            
-            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
-            
-            echo "Build Image is in 'build.appstudio.openshift.io/image' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
- 
-            echo "Deploy Yaml Image is in 'build.appstudio.openshift.io/deploy' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/deploy}"' 
-
-            echo End Summary   
-      workspaces:
-        - name: manifest-dir 
-          workspace: workspace
+        name: appstudio-summary
+      params: 
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image) 
+      - name: deploy-yaml
+        value: $(tasks.analyze-devfile.results.deploy) 
+    - name: skip-rebuild-summary 
+      when:
+      - input: $(tasks.appstudio-init.results.exists) 
+        operator: in
+        values: ["true"]  
+      runAfter:
+        - analyze-devfile
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-summary
+      params: 
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image) 
+      - name: deploy-yaml
+        value: $(tasks.analyze-devfile.results.deploy)
   workspaces:
     - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth 
+      optional: true

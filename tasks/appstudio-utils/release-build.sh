@@ -1,6 +1,6 @@
 # local build script
 
-BUILD_TAG=v0.1.1
+BUILD_TAG=v0.1.2
 IMG="quay.io/redhat-appstudio/appstudio-utils:$BUILD_TAG"
 
 echo "Warning: You are updating an image in redhat-appstudio" 

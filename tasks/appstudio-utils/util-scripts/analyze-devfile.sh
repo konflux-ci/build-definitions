@@ -29,11 +29,15 @@ echo "Deploy: $DEPLOYFILE"
 echo   
 echo "Deploy contents:"
 cat "$DEPLOYFILE"
-echo   
+echo  
+echo "Deployment Yaml Encoded into output"  
+DEPLOY=$(cat $DEPLOYFILE | base64 -w 0)   
+echo $DEPLOY 
+echo "---------"
   
 echo -n "$DOCKERFILE" >  $1/dockerfile  
 echo -n "$BC" > $1/path
-echo -n "$DEPLOYFILE" > $1/deploy
+echo -n "$DEPLOY" > $1/deploy
 
   
   
