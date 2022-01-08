@@ -31,14 +31,14 @@ spec:
       runAfter:
         - clone-repository
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: analyze-devfile
       workspaces:
         - name: source
           workspace: workspace
     - name: post-devfile
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: appstudio-utils 
       runAfter:
         - analyze-devfile
@@ -48,13 +48,14 @@ spec:
             #!/usr/bin/env bash 
             echo "Devfile dockerfile : $(tasks.analyze-devfile.results.dockerfile)" 
             echo "Devfile path: $(tasks.analyze-devfile.results.path)" 
-            echo "Devfile deploy: $(tasks.analyze-devfile.results.deploy)" 
+            echo "Devfile deploy:"  
+            echo $(tasks.analyze-devfile.results.deploy) | base64 -d  
       workspaces:
         - name: source 
           workspace: workspace
     - name: yes-image-exists
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: image-exists
       params:
         - name: image-url 
@@ -64,7 +65,7 @@ spec:
           workspace: workspace 
     - name: no-image-exists
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: image-exists
       params:
         - name: image-url 
@@ -74,7 +75,7 @@ spec:
           workspace: workspace 
     - name: post
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: appstudio-utils 
       runAfter:
         - no-image-exists
@@ -90,7 +91,7 @@ spec:
           workspace: workspace 
     - name: utils-with-script
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: appstudio-utils 
       runAfter:
         - post
@@ -101,7 +102,7 @@ spec:
             echo "The image: $(params.test-image) exists: $(tasks.yes-image-exists.results.exists)" 
     - name: utils-no-script
       taskRef:
-        kind: Task
+        kind: ClusterTask
         name: appstudio-utils 
       runAfter:
         - post       
@@ -117,7 +118,7 @@ metadata:
 spec:
   params:
     - name: test-image
-      value: "quay.io/redhat-appstudio/appstudio-utils:v0.1"  
+      value: "quay.io/redhat-appstudio/appstudio-utils:v0.1.2"  
   pipelineRef:
     name: test-all-tasks   
   workspaces:
@@ -151,7 +152,7 @@ PVC
    
 echo "$PVC" | oc apply -f - 
 
-oc apply -f $SCRIPTDIR/util-tasks/ 
+#oc apply -f $SCRIPTDIR/util-tasks/ 
 echo "$PIPELINE" | oc apply -f -
 oc delete pr test-all-tasks  
 echo "$PRUN" | oc apply -f -

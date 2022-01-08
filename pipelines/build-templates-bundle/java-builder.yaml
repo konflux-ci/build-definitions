@@ -28,24 +28,32 @@ spec:
       name: path-context 
       type: string
       default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
   tasks:
-    - name: quick-build-test 
-      taskRef:
-        kind: ClusterTask
-        name: image-exists
-      params:
+    - name: appstudio-init
+      params: 
         - name: image-url 
           value: "$(params.output-image)"
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-init
       workspaces:
         - name: source
-          workspace: workspace
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth  
     - name: git-clone
       when:
-      - input: $(tasks.quick-build-test.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists) 
         operator: in
         values: ["false"]
       runAfter:
-        - quick-build-test 
+        - appstudio-init 
       params:
         - name: url
           value: $(params.git-url)
@@ -72,7 +80,22 @@ spec:
       workspaces:
         - name: output
           workspace: workspace
-    - name: s2i-java
+    - name: appstudio-configure-build       
+      runAfter:
+        - git-clone 
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-configure-build
+      workspaces:
+        - name: source
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth   
+    - name: s2i-java  
+      runAfter:
+        - appstudio-configure-build
       params:
         - name: VERSION
           value: openjdk-11-ubi8
@@ -87,8 +110,6 @@ spec:
         - name: BUILDER_IMAGE
           value: >-
             registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
-      runAfter:
-        - git-clone
       taskRef:
         kind: ClusterTask
         name: s2i-java
@@ -100,66 +121,34 @@ spec:
         - s2i-java 
       taskRef:
         kind: ClusterTask
-        name: openshift-client
+        name: appstudio-summary
       params:
-        - name: SCRIPT 
-          value: |
-            #!/usr/bin/env bash
-            echo  
-            echo "Build Summary:"
-            echo
-            echo "Build repository: $(params.git-url)" 
-            echo "Generated Image is in : $(params.output-image)"  
-            echo 
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
-
-            echo "Output is in the following annotations:"
-            
-            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
-            
-            echo "Build Image is in 'build.appstudio.openshift.io/image' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
-
-            echo End Summary  
-      workspaces:
-        - name: manifest-dir 
-          workspace: workspace
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)" 
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)  
     - name: skip-rebuild-summary  
       when:
-      - input: $(tasks.quick-build-test.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists) 
         operator: in
         values: ["true"]  
       runAfter:
-        - quick-build-test
+        - appstudio-init
       taskRef:
         kind: ClusterTask
-        name: openshift-client
+        name: appstudio-summary
       params:
-        - name: SCRIPT 
-          value: |
-            #!/usr/bin/env bash
-            echo  
-            echo "Build Summary:"
-            echo
-            echo "Build repository: $(params.git-url)" 
-            echo "Generated Image is in : $(params.output-image)"  
-            echo  
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=$(params.git-url)
-            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=$(params.output-image)
-
-            echo "Output is in the following annotations:"
-            
-            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
-            
-            echo "Build Image is in 'build.appstudio.openshift.io/image' "
-            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
-
-            echo End Summary  
-      workspaces:
-        - name: manifest-dir 
-          workspace: workspace
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)" 
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)
   workspaces:
     - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth 
+      optional: true
