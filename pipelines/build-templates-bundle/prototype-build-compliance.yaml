@@ -1,0 +1,427 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: prototype-compliance
+  labels:
+    "pipelines.openshift.io/used-by" : "build-cloud"
+    "pipelines.openshift.io/runtime" : "generic"
+    "pipelines.openshift.io/strategy" : "docker" 
+spec:
+  params:
+    - description: 'Source Repository URL'
+      name: git-url
+      type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
+      default: main
+    - description: 'Fully Qualified Output Image'
+      name: output-image
+      type: string
+    - description: The path to your source code
+      name: path-context 
+      type: string
+      default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
+    - description: Webhook for Slack channel
+      name: slack-webhook
+      type: string
+      default: ""
+  tasks:
+    - name: setup-appstudio-init
+      params: 
+        - name: image-url 
+          value: "$(params.output-image)"
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-init
+      workspaces:
+        - name: source
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth  
+    - name: source-clone-repository      
+      runAfter:
+        - setup-appstudio-init 
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: "$(params.revision)"
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: build-appstudio-configure-build 
+      runAfter:
+        - source-clone-repository
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-configure-build
+      workspaces:
+        - name: source
+          workspace: workspace  
+        - name: registry-auth
+          workspace: registry-auth  
+        - name: git-auth 
+          workspace: git-auth
+    - name: secret-detection-detect-secrets
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - source-clone-repository
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for secret-detection-detect-secrets"
+    - name: policy-code-reviews-check
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - setup-appstudio-init 
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for policy-code-reviews-check"  
+    - name: policy-branch-protection-check
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - setup-appstudio-init 
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for policy-branch-protection-check"   
+    - name: build-placeholder-build-step
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-appstudio-configure-build
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for build-placeholder-build-step"  
+    - name: discovery-create-build-graph
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-placeholder-build-step
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for discovery-create-build-graph"  
+    - name: bill-of-materials-create-build-bom
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - discovery-create-build-graph
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for bill-of-materials-create-build-bom"   
+    - name: test-unit-test
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-placeholder-build-step
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for test-unit-test" 
+    - name: coverage-unit-test-coverage
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - test-unit-test
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for coverage-unit-test-coverage" 
+    - name: scan-lint
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-placeholder-build-step
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-lint" 
+    - name: scan-dependency-vulnerability-scan
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - bill-of-materials-create-build-bom
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-dependency-vulnerability-scan"  
+    - name: scan-static-security-test
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-placeholder-build-step
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-static-security-test" 
+    - name: scan-code-smells
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - build-placeholder-build-step
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-code-smells" 
+    - name: policy-provenance-check
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - bill-of-materials-create-build-bom
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for policy-provenance-check" 
+    - name: policy-cis-checks
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - bill-of-materials-create-build-bom
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for policy-cis-checks"
+    - name: policy-license-check
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - bill-of-materials-create-build-bom
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for policy-license-check" 
+    - name: package-build-container 
+      params:
+        - name: IMAGE
+          value: >-
+            $(params.output-image)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: $(params.path-context)
+        - name: TLSVERIFY
+          value: 'true'
+        - name: FORMAT
+          value: oci
+        - name: BUILD_EXTRA_ARGS
+          value: "$(tasks.build-appstudio-configure-build.results.buildah-auth-param)"
+        - name: PUSH_EXTRA_ARGS
+          value: "$(tasks.build-appstudio-configure-build.results.buildah-auth-param)"
+      runAfter:
+        - build-placeholder-build-step
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: workspace 
+    - name: discovery-create-output-graph
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - package-build-container
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for discovery-create-output-graph" 
+    - name: bill-of-materials-create-output-bom
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - discovery-create-output-graph
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for bill-of-materials-create-output-bom" 
+    - name: sign-artifacts-build
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - bill-of-materials-create-output-bom
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for sign-artifacts-build"
+    - name: publish-push-to-quay
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - sign-artifacts-build
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for publish-push-to-quay" 
+    - name: scan-twistlock
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - publish-push-to-quay
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-twistlock"
+    - name: provision-provision-dev
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - package-build-container
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for provision-provision-dev" 
+    - name: deploy-deploy-in-dev
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - publish-push-to-quay
+        - provision-provision-dev
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for deploy-deploy-in-dev" 
+    - name: verify-deployment-verify-dev-deployment
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - deploy-deploy-in-dev
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for verify-deployment-verify-dev-deployment" 
+    - name: test-acceptance-test
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - verify-deployment-verify-dev-deployment
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for test-acceptance-test" 
+    - name: scan-dynamic-security-test
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - verify-deployment-verify-dev-deployment
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for scan-dynamic-security-test"
+    - name: cleanup-deprovision-dev
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      runAfter:
+        - scan-dynamic-security-test
+        - scan-twistlock
+        - test-acceptance-test
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "This is a placeholder for cleanup-deprovision-dev"
+    - name: record-results-show-summary
+      runAfter:
+        - cleanup-deprovision-dev
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-summary
+      params: 
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)     
+    - name: message-slack-summary      
+      when:
+      - input: $(params.slack-webhook) 
+        operator: notin
+        values: [""]
+      runAfter:
+        - record-results-show-summary
+      taskRef:
+        kind: ClusterTask
+        name: appstudio-utils 
+      params: 
+      - name: SCRIPT 
+        value: |
+          #!/usr/bin/env bash 
+          echo "This is a placeholder for message-slack-summary"  
+  workspaces:
+    - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth 
+      optional: true
