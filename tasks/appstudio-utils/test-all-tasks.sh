@@ -118,7 +118,7 @@ metadata:
 spec:
   params:
     - name: test-image
-      value: "quay.io/redhat-appstudio/appstudio-utils:v0.1.2"  
+      value: "quay.io/redhat-appstudio/appstudio-utils:v0.1.3"
   pipelineRef:
     name: test-all-tasks   
   workspaces:
