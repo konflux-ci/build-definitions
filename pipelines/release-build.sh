@@ -2,7 +2,7 @@
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 TEMPLATES=$SCRIPTDIR/build-templates-bundle
-BUNDLE=quay.io/redhat-appstudio/build-templates-bundle:v0.1.3
+BUNDLE=quay.io/redhat-appstudio/build-templates-bundle:$BUILD_TAG
 # TODO for CI 
 # IMAGE_FULL_TAG=$(git ls-remote $GITREPO HEAD)
 # IMAGE_SHORT_TAG=${IMAGE_FULL_TAG:position:7}
@@ -16,3 +16,4 @@ else
     exit 1 
 fi 
 $SCRIPTDIR/util-package-bundle.sh $BUNDLE
+$SCRIPTDIR/util-install-bundle.sh $BUNDLE

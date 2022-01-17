@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
-kind: ClusterTask
+kind: Task
 metadata:
-  name: appstudio-tekton-bundle
+  name: tekton-bundle
 spec:
   description: >-
     Bundle tekton manifests into OCI image and push to registry
@@ -16,7 +16,7 @@ spec:
     - name: registry-auth
   steps:
     - name: appstudio-tekton-bundle
-      image: quay.io/redhat-appstudio/appstudio-utils:v0.1.3
+      image: appstudio-utils
       workingDir: $(workspaces.source.path)/$(params.path-context)
       script: |
         #!/bin/bash

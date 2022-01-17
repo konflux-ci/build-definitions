@@ -1,0 +1,98 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: test-all-tasks 
+spec: 
+  params:
+  - description: 'Fully Qualified Image URL'
+    name: test-image
+    type: string
+  - description: 'For testing, a non-existant image'
+    name: non-existant-image
+    type: string
+    default: "quay.io/redhat-appstudio/appstudio-utils:not-real"
+  tasks:
+    - name: clone-repository
+      params:
+        - name: url
+          value:  https://github.com/devfile-samples/devfile-sample-python-basic
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: analyze-devfile
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: analyze-devfile
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: post-devfile
+      taskRef:
+        name: utils-task 
+      runAfter:
+        - analyze-devfile
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "Devfile dockerfile : $(tasks.analyze-devfile.results.dockerfile)" 
+            echo "Devfile path: $(tasks.analyze-devfile.results.path)" 
+            echo "Devfile deploy:"  
+            echo $(tasks.analyze-devfile.results.deploy) | base64 -d  
+      workspaces:
+        - name: source 
+          workspace: workspace
+    - name: yes-image-exists
+      taskRef:
+        name: image-exists
+      params:
+        - name: image-url 
+          value: "$(params.test-image)"
+      workspaces:
+        - name: source
+          workspace: workspace 
+    - name: no-image-exists
+      taskRef:
+        name: image-exists
+      params:
+        - name: image-url 
+          value: "$(params.non-existant-image)"
+      workspaces:
+        - name: source
+          workspace: workspace 
+    - name: post
+      taskRef:
+        name: utils-task 
+      runAfter:
+        - no-image-exists
+        - yes-image-exists
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "Image: $(params.test-image) exists: $(tasks.yes-image-exists.results.exists)" 
+            echo "Image: $(params.non-existant-image) exists: $(tasks.no-image-exists.results.exists)" 
+      workspaces:
+        - name: source 
+          workspace: workspace 
+    - name: utils-with-script
+      taskRef:
+        name: utils-task 
+      runAfter:
+        - post
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "The image: $(params.test-image) exists: $(tasks.yes-image-exists.results.exists)" 
+    - name: utils-no-script
+      taskRef:
+        name: utils-task 
+      runAfter:
+        - post       
+  workspaces:
+    - name: workspace
