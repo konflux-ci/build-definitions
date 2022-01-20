@@ -15,13 +15,16 @@ echo "This is disabled unless you pass -confirm on the cmdline"
 if [ "$1" = "-confirm" ]; then 
     echo "Creating Release $IMG "
     echo "Using redhat-appstudio quay.io user to push results "
-    echo "The tasks in util-tasks need to be updated to reference this tag "
-    echo "The gitops repo for app studio needs to have ClusterTasks created for the tasks in util-task."
-    docker build -t $IMG $SCRIPTDIR
-    docker push $IMG
-
+    echo "The tasks in util-tasks need to be updated to reference this tag"
+    if [ "$SKIP_DOCKER_BUILD" != "true" ]; then
+        docker build -t $IMG $SCRIPTDIR
+        docker push $IMG
+    fi
     for TASK in $SCRIPTDIR/util-tasks/*.yaml ; do
         TASK_NAME=$(basename $TASK | sed 's/\.yaml//')
+        if [ "$TASK_NAME" == "kustomization" ]; then
+           continue
+        fi
         yq -M e ".spec.steps[0].image=\"$IMG\"" $TASK | \
             tkn bundle push -f - quay.io/redhat-appstudio/appstudio-tasks:$TASK_NAME-$BUILD_TAG
     done

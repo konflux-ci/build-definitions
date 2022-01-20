@@ -1,6 +1,8 @@
 #!/bin/bash
 
-if [  -z "$MY_QUAY_USER" ]; then
+export BUILD_TAG=$1
+
+if [ -z "$MY_QUAY_USER" ]; then
     echo "MY_QUAY_USER environment variable must be set"
     exit 1
 fi

@@ -22,6 +22,9 @@ docker push $IMG
 
 for TASK in $SCRIPTDIR/util-tasks/*.yaml ; do
     TASK_NAME=$(basename $TASK | sed 's/\.yaml//')
+    if [ "$TASK_NAME" == "kustomization" ]; then
+       continue
+    fi
     yq -M e ".spec.steps[0].image=\"$IMG\"" $TASK | \
         tkn bundle push -f - quay.io/$MY_QUAY_USER/appstudio-tasks:$TASK_NAME-$BUILD_TAG
 done 
