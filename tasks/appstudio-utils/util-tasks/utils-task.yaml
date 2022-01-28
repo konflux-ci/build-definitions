@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
-kind: ClusterTask
+kind: Task
 metadata:
-  name: appstudio-utils 
+  name: utils-task
 spec:
   description: >-
     Utilities 
@@ -14,7 +14,7 @@ spec:
       optional: true
   steps:
     - name: script 
-      image: quay.io/redhat-appstudio/appstudio-utils:v0.1.3
+      image: appstudio-utils
       script: |
         { set +x ;} 2> /dev/null 
         echo "App Studio Utility Task $(context.task.name)"     

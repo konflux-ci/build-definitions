@@ -36,8 +36,8 @@ spec:
         - name: image-url 
           value: "$(params.output-image)"
       taskRef:
-        kind: ClusterTask
-        name: appstudio-init
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:init-${TAG}
+        name: init
       workspaces:
         - name: source
           workspace: workspace  
@@ -63,8 +63,8 @@ spec:
       runAfter:
         - source-clone-repository
       taskRef:
-        kind: ClusterTask
-        name: appstudio-configure-build
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:configure-build-${TAG}
+        name: configure-build
       workspaces:
         - name: source
           workspace: workspace  
@@ -74,8 +74,8 @@ spec:
           workspace: git-auth
     - name: secret-detection-detect-secrets
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - source-clone-repository
       params:
@@ -85,8 +85,8 @@ spec:
             echo "This is a placeholder for secret-detection-detect-secrets"
     - name: policy-code-reviews-check
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - setup-appstudio-init 
       params:
@@ -96,8 +96,8 @@ spec:
             echo "This is a placeholder for policy-code-reviews-check"  
     - name: policy-branch-protection-check
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - setup-appstudio-init 
       params:
@@ -107,8 +107,8 @@ spec:
             echo "This is a placeholder for policy-branch-protection-check"   
     - name: build-placeholder-build-step
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-appstudio-configure-build
       params:
@@ -118,8 +118,8 @@ spec:
             echo "This is a placeholder for build-placeholder-build-step"  
     - name: discovery-create-build-graph
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
@@ -129,8 +129,8 @@ spec:
             echo "This is a placeholder for discovery-create-build-graph"  
     - name: bill-of-materials-create-build-bom
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - discovery-create-build-graph
       params:
@@ -140,8 +140,8 @@ spec:
             echo "This is a placeholder for bill-of-materials-create-build-bom"   
     - name: test-unit-test
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
@@ -151,8 +151,8 @@ spec:
             echo "This is a placeholder for test-unit-test" 
     - name: coverage-unit-test-coverage
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - test-unit-test
       params:
@@ -162,8 +162,8 @@ spec:
             echo "This is a placeholder for coverage-unit-test-coverage" 
     - name: scan-lint
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
@@ -173,8 +173,8 @@ spec:
             echo "This is a placeholder for scan-lint" 
     - name: scan-dependency-vulnerability-scan
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -184,8 +184,8 @@ spec:
             echo "This is a placeholder for scan-dependency-vulnerability-scan"  
     - name: scan-static-security-test
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
@@ -195,8 +195,8 @@ spec:
             echo "This is a placeholder for scan-static-security-test" 
     - name: scan-code-smells
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
@@ -206,8 +206,8 @@ spec:
             echo "This is a placeholder for scan-code-smells" 
     - name: policy-provenance-check
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -217,8 +217,8 @@ spec:
             echo "This is a placeholder for policy-provenance-check" 
     - name: policy-cis-checks
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -228,8 +228,8 @@ spec:
             echo "This is a placeholder for policy-cis-checks"
     - name: policy-license-check
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -269,8 +269,8 @@ spec:
           workspace: workspace 
     - name: discovery-create-output-graph
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - package-build-container
       params:
@@ -280,8 +280,8 @@ spec:
             echo "This is a placeholder for discovery-create-output-graph" 
     - name: bill-of-materials-create-output-bom
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - discovery-create-output-graph
       params:
@@ -291,8 +291,8 @@ spec:
             echo "This is a placeholder for bill-of-materials-create-output-bom" 
     - name: sign-artifacts-build
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - bill-of-materials-create-output-bom
       params:
@@ -302,8 +302,8 @@ spec:
             echo "This is a placeholder for sign-artifacts-build"
     - name: publish-push-to-quay
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - sign-artifacts-build
       params:
@@ -313,8 +313,8 @@ spec:
             echo "This is a placeholder for publish-push-to-quay" 
     - name: scan-twistlock
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - publish-push-to-quay
       params:
@@ -324,8 +324,8 @@ spec:
             echo "This is a placeholder for scan-twistlock"
     - name: provision-provision-dev
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - package-build-container
       params:
@@ -335,8 +335,8 @@ spec:
             echo "This is a placeholder for provision-provision-dev" 
     - name: deploy-deploy-in-dev
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - publish-push-to-quay
         - provision-provision-dev
@@ -347,8 +347,8 @@ spec:
             echo "This is a placeholder for deploy-deploy-in-dev" 
     - name: verify-deployment-verify-dev-deployment
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - deploy-deploy-in-dev
       params:
@@ -358,8 +358,8 @@ spec:
             echo "This is a placeholder for verify-deployment-verify-dev-deployment" 
     - name: test-acceptance-test
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
@@ -369,8 +369,8 @@ spec:
             echo "This is a placeholder for test-acceptance-test" 
     - name: scan-dynamic-security-test
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
@@ -380,8 +380,8 @@ spec:
             echo "This is a placeholder for scan-dynamic-security-test"
     - name: cleanup-deprovision-dev
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       runAfter:
         - scan-dynamic-security-test
         - scan-twistlock
@@ -395,8 +395,8 @@ spec:
       runAfter:
         - cleanup-deprovision-dev
       taskRef:
-        kind: ClusterTask
-        name: appstudio-summary
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:summary-${TAG}
+        name: summary
       params: 
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
@@ -412,8 +412,8 @@ spec:
       runAfter:
         - record-results-show-summary
       taskRef:
-        kind: ClusterTask
-        name: appstudio-utils 
+        bundle: ${CONTAINER_REPO}/appstudio-tasks:utils-task-${TAG}
+        name: utils-task
       params: 
       - name: SCRIPT 
         value: |

@@ -1,5 +1,5 @@
 apiVersion: tekton.dev/v1beta1
-kind: ClusterTask
+kind: Task
 metadata:
   name: image-exists 
 spec:
@@ -16,7 +16,7 @@ spec:
       optional: true
   steps:
     - name: test-image-exists 
-      image: quay.io/redhat-appstudio/appstudio-utils:v0.1.3
+      image: appstudio-utils
       script: |
         #!/usr/bin/env bash   
         { set +x ;} 2> /dev/null 
