@@ -1,4 +1,4 @@
-# Source for quay.io/redhat-appstudioappstudio-utils:v0.1.3
+# Source for quay.io/redhat-appstudioappstudio-utils:vX.Y.Z
 
 This component provides an image which contains a suite of app-studio specific utilies.
 
