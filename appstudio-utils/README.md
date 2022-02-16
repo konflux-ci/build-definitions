@@ -1,4 +1,4 @@
-# Source for quay.io/redhat-appstudioappstudio-utils:vX.Y.Z
+# Source for quay.io/redhat-appstudioappstudio-utils:$GIT_SHA
 
 This component provides an image which contains a suite of app-studio specific utilies.
 
@@ -10,6 +10,4 @@ Tasks are simply scripts which are called via the same name as the task specific
 The scripts should be written in a way that you can test them inside and outside of tekton.
 These scripts should be put into the `appstudio-utils/util-scripts` directory for packaging by the default container build.
 
-The tasks in this utility containers are found in the `util-tasks` directory. 
-
-To install tasked define here into an app studio, they need to be changed to clustertaks and added to the infra-deployment/components/
+The tasks in this utility containers are found in the `tasks` directory. 
