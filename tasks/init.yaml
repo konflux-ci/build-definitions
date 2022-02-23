@@ -7,7 +7,11 @@ spec:
     App Studio Initialize Pipeline Task, include flags for rebuild and auth.
   params:
     - name: image-url
-      description: Image URL for testing  
+      description: Image URL for testing
+    - name: pipeline-run-name
+      description: PipelineRun name
+    - name: pipeline-run-namespace
+      description: PipelineRun namespace  
   results:
     - name: rebuild-if-exists
       description: true if rebuild needs
@@ -30,7 +34,13 @@ spec:
       script: | 
         #!/bin/bash    
         echo "App Studio Build Initialize: $(params.image-url)" 
-        echo 
+        echo
+
+        curl --fail -X POST http://pvc-cleaner.$(inputs.params.pipeline-run-namespace).svc:8080/pipeline-run \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "pipeline-run-name=$(inputs.params.pipeline-run-name)"
+
+        echo
         echo "Determine if Image Already Exists"
         bash /appstudio-utils/util-scripts/image-exists.sh $(params.image-url) /tekton/results
         
