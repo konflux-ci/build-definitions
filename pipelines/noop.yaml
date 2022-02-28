@@ -28,9 +28,8 @@ spec:
       default: Dockerfile
   tasks:
     - name: start 
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: 
+        name: utils-task
       params:
         - name: SCRIPT 
           value: |
@@ -39,12 +38,11 @@ spec:
             echo "GIT URL: $(params.git-url)" 
             echo "Image URL: $(params.output-image)" 
       workspaces:
-        - name: manifest-dir 
+        - name: source 
           workspace: workspace
     - name: task1 
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: 
+        name: utils-task
       params:
         - name: SCRIPT 
           value: |
@@ -53,12 +51,11 @@ spec:
       runAfter:
         - start 
       workspaces:
-        - name: manifest-dir 
+        - name: source 
           workspace: workspace
     - name: task2 
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: 
+        name: utils-task
       params:
         - name: SCRIPT 
           value: |
@@ -67,12 +64,11 @@ spec:
       runAfter:
         - start 
       workspaces:
-        - name: manifest-dir 
+        - name: source 
           workspace: workspace
     - name: task3 
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: 
+        name: utils-task
       params:
         - name: SCRIPT 
           value: | 
@@ -81,12 +77,11 @@ spec:
       runAfter:
         - task2 
       workspaces:
-        - name: manifest-dir 
+        - name: source 
           workspace: workspace
     - name: merge 
-      taskRef:
-        kind: ClusterTask
-        name: openshift-client
+      taskRef: 
+        name: utils-task
       params:
         - name: SCRIPT 
           value: |
@@ -108,7 +103,7 @@ spec:
         - task1 
         - task3
       workspaces:
-        - name: manifest-dir 
+        - name: source 
           workspace: workspace
   workspaces:
     - name: workspace
