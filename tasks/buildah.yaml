@@ -48,6 +48,8 @@ spec:
   results:
   - description: Digest of the image just built.
     name: IMAGE_DIGEST
+  - name: IMAGE_URL
+    description: Image repository where the built image would be pushed to
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
@@ -76,7 +78,9 @@ spec:
   - image: $(params.BUILDER_IMAGE)
     name: digest-to-results
     resources: {}
-    script: cat $(workspaces.source.path)/image-digest | tee /tekton/results/IMAGE_DIGEST
+    script: |
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
   volumes:
   - emptyDir: {}
     name: varlibcontainers
