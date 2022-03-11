@@ -48,7 +48,7 @@ spec:
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
-      taskRef: 
+      taskRef:
         name: git-clone
       workspaces:
         - name: output
@@ -84,7 +84,7 @@ spec:
             $(params.output-image)
         - name: BUILDER_IMAGE
           value: >-
-            registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
+            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
         - name: STORAGE_DRIVER
           value: vfs
         - name: DOCKERFILE
@@ -101,7 +101,7 @@ spec:
           value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       runAfter:
         - appstudio-configure-build
-      taskRef: 
+      taskRef:
         name: buildah
       workspaces:
         - name: source

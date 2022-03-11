@@ -1,6 +1,6 @@
 ## Sample Pipeline for a NodeJs s2i build provided ootb.
 #
-## If changed by a user, the App Studio HAS service should push the modified 
+## If changed by a user, the App Studio HAS service should push the modified
 ## Pipeline definition into the user's repository.
 
 ## Sample usage by client
@@ -30,13 +30,13 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: nodejs-builder 
+  name: nodejs-builder
   labels:
     "pipelines.openshift.io/used-by" : "build-cloud"
     "pipelines.openshift.io/runtime" : "nodejs"
     "pipelines.openshift.io/strategy" : "s2i"
 spec:
-  params: 
+  params:
     - description: 'Source Repository URL'
       name: git-url
       type: string
@@ -48,7 +48,7 @@ spec:
       name: output-image
       type: string
     - description: The path to your source code
-      name: path-context 
+      name: path-context
       type: string
       default: .
     - description: Path to the Dockerfile
@@ -57,30 +57,30 @@ spec:
       default: Dockerfile
   tasks:
     - name: appstudio-init
-      params: 
-        - name: image-url 
+      params:
+        - name: image-url
           value: "$(params.output-image)"
       taskRef:
         name: init
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
+          workspace: registry-auth
+        - name: git-auth
           workspace: git-auth
-    - name: appstudio-configure-build       
+    - name: appstudio-configure-build
       runAfter:
-        - git-clone 
+        - git-clone
       taskRef:
         name: configure-build
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
-          workspace: git-auth    
+          workspace: registry-auth
+        - name: git-auth
+          workspace: git-auth
     - name: s2i-nodejs
       params:
         - name: VERSION
@@ -93,21 +93,21 @@ spec:
           value: "$(params.output-image)"
         - name: BUILDER_IMAGE
           value: >-
-            registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
+            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
       runAfter:
-        - appstudio-configure-build 
-      taskRef: 
+        - appstudio-configure-build
+      taskRef:
         name: s2i-nodejs
       workspaces:
         - name: source
           workspace: workspace
     - name: git-clone
       when:
-      - input: $(tasks.appstudio-init.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists)
         operator: in
         values: ["false"]
       runAfter:
-        - appstudio-init 
+        - appstudio-init
       params:
         - name: url
           value: "$(params.git-url)"
@@ -128,7 +128,7 @@ spec:
             registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:da1aedf0b17f2b9dd2a46edc93ff1c0582989414b902a28cd79bad8a035c9ea4
         - name: userHome
           value: /tekton/home
-      taskRef: 
+      taskRef:
         name: git-clone
       workspaces:
         - name: output
@@ -140,23 +140,23 @@ spec:
         name: summary
       params:
       - name: pipeline-run-name
-        value: "$(context.pipelineRun.name)" 
+        value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(params.git-url)"
       - name: image-url
         value: $(params.output-image)
-    - name: skip-rebuild-summary 
+    - name: skip-rebuild-summary
       when:
-      - input: $(tasks.appstudio-init.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists)
         operator: in
-        values: ["true"]  
+        values: ["true"]
       runAfter:
         - appstudio-init
       taskRef:
         name: summary
       params:
       - name: pipeline-run-name
-        value: "$(context.pipelineRun.name)" 
+        value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(params.git-url)"
       - name: image-url
@@ -165,5 +165,5 @@ spec:
     - name: workspace
     - name: registry-auth
       optional: true
-    - name: git-auth 
+    - name: git-auth
       optional: true
