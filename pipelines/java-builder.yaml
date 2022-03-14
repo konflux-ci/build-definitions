@@ -44,8 +44,6 @@ spec:
           workspace: workspace
         - name: registry-auth
           workspace: registry-auth
-        - name: git-auth
-          workspace: git-auth
     - name: git-clone
       when:
       - input: $(tasks.appstudio-init.results.exists)
@@ -78,6 +76,8 @@ spec:
       workspaces:
         - name: output
           workspace: workspace
+        - name: basic-auth
+          workspace: git-auth
     - name: appstudio-configure-build
       runAfter:
         - git-clone
@@ -88,8 +88,6 @@ spec:
           workspace: workspace
         - name: registry-auth
           workspace: registry-auth
-        - name: git-auth
-          workspace: git-auth
     - name: s2i-java
       runAfter:
         - appstudio-configure-build
