@@ -1,11 +1,11 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: docker-build 
+  name: docker-build
   labels:
     "pipelines.openshift.io/used-by" : "build-cloud"
     "pipelines.openshift.io/runtime" : "generic"
-    "pipelines.openshift.io/strategy" : "docker" 
+    "pipelines.openshift.io/strategy" : "docker"
 spec:
   params:
     - description: 'Source Repository URL'
@@ -19,7 +19,7 @@ spec:
       name: output-image
       type: string
     - description: The path to your source code
-      name: path-context 
+      name: path-context
       type: string
       default: .
     - description: Path to the Dockerfile
@@ -28,59 +28,59 @@ spec:
       default: Dockerfile
   tasks:
     - name: appstudio-init
-      params: 
-        - name: image-url 
+      params:
+        - name: image-url
           value: "$(params.output-image)"
       taskRef:
         name: init
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
-          workspace: git-auth  
-    - name: clone-repository      
+          workspace: registry-auth
+        - name: git-auth
+          workspace: git-auth
+    - name: clone-repository
       when:
-      - input: $(tasks.appstudio-init.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists)
         operator: in
         values: ["false"]
       runAfter:
-        - appstudio-init 
+        - appstudio-init
       params:
         - name: url
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
-      taskRef: 
+      taskRef:
         name: git-clone
       workspaces:
         - name: output
           workspace: workspace
-    - name: appstudio-configure-build 
+    - name: appstudio-configure-build
       runAfter:
         - clone-repository
       when:
-      - input: $(tasks.appstudio-init.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists)
         operator: in
-        values: ["false"] 
+        values: ["false"]
       taskRef:
         name: configure-build
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
-          workspace: git-auth   
-    - name: build-container 
+          workspace: registry-auth
+        - name: git-auth
+          workspace: git-auth
+    - name: build-container
       params:
         - name: IMAGE
           value: >-
             $(params.output-image)
         - name: BUILDER_IMAGE
           value: >-
-            registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
+            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
         - name: STORAGE_DRIVER
           value: vfs
         - name: DOCKERFILE
@@ -96,29 +96,29 @@ spec:
         - name: PUSH_EXTRA_ARGS
           value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       runAfter:
-        - appstudio-configure-build 
-      taskRef: 
+        - appstudio-configure-build
+      taskRef:
         name: buildah
       workspaces:
         - name: source
           workspace: workspace
     - name: show-summary
       runAfter:
-        - build-container 
+        - build-container
       taskRef:
         name: summary
-      params: 
+      params:
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(params.git-url)"
       - name: image-url
-        value: $(params.output-image)   
-    - name: skip-rebuild-summary  
+        value: $(params.output-image)
+    - name: skip-rebuild-summary
       when:
-      - input: $(tasks.appstudio-init.results.exists) 
+      - input: $(tasks.appstudio-init.results.exists)
         operator: in
-        values: ["true"]  
+        values: ["true"]
       runAfter:
         - appstudio-init
       taskRef:
@@ -129,10 +129,10 @@ spec:
       - name: git-url
         value: "$(params.git-url)"
       - name: image-url
-        value: $(params.output-image)   
+        value: $(params.output-image)
   workspaces:
     - name: workspace
     - name: registry-auth
       optional: true
-    - name: git-auth 
+    - name: git-auth
       optional: true

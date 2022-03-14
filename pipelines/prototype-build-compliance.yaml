@@ -5,7 +5,7 @@ metadata:
   labels:
     "pipelines.openshift.io/used-by" : "build-cloud"
     "pipelines.openshift.io/runtime" : "generic"
-    "pipelines.openshift.io/strategy" : "docker" 
+    "pipelines.openshift.io/strategy" : "docker"
 spec:
   params:
     - description: 'Source Repository URL'
@@ -19,7 +19,7 @@ spec:
       name: output-image
       type: string
     - description: The path to your source code
-      name: path-context 
+      name: path-context
       type: string
       default: .
     - description: Path to the Dockerfile
@@ -32,42 +32,42 @@ spec:
       default: ""
   tasks:
     - name: setup-appstudio-init
-      params: 
-        - name: image-url 
+      params:
+        - name: image-url
           value: "$(params.output-image)"
       taskRef:
         name: init
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
-          workspace: git-auth  
-    - name: source-clone-repository      
+          workspace: registry-auth
+        - name: git-auth
+          workspace: git-auth
+    - name: source-clone-repository
       runAfter:
-        - setup-appstudio-init 
+        - setup-appstudio-init
       params:
         - name: url
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
-      taskRef: 
+      taskRef:
         name: git-clone
       workspaces:
         - name: output
           workspace: workspace
-    - name: build-appstudio-configure-build 
+    - name: build-appstudio-configure-build
       runAfter:
         - source-clone-repository
       taskRef:
         name: configure-build
       workspaces:
         - name: source
-          workspace: workspace  
+          workspace: workspace
         - name: registry-auth
-          workspace: registry-auth  
-        - name: git-auth 
+          workspace: registry-auth
+        - name: git-auth
           workspace: git-auth
     - name: secret-detection-detect-secrets
       taskRef:
@@ -75,139 +75,139 @@ spec:
       runAfter:
         - source-clone-repository
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for secret-detection-detect-secrets"
     - name: policy-code-reviews-check
       taskRef:
         name: utils-task
       runAfter:
-        - setup-appstudio-init 
+        - setup-appstudio-init
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for policy-code-reviews-check"  
+            #!/usr/bin/env bash
+            echo "This is a placeholder for policy-code-reviews-check"
     - name: policy-branch-protection-check
       taskRef:
         name: utils-task
       runAfter:
-        - setup-appstudio-init 
+        - setup-appstudio-init
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for policy-branch-protection-check"   
+            #!/usr/bin/env bash
+            echo "This is a placeholder for policy-branch-protection-check"
     - name: build-placeholder-build-step
       taskRef:
         name: utils-task
       runAfter:
         - build-appstudio-configure-build
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for build-placeholder-build-step"  
+            #!/usr/bin/env bash
+            echo "This is a placeholder for build-placeholder-build-step"
     - name: discovery-create-build-graph
       taskRef:
         name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for discovery-create-build-graph"  
+            #!/usr/bin/env bash
+            echo "This is a placeholder for discovery-create-build-graph"
     - name: bill-of-materials-create-build-bom
       taskRef:
         name: utils-task
       runAfter:
         - discovery-create-build-graph
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for bill-of-materials-create-build-bom"   
+            #!/usr/bin/env bash
+            echo "This is a placeholder for bill-of-materials-create-build-bom"
     - name: test-unit-test
       taskRef:
         name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for test-unit-test" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for test-unit-test"
     - name: coverage-unit-test-coverage
       taskRef:
         name: utils-task
       runAfter:
         - test-unit-test
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for coverage-unit-test-coverage" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for coverage-unit-test-coverage"
     - name: scan-lint
       taskRef:
         name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for scan-lint" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for scan-lint"
     - name: scan-dependency-vulnerability-scan
       taskRef:
         name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for scan-dependency-vulnerability-scan"  
+            #!/usr/bin/env bash
+            echo "This is a placeholder for scan-dependency-vulnerability-scan"
     - name: scan-static-security-test
       taskRef:
         name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for scan-static-security-test" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for scan-static-security-test"
     - name: scan-code-smells
       taskRef:
         name: utils-task
       runAfter:
         - build-placeholder-build-step
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for scan-code-smells" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for scan-code-smells"
     - name: policy-provenance-check
       taskRef:
         name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for policy-provenance-check" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for policy-provenance-check"
     - name: policy-cis-checks
       taskRef:
         name: utils-task
       runAfter:
         - bill-of-materials-create-build-bom
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for policy-cis-checks"
     - name: policy-license-check
       taskRef:
@@ -215,18 +215,18 @@ spec:
       runAfter:
         - bill-of-materials-create-build-bom
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for policy-license-check" 
-    - name: package-build-container 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for policy-license-check"
+    - name: package-build-container
       params:
         - name: IMAGE
           value: >-
             $(params.output-image)
         - name: BUILDER_IMAGE
           value: >-
-            registry.redhat.io/rhel8/buildah@sha256:99cae35f40c7ec050fed3765b2b27e0b8bbea2aa2da7c16408e2ca13c60ff8ee
+            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
         - name: STORAGE_DRIVER
           value: vfs
         - name: DOCKERFILE
@@ -243,40 +243,40 @@ spec:
           value: "$(tasks.build-appstudio-configure-build.results.buildah-auth-param)"
       runAfter:
         - build-placeholder-build-step
-      taskRef: 
+      taskRef:
         name: buildah
       workspaces:
         - name: source
-          workspace: workspace 
+          workspace: workspace
     - name: discovery-create-output-graph
       taskRef:
         name: utils-task
       runAfter:
         - package-build-container
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for discovery-create-output-graph" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for discovery-create-output-graph"
     - name: bill-of-materials-create-output-bom
       taskRef:
         name: utils-task
       runAfter:
         - discovery-create-output-graph
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for bill-of-materials-create-output-bom" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for bill-of-materials-create-output-bom"
     - name: sign-artifacts-build
       taskRef:
         name: utils-task
       runAfter:
         - bill-of-materials-create-output-bom
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for sign-artifacts-build"
     - name: publish-push-to-quay
       taskRef:
@@ -284,19 +284,19 @@ spec:
       runAfter:
         - sign-artifacts-build
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for publish-push-to-quay" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for publish-push-to-quay"
     - name: scan-twistlock
       taskRef:
         name: utils-task
       runAfter:
         - publish-push-to-quay
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for scan-twistlock"
     - name: provision-provision-dev
       taskRef:
@@ -304,10 +304,10 @@ spec:
       runAfter:
         - package-build-container
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for provision-provision-dev" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for provision-provision-dev"
     - name: deploy-deploy-in-dev
       taskRef:
         name: utils-task
@@ -315,39 +315,39 @@ spec:
         - publish-push-to-quay
         - provision-provision-dev
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for deploy-deploy-in-dev" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for deploy-deploy-in-dev"
     - name: verify-deployment-verify-dev-deployment
       taskRef:
         name: utils-task
       runAfter:
         - deploy-deploy-in-dev
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for verify-deployment-verify-dev-deployment" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for verify-deployment-verify-dev-deployment"
     - name: test-acceptance-test
       taskRef:
         name: utils-task
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
-            echo "This is a placeholder for test-acceptance-test" 
+            #!/usr/bin/env bash
+            echo "This is a placeholder for test-acceptance-test"
     - name: scan-dynamic-security-test
       taskRef:
         name: utils-task
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for scan-dynamic-security-test"
     - name: cleanup-deprovision-dev
       taskRef:
@@ -357,39 +357,39 @@ spec:
         - scan-twistlock
         - test-acceptance-test
       params:
-        - name: SCRIPT 
+        - name: SCRIPT
           value: |
-            #!/usr/bin/env bash 
+            #!/usr/bin/env bash
             echo "This is a placeholder for cleanup-deprovision-dev"
     - name: record-results-show-summary
       runAfter:
         - cleanup-deprovision-dev
       taskRef:
         name: summary
-      params: 
+      params:
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(params.git-url)"
       - name: image-url
-        value: $(params.output-image)     
-    - name: message-slack-summary      
+        value: $(params.output-image)
+    - name: message-slack-summary
       when:
-      - input: $(params.slack-webhook) 
+      - input: $(params.slack-webhook)
         operator: notin
         values: [""]
       runAfter:
         - record-results-show-summary
       taskRef:
         name: utils-task
-      params: 
-      - name: SCRIPT 
+      params:
+      - name: SCRIPT
         value: |
-          #!/usr/bin/env bash 
-          echo "This is a placeholder for message-slack-summary"  
+          #!/usr/bin/env bash
+          echo "This is a placeholder for message-slack-summary"
   workspaces:
     - name: workspace
     - name: registry-auth
       optional: true
-    - name: git-auth 
+    - name: git-auth
       optional: true
