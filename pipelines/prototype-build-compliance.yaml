@@ -40,10 +40,6 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
-        - name: registry-auth
-          workspace: registry-auth
-        - name: git-auth
-          workspace: git-auth
     - name: source-clone-repository
       runAfter:
         - setup-appstudio-init
@@ -57,6 +53,8 @@ spec:
       workspaces:
         - name: output
           workspace: workspace
+        - name: basic-auth
+          workspace: git-auth
     - name: build-appstudio-configure-build
       runAfter:
         - source-clone-repository
@@ -67,8 +65,6 @@ spec:
           workspace: workspace
         - name: registry-auth
           workspace: registry-auth
-        - name: git-auth
-          workspace: git-auth
     - name: secret-detection-detect-secrets
       taskRef:
         name: utils-task
