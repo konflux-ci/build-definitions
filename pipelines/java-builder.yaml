@@ -107,6 +107,8 @@ spec:
         - name: BUILDER_IMAGE
           value: >-
             registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
+        - name: PUSH_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       taskRef:
         name: s2i-java
       workspaces:
