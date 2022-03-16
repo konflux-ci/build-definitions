@@ -1,0 +1,34 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: sanity-label-check
+spec:
+  params:
+    - name: sourceImage
+      description: the fully qualified image name
+      default: quay.io/cvpops/test-index:v4.10
+  steps:
+    - name: inspect-image
+      image: quay.io/redhat-appstudio/hacbs-test:stable
+      script: "skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
+    - name: basic-sanity-checks-required-labels
+      image: quay.io/redhat-appstudio/hacbs-test:stable
+      command:
+        - /usr/bin/conftest
+      args:
+        - "test"
+        - "/tekton/home/image_inspect.json"
+        - "--policy"
+        - "/project/image/policy/required-labels.rego"
+        - "--output=json"
+    - name: basic-sanity-checks-deprecated-labels
+      image: quay.io/redhat-appstudio/hacbs-test:stable
+      command:
+        - /usr/bin/conftest
+      args:
+        - "test"
+        - "/tekton/home/image_inspect.json"
+        - "--policy"
+        - "/project/image/policy/deprecated-labels.rego"
+        - "--output=json"
