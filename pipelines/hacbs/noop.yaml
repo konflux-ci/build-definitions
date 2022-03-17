@@ -1,0 +1,113 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: noop 
+  labels:
+    "pipelines.openshift.io/used-by" : "build-cloud"
+    "pipelines.openshift.io/runtime" : "generic"
+    "pipelines.openshift.io/strategy" : "docker" 
+spec:
+  params:
+    - description: 'Source Repository URL'
+      name: git-url
+      type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
+      default: main
+    - description: 'Fully Qualified Output Image'
+      name: output-image
+      type: string
+    - description: The path to your source code
+      name: path-context 
+      type: string
+      default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
+  tasks:
+    - name: start 
+      taskRef: 
+        name: utils-task
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "Simple Pipeline "  
+            echo "GIT URL: $(params.git-url)" 
+            echo "Image URL: $(params.output-image)" 
+      workspaces:
+        - name: source 
+          workspace: workspace
+    - name: task1 
+      taskRef: 
+        name: utils-task
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "task1"  
+      runAfter:
+        - start 
+      workspaces:
+        - name: source 
+          workspace: workspace
+    - name: task2 
+      taskRef: 
+        name: utils-task
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash 
+            echo "task2"     
+      runAfter:
+        - start 
+      workspaces:
+        - name: source 
+          workspace: workspace
+    - name: task3 
+      taskRef: 
+        name: utils-task
+      params:
+        - name: SCRIPT 
+          value: | 
+            #!/usr/bin/env bash 
+            echo "task3"       
+      runAfter:
+        - task2 
+      workspaces:
+        - name: source 
+          workspace: workspace
+    - name: merge 
+      taskRef: 
+        name: utils-task
+      params:
+        - name: SCRIPT 
+          value: |
+            #!/usr/bin/env bash  
+            echo "Noop Test, this step will wait for parallel tasks to be"    
+
+            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/repo=none
+            oc annotate pipelinerun $(context.pipelineRun.name) build.appstudio.openshift.io/image=none
+
+            echo "Output is in the following annotations:"
+            
+            echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
+            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
+            
+            echo "Build Image is in 'build.appstudio.openshift.io/image' "
+            echo 'oc get pr $(context.pipelineRun.name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
+
+      runAfter:
+        - task1 
+        - task3
+      workspaces:
+        - name: source 
+          workspace: workspace
+  workspaces:
+    - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth 
+      optional: true

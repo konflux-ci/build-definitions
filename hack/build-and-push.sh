@@ -32,7 +32,7 @@ PART=1
 COUNT=0
 TASK_TEMP=$(mktemp)
 PIPELINE_TEMP=$(mktemp -d)
-cp $SCRIPTDIR/../pipelines/*.yaml ${PIPELINE_TEMP}
+cp -r $SCRIPTDIR/../pipelines/* ${PIPELINE_TEMP}
 
 ## Limit number of tasks in bundle
 MAX=10
@@ -56,7 +56,7 @@ for TASK in $SCRIPTDIR/../tasks/*.yaml; do
     fi
     echo --- >> $TASK_TEMP
     REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-    for file in $PIPELINE_TEMP/*.yaml; do
+    for file in $PIPELINE_TEMP/*/*.yaml; do
         yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
     done
     COUNT=$((COUNT+1))
@@ -64,13 +64,23 @@ done
 echo Creating $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
 tkn bundle push -f $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
 
-# Build Pipeline budle with pipelines pointing to newly built appstudio-tasks
+# Build Defult Pipeline bundle with pipelines pointing to newly built appstudio-tasks
 PIPELINE_BUNDLE=quay.io/$MY_QUAY_USER/build-templates-bundle:$BUILD_TAG
-for file in $PIPELINE_TEMP/*.yaml; do
+for file in $PIPELINE_TEMP/default/*.yaml; do
     PARAMS="$PARAMS -f $file "
 done
 echo Creating $PIPELINE_BUNDLE
 tkn bundle push $PIPELINE_BUNDLE $PARAMS
+
+# Build HACBS bundle with pipelines pointing to newly built appstudio-tasks
+HACBS_BUNDLE=quay.io/$MY_QUAY_USER/hacbs-templates-bundle:$BUILD_TAG
+PARAMS=""
+for file in $PIPELINE_TEMP/hacbs/*.yaml; do
+    PARAMS="$PARAMS -f $file "
+done
+echo Creating $HACBS_BUNDLE
+tkn bundle push $HACBS_BUNDLE $PARAMS
+
 
 if [ "$SKIP_INSTALL" == "" ]; then
     $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE

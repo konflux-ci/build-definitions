@@ -1,0 +1,148 @@
+## Sample Pipeline for a Java s2i build provided ootb.
+#
+## If changed by a user, the App Studio HAS service should push the modified
+## Pipeline definition into the user's repository.
+
+
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  labels:
+    "pipelines.openshift.io/used-by" : "build-cloud"
+    "pipelines.openshift.io/runtime" : "java"
+    "pipelines.openshift.io/strategy" : "s2i"
+  name: java-builder
+spec:
+  params:
+    - description: 'Source Repository URL'
+      name: git-url
+      type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
+      default: main
+    - description: 'Fully Qualified Output Image'
+      name: output-image
+      type: string
+    - description: The path to your source code
+      name: path-context
+      type: string
+      default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
+  tasks:
+    - name: appstudio-init
+      params:
+        - name: image-url
+          value: "$(params.output-image)"
+      taskRef:
+        name: init
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: registry-auth
+          workspace: registry-auth
+    - name: git-clone
+      when:
+      - input: $(tasks.appstudio-init.results.exists)
+        operator: in
+        values: ["false"]
+      runAfter:
+        - appstudio-init
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: "$(params.revision)"
+        - name: submodules
+          value: 'true'
+        - name: depth
+          value: '1'
+        - name: sslVerify
+          value: 'true'
+        - name: deleteExisting
+          value: 'true'
+        - name: verbose
+          value: 'true'
+        - name: gitInitImage
+          value: >-
+            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:da1aedf0b17f2b9dd2a46edc93ff1c0582989414b902a28cd79bad8a035c9ea4
+        - name: userHome
+          value: /tekton/home
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+        - name: basic-auth
+          workspace: git-auth
+    - name: appstudio-configure-build
+      runAfter:
+        - git-clone
+      taskRef:
+        name: configure-build
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: registry-auth
+          workspace: registry-auth
+    - name: s2i-java
+      runAfter:
+        - appstudio-configure-build
+      params:
+        - name: VERSION
+          value: openjdk-11-ubi8
+        - name: PATH_CONTEXT
+          value: $(params.path-context)
+        - name: TLSVERIFY
+          value: 'true'
+        - name: MAVEN_CLEAR_REPO
+          value: 'false'
+        - name: IMAGE
+          value: "$(params.output-image)"
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
+        - name: PUSH_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+      taskRef:
+        name: s2i-java
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: show-summary
+      runAfter:
+        - s2i-java
+      taskRef:
+        name: summary
+      params:
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)
+    - name: skip-rebuild-summary
+      when:
+      - input: $(tasks.appstudio-init.results.exists)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - appstudio-init
+      taskRef:
+        name: summary
+      params:
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)
+  workspaces:
+    - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth
+      optional: true
