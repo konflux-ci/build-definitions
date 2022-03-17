@@ -131,6 +131,14 @@ spec:
           workspace: workspace
         - name: basic-auth
           workspace: git-auth
+    - name: sanity-label-check
+      runAfter:
+        - s2i-nodejs
+      taskRef:
+        name: sanity-label-check
+      params:
+      - name: sourceImage
+        value: $(params.output-image)
     - name: show-summary
       runAfter:
         - s2i-nodejs

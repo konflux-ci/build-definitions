@@ -104,6 +104,14 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+    - name: sanity-label-check
+      runAfter:
+        - build-container
+      taskRef:
+        name: sanity-label-check
+      params:
+      - name: sourceImage
+        value: $(params.output-image)
     - name: show-summary
       runAfter:
         - build-container

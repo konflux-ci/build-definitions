@@ -112,6 +112,14 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+    - name: sanity-label-check
+      runAfter:
+        - s2i-java
+      taskRef:
+        name: sanity-label-check
+      params:
+      - name: sourceImage
+        value: $(params.output-image)
     - name: show-summary
       runAfter:
         - s2i-java
