@@ -11,7 +11,7 @@ spec:
   steps:
     - name: inspect-image
       image: quay.io/redhat-appstudio/hacbs-test:stable
-      script: "skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
+      script: "skopeo inspect --no-tags docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
       command:
