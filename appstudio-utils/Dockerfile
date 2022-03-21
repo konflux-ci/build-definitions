@@ -7,7 +7,6 @@ RUN curl -L https://mirror.openshift.com/pub/openshift-v4/clients/pipeline/0.21.
 RUN curl -L https://github.com/sigstore/rekor/releases/download/v0.5.0/rekor-cli-linux-amd64 -o /usr/bin/rekor-cli && chmod +x /usr/bin/rekor-cli
 RUN dnf -y --setopt=tsflags=nodocs install \
     jq \
-    skopeo \
     https://github.com/tektoncd/cli/releases/download/v0.22.0/tektoncd-cli-0.22.0_Linux-64bit.rpm && \
     dnf clean all
 COPY util-scripts /appstudio-utils/util-scripts

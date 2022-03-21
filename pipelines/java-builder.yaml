@@ -32,23 +32,23 @@ spec:
       name: dockerfile
       type: string
       default: Dockerfile
+    - description: Force rebuild image
+      name: rebuild
+      default: "false"
   tasks:
     - name: appstudio-init
       params:
         - name: image-url
           value: "$(params.output-image)"
+        - name: rebuild
+          value: "$(params.rebuild)"
       taskRef:
         name: init
-      workspaces:
-        - name: source
-          workspace: workspace
-        - name: registry-auth
-          workspace: registry-auth
     - name: git-clone
       when:
-      - input: $(tasks.appstudio-init.results.exists)
+      - input: $(tasks.appstudio-init.results.build)
         operator: in
-        values: ["false"]
+        values: ["true"]
       runAfter:
         - appstudio-init
       params:
@@ -56,21 +56,6 @@ spec:
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
-        - name: submodules
-          value: 'true'
-        - name: depth
-          value: '1'
-        - name: sslVerify
-          value: 'true'
-        - name: deleteExisting
-          value: 'true'
-        - name: verbose
-          value: 'true'
-        - name: gitInitImage
-          value: >-
-            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:da1aedf0b17f2b9dd2a46edc93ff1c0582989414b902a28cd79bad8a035c9ea4
-        - name: userHome
-          value: /tekton/home
       taskRef:
         name: git-clone
       workspaces:
@@ -91,20 +76,15 @@ spec:
     - name: s2i-java
       runAfter:
         - appstudio-configure-build
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
       params:
-        - name: VERSION
-          value: openjdk-11-ubi8
         - name: PATH_CONTEXT
           value: $(params.path-context)
-        - name: TLSVERIFY
-          value: 'true'
-        - name: MAVEN_CLEAR_REPO
-          value: 'false'
         - name: IMAGE
           value: "$(params.output-image)"
-        - name: BUILDER_IMAGE
-          value: >-
-            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
         - name: PUSH_EXTRA_ARGS
           value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       taskRef:
@@ -112,25 +92,8 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+  finally:
     - name: show-summary
-      runAfter:
-        - s2i-java
-      taskRef:
-        name: summary
-      params:
-      - name: pipeline-run-name
-        value: "$(context.pipelineRun.name)"
-      - name: git-url
-        value: "$(params.git-url)"
-      - name: image-url
-        value: $(params.output-image)
-    - name: skip-rebuild-summary
-      when:
-      - input: $(tasks.appstudio-init.results.exists)
-        operator: in
-        values: ["true"]
-      runAfter:
-        - appstudio-init
       taskRef:
         name: summary
       params:
