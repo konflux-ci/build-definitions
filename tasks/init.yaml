@@ -22,7 +22,7 @@ spec:
         echo 
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
-        if ! skopeo --no-tags inspect docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ]; then
+        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ]; then
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)
