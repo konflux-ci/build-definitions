@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: deprecated-image
+  name: deprecated-image-check
 spec:
   stepTemplate:
     volumeMounts:
@@ -9,6 +9,9 @@ spec:
         mountPath: /data
 
   params:
+    - name: registry
+      description: "Image registry for the tested image"
+      default: registry.access.redhat.com
     - name: source-image
       description: "Image name to test"
     - name: policy-dir
@@ -31,7 +34,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         echo "Querying Pyxis for $(inputs.params.source-image)..."
-        http_code=$(curl -s -o /data/image_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/registry.access.redhat.com/repository/$(inputs.params.source-image)")
+        http_code=$(curl -s -o /data/image_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/$(inputs.params.registry)/repository/$(inputs.params.source-image)")
 
         echo "Response code: $http_code"
         echo -n $http_code > $(results.pyxis-http-code.path)
