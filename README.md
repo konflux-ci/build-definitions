@@ -40,6 +40,8 @@ Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio`, `BUILD_
 
 Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. Images are pushed into OpenShift image streams, by setting environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
 
+Running script `./hack/test-builds.sh hacbs` executes modified pipelines for HACBS.
+
 Script `./hack/test-build.sh` provides way to test on custom git repository and pipeline. Usage example: `./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
 
 ### ShellSpec tests
