@@ -58,6 +58,7 @@ for TASK in $SCRIPTDIR/../tasks/*.yaml; do
     REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
     for file in $PIPELINE_TEMP/*.yaml; do
         yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
+        yq e -i "(.spec.finally[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
     done
     COUNT=$((COUNT+1))
 done
@@ -67,6 +68,9 @@ tkn bundle push -f $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
 # Build Pipeline budle with pipelines pointing to newly built appstudio-tasks
 PIPELINE_BUNDLE=quay.io/$MY_QUAY_USER/build-templates-bundle:$BUILD_TAG
 for file in $PIPELINE_TEMP/*.yaml; do
+    if echo $file | grep -q "kustomization.yaml"; then
+       continue
+    fi
     PARAMS="$PARAMS -f $file "
 done
 echo Creating $PIPELINE_BUNDLE

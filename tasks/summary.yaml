@@ -12,15 +12,9 @@ spec:
       description: Git URL 
     - name: image-url
       description: Image URL 
-    - name: deploy-yaml
-      description: Deployment Yaml from dev-file
-      default: ''
-  workspaces:
-    - name: source
-      optional: true
   steps:
     - name: appstudio-summary  
-      image: appstudio-utils
+      image: registry.redhat.io/openshift4/ose-cli@sha256:e6b307c51374607294d1756b871d3c702251c396efdd44d4ef8db68e239339d3
       script: |
         #!/usr/bin/env bash    
         echo  
@@ -31,13 +25,6 @@ spec:
         echo  
         oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/repo=$(params.git-url)
         oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/image=$(params.image-url)
-        if [ -z "$(params.deploy-yaml)" ]
-        then
-          echo "No Deployment Yaml Found in this Build"    
-        else  
-          echo "Deployment Yaml Found in this Build"    
-          oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/deploy="$(params.deploy-yaml)"
-        fi
      
         echo "Output is in the following annotations:"
 

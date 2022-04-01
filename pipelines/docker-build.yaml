@@ -26,23 +26,23 @@ spec:
       name: dockerfile
       type: string
       default: Dockerfile
+    - description: Force rebuild image
+      name: rebuild
+      default: "false"
   tasks:
     - name: appstudio-init
       params:
         - name: image-url
           value: "$(params.output-image)"
+        - name: rebuild
+          value: "$(params.rebuild)"
       taskRef:
         name: init
-      workspaces:
-        - name: source
-          workspace: workspace
-        - name: registry-auth
-          workspace: registry-auth
     - name: clone-repository
       when:
-      - input: $(tasks.appstudio-init.results.exists)
+      - input: $(tasks.appstudio-init.results.build)
         operator: in
-        values: ["false"]
+        values: ["true"]
       runAfter:
         - appstudio-init
       params:
@@ -61,9 +61,9 @@ spec:
       runAfter:
         - clone-repository
       when:
-      - input: $(tasks.appstudio-init.results.exists)
+      - input: $(tasks.appstudio-init.results.build)
         operator: in
-        values: ["false"]
+        values: ["true"]
       taskRef:
         name: configure-build
       workspaces:
@@ -74,25 +74,19 @@ spec:
     - name: build-container
       params:
         - name: IMAGE
-          value: >-
-            $(params.output-image)
-        - name: BUILDER_IMAGE
-          value: >-
-            registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
-        - name: STORAGE_DRIVER
-          value: vfs
+          value: $(params.output-image)
         - name: DOCKERFILE
           value: $(params.dockerfile)
         - name: CONTEXT
           value: $(params.path-context)
-        - name: TLSVERIFY
-          value: 'true'
-        - name: FORMAT
-          value: oci
         - name: BUILD_EXTRA_ARGS
           value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
         - name: PUSH_EXTRA_ARGS
           value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
       runAfter:
         - appstudio-configure-build
       taskRef:
@@ -100,25 +94,8 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+  finally:
     - name: show-summary
-      runAfter:
-        - build-container
-      taskRef:
-        name: summary
-      params:
-      - name: pipeline-run-name
-        value: "$(context.pipelineRun.name)"
-      - name: git-url
-        value: "$(params.git-url)"
-      - name: image-url
-        value: $(params.output-image)
-    - name: skip-rebuild-summary
-      when:
-      - input: $(tasks.appstudio-init.results.exists)
-        operator: in
-        values: ["true"]
-      runAfter:
-        - appstudio-init
       taskRef:
         name: summary
       params:
