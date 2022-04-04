@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: optional-label-check
+  name: sanity-optional-label-check
 spec:
   params:
     - name: sourceImage
@@ -11,11 +11,11 @@ spec:
 
   steps:
     - name: inspect-image
-      image: quay.io/rsaar/hacbs-test:latest
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       script: "skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
 
     - name: optional-labels-check
-      image: quay.io/rsaar/hacbs-test:latest
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       command:
         - /usr/bin/conftest
       args:
