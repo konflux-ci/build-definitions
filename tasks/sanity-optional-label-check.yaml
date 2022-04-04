@@ -10,17 +10,8 @@ spec:
       default: quay.io/cvpops/test-index:v4.10
 
   steps:
-    - name: inspect-image
+    - name: optional-label-check
       image: quay.io/redhat-appstudio/hacbs-test:latest
-      script: "skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
-
-    - name: optional-labels-check
-      image: quay.io/redhat-appstudio/hacbs-test:latest
-      command:
-        - /usr/bin/conftest
-      args:
-        - "test"
-        - "/tekton/home/image_inspect.json"
-        - "--policy"
-        - "/project/image/policy/optional-labels.rego"
-        - "--output=json"
+      script: |
+        skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json
+        /usr/bin/conftest test /tekton/home/image_inspect.json --policy /project/image/policy/optional-labels.rego --output=json
