@@ -1,0 +1,11 @@
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: sanity-label-check
+    runAfter:
+      - build-container
+    taskRef:
+      name: sanity-label-check
+    params:
+    - name: sourceImage
+      value: $(params.output-image)

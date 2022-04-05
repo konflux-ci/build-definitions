@@ -32,7 +32,8 @@ PART=1
 COUNT=0
 TASK_TEMP=$(mktemp)
 PIPELINE_TEMP=$(mktemp -d)
-cp $SCRIPTDIR/../pipelines/*.yaml ${PIPELINE_TEMP}
+oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
+oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
 
 ## Limit number of tasks in bundle
 MAX=10
@@ -67,14 +68,10 @@ tkn bundle push -f $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
 
 # Build Pipeline budle with pipelines pointing to newly built appstudio-tasks
 PIPELINE_BUNDLE=quay.io/$MY_QUAY_USER/build-templates-bundle:$BUILD_TAG
-for file in $PIPELINE_TEMP/*.yaml; do
-    if echo $file | grep -q "kustomization.yaml"; then
-       continue
-    fi
-    PARAMS="$PARAMS -f $file "
-done
-echo Creating $PIPELINE_BUNDLE
-tkn bundle push $PIPELINE_BUNDLE $PARAMS
+tkn bundle push $PIPELINE_BUNDLE -f ${PIPELINE_TEMP}/base.yaml
+
+HACBS_BUNDLE=quay.io/$MY_QUAY_USER/hacbs-templates-bundle:$BUILD_TAG
+tkn bundle push $HACBS_BUNDLE -f ${PIPELINE_TEMP}/hacbs.yaml
 
 if [ "$SKIP_INSTALL" == "" ]; then
     $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE
