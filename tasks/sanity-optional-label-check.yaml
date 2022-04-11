@@ -13,5 +13,5 @@ spec:
     - name: optional-label-check
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
-        skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json
-        /usr/bin/conftest test /tekton/home/image_inspect.json --policy /project/image/policy/optional-labels.rego --output=json
+        skopeo inspect docker://$(inputs.params.sourceImage) > /tekton/home/optional_label_image_inspect.json
+        /usr/bin/conftest test /tekton/home/optional_label_image_inspect.json --policy /project/image/policy/optional-labels.rego --output=json
