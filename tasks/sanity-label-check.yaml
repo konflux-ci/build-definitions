@@ -7,28 +7,31 @@ spec:
   params:
     - name: sourceImage
       description: the fully qualified image name
-      default: quay.io/cvpops/test-index:v4.10
+  results:
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
   steps:
     - name: inspect-image
       image: quay.io/redhat-appstudio/hacbs-test:stable
       script: "skopeo inspect --no-tags docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
-      command:
-        - /usr/bin/conftest
-      args:
-        - "test"
-        - "/tekton/home/image_inspect.json"
-        - "--policy"
-        - "/project/image/policy/required-labels.rego"
-        - "--output=json"
-    - name: basic-sanity-checks-deprecated-labels
+      script: |
+        /usr/bin/conftest test --no-fail /tekton/home/image_inspect.json \
+        --policy /project/image/ --namespace required_checks \
+        --output=json | tee $(workspaces.sanity-ws.path)/sanity_label_check_output.json
+    - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:stable
-      command:
-        - /usr/bin/conftest
-      args:
-        - "test"
-        - "/tekton/home/image_inspect.json"
-        - "--policy"
-        - "/project/image/policy/deprecated-labels.rego"
-        - "--output=json"
+      script: |
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "ERROR", timestamp: $date}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
+          '.[] | { result: (if (.failures | length > 0) then "FAILURE" else "SUCCESS" end),
+                   timestamp: $date,
+                   namespace,
+                   successes,
+                   failures: (.failures // [])|map(.metadata.details.name)
+                 }' $(workspaces.sanity-ws.path)/sanity_label_check_output.json || true)
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+  workspaces:
+    - name: sanity-ws
