@@ -69,11 +69,28 @@ subjects:
 " | oc apply -f -
 
 #
+# Determine which bundle we should use
+#
+# Todo:
+# - How to discover BUNDLE_NUMBER so it isn't hard coded?
+# - Make this generally more robust
+# - Make sure it works if the local namespace *doesn't* have
+#   build-pipelines-defaults cm
+#
+DEFAULT_BUNDLE=$(
+  # ./build-and-push.sh creates this cm in the current project
+  # and iiuc it overrides the default in `-n build-templates`
+  oc get cm build-pipelines-defaults --output=jsonpath='{.data.default_build_bundle}' )
+BUNDLE_NUMBER=1
+USE_BUNDLE="$(
+  echo "$DEFAULT_BUNDLE" | sed 's/build-templates-bundle/appstudio-tasks/' )-$BUNDLE_NUMBER"
+echo "Using bundle $USE_BUNDLE for task"
+
+#
 # Create the taskrun
 #
 # Todo:
-# - Make it easier to use a default value for the bundle
-#   instead of the current local $GIT_SHA
+# - Test it with the default bundle
 # - Would it be nicer to use `tkn start`?
 #
 echo "apiVersion: tekton.dev/v1beta1
@@ -83,7 +100,7 @@ metadata:
 spec:
   taskRef:
     name: enterprise-contract
-    bundle: quay.io/$USER/appstudio-tasks:$GIT_SHA-1
+    bundle: $USE_BUNDLE
   params:
     - name: PIPELINE_RUN_NAME
       value: $PR_NAME
