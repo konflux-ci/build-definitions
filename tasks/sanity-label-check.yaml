@@ -5,21 +5,34 @@ metadata:
   name: sanity-label-check
 spec:
   params:
-    - name: sourceImage
-      description: the fully qualified image name
+    - name: IMAGE_URL
+      description: The fully qualified image name
+    - name: POLICY_DIR
+      description: "Path to the directory containing conftest policies"
+      default: "/project/image/"
+    - name: POLICY_NAMESPACE
+      description: "Namespace for the conftest policy"
+      default: "required_checks"
+
   results:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   steps:
+    # Inspect the image with skopeo
     - name: inspect-image
       image: quay.io/redhat-appstudio/hacbs-test:stable
-      script: "skopeo inspect --no-tags docker://$(inputs.params.sourceImage) > /tekton/home/image_inspect.json"
+      script: "skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee $(workspaces.sanity-ws.path)/image_inspect.json"
+
+    # Run conftest on the image inspection data
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
       script: |
-        /usr/bin/conftest test --no-fail /tekton/home/image_inspect.json \
-        --policy /project/image/ --namespace required_checks \
+        echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
+        /usr/bin/conftest test --no-fail $(workspaces.sanity-ws.path)/image_inspect.json \
+        --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
         --output=json | tee $(workspaces.sanity-ws.path)/sanity_label_check_output.json
+
+    # Format the test results and save them as the HACBS_TEST_OUTPUT Tekton result
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:stable
       script: |

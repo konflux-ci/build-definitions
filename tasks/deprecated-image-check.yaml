@@ -43,9 +43,10 @@ spec:
 
         if [ "$http_code" == "200" ];
         then
-          echo "Running conftest using $(inputs.params.POLICY_DIR)"
-          conftest test $(workspaces.sanity-ws.path)/repository_data.json -p $(inputs.params.POLICY_DIR) --no-fail \
-          --namespace $(inputs.params.POLICY_NAMESPACE) -o json | tee $(workspaces.sanity-ws.path)/deprecated_image_check_output.json || echo "Some tests failed"
+          echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
+          /usr/bin/conftest test --no-fail $(workspaces.sanity-ws.path)/repository_data.json \
+          --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
+          --output=json | tee $(workspaces.sanity-ws.path)/deprecated_image_check_output.json || echo "Some tests failed"
           echo "Done!"
           exit 0
         elif [ "$http_code" == "404" ];
@@ -55,7 +56,7 @@ spec:
           echo "Unexpected error (HTTP code $http_code) occured during running conftest"
         fi
 
-    # Format the test results and save them as the Tekton result
+    # Format the test results and save them as the HACBS_TEST_OUTPUT Tekton result
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:stable
       script: |
