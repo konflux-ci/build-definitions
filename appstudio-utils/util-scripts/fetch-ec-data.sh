@@ -1,6 +1,19 @@
 #!/usr/bin/bash
 set -euo pipefail
 
+#
+# Fetch data about a pipeline run for use by the enterprise
+# contract policy checker.
+#
+# The one argument is the name of a pipeline run. If that isn't
+# provided it will default to the most recent pipeline run.
+#
+# Note: This script assumes we have access to the cluster
+# where the pipeline run is, and the pipelinerun data itself
+# which is not likely to be the case in the future.
+#
+# See also tasks/enterprise-contract.yaml
+#
 source $(dirname $0)/lib/fetch.sh
 
 # Ensure there's no stale data
@@ -22,8 +35,8 @@ for tr in $( pr-get-tr-names $PR_NAME ); do
 
   # Todo: Also fetch:
   # - task results from Kruno's testing tasks
-  # - image signatures from the container registry
-  # - image attestations from the container registry
+  # - image signatures from the container registry using cosign
+  # - image attestations from the container registry using cosign
   # - tekton-results probably
 done
 
