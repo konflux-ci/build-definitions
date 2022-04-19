@@ -20,10 +20,6 @@ POLICIES_DIR=${POLICIES_DIR:-"$EC_WORK_DIR/policies"}
 POLICY_REPO=${POLICY_REPO:-"https://github.com/hacbs-contract/ec-policies.git"}
 POLICY_REPO_REF=${POLICY_REPO_REF:-"main"}
 
-# Pipeline run name
-PR_NAME=${1:-$( tkn pr describe --last -o name )}
-PR_NAME=$( echo "$PR_NAME" | sed 's|.*/||' )
-
 # Helper functions for fetching stuff
 source $LIB_DIR/title.sh
 source $LIB_DIR/fetch/data.sh

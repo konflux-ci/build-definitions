@@ -16,6 +16,10 @@ set -euo pipefail
 #
 source $(dirname $0)/lib/fetch.sh
 
+# Pipeline run name
+PR_NAME=${1:-$( tkn pr describe --last -o name )}
+PR_NAME=$( echo "$PR_NAME" | sed 's|.*/||' )
+
 # Ensure there's no stale data
 clear-data
 
