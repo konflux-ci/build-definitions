@@ -7,6 +7,7 @@ metadata:
     pipelinesascode.tekton.dev/on-event: "pull_request"
     pipelinesascode.tekton.dev/on-target-branch: "main"
     pipelinesascode.tekton.dev/task: "git-clone"
+    pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -32,21 +33,17 @@ spec:
             value: $(params.repo_url)
           - name: revision
             value: $(params.revision)
-      - name: noop-task
+      - name: yaml-lint-check
         runAfter:
           - fetch-repository
+        taskRef:
+          name: yaml-lint
         workspaces:
-          - name: source
+          - name: shared-workspace
             workspace: workspace
-        taskSpec:
-          workspaces:
-            - name: source
-          steps:
-            - name: noop-task
-              image: registry.access.redhat.com/ubi8/ubi-micro:8.4
-              workingDir: $(workspaces.source.path)
-              script: |
-                exit 0
+        params:
+        - name: args
+          value: ["."]
   workspaces:
     - name: workspace
       persistentVolumeClaim:
