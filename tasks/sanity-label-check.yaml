@@ -18,24 +18,16 @@ spec:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   steps:
-    # Inspect the image with skopeo
-    - name: inspect-image
-      image: quay.io/redhat-appstudio/hacbs-test:stable
-      script: "skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee $(workspaces.sanity-ws.path)/image_inspect.json"
-
-    # Run conftest on the image inspection data
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
       script: |
-        echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
-        /usr/bin/conftest test --no-fail $(workspaces.sanity-ws.path)/image_inspect.json \
-        --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
-        --output=json | tee $(workspaces.sanity-ws.path)/sanity_label_check_output.json
+        skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee /tmp/image_inspect.json
 
-    # Format the test results and save them as the HACBS_TEST_OUTPUT Tekton result
-    - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:stable
-      script: |
+        echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
+        /usr/bin/conftest test --no-fail /tmp/image_inspect.json \
+        --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
+        --output=json | tee /tmp/sanity_label_check_output.json
+
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
         HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
@@ -44,7 +36,5 @@ spec:
                    namespace,
                    successes,
                    failures: (.failures // [])|map(.metadata.details.name)
-                 }' $(workspaces.sanity-ws.path)/sanity_label_check_output.json || true)
+                 }' /tmp/sanity_label_check_output.json || true)
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
-  workspaces:
-    - name: sanity-ws
