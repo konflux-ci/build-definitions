@@ -16,21 +16,16 @@ rekor-uuid-entry() {
 }
 
 # Extract the log index from a transparency url
-# Todo: Make it more robust, use perl maybe
 log-index-from-url() {
   local url=$1
-
-  # Assume it ends with something like '?logIndex=1234'
-  echo "$url" | cut -d= -f2
+  # Assume it has a url param called logIndex
+  perl -MURI -e '%u = URI->new(@ARGV[0])->query_form; print $u{logIndex}' "$url"
 }
 
 # Extract the rekor host from a transparency url
-# Todo: Make it more robust, use perl maybe
 rekor-host-from-url() {
   local url=$1
-
-  # Assume it starts with something like 'https://host.tld/'
-  echo "$url" | cut -d/ -f3
+  perl -MURI -e 'print URI->new(@ARGV[0])->host' "$url"
 }
 
 rekor-log-entry-from-url() {
