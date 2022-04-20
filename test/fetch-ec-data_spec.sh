@@ -98,6 +98,28 @@ git checkout -q FETCH_HEAD
 git rev-parse FETCH_HEAD"
   End
 
+End
+
+Describe 'shorten-sha'
+  local sha="beefba5eba11decade"
+  local short_sha="beefba5eba1"
+
+  Parameters
+    # Expect prefix to be trimmed and sha to be shortened
+    "$sha"
+    "sha256:$sha"
+    "sha512:$sha"
+    "sha512/224:$sha"
+
+    # Presumably bad data, expect prefix to be left alone
+    "shalala:$sha" "shalala:bee"
+    "foo:$sha" "foo:beefba5"
+  End
+
+  Example "Shortening sha string '$1'"
+    When call shorten-sha "$1"
+    The output should eq "${2:-$short_sha}"
+  End
 
 End
 
