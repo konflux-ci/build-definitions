@@ -1,17 +1,11 @@
-## Sample Pipeline for a Java s2i build provided ootb.
-#
-## If changed by a user, the App Studio HAS service should push the modified
-## Pipeline definition into the user's repository.
-
-
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
+  name: template-build
   labels:
-    "pipelines.openshift.io/used-by": "build-cloud"
-    "pipelines.openshift.io/runtime": "java"
-    "pipelines.openshift.io/strategy": "s2i"
-  name: java-builder
+    "pipelines.openshift.io/used-by": ""
+    "pipelines.openshift.io/runtime": ""
+    "pipelines.openshift.io/strategy": ""
 spec:
   params:
     - description: 'Source Repository URL'
@@ -44,7 +38,7 @@ spec:
           value: "$(params.rebuild)"
       taskRef:
         name: init
-    - name: git-clone
+    - name: clone-repository
       when:
       - input: $(tasks.appstudio-init.results.build)
         operator: in
@@ -65,7 +59,11 @@ spec:
           workspace: git-auth
     - name: appstudio-configure-build
       runAfter:
-        - git-clone
+        - clone-repository
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
       taskRef:
         name: configure-build
       workspaces:
@@ -74,21 +72,25 @@ spec:
         - name: registry-auth
           workspace: registry-auth
     - name: build-container
-      runAfter:
-        - appstudio-configure-build
+      params:
+        - name: IMAGE
+          value: $(params.output-image)
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+        - name: CONTEXT
+          value: $(params.path-context)
+        - name: BUILD_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+        - name: PUSH_EXTRA_ARGS
+          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       when:
       - input: $(tasks.appstudio-init.results.build)
         operator: in
         values: ["true"]
-      params:
-        - name: PATH_CONTEXT
-          value: $(params.path-context)
-        - name: IMAGE
-          value: "$(params.output-image)"
-        - name: PUSH_EXTRA_ARGS
-          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+      runAfter:
+        - appstudio-configure-build
       taskRef:
-        name: s2i-java
+        name: $REPLACE_ME
       workspaces:
         - name: source
           workspace: workspace

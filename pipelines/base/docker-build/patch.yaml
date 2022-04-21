@@ -1,0 +1,26 @@
+---
+- op: replace
+  path: /metadata/name
+  value: docker-build
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "generic"
+    "pipelines.openshift.io/strategy": "docker"
+- op: replace
+  path: /spec/tasks/3/taskRef/name
+  value: buildah
+- op: add
+  path: /spec/tasks/3/params
+  value:
+  - name: IMAGE
+    value: $(params.output-image)
+  - name: DOCKERFILE
+    value: $(params.dockerfile)
+  - name: CONTEXT
+    value: $(params.path-context)
+  - name: BUILD_EXTRA_ARGS
+    value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+  - name: PUSH_EXTRA_ARGS
+    value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
