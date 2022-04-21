@@ -1,6 +1,17 @@
 - op: add
   path: /spec/tasks/-
   value:
+    name: sanity-inspect-image
+    runAfter:
+      - build-container
+    taskRef:
+      name: sanity-inspect-image
+    params:
+    - name: IMAGE_URL
+      value: $(params.output-image)
+- op: add
+  path: /spec/tasks/-
+  value:
     name: sanity-label-check
     runAfter:
       - build-container
