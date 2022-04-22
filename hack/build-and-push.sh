@@ -50,11 +50,8 @@ for TASK in $SCRIPTDIR/../tasks/*.yaml; do
         rm $TASK_TEMP
     fi
     # Replace appstidio-utils placeholder by newly build appstudio-utils image
-    if yq -M -e e ".spec.steps[0].image==\"appstudio-utils\"" $TASK &>/dev/null; then
-        yq -M e ".spec.steps[0].image=\"$APPSTUDIO_UTILS_IMG\"" $TASK >> $TASK_TEMP
-    else
-        cat $TASK >> $TASK_TEMP
-    fi
+    yq -M e ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" \
+        $TASK >> $TASK_TEMP
     echo --- >> $TASK_TEMP
     REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
     for file in $PIPELINE_TEMP/*.yaml; do
