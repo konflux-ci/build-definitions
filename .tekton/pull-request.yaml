@@ -9,41 +9,17 @@ metadata:
     pipelinesascode.tekton.dev/task: "git-clone"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
-spec:
+  spec:
   params:
-    - name: repo_url
-      value: "{{ repo_url }}"
+    - name: git-url
+      value: "{{repo_url}}"
     - name: revision
-      value: "{{ revision }}"
-  pipelineSpec:
-    params:
-      - name: repo_url
-      - name: revision
-    workspaces:
-      - name: workspace
-    tasks:
-      - name: fetch-repository
-        taskRef:
-          name: git-clone
-        workspaces:
-          - name: output
-            workspace: workspace
-        params:
-          - name: url
-            value: $(params.repo_url)
-          - name: revision
-            value: $(params.revision)
-      - name: yaml-lint-check
-        runAfter:
-          - fetch-repository
-        taskRef:
-          name: yaml-lint
-        workspaces:
-          - name: shared-workspace
-            workspace: workspace
-        params:
-        - name: args
-          value: ["."]
+      value: "{{revision}}"
+  pipelineRef:
+    bundle: >-
+      quay.io/redhat-appstudio/build-templates-bundle:c135924c0ea4d8c7f5c4c721f866e040d66f14ba
+    name: docker-build
+  serviceAccountName: pipeline
   workspaces:
     - name: workspace
       persistentVolumeClaim:
