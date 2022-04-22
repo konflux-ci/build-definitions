@@ -2,7 +2,7 @@
 #
 # Verifies the given attestation passes the given rego policy
 # usage:
-#   verify-attestation-with-policy.sh <attestation file> <output file> <passed file>
+#   verify-attestation-with-policy.sh <in-toto file> <output file> <passed file>
 # where:
 #   <in-toto file> file containing the in-toto attestation to be verified
 #   <output file>  where to store the result in JSON format
