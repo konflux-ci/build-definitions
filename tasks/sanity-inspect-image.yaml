@@ -13,13 +13,16 @@ spec:
   results:
     - description: Base image the source image is built from
       name: BASE_IMAGE
+  workspaces:
+    - name: workspace
   steps:
   - name: inspect-image
     image: quay.io/redhat-appstudio/hacbs-test:latest
+    workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
     script: |
-      IMAGE_INSPECT=/tmp/image_inspect.json
-      BASE_IMAGE_INSPECT=/tmp/base_image_inspect.json
-      RAW_IMAGE_INSPECT=/tmp/raw_image_inspect.json
+      IMAGE_INSPECT=image_inspect.json
+      BASE_IMAGE_INSPECT=base_image_inspect.json
+      RAW_IMAGE_INSPECT=raw_image_inspect.json
 
       echo "Inspecting manifest for source image $(params.IMAGE_URL)"
       skopeo inspect --no-tags docker://$(params.IMAGE_URL) > $IMAGE_INSPECT
