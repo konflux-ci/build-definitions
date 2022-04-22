@@ -1,0 +1,40 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: hacbs-test-evaluation
+spec:
+  description: >-
+    Show summary of HACBS tests
+  workspaces:
+    - name: workspace
+  params:
+    - name: BASE_IMAGE
+  steps:
+    - name: summary  
+      image: quay.io/redhat-appstudio/hacbs-test:stable
+      workingDir: $(workspaces.workspace.path)/hacbs
+      script: |
+        #!/usr/bin/env bash
+        EXIT=0
+
+        # sanity-label-check
+        FAILURES=$(jq '.[] | .failures // {} | .[] | .msg' sanity-label-check/sanity_label_check_output.json)
+        if [ -n "$FAILURES" ]; then
+          echo sanity-label-check test FAIL:
+          echo "$FAILURES"
+          EXIT=1
+        else
+          echo sanity-label-check test PASS
+        fi
+        echo -------------
+
+        # sanity-inspect-image
+        if [ ! -s sanity-inspect-image/base_image_inspect.json ]; then
+          echo sanity-inspect-image test FAIL
+          echo Unable to inspect base image - $(params.BASE_IMAGE)
+          EXIT=1
+        else
+           echo sanity-inspect-image test PASS
+        fi
+        echo -------------
+        exit $EXIT

@@ -26,3 +26,16 @@
     workspaces:
     - name: workspace
       workspace: workspace
+
+- op: add
+  path: /spec/finally/-
+  value:
+    name: hacbs-test-evaluation
+    taskRef:
+      name: hacbs-test-evaluation
+    params:
+    - name: BASE_IMAGE
+      value: $(tasks.sanity-inspect-image.results.BASE_IMAGE)
+    workspaces:
+    - name: workspace
+      workspace: workspace
