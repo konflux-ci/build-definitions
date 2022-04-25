@@ -1,20 +1,18 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-# Derive a pass/fail value from the OPA output
-#
-# It might change in future so define it here rather than
-# put the logic directly in the task definition
+# This file should contain conftest output in json format
+CONFTEST_OUTPUT_FILE=$1
 
-OPA_OUTPUT_FILE=$1
-OPA_OUTPUT=$( cat $OPA_OUTPUT_FILE )
+# Should be empty if there are no failures
+TESTS_WITH_FAILURES=$( jq '.[] | select(has("failures")) | select(.failures|length > 0)' "$CONFTEST_OUTPUT_FILE" )
 
-if [[ "$OPA_OUTPUT" == '[]' ]]; then
-  # An empty list of deny reasons means all the checks passed
+if [[ -z "$TESTS_WITH_FAILURES" ]]; then
+  # No failures
   echo true
 
 else
-  # Anything else means it failed
+  # Some failures
   echo false
 
 fi

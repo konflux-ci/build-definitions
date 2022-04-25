@@ -45,6 +45,12 @@ save-policy-config() {
   namespace_arg=$(cr-namespace-argument "${1:-}")
   local args
   args=(${namespace_arg} "$(cr-name "${1:-}")") # intentionally not quoting the $namespace_arg so it expands
+
+  local config_file
+  config_file="$DATA_DIR/config.json"
+  mkdir -p $DATA_DIR
+
+  local non_blocking_data
   if ! non_blocking_data=$(kubectl get enterprisecontractpolicies.appstudio.redhat.com "${args[*]}" -o jsonpath='{.spec.exceptions.nonBlocking}'); then
     local namespace=${namespace_arg#-n }
     echo "ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace ${namespace:-$(kubectl config view --minify -o jsonpath='{..namespace}')}" 1>&2
@@ -54,13 +60,13 @@ save-policy-config() {
       return 1
     fi
   else
-    local non_blocking_data_file
-    non_blocking_data_file="$( json-data-file config policy non_blocking_checks)"
-    echo "$non_blocking_data" | jq > "${non_blocking_data_file}"
+    # Save the config data from the ECP
+    echo "$non_blocking_data" | jq '{"config": {"policy": {"non_blocking_checks": . }}}' > "${config_file}"
     return 0
   fi
 
+  # If the ECP isn't there, fall back to use either the configmap or the defaults
   # TODO remove the below lines once the demos don't depend on this
   # Note: the namespace the task is running in needs to have the ec-policy ConfigMap
-  { _policy-config-from-configmap || _default-policy-config ; } | jq > "$( json-data-file config policy )"
+  { _policy-config-from-configmap || _default-policy-config ; } | jq '{"config": {"policy": . }}' > "${config_file}"
 }
