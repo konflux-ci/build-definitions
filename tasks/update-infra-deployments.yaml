@@ -21,10 +21,11 @@ spec:
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 
         git config --global user.name "auto-update"
+        git config --global user.email ""
 
         cp -R "${WORKSPACE_SSH_DIRECTORY_PATH}" "${PARAM_USER_HOME}"/.ssh
-        chmod 700 "${PARAM_USER_HOME}"/.ssh
-        chmod -R 400 "${PARAM_USER_HOME}"/.ssh/*
+        chmod 700 ~/.ssh
+        chmod -R 400 ~/.ssh/*
 
         REPO_NAME=$(echo $(params.ORIGIN_REPO) | cut -f5 -d/)
 
