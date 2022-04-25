@@ -45,3 +45,9 @@ title Violations
 
 title "Passed?"
 ./ec-pass-fail.sh "${output}" | tee "${passed}"
+
+# If strict mode is enabled, fail the script (and the task)  when the policy check fails.
+# Otherwise, complete successfully.
+if [[ "${STRICT_POLICY:-'1'}" == "1" ]]; then
+    [[ "$(cat ${passed})" == "true" ]]
+fi

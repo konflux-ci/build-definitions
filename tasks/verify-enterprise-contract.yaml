@@ -26,7 +26,7 @@ spec:
 
     - name: COSIGN_EXPERIMENTAL
       type: string
-      description: Control transparency log lookups. Set to "1" to enabled it.
+      description: Control transparency log lookups. Set to "0" to disable it.
       default: "1"
 
     - name: REKOR_HOST
@@ -47,6 +47,11 @@ spec:
       type: string
       description: Git sha, branch or tag in git repo for rego policies
       default: main
+
+    - name: STRICT_POLICY
+      type: string
+      description: Fail the task if policy fails. Set to "0" to disable it.
+      default: "1"
 
   results:
     - name: OUTPUT
@@ -110,6 +115,8 @@ spec:
           value: $(params.POLICY_REPO_REF)
         - name: POLICY_REPO
           value: $(params.POLICY_REPO)
+        - name: STRICT_POLICY
+          value: $(params.STRICT_POLICY)
       volumeMounts:
         - name: shared
           mountPath: /shared

@@ -75,6 +75,9 @@ spec:
     #  value: https://github.com/hacbs-contract/ec-policies.git
     #- name: POLICY_REPO_REF
     #  value: main
+    #- name: STRICT_POLICY
+    #  value: \"1\"
+
 " | oc create -f -
 
 #
