@@ -16,6 +16,8 @@ EC_WORK_DIR=${EC_WORK_DIR:-/tmp/ecwork}
 
 DATA_DIR=${DATA_DIR:-"$EC_WORK_DIR/data"}
 POLICIES_DIR=${POLICIES_DIR:-"$EC_WORK_DIR/policies"}
+INPUT_DIR=${INPUT_DIR:-"$EC_WORK_DIR/input"}
+mkdir -p $INPUT_DIR
 mkdir -p $DATA_DIR
 mkdir -p $POLICIES_DIR
 

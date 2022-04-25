@@ -24,7 +24,7 @@ passed="$3"
 # than one attestation, each will be a distinct object in the array. This is
 # convenient because "cosign verify-attestation" may output a stream containing
 # multiple objects - not wrapped in an array.
-attestations=$(jq -s '[.[].payload | @base64d | fromjson]' ${in_toto})
+attestations=$(jq -s '{"attestations": [.[].payload | @base64d | fromjson]}' ${in_toto})
 
 cd $(dirname $0)
 source lib/fetch.sh
@@ -36,9 +36,9 @@ save-policy-config
 
 title Attestations
 # Show a shortened version of the attestations to avoid excessive logging
-echo -n "$attestations" | jq -r '.[].predicate = "..."'
+echo -n "$attestations" | jq -r '.attestations[].predicate = "..."'
 # Save the attestations for opa processing
-echo -n "${attestations}" > $(json-data-file attestations)
+echo -n "${attestations}" > $(json-input-file attestations)
 
 title Violations
 ./check-ec-policy.sh | tee "${output}"

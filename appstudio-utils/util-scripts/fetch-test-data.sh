@@ -23,9 +23,8 @@ for tr in $( pr-get-tr-names $PR_NAME ); do
   data=$( tr-get-result $tr $TEST_NAME )
   if [[ ! -z "${data}" ]]; then
       result_found=1
-      task_name=$( tr-get-task-name ${tr} )
-      # Todo: Use json-merge-with-key to put all results into one file
-      echo "${data}" | jq > $( json-data-file test ${task_name} )
+      input_file=$( json-input-file )
+      json-merge-with-key $data "$input_file" $tr test
   fi
 done
 
