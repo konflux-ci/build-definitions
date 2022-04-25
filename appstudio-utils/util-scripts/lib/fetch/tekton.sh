@@ -23,6 +23,11 @@ tr-get-result() {
   oc get tr/$tr -o jsonpath="{.status.taskResults[?(@.name == \"$key\")].value}"
 }
 
+tr-get-task-name() {
+  local tr=$1
+   oc get tr/$tr -o jsonpath="{.spec.taskRef.name}"
+}
+
 tr-transparency-url() {
   local tr=$1
   tr-get-annotation $tr 'chains.tekton.dev/transparency'

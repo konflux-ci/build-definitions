@@ -17,6 +17,15 @@ spec:
       type: string
       description: Image reference to verify
 
+    - name: PIPELINERUN_NAME
+      type: string
+      description: The name of the pipelinerun to gather task results from
+
+    - name: HACBS_TEST_OUTPUT
+      type: string
+      description: The name of the tekton result that holds the test output
+      default: HACBS_TEST_OUTPUT
+
     - name: PUBLIC_KEY
       type: string
       description: >-
@@ -97,6 +106,19 @@ spec:
           value: $(workspaces.sslcertdir.path)
         - name: COSIGN_EXPERIMENTAL
           value: $(params.COSIGN_EXPERIMENTAL)
+      volumeMounts:
+        - name: shared
+          mountPath: /shared
+
+    - name: fetch-test-data
+      image: appstudio-utils
+      command: [/appstudio-utils/util-scripts/fetch-test-data.sh]
+      args:
+        - $(params.PIPELINERUN_NAME)
+        - $(params.HACBS_TEST_OUTPUT)
+      env:
+        - name: EC_WORK_DIR
+          value: /shared/ec-work-dir
       volumeMounts:
         - name: shared
           mountPath: /shared
