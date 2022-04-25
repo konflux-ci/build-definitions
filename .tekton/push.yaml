@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[git-cli, tasks/git-clone.yaml, tasks/buildah.yaml]"
+    pipelinesascode.tekton.dev/task: "[tasks/update-infra-deployments.yaml, tasks/git-clone.yaml, tasks/buildah.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -73,35 +73,17 @@ spec:
         runAfter:
           - build-bundles
         params:
-          - name: BASE_IMAGE
-            value: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:af7dd5b3b1598a980f17d5f5d3d8a4b11ab4f5184677f7f17ad302baa36bd3c1
-          - name: GIT_USER_NAME
-            value: Build deployer
-          - name: GIT_SCRIPT
+          - name: ORIGIN_REPO
+            value: $(params.git-url)
+          - name: SCRIPT
             value: |
-              ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-              git clone https://github.com/redhat-appstudio/infra-deployments
-              cd infra-deployments
-              git remote add push git@github.com:redhat-appstudio-mr-creation/infra-deployments.git
-              git checkout -b build-definitions-update
               BUNDLE=quay.io/redhat-appstudio/build-templates-bundle
               for file in $(git grep -l $BUNDLE); do
                 sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
               done
-              git commit -a -m "Build definitions update" -m "from $(params.git-url) $(params.revision)"
-              git push -f --set-upstream push build-definitions-update
-
-              set +x
-              curl -H "Authorization: token $(cat /root/.ssh/token)" \
-                -X POST \
-                -H "Accept: application/vnd.github.v3+json" \
-                https://api.github.com/repos/redhat-appstudio/infra-deployments/pulls \
-                -d '{"head":"redhat-appstudio-mr-creation:build-definitions-update","base":"main","title":"Build definitions update"}'
         taskRef:
-          name: git-cli
+          name: update-infra-deployments
         workspaces:
-          - name: source
-            workspace: workspace
           - name: ssh-directory
             workspace: deploy-key
     workspaces:
