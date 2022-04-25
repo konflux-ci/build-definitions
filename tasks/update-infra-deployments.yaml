@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-infra-deployments
+spec:
+  description: Update redhat-appstudio/infra-deployments repository
+  params: 
+    - name: SCRIPT
+      description: Script for changing the infra-deployments
+    - name: ORIGIN_REPO
+  workspaces:
+    - name: ssh-directory
+  steps:
+    - name: update-infra-deployments
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:af7dd5b3b1598a980f17d5f5d3d8a4b11ab4f5184677f7f17ad302baa36bd3c1
+      env:
+        - name: WORKSPACE_SSH_DIRECTORY_PATH
+          value: $(workspaces.ssh-directory.path)
+      script: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+
+        git config --global user.name "auto-update"
+
+        cp -R "${WORKSPACE_SSH_DIRECTORY_PATH}" "${PARAM_USER_HOME}"/.ssh
+        chmod 700 "${PARAM_USER_HOME}"/.ssh
+        chmod -R 400 "${PARAM_USER_HOME}"/.ssh/*
+
+        REPO_NAME=$(echo $ORIGIN_REPO | cut -f5 -d/)
+
+        git clone https://github.com/redhat-appstudio/infra-deployments
+        cd infra-deployments
+        git remote add push git@github.com:redhat-appstudio-mr-creation/infra-deployments.git
+        git checkout -b $REPO_NAME
+
+        $(params.SCRIPT)
+
+        git commit -a -m "$REPO_NAME update" -m "Automatic update"
+        git push -f --set-upstream push $REPO_NAME
+
+        set +x
+        curl -H "Authorization: token $(cat /root/.ssh/token)" \
+          -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/redhat-appstudio/infra-deployments/pulls \
+          -d "{\"head\":\"redhat-appstudio-mr-creation:$REPO_NAME\",\"base\":\"main\",\"title\":\"$REPO_NAME update\"}"
