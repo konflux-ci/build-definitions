@@ -13,20 +13,22 @@ spec:
     - name: POLICY_NAMESPACE
       description: "Namespace for the conftest policy"
       default: "required_checks"
-
+  workspaces:
+    - name: workspace
   results:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   steps:
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
-        skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee /tmp/image_inspect.json
+        skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee image_inspect.json
 
         echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
-        /usr/bin/conftest test --no-fail /tmp/image_inspect.json \
+        /usr/bin/conftest test --no-fail image_inspect.json \
         --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
-        --output=json | tee /tmp/sanity_label_check_output.json
+        --output=json | tee sanity_label_check_output.json
 
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
@@ -36,5 +38,5 @@ spec:
                    namespace,
                    successes,
                    failures: (.failures // [])|map(.metadata.details.name)
-                 }' /tmp/sanity_label_check_output.json || true)
+                 }' sanity_label_check_output.json || true)
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
