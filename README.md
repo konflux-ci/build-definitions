@@ -19,6 +19,10 @@ Once you run the `hack/build-and-push.sh` all pipelines will come from your bund
 
 The pipelines can be found in the `pipelines` directories.
 
+- `base`: creates build-templates-bundle
+- `hacbs`: extension of `base`, adds hacbs tests, creates hacbs-templates-bundle
+- `hacbs-core-service`: extension of `hacbs`, for core services of AppStudio/HACBS, allows to create MR in infra-deployments. Creates hacbs-core-service-templates-bundle.
+
 #### Gitops Mode
 
 Replace the file `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/build-templates/bundle-config.yaml` in your own fork (dev mode). This will sync to the cluster and all builds-definitions will come from the bundle you configure.
