@@ -1,5 +1,11 @@
 #!/usr/bin/bash
 #
+# *******************************************************
+#  NB: This is deprecated and will be removed soon.
+#  Please use start-verify-ec-task.sh instead.
+#
+# *******************************************************
+#
 # Rough hacking guide:
 #
 #  * Commit your changes as required. (No need to push to GitHub.)

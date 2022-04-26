@@ -1,6 +1,16 @@
 #!/usr/bin/bash
 set -euo pipefail
 
+# ***********************************************************
+#  NB: This is deprecated and will be removed soon because
+#  it is used by the old deprecated enterprise-contract task.
+#
+#  See tasks/verify-enterprise-contract.yaml and the related
+#  verify-attestation-with-policy.sh script to see how the
+#  newer enterprise contract task works.
+#
+# ************************************************************
+
 #
 # Fetch data about a pipeline run for use by the enterprise
 # contract policy checker.
