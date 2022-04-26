@@ -28,6 +28,22 @@
       workspace: workspace
 
 - op: add
+  path: /spec/tasks/-
+  value:
+    name: get-clair-results
+    runAfter:
+      - build-container
+    taskRef:
+      name: get-clair-scan
+    params:
+    - name: SHA
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
+    - name: PULLSPEC
+      value: $(params.output-image)
+    workspaces:
+    - name: clair-ws
+      workspace: workspace
+- op: add
   path: /spec/finally/-
   value:
     name: hacbs-test-evaluation
@@ -38,4 +54,15 @@
       value: $(tasks.sanity-inspect-image.results.BASE_IMAGE)
     workspaces:
     - name: workspace
+      workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: conftest-clair
+    runAfter:
+      - get-clair-results
+    taskRef:
+      name: conftest-clair
+    workspaces:
+    - name: conftest-ws
       workspace: workspace
