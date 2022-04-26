@@ -34,6 +34,7 @@ TASK_TEMP=$(mktemp)
 PIPELINE_TEMP=$(mktemp -d)
 oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
 oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
+oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
 ## Limit number of tasks in bundle
 MAX=10
@@ -69,6 +70,9 @@ tkn bundle push $PIPELINE_BUNDLE -f ${PIPELINE_TEMP}/base.yaml
 
 HACBS_BUNDLE=quay.io/$MY_QUAY_USER/hacbs-templates-bundle:$BUILD_TAG
 tkn bundle push $HACBS_BUNDLE -f ${PIPELINE_TEMP}/hacbs.yaml
+
+HACBS_CORE_BUNDLE=quay.io/$MY_QUAY_USER/hacbs-core-service-templates-bundle:latest
+tkn bundle push $HACBS_CORE_BUNDLE -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
 if [ "$SKIP_INSTALL" == "" ]; then
     $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE
