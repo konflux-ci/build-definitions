@@ -53,6 +53,8 @@ USE_BUNDLE="$(
   echo "$DEFAULT_BUNDLE" | sed 's/build-templates-bundle/appstudio-tasks/' )-$BUNDLE_NUMBER"
 echo "Using bundle $USE_BUNDLE for task"
 
+TASK_RUN_NAME="verify-enterprise-contract-$(openssl rand --hex 5)"
+
 #
 # Create the taskrun
 #
@@ -63,7 +65,7 @@ echo "Using bundle $USE_BUNDLE for task"
 echo "apiVersion: tekton.dev/v1beta1
 kind: TaskRun
 metadata:
-  generateName: verify-enterprise-contract-
+  name: $TASK_RUN_NAME
 spec:
   taskRef:
     name: verify-enterprise-contract
@@ -88,4 +90,4 @@ spec:
 #
 # Watch the taskrun that was created
 #
-tkn tr logs -f $( tkn tr describe --last -o name | sed 's|.*/||' )
+tkn tr logs -f $TASK_RUN_NAME
