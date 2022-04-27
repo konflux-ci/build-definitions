@@ -2,15 +2,32 @@
 
 eval "$(shellspec -)"
 
+EC_WORK_DIR=$(mktemp -d)
+export EC_WORK_DIR
+
+cleanup() {
+  rm -rf "${EC_WORK_DIR}"
+}
+BeforeEach 'cleanup'
+
+final_cleanup() {
+  if [[ "${SHELLSPEC_KEEP_TMPDIR}" != "1" ]]; then
+    rm -rf "${EC_WORK_DIR}"
+  else
+    echo "
+Last test EC_WORK_DIR=${EC_WORK_DIR} manually remove it"
+  fi
+}
+AfterAll 'final_cleanup'
+
 Include ./appstudio-utils/util-scripts/lib/fetch.sh
 
 Describe 'json-data-file'
   local root_dir=$( git rev-parse --show-toplevel )
-  local data_dir="/tmp/ecwork/data"
 
   It 'produces expected json file paths'
     When call json-data-file some dir 123 foo 456
-    The output should eq "$data_dir/some/dir/123/foo/456/data.json"
+    The output should eq "$EC_WORK_DIR/data/some/dir/123/foo/456/data.json"
   End
 End
 
@@ -123,6 +140,39 @@ Describe 'shorten-sha'
 
 End
 
-# Todo: Coverage for lib/fetch/cluster
+Describe 'save-policy-config'
+
+  Describe 'fetches from config map'
+    Mock oc
+      oc_args=$*
+      %preserve oc_args
+      echo '{"from": "cluster"}'
+    End
+
+    It 'fetches policy from configmap'
+      When call save-policy-config
+      The variable oc_args should eq 'get configmap ec-policy -o go-template={{index .data "policy.json"}}'
+      The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
+  "from": "cluster"
+}'
+    End
+  End
+
+  Describe 'default fallback when configmap is not present'
+    Mock oc
+      exit 1
+    End
+
+    It 'fallsback to default'
+      When call save-policy-config
+      The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
+  "non_blocking_checks": [
+    "not_useful"
+  ]
+}'
+    End
+  End
+
+End
 
 # Todo: Coverage for liblib/fetch/tekon
