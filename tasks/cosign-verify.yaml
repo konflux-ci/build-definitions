@@ -26,7 +26,7 @@ spec:
       #!/usr/bin/env bash
       set -euo pipefail
       echo "App Studio Utility Task $(context.task.name)"
-      [[ "$(workspaces.sslcertdir.bound)" == "true" ]] && export SSL_CERTS_DIR="$(workspaces.sslcertdir.path)"
+      [[ "$(workspaces.sslcertdir.bound)" == "true" ]] && export SSL_CERT_DIR="$(workspaces.sslcertdir.path)"
       /appstudio-utils/util-scripts/$(context.task.name).sh "$(params.IMAGE)" "$(params.PUBLIC_KEY)" "$(results.VERIFY_JSON.path)"
     name: verify
     image: appstudio-utils
