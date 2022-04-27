@@ -24,6 +24,11 @@
 #  * Run this script:
 #      ./start-verify-ec-task.sh <image-ref>
 #    where <image-ref> is a valid image reference, e.g. quay.io/spam/bacon@sha256:...
+#
+#
+# See also hack/chains/release-pipeline-with-ec-demo.sh in the infra-deployments repo
+# for a more functional demo showing the EC task being used in a pipeline.
+#
 set -euo pipefail
 
 IMAGE_REF="$1"
