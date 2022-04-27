@@ -82,6 +82,11 @@ spec:
     - name: PIPELINERUN_NAME
       value: $PIPELINERUN_NAME
 
+    # Set this so it works with a local instance of Rekor or the
+    # official one.
+    - name: SSL_CERT_DIR
+      value: /var/run/secrets/kubernetes.io/serviceaccount
+
     # Modify these defaults as required
     #- name: POLICY_REPO
     #  value: https://github.com/hacbs-contract/ec-policies.git
