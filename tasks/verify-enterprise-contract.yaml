@@ -43,6 +43,17 @@ spec:
       description: Rekor host for transparency log lookups
       default: https://rekor.sigstore.dev
 
+    - name: SSL_CERT_DIR
+      type: string
+      description: |
+        Path to a directory containing SSL certs to be used when communicating
+        with external services. This is useful when using the integrated registry
+        and a local instance of Rekor on a development cluster which may use
+        certificates issued by a not-commonly trusted root CA. In such cases,
+        "/var/run/secrets/kubernetes.io/serviceaccount" is a good value. Multiple
+        paths can be provided by using the ":" separator.
+      default: ""
+
     # TODO: We should probably use a bundle URL for this:
     # https://www.openpolicyagent.org/docs/v0.12.2/bundles/#bundle-file-format
     # Or an OCI image:
@@ -78,10 +89,15 @@ spec:
         - "--rekor-url=$(params.REKOR_HOST)"
         - $(params.IMAGE_REF)
       env:
-        # TODO: What if the workspace is not set? Seems to have no effect:
-        #   https://issues.redhat.com/browse/HACBS-316
         - name: SSL_CERT_DIR
-          value: $(workspaces.sslcertdir.path)
+          # The Tekton Operator automatically sets the SSL_CERT_DIR env to the value below but,
+          # of course, without the $(param.SSL_CERT_DIR) bit. When a Task Step sets it to a
+          # value, the Tekton Operator does not do any processing of the value. However, Tekton
+          # Pipelines will fail to execute because some of these values are required for its
+          # execution. As a workaround, append the SSL_CERT_DIR value from params to the default
+          # value expected by Tekton Pipelines. NOTE: If params.SSL_CERT_DIR is empty, the value
+          # will contain a trailing ":" - this is ok.
+          value: "/tekton-custom-certs:/etc/ssl/certs:/etc/pki/tls/certs:/system/etc/security/cacerts:$(params.SSL_CERT_DIR)"
         - name: COSIGN_EXPERIMENTAL
           value: $(params.COSIGN_EXPERIMENTAL)
       volumeMounts:
@@ -98,10 +114,15 @@ spec:
         - "--output-file=/shared/image-in-toto-attestation.json"
         - $(params.IMAGE_REF)
       env:
-        # TODO: What if the workspace is not set? Seems to have no effect:
-        #   https://issues.redhat.com/browse/HACBS-316
         - name: SSL_CERT_DIR
-          value: $(workspaces.sslcertdir.path)
+          # The Tekton Operator automatically sets the SSL_CERT_DIR env to the value below but,
+          # of course, without the $(param.SSL_CERT_DIR) bit. When a Task Step sets it to a
+          # value, the Tekton Operator does not do any processing of the value. However, Tekton
+          # Pipelines will fail to execute because some of these values are required for its
+          # execution. As a workaround, append the SSL_CERT_DIR value from params to the default
+          # value expected by Tekton Pipelines. NOTE: If params.SSL_CERT_DIR is empty, the value
+          # will contain a trailing ":" - this is ok.
+          value: "/tekton-custom-certs:/etc/ssl/certs:/etc/pki/tls/certs:/system/etc/security/cacerts:$(params.SSL_CERT_DIR)"
         - name: COSIGN_EXPERIMENTAL
           value: $(params.COSIGN_EXPERIMENTAL)
       volumeMounts:
@@ -140,10 +161,6 @@ spec:
       volumeMounts:
         - name: shared
           mountPath: /shared
-
-  workspaces:
-    - name: sslcertdir
-      optional: true
 
   volumes:
     - name: shared
