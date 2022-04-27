@@ -33,6 +33,8 @@ set -euo pipefail
 
 IMAGE_REF="$1"
 
+PIPELINERUN_NAME="$2"
+
 PUBLIC_KEY_SECRET="${PUBLIC_KEY_SECRET:-cosign-public-key}"
 
 NAMESPACE="$(oc get sa default -o jsonpath='{.metadata.namespace}')"
@@ -76,6 +78,9 @@ spec:
 
     - name: PUBLIC_KEY
       value: k8s://$NAMESPACE/$PUBLIC_KEY_SECRET
+
+    - name: PIPELINERUN_NAME
+      value: $PIPELINERUN_NAME
 
     # Modify these defaults as required
     #- name: POLICY_REPO
