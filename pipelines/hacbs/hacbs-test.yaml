@@ -17,12 +17,9 @@
   value:
     name: sanity-label-check
     runAfter:
-      - build-container
+      - sanity-inspect-image
     taskRef:
       name: sanity-label-check
-    params:
-    - name: IMAGE_URL
-      value: $(params.output-image)
     workspaces:
     - name: workspace
       workspace: workspace
@@ -31,12 +28,10 @@
   value:
     name: sanity-optional-label-check
     runAfter:
-      - build-container
+      - sanity-inspect-image
     taskRef:
       name: sanity-label-check
     params:
-    - name: IMAGE_URL
-      value: $(params.output-image)
     - name: POLICY_NAMESPACE
       value: optional_checks
     workspaces:
