@@ -5,33 +5,33 @@ metadata:
 spec:
   description: >-
     App Studio Summary Pipeline Task.
-  params: 
+  params:
     - name: pipeline-run-name
-      description: pipeline-run to annotate 
+      description: pipeline-run to annotate
     - name: git-url
-      description: Git URL 
+      description: Git URL
     - name: image-url
-      description: Image URL 
+      description: Image URL
   steps:
-    - name: appstudio-summary  
+    - name: appstudio-summary
       image: registry.redhat.io/openshift4/ose-cli@sha256:e6b307c51374607294d1756b871d3c702251c396efdd44d4ef8db68e239339d3
       script: |
-        #!/usr/bin/env bash    
-        echo  
+        #!/usr/bin/env bash
+        echo
         echo "App Studio Build Summary:"
         echo
-        echo "Build repository: $(params.git-url)" 
-        echo "Generated Image is in : $(params.image-url)"  
-        echo  
+        echo "Build repository: $(params.git-url)"
+        echo "Generated Image is in : $(params.image-url)"
+        echo
         oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/repo=$(params.git-url)
         oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/image=$(params.image-url)
-     
+
         echo "Output is in the following annotations:"
 
         echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"' 
+        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"'
 
         echo "Build Image is in 'build.appstudio.openshift.io/image' "
-        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"' 
-        
+        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"'
+
         echo End Summary

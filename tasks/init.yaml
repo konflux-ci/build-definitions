@@ -14,12 +14,12 @@ spec:
   results:
     - name: build
   steps:
-    - name: appstudio-init  
+    - name: appstudio-init
       image: registry.access.redhat.com/ubi8/skopeo@sha256:cc58da50c3842f5f2a4ba8781b60f6052919a5555a000cb4eb18a0bd0241b2b3
-      script: | 
-        #!/bin/bash    
-        echo "App Studio Build Initialize: $(params.image-url)" 
-        echo 
+      script: |
+        #!/bin/bash
+        echo "App Studio Build Initialize: $(params.image-url)"
+        echo
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
         if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ]; then
