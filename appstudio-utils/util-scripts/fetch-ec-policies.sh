@@ -12,8 +12,6 @@ set -euo pipefail
 # The env vars POLICY_REPO and POLICY_REPO_REF can be set to override
 # the defaults for what git repo and branch or sha to use.
 #
-# See also tasks/enterprise-contract.yaml
-#
 source $(dirname $0)/lib/fetch.sh
 
 # Ensure there's no stale data
