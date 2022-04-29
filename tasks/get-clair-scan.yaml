@@ -20,13 +20,13 @@ spec:
         modifiedSha=${temp//:/%3A}
 
         #ugly safety mechanism - need to be improved in future, bleh :(
-        
+
         function safety_mechanism {
 
         #curl request
         http_code=$(curl -o $(workspaces.clair-ws.path)/clair-result.json -w '%{http_code}' -H "Content-type: application/json" -XGET https://quay.io/api/v1/repository/$(echo '$(params.PULLSPEC)' | sed "s/\(.*\):.*/\1/" | sed "s/^[^/]*\///")/manifest/$modifiedSha/security?vulnerabilities=true)
         scan_file=$(workspaces.clair-ws.path)/clair-result.json
-        
+
         if [[ "$http_code" != "200" ]]
         then
           echo "Error, response code is not 200. Response code: $http_code"
@@ -54,20 +54,20 @@ spec:
           while true; do
             "$@" && [ "$retval"==0 ]  && break || {
               if [[ $n -lt $max ]]; then
-                let n++ 
+                let n++
                 echo "Getting clair scan failed, because data were: $(jq '.data' $scan_file). Attempt $n/$max"
                 sleep $delay;
               else
                 echo "The clair scan has status $(jq '.status' $scan_file) and was not obtained in $n attempts."
                 rm -f $scan_file
                 exit 0
-              fi  
-            }   
+              fi
+            }
           done
         }
 
         retry safety_mechanism
 
-        
+
   workspaces:
     - name: clair-ws
