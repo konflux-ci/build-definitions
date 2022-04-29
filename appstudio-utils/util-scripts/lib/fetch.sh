@@ -16,6 +16,8 @@ EC_WORK_DIR=${EC_WORK_DIR:-/tmp/ecwork}
 
 DATA_DIR=${DATA_DIR:-"$EC_WORK_DIR/data"}
 POLICIES_DIR=${POLICIES_DIR:-"$EC_WORK_DIR/policies"}
+mkdir -p $DATA_DIR
+mkdir -p $POLICIES_DIR
 
 POLICY_REPO=${POLICY_REPO:-"https://github.com/hacbs-contract/ec-policies.git"}
 POLICY_REPO_REF=${POLICY_REPO_REF:-"main"}
