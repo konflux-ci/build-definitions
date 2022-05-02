@@ -8,7 +8,7 @@ POLICY_DIR=$EC_WORK_DIR/policies
 
 FORMAT=${1:-pretty}
 
-OPA_QUERY=${OPA_QUERY:-data.hacbs.contract.main.deny}
+OPA_QUERY=${OPA_QUERY:-data.main.deny}
 
 [[ ! -d $DATA_DIR ]] && echo "Data dir $DATA_DIR not found!" && exit 1
 [[ ! -d $POLICY_DIR ]] && echo "Policy dir $POLICY_DIR dir not found!" && exit 1
