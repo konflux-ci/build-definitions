@@ -26,7 +26,20 @@
     workspaces:
     - name: workspace
       workspace: workspace
-
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: sanity-optional-label-check
+    runAfter:
+      - build-container
+    taskRef:
+      name: sanity-optional-label-check
+    params:
+    - name: sourceImage
+      value: $(params.output-image)
+    workspaces:
+    - name: workspace
+      workspace: workspace
 - op: add
   path: /spec/tasks/-
   value:
