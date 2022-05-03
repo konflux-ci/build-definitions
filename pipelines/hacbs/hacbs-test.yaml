@@ -26,7 +26,22 @@
     workspaces:
     - name: workspace
       workspace: workspace
-
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: sanity-optional-label-check
+    runAfter:
+      - build-container
+    taskRef:
+      name: sanity-label-check
+    params:
+    - name: IMAGE_URL
+      value: $(params.output-image)
+    - name: POLICY_NAMESPACE
+      value: optional_checks
+    workspaces:
+    - name: workspace
+      workspace: workspace
 - op: add
   path: /spec/tasks/-
   value:
