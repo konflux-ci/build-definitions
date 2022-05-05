@@ -38,7 +38,7 @@ title Attestations
 # Show a shortened version of the attestations to avoid excessive logging
 echo -n "$attestations" | jq -r '.[].predicate = "..."'
 # Save the attestations for opa processing
-echo -n "${attestations}" > $(json-data-file attestations)
+echo -n "${attestations}" > $(json-input-file attestations)
 
 title Violations
 ./check-ec-policy.sh | tee "${output}"

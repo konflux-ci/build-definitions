@@ -7,7 +7,7 @@ k8s-save-data() {
   local namespace_opt=
   [[ -n $namespace ]] && namespace_opt="-n$namespace"
 
-  local file=$( json-data-file cluster $kind $name )
+  local file=$( json-input-file cluster $kind $name )
 
   echo "Saving $kind $name $namespace_opt"
   oc get $namespace_opt $kind $name -o json > $file
@@ -25,5 +25,5 @@ _default-policy-config() {
 # an EnterpriseContractPolicy crd, see HACBS-244
 save-policy-config() {
   # Note: the namespace the task is running in needs to have the ec-policy ConfigMap
-  { _policy-config-from-configmap || _default-policy-config ; } | jq > "$( json-data-file config policy )"
+  { _policy-config-from-configmap || _default-policy-config ; } | jq > "$( json-input-file config policy )"
 }

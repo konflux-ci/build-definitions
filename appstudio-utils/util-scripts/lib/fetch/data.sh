@@ -6,17 +6,33 @@
 #  $DATA_DIR/foo/bar/123/data.json
 #
 json-data-file() {
-  local dir="$DATA_DIR"
+  rego-input-file "data" "$DATA_DIR" "$@"
+}
 
-  for d in "$@"; do
-    dir="$dir/$d"
+# Each argument will become a directory, e.g. if you call it like this:
+#  json-input-file foo bar 123
+#
+# The result will be this:
+#  $INPUT_DIR/foo/bar/123/input.json
+#
+json-input-file() {
+  rego-input-file "input" "$INPUT_DIR" "$@"
+
+}
+
+rego-input-file() {
+  local TYPE=$1
+  local DIR=$2
+
+  for d in "${@:3}"; do
+    DIR="$DIR/$d"
   done
 
   # This can result in empty dirs if the file is
   # prepared but not actually used but that's okay.
   mkdir -p "$dir"
 
-  file="$dir/data.json"
+  file="$dir/$TYPE.json"
 
   # Better not silently overwrite data
   [[ -f $file ]] && echo "Name clash for $file!" && exit 1

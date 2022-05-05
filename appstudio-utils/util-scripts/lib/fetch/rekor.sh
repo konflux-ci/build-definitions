@@ -57,8 +57,8 @@ rekor-log-entry-save() {
   local rekor_host=${2:-rekor.sigstore.dev}
 
   local entry_data=$( rekor-log-entry $log_index $rekor_host )
-  local entry_file=$( json-data-file rekor $rekor_host index $log_index entry )
-  local att_file=$( json-data-file rekor $rekor_host index $log_index attestation )
+  local entry_file=$( json-input-file rekor $rekor_host index $log_index entry )
+  local att_file=$( json-input-file rekor $rekor_host index $log_index attestation )
 
   echo "Saving log index $log_index from $rekor_host"
   echo "$entry_data" | jq > "$entry_file"

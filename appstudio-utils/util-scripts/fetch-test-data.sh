@@ -21,14 +21,14 @@ for tr in $( pr-get-tr-names $PR_NAME ); do
   if [[ ! -z "${data}" ]]; then
       result_found=1
       task_name=$( tr-get-task-name ${tr} )
-      echo "${data}" | jq > $( json-data-file test ${task_name} )
+      echo "${data}" | jq > $( json-input-file test ${task_name} )
   fi
 done
 
 if [[ -z $result_found ]]; then
   # let's put an an empty hash here to express the the idea
   # that we looked for test results and found none
-  echo '{}' > $( json-data-file test )
+  echo '{}' > $( json-input-file test )
 fi
 
 show-data
