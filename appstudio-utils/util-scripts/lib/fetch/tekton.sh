@@ -27,7 +27,7 @@ tr-get-result() {
 
 tr-get-task-name() {
   local tr=$1
-  oc get tr/$tr -o jsonpath="{.spec.taskRef.name}"
+   oc get tr/$tr -o jsonpath="{.metadata.labels['tekton\.dev/pipelineTask']}"
 }
 
 tr-transparency-url() {
