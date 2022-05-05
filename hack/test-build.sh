@@ -26,14 +26,13 @@ if [ -z "$MY_QUAY_USER" ]; then
   IMG=image-registry.openshift-image-registry.svc:5000/$NS/$APPNAME:$IMAGE_SHORT_TAG
   echo MY_QUAY_USER env variable is not set, pushing to $IMG
 else
-  if ! oc get secret redhat-appstudio-staginguser-pull-secret &>/dev/null; then
-     echo Secret redhat-appstudio-staginguser-pull-secret please create it
-     echo If you are logged into the registry with docker/podman then you can run:
+  if oc get secret redhat-appstudio-staginguser-pull-secret &>/dev/null; then
+     PUSH_WORKSPACE="-w name=registry-auth,secret=redhat-appstudio-staginguser-pull-secret"
+  else
+     echo redhat-appstudio-staginguser-pull-secret is not created, can be created by:
      echo oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=$HOME/.docker/config.json
-     exit 1
   fi
   IMG=quay.io/$MY_QUAY_USER/$APPNAME:$IMAGE_SHORT_TAG
-  PUSH_WORKSPACE="-w name=registry-auth,secret=redhat-appstudio-staginguser-pull-secret"
   echo Building $IMG
 fi
 
