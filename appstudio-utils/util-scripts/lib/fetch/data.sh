@@ -19,7 +19,7 @@ json-data-file() {
   file="$dir/data.json"
 
   # Better not silently overwrite data
-  [[ -f $file ]] && echo "Name clash for $file!" && exit 1
+  [[ -f $file ]] && echo "ERROR: Name clash for $file!" 1>&2 && return 1
 
   echo "$file"
 }

@@ -23,11 +23,18 @@ AfterAll 'final_cleanup'
 Include ./appstudio-utils/util-scripts/lib/fetch.sh
 
 Describe 'json-data-file'
-  local root_dir=$( git rev-parse --show-toplevel )
-
   It 'produces expected json file paths'
     When call json-data-file some dir 123 foo 456
     The output should eq "$EC_WORK_DIR/data/some/dir/123/foo/456/data.json"
+  End
+
+  It 'detects file clashes'
+    mkdir -p "${DATA_DIR}/x"
+    touch "${DATA_DIR}/x/data.json"
+
+    When call json-data-file x
+    The error should equal "ERROR: Name clash for ${DATA_DIR}/x/data.json!"
+    The status should be failure
   End
 End
 
