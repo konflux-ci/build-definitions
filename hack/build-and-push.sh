@@ -30,31 +30,30 @@ fi
 APPSTUDIO_TASKS_REPO=quay.io/$MY_QUAY_USER/appstudio-tasks
 PART=1
 COUNT=0
-TASK_TEMP=$(mktemp)
+TASK_TEMP=$(mktemp -d)
 PIPELINE_TEMP=$(mktemp -d)
+oc kustomize $SCRIPTDIR/../tasks | csplit -s -f $TASK_TEMP/task -b %02d.yaml - /^---$/ '{*}'
 oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
 oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
 oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
 ## Limit number of tasks in bundle
 MAX=10
-for TASK in $SCRIPTDIR/../tasks/*.yaml; do
-    TASK_NAME=$(basename $TASK | sed 's/\.yaml//')
-    if [ "$TASK_NAME" == "kustomization" ]; then
-       continue
-    fi
+TASKS=
+REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
+for TASK in $TASK_TEMP/task*.yaml; do
+    TASK_NAME=$(yq e ".metadata.name" $TASK)
     if [ $COUNT -eq $MAX ]; then
-        echo Creating $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
-        tkn bundle push -f $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
+        echo Creating $REF
+        tkn bundle push $TASKS $REF
         COUNT=0
         PART=$((PART+1))
-        rm $TASK_TEMP
+        TASKS=
     fi
-    # Replace appstidio-utils placeholder by newly build appstudio-utils image
-    yq -M e ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" \
-        $TASK >> $TASK_TEMP
-    echo --- >> $TASK_TEMP
     REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
+    # Replace appstidio-utils placeholder by newly build appstudio-utils image
+    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" $TASK
+    TASKS="$TASKS -f $TASK"
     for file in $PIPELINE_TEMP/*.yaml; do
         yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
         yq e -i "(.spec.finally[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
@@ -62,7 +61,7 @@ for TASK in $SCRIPTDIR/../tasks/*.yaml; do
     COUNT=$((COUNT+1))
 done
 echo Creating $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
-tkn bundle push -f $TASK_TEMP $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
+tkn bundle push $TASKS $REF
 
 # Build Pipeline budle with pipelines pointing to newly built appstudio-tasks
 PIPELINE_BUNDLE=quay.io/$MY_QUAY_USER/build-templates-bundle:$BUILD_TAG
