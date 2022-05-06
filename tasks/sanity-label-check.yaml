@@ -5,8 +5,6 @@ metadata:
   name: sanity-label-check
 spec:
   params:
-    - name: IMAGE_URL
-      description: The fully qualified image name
     - name: POLICY_DIR
       description: "Path to the directory containing conftest policies"
       default: "/project/image/"
@@ -23,15 +21,15 @@ spec:
       image: quay.io/redhat-appstudio/hacbs-test:stable
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
-        skopeo inspect --no-tags docker://$(inputs.params.IMAGE_URL) | tee image_inspect.json
-
         echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
-        /usr/bin/conftest test --no-fail image_inspect.json \
+        /usr/bin/conftest test --no-fail ../sanity-inspect-image/image_inspect.json \
         --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
-        --output=json | tee sanity_label_check_output.json
+        --output=json 2> stderr.txt | tee sanity_label_check_output.json
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        ERR_MSG="$(cat stderr.txt)"
+        ERR_MSG="${ERR_MSG:-unknown}"
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg ERR_MSG "${ERR_MSG: 0: 3000}" --null-input \
+          '{result: "ERROR", timestamp: $date, failures: [$ERR_MSG]}')
         HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
           '.[] | { result: (if (.failures | length > 0) then "FAILURE" else "SUCCESS" end),
                    timestamp: $date,
