@@ -30,9 +30,9 @@ rego-input-file() {
 
   # This can result in empty dirs if the file is
   # prepared but not actually used but that's okay.
-  mkdir -p "$dir"
+  mkdir -p "$DIR"
 
-  file="$dir/$TYPE.json"
+  file="$DIR/$TYPE.json"
 
   # Better not silently overwrite data
   [[ -f $file ]] && echo "Name clash for $file!" && exit 1
