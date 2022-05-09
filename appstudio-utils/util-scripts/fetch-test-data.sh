@@ -21,7 +21,7 @@ for tr in $( pr-get-tr-names $PR_NAME ); do
   if [[ ! -z "${data}" ]]; then
       result_found=1
       task_name=$( tr-get-task-name ${tr} )
-      echo "${data}" | jq > $( json-input-file test ${task_name} )
+      echo "${data}" | jq > /shared/test-results.json
   fi
 done
 

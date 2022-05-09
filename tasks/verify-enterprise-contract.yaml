@@ -141,6 +141,27 @@ spec:
         - name: shared
           mountPath: /shared
 
+    - name: verify-test-results-with-policy
+      image: appstudio-utils
+      command: [/appstudio-utils/util-scripts/verify-test-results-with-policy.sh]
+      args:
+        - /shared/test-results.json
+        - $(results.OUTPUT.path)
+        - $(results.PASSED.path)
+      env:
+        - name: EC_WORK_DIR
+          value: /shared/ec-work-dir
+        - name: POLICY_REPO_REF
+          value: $(params.POLICY_REPO_REF)
+        - name: POLICY_REPO
+          value: $(params.POLICY_REPO)
+        - name: STRICT_POLICY
+          value: $(params.STRICT_POLICY)
+      volumeMounts:
+        - name: shared
+          mountPath: /shared
+
+
     - name: verify-attestation-with-policy
       image: appstudio-utils
       command: [/appstudio-utils/util-scripts/verify-attestation-with-policy.sh]

@@ -41,6 +41,7 @@ echo -n "$attestations" | jq -r '.[].predicate = "..."'
 echo -n "${attestations}" > $(json-input-file attestations)
 
 title Violations
+export OPA_QUERY=hacbs.contract.attestation
 ./check-ec-policy.sh | tee "${output}"
 
 title "Passed?"
