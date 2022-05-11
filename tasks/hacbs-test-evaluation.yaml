@@ -16,13 +16,23 @@ spec:
       script: |
         #!/usr/bin/env bash
 
-        # sanity-label-check
-        FAILURES=$(jq '.[] | .failures // {} | .[] | .msg' sanity-label-check/sanity_label_check_output.json)
+        # sanity-label-check required checks
+        FAILURES=$(jq '.[] | .failures // {} | .[] | .msg' sanity-label-check-required_checks/sanity_label_check_output.json)
         if [ -n "$FAILURES" ]; then
-          echo sanity-label-check test FAIL:
+          echo sanity-label-check-required_checks test FAIL:
           echo "$FAILURES"
         else
-          echo sanity-label-check test PASS
+          echo sanity-label-check-required_checks test PASS
+        fi
+        echo -------------
+        
+        # sanity-label-check optional checks
+        FAILURES=$(jq '.[] | .failures // {} | .[] | .msg' sanity-label-check-optional_checks/sanity_label_check_output.json)
+        if [ -n "$FAILURES" ]; then
+          echo sanity-label-check-optional_checks test FAIL:
+          echo "$FAILURES"
+        else
+          echo sanity-label-check-optional_checks test PASS
         fi
         echo -------------
 

@@ -19,7 +19,7 @@ spec:
   steps:
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:stable
-      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)-$(params.POLICY_NAMESPACE)
       script: |
         CONFTEST_OPTIONS=""
         if [ -s "../sanity-inspect-image/base_image_inspect.json" ]; then
