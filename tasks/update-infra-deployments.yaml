@@ -8,6 +8,7 @@ spec:
     - name: SCRIPT
       description: Script for changing the infra-deployments
     - name: ORIGIN_REPO
+    - name: REVISION
   workspaces:
     - name: deploy-key
       optional: true
@@ -53,6 +54,10 @@ spec:
           value: "23331085"
         - name: GITHUB_API_URL
           value: https://api.github.com
+        - name: ORIGIN_REPO
+          value: $(params.ORIGIN_REPO)
+        - name: REVISION
+          value: $(params.REVISION)
       script: |
         #!/usr/bin/env python3
         import json
@@ -125,7 +130,7 @@ spec:
                                         data=json.dumps(data))
 
             def create_mr(self):
-                repo_name = "$(params.ORIGIN_REPO)".split('/')[-1]
+                repo_name = os.environ.get('ORIGIN_REPO').split('/')[-1]
                 req = self._request(
                     "POST",
                     f"/repos/redhat-appstudio/infra-deployments/pulls",
@@ -139,7 +144,43 @@ spec:
                         "title": f"{repo_name} update",
                         "maintainer_can_modify": False
                     })
-                print(req.json())
+                json_output = req.json()
+                print(json_output)
+                return json_output
+
+            def get_pr(self):
+                repo_name = os.environ.get('ORIGIN_REPO').split('/')[-1]
+                req = self._request(
+                    "GET",
+                    f"/repos/redhat-appstudio/infra-deployments/pulls",
+                    headers={
+                        "Accept": "application/vnd.github.v3+json"
+                    })
+                json_output = req.json()
+                for item in json_output:
+                    if item["user"]["login"] == "appstudio-staging-ci[bot]" and item["head"]["ref"] == repo_name:
+                        return item
+
+            def get_pr_url_from_sha(self, sha):
+                req = self._request(
+                    "GET",
+                    f"/search/issues?q={sha}",
+                    headers={
+                        "Accept": "application/vnd.github.v3+json"
+                    })
+                return req.json()["items"][0]["pull_request"]["html_url"]
+
+            def update_mr_description(self, pr_url, description):
+                req = self._request(
+                    "PATCH",
+                    pr_url,
+                    headers={
+                        "Authorization": f"Bearer {self.token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    data={ "body": description })
+                json_output = req.json()
+                print(json_output)
 
 
         def main():
@@ -156,7 +197,15 @@ spec:
                 key,
                 app_id=app_id,
                 installation_id=os.environ.get('GITHUBAPP_INSTALLATION_ID'))
-            github_app.create_mr()
+            infra_pr = github_app.create_mr()
+            if "url" not in infra_pr:
+                infra_pr = github_app.get_pr()
+            description = infra_pr["body"]
+            if description == None:
+                description = "Included PRs:"
+            new_pr_link = github_app.get_pr_url_from_sha(os.environ["REVISION"])
+            new_description = f"{description}\r\n- {new_pr_link}"
+            github_app.update_mr_description(infra_pr["url"], new_description)
 
         if __name__ == '__main__':
             main()
