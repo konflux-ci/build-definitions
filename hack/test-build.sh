@@ -28,9 +28,15 @@ if [ -z "$MY_QUAY_USER" ]; then
 else
   if oc get secret redhat-appstudio-staginguser-pull-secret &>/dev/null; then
      PUSH_WORKSPACE="-w name=registry-auth,secret=redhat-appstudio-staginguser-pull-secret"
+     # Ensure that the pipeline service account has access to the secret. Although the
+     # secret is mounted directly on the pipeline, Tekton Chains needs this linkage so
+     # it can push the image signature and attestation to the same OCI repository.
+     oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull
   else
      echo redhat-appstudio-staginguser-pull-secret is not created, can be created by:
      echo oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=$HOME/.docker/config.json
+     echo and link it to the pipeline ServiceAccount:
+     echo oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull
   fi
   IMG=quay.io/$MY_QUAY_USER/$APPNAME:$IMAGE_SHORT_TAG
   echo Building $IMG
