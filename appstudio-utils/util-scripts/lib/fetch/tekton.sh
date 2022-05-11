@@ -1,6 +1,8 @@
 
-# Todo: This assumes everything is in the current namespace
-# which is probably not viable in the long term
+##----------------------------------------------------
+## NB: Some, but not all, of these methods are unused
+## but I don't want to delete them just yet.
+##----------------------------------------------------
 
 pr-get-tr-names() {
   local pr=$1
@@ -25,7 +27,7 @@ tr-get-result() {
 
 tr-get-task-name() {
   local tr=$1
-   oc get tr/$tr -o jsonpath="{.spec.taskRef.name}"
+  oc get tr/$tr -o jsonpath="{.spec.taskRef.name}"
 }
 
 tr-transparency-url() {

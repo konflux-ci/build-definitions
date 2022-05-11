@@ -26,6 +26,5 @@ POLICY_REPO_REF=${POLICY_REPO_REF:-"main"}
 source $LIB_DIR/title.sh
 source $LIB_DIR/fetch/data.sh
 source $LIB_DIR/fetch/git.sh
-source $LIB_DIR/fetch/rekor.sh
 source $LIB_DIR/fetch/cluster.sh
 source $LIB_DIR/fetch/tekton.sh

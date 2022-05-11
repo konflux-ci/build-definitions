@@ -1,4 +1,10 @@
 
+##-------------------------------------------------------------
+## NB: This is unused code.
+## Keep it for now in case we decide later that the enterprise
+## contract should fetch data from rekor.
+##-------------------------------------------------------------
+
 # Use rekor-cli to fetch one log entry
 rekor-log-entry() {
   local log_index=$1

@@ -22,6 +22,10 @@ AfterAll 'final_cleanup'
 
 Include ./appstudio-utils/util-scripts/lib/fetch.sh
 
+# This is not included in lib/fetch.sh and more, but include
+# it here so the rekor tests below continue to pass
+Include ./appstudio-utils/util-scripts/lib/fetch/rekor.sh
+
 Describe 'json-data-file'
   local root_dir=$( git rev-parse --show-toplevel )
 

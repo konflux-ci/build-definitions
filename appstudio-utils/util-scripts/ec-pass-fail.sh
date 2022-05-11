@@ -5,8 +5,6 @@ set -euo pipefail
 #
 # It might change in future so define it here rather than
 # put the logic directly in the task definition
-#
-# See also tasks/enterprise-contract.yaml
 
 OPA_OUTPUT_FILE=$1
 OPA_OUTPUT=$( cat $OPA_OUTPUT_FILE )
