@@ -26,9 +26,9 @@ spec:
           CONFTEST_OPTIONS="-d=../sanity-inspect-image/base_image_inspect.json"
         fi
 
-        echo "Running conftest using $(inputs.params.POLICY_DIR) policy, $(inputs.params.POLICY_NAMESPACE) namespace"
+        echo "Running conftest using $(params.POLICY_DIR) policy, $(params.POLICY_NAMESPACE) namespace"
         /usr/bin/conftest test --no-fail ../sanity-inspect-image/image_inspect.json "${CONFTEST_OPTIONS}" \
-        --policy $(inputs.params.POLICY_DIR) --namespace $(inputs.params.POLICY_NAMESPACE) \
+        --policy $(params.POLICY_DIR) --namespace $(params.POLICY_NAMESPACE) \
         --output=json 2> stderr.txt | tee sanity_label_check_output.json
 
         ERR_MSG="$(cat stderr.txt)"
