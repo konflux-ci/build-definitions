@@ -9,13 +9,13 @@ spec:
       description: test output
   steps:
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:stable
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
         /usr/bin/conftest test --no-fail $(workspaces.conftest-ws.path)/clair-result.json \
         --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
         --output=json | tee $(workspaces.conftest-ws.path)/clair-vulnerabilities.json
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:stable
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
