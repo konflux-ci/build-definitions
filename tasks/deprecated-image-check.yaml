@@ -36,7 +36,7 @@ spec:
 
     # Run the tests and save output
     - name: run-conftest
-      image: quay.io/redhat-appstudio/hacbs-test:stable
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
         #!/usr/bin/env sh
         http_code=$(cat $(results.PYXIS_HTTP_CODE.path))
@@ -58,7 +58,7 @@ spec:
 
     # Format the test results and save them as the HACBS_TEST_OUTPUT Tekton result
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:stable
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
