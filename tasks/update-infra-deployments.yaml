@@ -11,6 +11,8 @@ spec:
     - name: REVISION
     - name: shared-secret
       default: infra-deployments-pr-creator
+  #as there are services that are using the workspaces, it is here as a placeholder.
+  #once it is removed from the services, it will be removed from here.
   workspaces:
     - name: deploy-key
       optional: true
@@ -25,14 +27,17 @@ spec:
         driver: csi.sharedresource.openshift.io
         volumeAttributes:
           sharedSecret: $(params.shared-secret)
+    # Must-contain:
+      #'id_rsa' - deploy key for redhat-appstudio-mr-creation/infra-deployments/
+      #'appstudio-staging-ci' - private key for appstudio-staging-ci Github app
   steps:
     - name: update-infra-deployments
       image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:af7dd5b3b1598a980f17d5f5d3d8a4b11ab4f5184677f7f17ad302baa36bd3c1
       volumeMounts:
         - name: infra-deployments-pr-creator
-          mountPath: /tmp/infra-deployments-pr-creator
+          mountPath: /secrets/deploy-key
       script: |
-        cp -R "${WORKSPACE_SSH_DIRECTORY_PATH}" ~/.ssh
+        cp -R "${/secrets/deploy-key}" ~/.ssh
         chmod 700 ~/.ssh
         chmod -R 400 ~/.ssh/*
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
@@ -54,9 +59,12 @@ spec:
     # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/chmouel/github-app-token@sha256:bc45937ae588df876555ebb56c36350ed74592c7f55f2df255cabef39c926a88
+      volumeMounts:
+        - name: infra-deployments-pr-creator
+          mountPath: /secrets/deploy-key
       env:
         - name: GITHUBAPP_KEY_PATH
-          value: $(tmp/infra-deployments-pr-creator)/appstudio-staging-ci
+          value: /secrets/deploy-key/appstudio-staging-ci
         - name: GITHUBAPP_APP_ID
           value: "172616"
         - name: GITHUBAPP_INSTALLATION_ID
