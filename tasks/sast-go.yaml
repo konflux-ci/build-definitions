@@ -11,12 +11,12 @@ spec:
       name: HACBS_TEST_OUTPUT
   steps:
     - name: gosec-check
-      image: quay.io/rsaar/hacbs-test:latest
+      image: quay.io/redhat-appstudio/hacbs-test:stable
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/...
     - name: test-format-result
-      image: quay.io/rsaar/hacbs-test:latest
+      image: quay.io/redhat-appstudio/hacbs-test:stable
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
