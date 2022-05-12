@@ -1,0 +1,31 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: gosec-check
+spec:
+  workspaces:
+    - name: workspace
+  results:
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
+  steps:
+    - name: gosec-check
+      image: quay.io/rsaar/hacbs-test:latest
+      workingDir: $(workspaces.workspace.path)
+      script: |
+        ls $(workspaces.workspace.path)
+        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=$(workspaces.workspace.path)/gosec_output.json $(workspaces.workspace.path)/...
+    - name: test-format-result
+      image: quay.io/rsaar/hacbs-test:latest
+      script: |
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "ERROR", timestamp: $date}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
+          '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
+                   timestamp: $date,
+                   namespace: "default",
+                   successes: 0,
+                   failures: (.runs[].results // [])|map(.message.text)
+                 }' $(workspaces.workspace.path)/gosec_output.json || true)
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
