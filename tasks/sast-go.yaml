@@ -12,12 +12,12 @@ spec:
   steps:
     - name: gosec-check
       image: quay.io/rsaar/hacbs-test:latest
-      workingDir: $(workspaces.workspace.path)
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
-        ls $(workspaces.workspace.path)
-        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=$(workspaces.workspace.path)/gosec_output.json $(workspaces.workspace.path)/...
+        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/...
     - name: test-format-result
       image: quay.io/rsaar/hacbs-test:latest
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
@@ -27,5 +27,5 @@ spec:
                    namespace: "default",
                    successes: 0,
                    failures: (.runs[].results // [])|map(.message.text)
-                 }' $(workspaces.workspace.path)/gosec_output.json || true)
+                 }' gosec_output.json || true)
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
