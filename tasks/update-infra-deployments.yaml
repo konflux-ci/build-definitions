@@ -37,7 +37,7 @@ spec:
         - name: infra-deployments-pr-creator
           mountPath: /secrets/deploy-key
       script: |
-        cp -R "${/secrets/deploy-key}" ~/.ssh
+        cp -R /secrets/deploy-key ~/.ssh
         chmod 700 ~/.ssh
         chmod -R 400 ~/.ssh/*
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
