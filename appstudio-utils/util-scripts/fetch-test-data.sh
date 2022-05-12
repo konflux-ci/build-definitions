@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+source $(dirname ${BASH_SOURCE[0]})/lib/fetch.sh
+
+# When included from shellspec we don't want to invoke the code below
+${__SOURCED__:+return}
+
 if [[ "$#" -ne 2 ]]; then
   echo "Wrong number of arguments passed."
   echo "Usage ./fetch-test-data.sh <PipelineRunName> <TestResultName>"
@@ -10,8 +15,6 @@ fi
 
 PR_NAME=$1
 TEST_NAME=$2
-
-source $(dirname $0)/lib/fetch.sh
 
 # search all task runs in a pipeline
 # write output in format $basdir/data/test/$task_name/data.json
