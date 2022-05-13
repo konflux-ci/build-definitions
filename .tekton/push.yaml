@@ -85,18 +85,10 @@ spec:
               done
         taskRef:
           name: update-infra-deployments
-        workspaces:
-          - name: deploy-key
-            workspace: deploy-key
     workspaces:
       - name: workspace
-      - name: deploy-key
-  serviceAccountName: pipeline
   workspaces:
     - name: workspace
       persistentVolumeClaim:
         claimName: app-studio-default-workspace
       subPath: build-definitions-bundle-{{ revision }}
-    - name: deploy-key
-      secret:
-        secretName: infra-deployments-deploy-key
