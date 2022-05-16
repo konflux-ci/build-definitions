@@ -1,0 +1,63 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: sast-java-sec-check
+spec:
+  workspaces:
+    - name: workspace
+  results:
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
+  params:
+    - name: PATH_CONTEXT
+      description: The path to your source code
+      type: string
+      default: .
+    - name: OUTPUT_FORMAT
+      description: the format of findsecbugs output
+      type: string
+      default: "-sarif"
+    - name: OUTPUT_ONLYANALYZE
+      description: |
+        only analyze given classes and packages;
+        end with .* to indicate classes in a package, .- to indicate a package prefix
+      type: string
+      default: ""
+    - name: OTHER_PARAM
+      description: other parameters to run findsecbugs
+      type: string
+      default: ""
+  steps:
+    - name: java-sec-check
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
+      script: |
+        pushd $(workspaces.workspace.path)
+        if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
+          mvn package -f $(params.PATH_CONTEXT)/
+        else
+          echo "pom.xml file doesn't exist"
+        fi
+        popd
+
+        JAR_PATH=$(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar
+        if [ -f "$JAR_PATH" ]; then
+          /home/findsecbugs-cli/findsecbugs.sh $(params.OTHER_PARAM) $(params.OUTPUT_ONLYANALYZE) $(params.OUTPUT_FORMAT) \
+            -output sast_java_sec_output.json $JAR_PATH  2> stderr.txt
+        else
+          echo "jar file doesn't exist" > stderr.txt
+        fi
+
+        ERR_MSG="$(cat stderr.txt)"
+        ERR_MSG="${ERR_MSG:-unknown}"
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg ERR_MSG "${ERR_MSG: 0: 3000}" --null-input \
+          '{result: "ERROR", timestamp: $date, failures: [$ERR_MSG]}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
+          '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
+                   timestamp: $date,
+                   namespace: "default",
+                   successes: 0,
+                   failures: (.runs[].results | length)
+                 }' sast_java_sec_output.json || true)
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
