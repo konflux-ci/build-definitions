@@ -15,6 +15,15 @@ Currently a set of utilities are bundled with App Studio in `quay.io/redhat-apps
 Script `hack/build-and-push.sh` creates bundles for pipelines, tasks and create appstudio-utils image. Images are pushed into your quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on your workstation.
 Once you run the `hack/build-and-push.sh` all pipelines will come from your bundle instead of from the default installed by gitops into the cluster.
 
+> **Note**
+>
+> If you're using Mac OS, you need to install [GNU coreutils](https://formulae.brew.sh/formula/coreutils) before running the `hack/build-and-push.sh` script:
+> ```bash
+> brew install coreutils
+> ```
+
+There is an option to push all bundles to a single quay.io repository (this method is used in PR testing). It is used by setting `TEST_REPO_NAME` environment variable. Bundle names are then specified in the container image tag, i.e. `quay.io/<quay-user>/$TEST_REPO_NAME:<bundle-name>-<tag>`
+
 ### Pipelines
 
 The pipelines can be found in the `pipelines` directories.
