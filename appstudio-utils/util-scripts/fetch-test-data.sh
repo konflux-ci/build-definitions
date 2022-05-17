@@ -19,19 +19,19 @@ TEST_NAME=$2
 # search all task runs in a pipeline
 # write output in format $basdir/data/test/$task_name/data.json
 result_found=
-for tr in $( pr-get-tr-names $PR_NAME ); do
-  data=$( tr-get-result $tr $TEST_NAME )
+for tr in $( pr_get_tr_names $PR_NAME ); do
+  data=$( tr_get_result $tr $TEST_NAME )
   if [[ ! -z "${data}" ]]; then
       result_found=1
-      task_name=$( tr-get-task-name ${tr} )
-      echo "${data}" | jq > $( json-data-file test ${task_name} )
+      task_name=$( tr_get_task_name ${tr} )
+      echo "${data}" | jq > $( json_data_file test ${task_name} )
   fi
 done
 
 if [[ -z $result_found ]]; then
   # let's put an an empty hash here to express the the idea
   # that we looked for test results and found none
-  echo '{}' > $( json-data-file test )
+  echo '{}' > $( json_data_file test )
 fi
 
-show-data
+show_data

@@ -1,5 +1,5 @@
 
-git-fetch-repo() {
+git_fetch_repo() {
   local repo=$1
   local ref_or_sha=$2
   local directory="$3"
@@ -15,9 +15,9 @@ git-fetch-repo() {
   git rev-parse FETCH_HEAD
 }
 
-git-fetch-policies() {
+git_fetch_policies() {
   local args
-  args=($(cr-namespace-argument "${1:-}") $(cr-name "${1:-}"))
+  args=($(cr_namespace_argument "${1:-}") $(cr_name "${1:-}"))
 
   local repository_and_ref
   if repository_and_ref=$(kubectl get enterprisecontractpolicies.appstudio.redhat.com "${args[*]}" -o jsonpath='{.spec.sources[0].git.repository}#{.spec.sources[0].git.revision}'); then
@@ -37,7 +37,7 @@ git-fetch-policies() {
   fi
 
   echo "Fetching policies from $POLICY_REPO_REF at $POLICY_REPO"
-  echo "sha: $( git-fetch-repo $POLICY_REPO $POLICY_REPO_REF $POLICIES_DIR )"
+  echo "sha: $( git_fetch_repo $POLICY_REPO $POLICY_REPO_REF $POLICIES_DIR )"
 
   # Clean up files we don't need including .git
   cd $POLICIES_DIR

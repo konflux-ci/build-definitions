@@ -15,10 +15,10 @@ set -euo pipefail
 source $(dirname $0)/lib/fetch.sh
 
 # Ensure there's no stale data
-clear-policies
+clear_policies
 
 title "Fetching policy files"
-git-fetch-policies
+git_fetch_policies
 
 title "Policy files"
 show-policies

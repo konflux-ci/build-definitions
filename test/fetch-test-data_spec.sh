@@ -26,7 +26,7 @@ Include ./appstudio-utils/util-scripts/fetch-test-data.sh
 # it here so the rekor tests below continue to pass
 Include ./appstudio-utils/util-scripts/lib/fetch/rekor.sh
 
-Describe 'cr-* helpers'
+Describe 'cr_* helpers'
   Parameters
     'empty'
     'namespace not given' policy policy
@@ -36,45 +36,45 @@ Describe 'cr-* helpers'
   End
 
   It "handles $1 case for name"
-    When call cr-name "${2:-}"
+    When call cr_name "${2:-}"
     The output should equal "${3:-}"
   End
 
   It "handles $1 case for namespace argument"
-    When call cr-namespace-argument "${2:-}"
+    When call cr_namespace_argument "${2:-}"
     The output should equal "${4:-}"
   End
 End
 
-Describe 'json-data-file'
+Describe 'json_data_file'
   local root_dir=$( git rev-parse --show-toplevel )
 
   It 'produces expected json file paths'
-    When call json-data-file some dir 123 foo 456
+    When call json_data_file some dir 123 foo 456
     The output should eq "$EC_WORK_DIR/data/some/dir/123/foo/456/data.json"
   End
 End
 
-Describe 'rekor-log-entry'
-  rekor-cli() {
+Describe 'rekor_log_entry'
+  Mock rekor-cli
     echo "rekor-cli $*"
-  }
+  End
 
   It 'calls rekor-cli as expected'
-    When call rekor-log-entry 1234 rekor.example.com
+    When call rekor_log_entry 1234 rekor.example.com
     The output should eq "rekor-cli get --log-index 1234 --rekor_server https://rekor.example.com --format json"
   End
 End
 
 # We're not testing the data itself, but I think it's okay
 #
-Describe 'rekor-log-entry-save'
-  json-data-file() {
+Describe 'rekor_log_entry_save'
+  json_data_file() {
     echo "/dev/null"
   }
 
   # Mock some fake rekor data
-  rekor-log-entry() {
+  rekor_log_entry() {
     if [[ $1 == 1235 ]]; then
       # With an attestation
       echo '{"foo":"bar","Attestation":"'$( echo '{"hey":"now"}' | base64 )'"}'
@@ -85,12 +85,12 @@ Describe 'rekor-log-entry-save'
   }
 
   It 'saves rekor data without an attestation'
-    When call rekor-log-entry-save 1234 rekor.example.com
+    When call rekor_log_entry_save 1234 rekor.example.com
     The output should eq "Saving log index 1234 from rekor.example.com"
   End
 
   It 'saves rekor data with an attestation'
-    When call rekor-log-entry-save 1235 rekor.example.com
+    When call rekor_log_entry_save 1235 rekor.example.com
     The line 1 should eq "Saving log index 1235 from rekor.example.com"
     The line 2 should eq "Saving attestation extracted from rekor data"
   End
@@ -98,12 +98,12 @@ Describe 'rekor-log-entry-save'
 
   # Put data in a file so we can look at it
   local tmp_file=$(mktemp --tmpdir)
-  json-data-file() {
+  json_data_file() {
     echo $tmp_file
   }
 
   It 'saves log entry data'
-    rekor-log-entry-save 1234 rekor.example.com > /dev/null
+    rekor_log_entry_save 1234 rekor.example.com > /dev/null
     The contents of file "$tmp_file" should eq \
 '{
   "foo": "bar",
@@ -112,7 +112,7 @@ Describe 'rekor-log-entry-save'
   End
 
   It 'saves attestation data'
-    rekor-log-entry-save 1235 rekor.example.com > /dev/null
+    rekor_log_entry_save 1235 rekor.example.com > /dev/null
     The contents of file "$tmp_file" should eq \
 '{
   "hey": "now"
@@ -121,7 +121,7 @@ Describe 'rekor-log-entry-save'
 
 End
 
-Describe 'git-fetch-policies'
+Describe 'git_fetch_policies'
   git() {
     echo "git $*"
   }
@@ -135,20 +135,20 @@ Describe 'git-fetch-policies'
   local ref=main
 
   It 'does a git fetch'
-    When call git-fetch-policies
+    When call git_fetch_policies
     The output should start with "Fetching policies from $ref at https://github.com/$repo/ec-policies.git"
   End
 
   It 'does a git fetch from a custom repository'
     export POLICY_REPO=https://github.com/custom/policies.git
-    When call git-fetch-policies
+    When call git_fetch_policies
     The output should start with "Fetching policies from $ref at https://github.com/custom/policies.git"
   End
 
   It 'does a git fetch from a custom repository and reference'
     export POLICY_REPO=https://github.com/custom/policies.git
     export POLICY_REPO_REF=abcd
-    When call git-fetch-policies
+    When call git_fetch_policies
     The output should start with 'Fetching policies from abcd at https://github.com/custom/policies.git'
   End
 
@@ -165,7 +165,7 @@ Describe 'git-fetch-policies'
         echo 'https://github.com/custom/policies.git#custom-ref'
       End
 
-      When call git-fetch-policies "$2"
+      When call git_fetch_policies "$2"
       The variable kubectl_args should start with "get enterprisecontractpolicies.appstudio.redhat.com $3 -o jsonpath="
       The output should start with 'Fetching policies from custom-ref at https://github.com/custom/policies.git'
     End
@@ -178,14 +178,14 @@ Describe 'git-fetch-policies'
       exit 1 # fails to fetch
     End
 
-    When call git-fetch-policies ns/policy
+    When call git_fetch_policies ns/policy
     The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n ns policy -o jsonpath='
     The output should start with "Fetching policies from $ref at https://github.com/$repo/ec-policies.git"
   End
 
 End
 
-Describe 'shorten-sha'
+Describe 'shorten_sha'
   local sha="beefba5eba11decade"
   local short_sha="beefba5eba1"
 
@@ -202,13 +202,13 @@ Describe 'shorten-sha'
   End
 
   Example "Shortening sha string '$1'"
-    When call shorten-sha "$1"
+    When call shorten_sha "$1"
     The output should eq "${2:-$short_sha}"
   End
 
 End
 
-Describe 'save-policy-config'
+Describe 'save_policy_config'
 
   Describe 'fetches from config map'
     Mock oc
@@ -229,7 +229,7 @@ Describe 'save-policy-config'
     End
 
     It 'fetches policy from configmap'
-      When call save-policy-config
+      When call save_policy_config
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace test'
       The variable oc_args should eq 'get configmap ec-policy -o go-template={{index .data "policy.json"}}'
       The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
@@ -253,7 +253,7 @@ Describe 'save-policy-config'
     End
 
     It 'fallsback to default'
-      When call save-policy-config
+      When call save_policy_config
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace test'
       The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
   "non_blocking_checks": [
@@ -271,13 +271,13 @@ Describe 'save-policy-config'
     End
 
     It 'fetches policy custom resource'
-      When call save-policy-config custom-policy
+      When call save_policy_config custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com custom-policy'
       The contents of file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should eq "$(echo '["a", "b", "c"]'| jq)"
     End
 
     It 'fetches policy custom resource in namespace'
-      When call save-policy-config custom-namespace/custom-policy
+      When call save_policy_config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
       The contents of file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should eq "$(echo '["a", "b", "c"]'| jq)"
     End
@@ -292,7 +292,7 @@ Describe 'save-policy-config'
         # used for fetching the config map
         exit 1
       End
-      When call save-policy-config custom-namespace/custom-policy
+      When call save_policy_config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace custom-namespace'
       The file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should not exist
@@ -300,7 +300,7 @@ Describe 'save-policy-config'
     End
   End
 
-  Describe 'handles errors from cr-* functions'
+  Describe 'handles errors from cr_* functions'
     # When a function is on a call path originating from shellspec the errexit
     # option seems to be ignored and the execution proceeds regardless of the
     # status, e.g.
@@ -328,18 +328,18 @@ Describe 'save-policy-config'
     End
 
     It 'fails if cr-name fails'
-      Mock cr-name
+      Mock cr_name
         exit 1
       End
-      When call save-policy-config custom-namespace/custom-policy
+      When call save_policy_config custom-namespace/custom-policy
       The variable kubectl_args should equal ''
     End
 
     It 'fails if cr-namespace-argument fails'
-      Mock cr-namespace-argument
+      Mock cr_namespace_argument
         exit 1
       End
-      When call save-policy-config custom-namespace/custom-policy
+      When call save_policy_config custom-namespace/custom-policy
       The variable kubectl_args should equal ''
     End
 

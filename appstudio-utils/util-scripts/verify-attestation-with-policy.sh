@@ -32,13 +32,13 @@ source lib/fetch.sh
 # TODO: If git clone fails, the task does not fail - fix that!
 ./fetch-ec-policies.sh
 
-save-policy-config
+save_policy_config
 
 title Attestations
 # Show a shortened version of the attestations to avoid excessive logging
 echo -n "$attestations" | jq -r '.[].predicate = "..."'
 # Save the attestations for opa processing
-echo -n "${attestations}" > $(json-data-file attestations)
+echo -n "${attestations}" > $(json_data_file attestations)
 
 title Violations
 ./check-ec-policy.sh | tee "${output}"

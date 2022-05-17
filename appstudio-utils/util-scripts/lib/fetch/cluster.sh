@@ -1,5 +1,5 @@
 
-k8s-save-data() {
+k8s_save_data() {
   local kind=$1
   local name=$2
   local namespace=${3:-}
@@ -7,28 +7,28 @@ k8s-save-data() {
   local namespace_opt=
   [[ -n $namespace ]] && namespace_opt="-n$namespace"
 
-  local file=$( json-data-file cluster $kind $name )
+  local file=$( json_data_file cluster $kind $name )
 
   echo "Saving $kind $name $namespace_opt"
   oc get $namespace_opt $kind $name -o json > $file
 }
 
-_policy-config-from-configmap() {
+_policy_config_from_configmap() {
   oc get configmap ec-policy -o go-template='{{index .data "policy.json"}}' 2>/dev/null
 }
 
-_default-policy-config() {
+_default_policy_config() {
   echo '{"non_blocking_checks":["not_useful"]}'
 }
 
 # Splits the given string on '/' and returns the second part
-cr-name() {
+cr_name() {
   echo "${1//*\//}"
 }
 
 # Checks if the given string has a '/' and if it does splits
 # it on '/' and returns the "-n <first part>"
-cr-namespace-argument() {
+cr_namespace_argument() {
   if [[ "$1" != */* ]]; then
     return
   fi
@@ -40,11 +40,11 @@ cr-namespace-argument() {
 }
 
 # If given $1, looks up the ECP custom resource
-save-policy-config() {
+save_policy_config() {
   local namespace_arg
-  namespace_arg=$(cr-namespace-argument "${1:-}")
+  namespace_arg=$(cr_namespace_argument "${1:-}")
   local args
-  args=(${namespace_arg} "$(cr-name "${1:-}")") # intentionally not quoting the $namespace_arg so it expands
+  args=(${namespace_arg} "$(cr_name "${1:-}")") # intentionally not quoting the $namespace_arg so it expands
   if ! non_blocking_data=$(kubectl get enterprisecontractpolicies.appstudio.redhat.com "${args[*]}" -o jsonpath='{.spec.exceptions.nonBlocking}'); then
     local namespace=${namespace_arg#-n }
     echo "ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace ${namespace:-$(kubectl config view --minify -o jsonpath='{..namespace}')}" 1>&2
@@ -55,12 +55,12 @@ save-policy-config() {
     fi
   else
     local non_blocking_data_file
-    non_blocking_data_file="$( json-data-file config policy non_blocking_checks)"
+    non_blocking_data_file="$( json_data_file config policy non_blocking_checks)"
     echo "$non_blocking_data" | jq > "${non_blocking_data_file}"
     return 0
   fi
 
   # TODO remove the below lines once the demos don't depend on this
   # Note: the namespace the task is running in needs to have the ec-policy ConfigMap
-  { _policy-config-from-configmap || _default-policy-config ; } | jq > "$( json-data-file config policy )"
+  { _policy_config_from_configmap || _default_policy_config ; } | jq > "$( json_data_file config policy )"
 }

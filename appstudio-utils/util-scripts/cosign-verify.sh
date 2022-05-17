@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-cosign-verify() {
+cosign_verify() {
   local image_reference="$1"
 
   local public_key="$2"
@@ -35,7 +35,7 @@ cosign-verify() {
     "${image_reference}"
 }
 
-# When included from shellspec we don't want to invoke cosign-verify
+# When included from shellspec we don't want to invoke cosign_verify
 ${__SOURCED__:+return}
 
-cosign-verify "$1" "$2" "$3"
+cosign_verify "$1" "$2" "$3"
