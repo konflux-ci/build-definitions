@@ -14,7 +14,15 @@ spec:
       image: quay.io/redhat-appstudio/hacbs-test:stable
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
-        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/...
+        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
+        GOSEC_EXIT_CODE=$?
+
+        # Test if any package was found
+        # Even with -no-fail, gosec uses exit code 1 for several states,
+        # including when there are no packages found.
+        grep "No packages found$" gosec_output.txt && echo "Exit 0 because no packages found" && exit 0
+        exit $GOSEC_EXIT_CODE
+
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:stable
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)

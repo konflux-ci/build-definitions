@@ -79,23 +79,9 @@
 - op: add
   path: /spec/tasks/-
   value:
-    name: git-clone
-    runAfter:
-      - build-container
-    taskRef:
-      name: git-clone
-    params:
-    - name: url
-      value: https://github.com/redhat-appstudio/application-service
-    workspaces:
-    - name: output
-      workspace: workspace
-- op: add
-  path: /spec/tasks/-
-  value:
     name: gosec-check
     runAfter:
-      - git-clone
+      - build-container
     taskRef:
       name: gosec-check
     workspaces:
