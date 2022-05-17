@@ -62,20 +62,6 @@ spec:
         paths can be provided by using the ":" separator.
       default: ""
 
-    # TODO: We should probably use a bundle URL for this:
-    # https://www.openpolicyagent.org/docs/v0.12.2/bundles/#bundle-file-format
-    # Or an OCI image:
-    # https://github.com/open-policy-agent/opa/issues/1413
-    - name: POLICY_REPO
-      type: string
-      description: Git url for rego policies
-      default: https://github.com/hacbs-contract/ec-policies.git
-
-    - name: POLICY_REPO_REF
-      type: string
-      description: Git sha, branch or tag in git repo for rego policies
-      default: main
-
     - name: STRICT_POLICY
       type: string
       description: Fail the task if policy fails. Set to "0" to disable it.
@@ -160,10 +146,6 @@ spec:
       env:
         - name: EC_WORK_DIR
           value: /shared/ec-work-dir
-        - name: POLICY_REPO_REF
-          value: $(params.POLICY_REPO_REF)
-        - name: POLICY_REPO
-          value: $(params.POLICY_REPO)
         - name: STRICT_POLICY
           value: $(params.STRICT_POLICY)
       volumeMounts:
