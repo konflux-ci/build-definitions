@@ -5,37 +5,64 @@ metadata:
 spec:
   description: >-
     App Studio Configure Build Secrets in Source.
+  params:
+    - name: shared-secret
+      default: redhat-appstudio-user-workload
   results:
     - name: registry-auth
       description: docker config location
     - name: buildah-auth-param
-      description: pass this to the build optional params to conifigure secrets
+      description: pass this to the build optional params to configure secrets
   workspaces:
     - name: source
     - name: registry-auth
       optional: true
+  volumes:
+    - name: default-push-secret
+      csi:
+        readOnly: true
+        driver: csi.sharedresource.openshift.io
+        volumeAttributes:
+          sharedSecret: $(params.shared-secret)
   steps:
     - name: appstudio-configure-build
-      image: registry.access.redhat.com/ubi8-minimal@sha256:574f201d7ed185a9932c91cef5d397f5298dff9df08bc2ebb266c6d1e6284cd1
+      image: quay.io/redhat-appstudio/appstudio-utils:4580b3ba3012095ff3981e50b6bbf753d4afd4c3
+      volumeMounts:
+        - name: default-push-secret
+          mountPath: /secret/default-push-secret
       script: |
         #!/usr/bin/env bash
         echo "App Studio Configure Build"
 
-        AUTH=/workspace/registry-auth/.dockerconfigjson
         DEST=/workspace/source/.dockerconfigjson
-        echo "Looking for Registry Auth Config: $AUTH"
-        if [ -f "$AUTH" ]; then
-          echo "$AUTH found"
-          echo
-
-          cp $AUTH $DEST
-
-          echo -n $DEST > /tekton/results/registry-auth
-          echo -n "--authfile $DEST"  >  /tekton/results/buildah-auth-param
-          echo
-        else
-          echo "No $AUTH found."
-          echo -n " " > /tekton/results/registry-auth
-          echo -n " " > /tekton/results/buildah-auth-param
-          echo
-        fi
+        DEF=/secret/default-push-secret/.dockerconfigjson
+        AUTH=/workspace/registry-auth/.dockerconfigjson
+        TMP=$(mktemp)
+        echo '{}' > $DEST
+        # Set lowest priority on default shared secret
+        FILES="$DEF"
+        # Use secrets from serviceAccount
+        cd /tekton/creds-secrets
+        for file in $(ls); do
+          if [ -f "$file/.dockerconfigjson" ]; then
+            FILES="$FILES $file/.dockerconfigjson"
+          elif [ -f "$file/.dockercfg" ]; then
+            # convert format from .dockercfg to .dockerconfigjson
+            newformat=$(mktemp)
+            jq '{"auths": .}' $file/.dockercfg > $newformat
+            FILES="$FILES $newformat"
+          fi
+        done
+        # set highest priority on registry-auth workspace
+        FILES="$FILES $AUTH"
+        echo "Looking for Registry Auth Configs"
+        # Merge secrets into one file
+        for file in $FILES; do
+          if [ -f "$file" ]; then
+            echo "$file found"
+            jq -M -s '.[0] * .[1]' $DEST $file > $TMP
+            mv $TMP $DEST
+          fi
+        done
+        echo -n $DEST > /tekton/results/registry-auth
+        echo -n "--authfile $DEST"  >  /tekton/results/buildah-auth-param
