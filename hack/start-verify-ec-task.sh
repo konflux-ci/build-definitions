@@ -19,8 +19,6 @@
 #
 #  * Make sure you have an image that has already been signed by Chains.
 #
-#  * (Optional) Modify the POLICY_REPO and POLICY_REPO_REF params below as required.
-#
 #  * Run this script:
 #      ./start-verify-ec-task.sh <image-ref>
 #    where <image-ref> is a valid image reference, e.g. quay.io/spam/bacon@sha256:...
@@ -88,10 +86,6 @@ spec:
       value: /var/run/secrets/kubernetes.io/serviceaccount
 
     # Modify these defaults as required
-    #- name: POLICY_REPO
-    #  value: https://github.com/hacbs-contract/ec-policies.git
-    #- name: POLICY_REPO_REF
-    #  value: main
     #- name: STRICT_POLICY
     #  value: \"1\"
 
