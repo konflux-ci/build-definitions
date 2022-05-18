@@ -295,7 +295,7 @@ Describe 'save-policy-config'
       When call save-policy-config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace custom-namespace'
-      The file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should not exist
+      The file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should not be exist
       The status should be failure
     End
   End
