@@ -20,13 +20,18 @@ TEST_NAME=$2
 # write output in format $basdir/data/test/$task_name/data.json
 result_found=
 for tr in $( pr-get-tr-names $PR_NAME ); do
+  echo "searching pr: ${PR_NAME}"
   data=$( tr-get-result $tr $TEST_NAME )
   if [[ ! -z "${data}" ]]; then
+      echo "have data: ${data}"
       result_found=1
-      input_file=$( json-input-file )
-      json-merge-with-key $data "$input_file" $tr test
+      data_file=$( json-data-file test "$tr")
+      echo "$data_file"
+      json-merge-with-key $data "$data_file" "test" "$tr"
   fi
 done
+
+echo "done"
 
 if [[ -z $result_found ]]; then
   # let's put an an empty hash here to express the the idea

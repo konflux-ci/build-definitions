@@ -40,7 +40,7 @@ spec:
         Public key used to verify signatures. Must be a valid k8s cosign
         reference, e.g. k8s://my-space/my-secret where my-secret contains
         the expected cosign.pub attribute.
-        
+
     - name: COSIGN_EXPERIMENTAL
       type: string
       description: Control transparency log lookups. Set to "0" to disable it.
@@ -62,6 +62,20 @@ spec:
         paths can be provided by using the ":" separator.
       default: ""
 
+    # TODO: We should probably use a bundle URL for this:
+    # https://www.openpolicyagent.org/docs/v0.12.2/bundles/#bundle-file-format
+    # Or an OCI image:
+    # https://github.com/open-policy-agent/opa/issues/1413
+    - name: POLICY_REPO
+      type: string
+      description: Git url for rego policies
+      default: https://github.com/simonbaird/ec-policies.git
+
+    - name: POLICY_REPO_REF
+      type: string
+      description: Git sha, branch or tag in git repo for rego policies
+      default: use-opa-input
+
     - name: STRICT_POLICY
       type: string
       description: Fail the task if policy fails. Set to "0" to disable it.
@@ -75,7 +89,7 @@ spec:
 
   steps:
     - name: verify-image-signature
-      image: appstudio-utils
+      image: quay.io/jstuart/appstudio-utils:latest
       command: [cosign]
       args:
         - verify
@@ -99,7 +113,7 @@ spec:
           mountPath: /shared
 
     - name: verify-image-attestation-signature
-      image: appstudio-utils
+      image: quay.io/jstuart/appstudio-utils:latest
       command: [cosign]
       args:
         - verify-attestation
@@ -124,7 +138,7 @@ spec:
           mountPath: /shared
 
     - name: fetch-test-data
-      image: appstudio-utils
+      image: quay.io/jstuart/appstudio-utils:latest
       command: [/appstudio-utils/util-scripts/fetch-test-data.sh]
       args:
         - $(params.PIPELINERUN_NAME)
@@ -137,7 +151,7 @@ spec:
           mountPath: /shared
 
     - name: verify-attestation-with-policy
-      image: appstudio-utils
+      image: quay.io/jstuart/appstudio-utils:latest
       command: [/appstudio-utils/util-scripts/verify-attestation-with-policy.sh]
       args:
         - /shared/image-in-toto-attestation.json

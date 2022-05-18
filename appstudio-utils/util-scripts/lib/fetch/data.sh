@@ -57,6 +57,8 @@ json-merge-with-key() {
 
   # Insert the new data
   jq-in-place-edit "$file" ". | $path = $new_data"
+}
+
 json-input-file() {
   file="$INPUT_DIR/input.json"
 
