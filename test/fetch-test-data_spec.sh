@@ -55,6 +55,33 @@ Describe 'json-data-file'
   End
 End
 
+Describe 'json-merge-with-key'
+  local test_file="$EC_WORK_DIR/json-merge-test.json"
+
+  It 'works as expected'
+    When call \
+      json-merge-with-key '{"result":"yes"}' "$test_file" test strong && \
+      json-merge-with-key '{"result":"no"}' "$test_file" test fast && \
+      json-merge-with-key '["jq"]' "$test_file" moredata good
+    The contents of file "$test_file" should eq \
+'{
+  "test": {
+    "strong": {
+      "result": "yes"
+    },
+    "fast": {
+      "result": "no"
+    }
+  },
+  "moredata": {
+    "good": [
+      "jq"
+    ]
+  }
+}'
+  End
+End
+
 Describe 'rekor-log-entry'
   rekor-cli() {
     echo "rekor-cli $*"
