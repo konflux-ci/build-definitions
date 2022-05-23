@@ -6,10 +6,7 @@ RUN curl -L https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/lat
 RUN curl -L https://github.com/sigstore/cosign/releases/download/v1.8.0/cosign-linux-amd64 -o /usr/bin/cosign && chmod +x /usr/bin/cosign
 RUN curl -L https://mirror.openshift.com/pub/openshift-v4/clients/pipeline/0.21.0/tkn-linux-amd64-0.21.0.tar.gz | tar -xz --no-same-owner -C /usr/bin/
 RUN curl -L https://github.com/sigstore/rekor/releases/download/v0.5.0/rekor-cli-linux-amd64 -o /usr/bin/rekor-cli && chmod +x /usr/bin/rekor-cli
-
-RUN curl -L https://github.com/open-policy-agent/opa/releases/download/v0.40.0/opa_linux_amd64_static -o /usr/bin/opa && \
-    echo 73e96d8071c6d71b4a9878d7f55bcb889173c40c91bbe599f9b7b06d3a472c5f /usr/bin/opa | sha256sum --check && \
-    chmod +x /usr/bin/opa
+RUN curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.32.0/conftest_0.32.0_Linux_x86_64.tar.gz | tar -xz --no-same-owner -C /usr/bin
 
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \

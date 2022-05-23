@@ -16,12 +16,47 @@ json-data-file() {
   # prepared but not actually used but that's okay.
   mkdir -p "$dir"
 
-  file="$dir/data.json"
+  local file="$dir/data.json"
 
   # Better not silently overwrite data
   [[ -f $file ]] && echo "Name clash for $file!" && exit 1
 
   echo "$file"
+}
+
+# Emulate in-place editing with jq
+jq-in-place-edit() {
+  local jq_filter="$1"
+  local file="$2"
+  local tmp_file="$(mktemp)"
+
+  jq "$jq_filter" "$file" > "$tmp_file" && \
+    mv "$tmp_file" "$file"
+}
+
+# Merge new data into an existing json file
+json-merge-with-key() {
+  local new_data="$1"
+  local file="$2"
+  local top_level_key="$3"
+  local second_level_key="$4"
+
+  local path=".\"$top_level_key\".\"$second_level_key\""
+
+  # Make sure the file exists
+  if [[ ! -f "$file" ]]; then
+    mkdir -p "$(dirname $file)"
+    echo "{}" > "$file"
+  fi
+
+  # Make sure we're not overwriting data
+  if [[ $( jq "$path" "$file" ) != "null" ]]; then
+    echo "ERROR: Path '$path' exists already in file '$file'"
+    exit 1
+  fi
+
+  # Insert the new data
+  jq-in-place-edit "$path = $new_data" "$file"
 }
 
 clear-data() {
