@@ -2,7 +2,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: gosec-check
+  name: sast-go
 spec:
   workspaces:
     - name: workspace
@@ -10,8 +10,8 @@ spec:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   steps:
-    - name: gosec-check
       image: quay.io/redhat-appstudio/hacbs-test:stable
+    - name: sast-go
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
