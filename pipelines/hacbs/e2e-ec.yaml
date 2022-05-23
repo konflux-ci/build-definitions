@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: e2e-ec
+  labels:
+    "skip-hacbs-test": "true"
+spec:
+  params:
+    - name: PUBLIC_KEY
+      type: string
+    - name: POLICY_CONFIGURATION
+      type: string
+      description: |
+        Name of the policy configuration (EnterpriseContractConfiguration
+        object) to use. `namespace/name` or `name` syntax supported. If
+        namespace is omitted the namespace where the task runs is used.
+      default: ec-policy
+    - name: IMAGE_REF
+      type: string
+      description: Image reference to verify
+    - name: PIPELINERUN_NAME
+      type: string
+      description: The name of the pipelinerun to gather task results from
+    - name: HACBS_TEST_OUTPUT
+      type: string
+      description: The name of the tekton result that holds the test output
+      default: HACBS_TEST_OUTPUT
+    - name: COSIGN_EXPERIMENTAL
+      type: string
+      description: Control transparency log lookups. Set to "0" to disable it.
+      default: "1"
+    - name: REKOR_HOST
+      type: string
+      description: Rekor host for transparency log lookups
+      default: https://rekor.sigstore.dev
+    - name: SSL_CERT_DIR
+      type: string
+      description: |
+        Path to a directory containing SSL certs to be used when communicating
+        with external services. This is useful when using the integrated registry
+        and a local instance of Rekor on a development cluster which may use
+        certificates issued by a not-commonly trusted root CA. In such cases,
+        "/var/run/secrets/kubernetes.io/serviceaccount" is a good value. Multiple
+        paths can be provided by using the ":" separator.
+      default: ""
+    - name: STRICT_POLICY
+      type: string
+      description: Fail the task if policy fails. Set to "0" to disable it.
+      default: "1"
+  tasks:
+    - name: cosign-verify
+      params:
+        - name: PUBLIC_KEY
+          value: "$(params.PUBLIC_KEY)"
+        - name: IMAGE
+          value: "$(params.IMAGE_REF)"
+      taskRef:
+        name: cosign-verify
+    - name: cosign-verify-attestation
+      params:
+        - name: PUBLIC_KEY
+          value: "$(params.PUBLIC_KEY)"
+        - name: IMAGE
+          value: "$(params.IMAGE_REF)"
+      taskRef:
+        name: cosign-verify-attestation
+    - name: verify-enterprise-contract
+      params:
+        - name: PUBLIC_KEY
+          value: "$(params.PUBLIC_KEY)"
+        - name: POLICY_CONFIGURATION
+          value: "$(params.POLICY_CONFIGURATION)"
+        - name: IMAGE_REF
+          value: "$(params.IMAGE_REF)"
+        - name: PIPELINERUN_NAME
+          value: "$(params.PIPELINERUN_NAME)"
+        - name: HACBS_TEST_OUTPUT
+          value: "$(params.HACBS_TEST_OUTPUT)"
+        - name: COSIGN_EXPERIMENTAL
+          value: "$(params.COSIGN_EXPERIMENTAL)"
+        - name: REKOR_HOST
+          value: "$(params.REKOR_HOST)"
+        - name: SSL_CERT_DIR
+          value: "$(params.SSL_CERT_DIR)"
+        - name: STRICT_POLICY
+          value: "$(params.STRICT_POLICY)"
+      taskRef:
+        name: verify-enterprise-contract
