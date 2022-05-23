@@ -10,8 +10,8 @@ spec:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   steps:
-      image: quay.io/redhat-appstudio/hacbs-test:stable
     - name: sast-go
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
@@ -24,7 +24,7 @@ spec:
         exit $GOSEC_EXIT_CODE
 
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:stable
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       script: |
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
