@@ -14,24 +14,26 @@ if [[ "$#" -ne 2 ]]; then
 fi
 
 PR_NAME=$1
-TEST_NAME=$2
+TEST_RESULT_NAME=$2
+
+TEST_DATA_FILE="$DATA_DIR/test.json"
+TOP_LEVEL_KEY=test
+
+title "Fetching test results"
+
+# intialize the file
+echo "{\"$TOP_LEVEL_KEY\":{}}" | jq > "$TEST_DATA_FILE"
 
 # search all task runs in a pipeline
-# write output in format $basdir/data/test/$task_name/data.json
-result_found=
+# if test results are found they will be merged into the data file
 for tr in $( pr-get-tr-names $PR_NAME ); do
-  data=$( tr-get-result $tr $TEST_NAME )
+  echo "checking ${tr}"
+  data=$( tr-get-result "$tr" "$TEST_RESULT_NAME" )
   if [[ ! -z "${data}" ]]; then
-      result_found=1
-      task_name=$( tr-get-task-name ${tr} )
-      echo "${data}" | jq > $( json-data-file test ${task_name} )
+    echo "...results found"
+    json-merge-with-key "$data" "$TEST_DATA_FILE" $TOP_LEVEL_KEY "$tr"
   fi
 done
 
-if [[ -z $result_found ]]; then
-  # let's put an an empty hash here to express the the idea
-  # that we looked for test results and found none
-  echo '{}' > $( json-data-file test )
-fi
-
-show-data
+title "Test results"
+cat "$TEST_DATA_FILE"

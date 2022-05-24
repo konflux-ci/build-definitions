@@ -55,6 +55,33 @@ Describe 'json-data-file'
   End
 End
 
+Describe 'json-merge-with-key'
+  local test_file="$EC_WORK_DIR/json-merge-test.json"
+
+  It 'works as expected'
+    When call \
+      json-merge-with-key '{"result":"yes"}' "$test_file" test strong && \
+      json-merge-with-key '{"result":"no"}' "$test_file" test fast && \
+      json-merge-with-key '["jq"]' "$test_file" more-data good
+    The contents of file "$test_file" should eq \
+'{
+  "test": {
+    "strong": {
+      "result": "yes"
+    },
+    "fast": {
+      "result": "no"
+    }
+  },
+  "more-data": {
+    "good": [
+      "jq"
+    ]
+  }
+}'
+  End
+End
+
 Describe 'rekor-log-entry'
   rekor-cli() {
     echo "rekor-cli $*"
@@ -232,8 +259,12 @@ Describe 'save-policy-config'
       When call save-policy-config
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace test'
       The variable oc_args should eq 'get configmap ec-policy -o go-template={{index .data "policy.json"}}'
-      The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
-  "from": "cluster"
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq '{
+  "config": {
+    "policy": {
+      "from": "cluster"
+    }
+  }
 }'
     End
   End
@@ -255,10 +286,14 @@ Describe 'save-policy-config'
     It 'fallsback to default'
       When call save-policy-config
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace test'
-      The contents of file "${EC_WORK_DIR}/data/config/policy/data.json" should eq '{
-  "non_blocking_checks": [
-    "not_useful"
-  ]
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq '{
+  "config": {
+    "policy": {
+      "non_blocking_checks": [
+        "not_useful"
+      ]
+    }
+  }
 }'
     End
   End
@@ -273,13 +308,13 @@ Describe 'save-policy-config'
     It 'fetches policy custom resource'
       When call save-policy-config custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com custom-policy'
-      The contents of file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should eq "$(echo '["a", "b", "c"]'| jq)"
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq "$(echo '{"config":{"policy":{"non_blocking_checks":["a", "b", "c"]}}}'| jq)"
     End
 
     It 'fetches policy custom resource in namespace'
       When call save-policy-config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
-      The contents of file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should eq "$(echo '["a", "b", "c"]'| jq)"
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq "$(echo '{"config":{"policy":{"non_blocking_checks":["a", "b", "c"]}}}'| jq)"
     End
 
     It 'can fail to fetch from custom resource'
@@ -295,7 +330,7 @@ Describe 'save-policy-config'
       When call save-policy-config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace custom-namespace'
-      The file "${EC_WORK_DIR}/data/config/policy/non_blocking_checks/data.json" should not exist
+      The file "${EC_WORK_DIR}/data/config.json" should not be exist
       The status should be failure
     End
   End
@@ -311,7 +346,7 @@ Describe 'save-policy-config'
     #   fail 2>/dev/null
     #   echo "Should not be here: status was $?"
     # }
-    # 
+    #
     # Describe 'error handling'
     #   It 'no worky'
     #     When call f
