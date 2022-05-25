@@ -50,7 +50,9 @@ spec:
         function retry {
           local n=0
           local max=5
-          local delay=60
+          # TODO Clair scan time varies too much at the moment, from 10 minutes to +5 hours. Decreasing delay.
+          #local delay=60
+          local delay=0
           while true; do
             "$@" && [ "$retval"==0 ]  && break || {
               if [[ $n -lt $max ]]; then
