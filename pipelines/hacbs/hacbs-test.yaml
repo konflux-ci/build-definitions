@@ -76,3 +76,14 @@
     workspaces:
     - name: conftest-ws
       workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: sast-go
+    runAfter:
+      - build-container
+    taskRef:
+      name: sast-go
+    workspaces:
+    - name: workspace
+      workspace: workspace
