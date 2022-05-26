@@ -17,15 +17,15 @@ spec:
     - name: OUTPUT_FORMAT
       description: the format of findsecbugs output
       type: string
-      default: "-sarif"
-    - name: OUTPUT_ONLYANALYZE
+      default: "sarif"
+    - name: OUTPUT_ONLY_ANALYZE
       description: |
         only analyze given classes and packages;
         end with .* to indicate classes in a package, .- to indicate a package prefix
       type: string
       default: ""
-    - name: OTHER_PARAM
-      description: other parameters to run findsecbugs
+    - name: OPTIONAL_ARGS
+      description: optional parameters to run findsecbugs
       type: string
       default: ""
   steps:
@@ -37,16 +37,16 @@ spec:
         if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
           mvn package -f $(params.PATH_CONTEXT)/
         else
-          echo "pom.xml file doesn't exist"
+          echo "pom.xml file doesn't exist in $(workspaces.workspace.path)/$(params.PATH_CONTEXT)"
         fi
         popd
 
         JAR_PATH=$(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar
         if [ -f "$JAR_PATH" ]; then
-          /home/findsecbugs-cli/findsecbugs.sh $(params.OTHER_PARAM) $(params.OUTPUT_ONLYANALYZE) $(params.OUTPUT_FORMAT) \
+          /home/findsecbugs-cli/findsecbugs.sh $(params.OPTIONAL_ARGS) $(params.OUTPUT_ONLY_ANALYZE) -$(params.OUTPUT_FORMAT) \
             -output sast_java_sec_output.json $JAR_PATH  2> stderr.txt
         else
-          echo "jar file doesn't exist" > stderr.txt
+          echo "jar file $JAR_PATH doesn't exist" > stderr.txt
         fi
 
         ERR_MSG="$(cat stderr.txt)"
