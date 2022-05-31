@@ -19,7 +19,7 @@ spec:
         volumeAttributes:
           sharedSecret: $(params.shared-secret)
     # Must-contain:
-      #'id_rsa' - deploy key for redhat-appstudio-mr-creation/infra-deployments/
+      #'id_rsa' - deploy key for redhat-appstudio/infra-deployments/
       #'appstudio-staging-ci' - private key for appstudio-staging-ci Github app
   steps:
     - name: update-infra-deployments
@@ -38,15 +38,14 @@ spec:
 
         REPO_NAME=$(echo $(params.ORIGIN_REPO) | cut -f5 -d/)
 
-        git clone https://github.com/redhat-appstudio/infra-deployments
+        git clone git@github.com:redhat-appstudio/infra-deployments.git
         cd infra-deployments
-        git remote add push git@github.com:redhat-appstudio-mr-creation/infra-deployments.git
         git checkout -b $REPO_NAME
 
         $(params.SCRIPT)
 
         git commit -a -m "$REPO_NAME update" -m "Automatic update"
-        git push -f --set-upstream push $REPO_NAME
+        git push -f --set-upstream upstream $REPO_NAME
     # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/chmouel/github-app-token@sha256:bc45937ae588df876555ebb56c36350ed74592c7f55f2df255cabef39c926a88
@@ -147,7 +146,7 @@ spec:
                         "Accept": "application/vnd.github.v3+json"
                     },
                     data={
-                        "head": f"redhat-appstudio-mr-creation:{repo_name}",
+                        "head": f"redhat-appstudio:{repo_name}",
                         "base": "main",
                         "title": f"{repo_name} update",
                         "maintainer_can_modify": False
