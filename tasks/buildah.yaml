@@ -79,12 +79,40 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+  - image: registry.redhat.io/ubi8/python-39:1-51
+    name: merge-sboms
+    script: |
+      #!/bin/python3
+      import json
+
+      with open("./sbom-image.json") as f:
+        image_sbom = json.load(f)
+
+      with open("./sbom-source.json") as f:
+        source_sbom = json.load(f)
+
+      def get_identifier(component):
+        return component["name"] + '@' + component["version"]
+
+      existing_components = [get_identifier(component) for component in image_sbom["components"]]
+
+      for component in source_sbom["components"]:
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+
+      image_sbom["components"].sort(key=lambda c: get_identifier(c))
+
+      with open("./sbom.json", "w") as f:
+        json.dump(image_sbom, f)
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
   - image: $(params.BUILDER_IMAGE)
     name: inject-sbom
     resources: {}
     script: |
       container=$(buildah from --storage-driver=$(params.STORAGE_DRIVER) --pull-never $(params.IMAGE))
-      buildah --storage-driver=$(params.STORAGE_DRIVER) copy $container sbom-source.json sbom-image.json /root/
+      buildah --storage-driver=$(params.STORAGE_DRIVER) copy $container sbom.json /root/
       buildah --storage-driver=$(params.STORAGE_DRIVER) commit $container $(params.IMAGE)
     volumeMounts:
     - mountPath: /var/lib/containers
