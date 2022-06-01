@@ -33,6 +33,8 @@ spec:
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       script: |
+        #!/bin/bash -x
+
         pushd $(workspaces.workspace.path)
         if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
           mvn package -f $(params.PATH_CONTEXT)/
