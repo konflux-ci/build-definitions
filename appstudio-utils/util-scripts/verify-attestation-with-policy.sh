@@ -33,7 +33,7 @@ source lib/fetch.sh
 ./fetch-ec-policies.sh
 
 title Fetching config
-save-policy-config
+save-policy-config "${POLICY_CONFIGURATION-}"
 
 title Config
 cat $DATA_DIR/config.json
