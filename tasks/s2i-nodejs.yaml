@@ -56,17 +56,11 @@ spec:
     - mountPath: /gen-source
       name: gen-source
     workingDir: $(workspaces.source.path)
-  - command:
-    - buildah
-    - bud
-    - --storage-driver=vfs
-    - --tls-verify=$(params.TLSVERIFY)
-    - --layers
-    - -f
-    - /gen-source/Dockerfile.gen
-    - -t
-    - $(params.IMAGE)
-    - .
+  - script: |
+      buildah bud --storage-driver=vfs --tls-verify=$(params.TLSVERIFY) \
+      --layers -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+      
+      buildah push --storage-driver=vfs $(params.IMAGE) oci:/var/lib/containers/oci
     image: $(params.BUILDER_IMAGE)
     name: build
     resources:
@@ -74,38 +68,16 @@ spec:
         memory: 2Gi
         cpu: 2
     volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
     - mountPath: /gen-source
       name: gen-source
     workingDir: /gen-source
-  - script: >
-      buildah
-      push
-      --storage-driver=vfs
-      --tls-verify=$(params.TLSVERIFY)
-      --digestfile=$(workspaces.source.path)/image-digest
-      $(params.PUSH_EXTRA_ARGS)
-      $(params.IMAGE)
-      docker://$(params.IMAGE)
-    image: $(params.BUILDER_IMAGE)
-    name: push
-    resources: {}
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
-  - image: $(params.BUILDER_IMAGE)
-    name: digest-to-results
-    resources: {}
-    script: |
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
   volumes:
   - emptyDir: {}
-    name: varlibcontainers
-  - emptyDir: {}
     name: gen-source
+  - emptyDir: {}
+    name: envparams
   workspaces:
   - mountPath: /workspace/source
     name: source
+  - name: varlibcontainers
+    mountPath: /var/lib/containers
