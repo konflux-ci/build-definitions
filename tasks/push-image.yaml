@@ -4,7 +4,7 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build
-  name: buildah
+  name: push-image
 spec:
   description: |-
     Buildah task builds source into a container image and then pushes it to a container registry.
@@ -52,18 +52,20 @@ spec:
     name: IMAGE_URL
   steps:
   - image: $(params.BUILDER_IMAGE)
-    name: build
-    resources:
-      limits:
-        memory: 2Gi
-        cpu: 2
+    name: push
+    resources: {}
     script: |
-      buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-        $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
-        --tls-verify=$(params.TLSVERIFY) --no-cache \
-        -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
-      buildah push --storage-driver=$(params.STORAGE_DRIVER) $(params.IMAGE) oci:/var/lib/containers/oci
+      buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
+        docker://$(params.IMAGE)
     workingDir: $(workspaces.source.path)
+  - image: $(params.BUILDER_IMAGE)
+    name: digest-to-results
+    resources: {}
+    script: |
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
   workspaces:
   - name: source
   - name: varlibcontainers

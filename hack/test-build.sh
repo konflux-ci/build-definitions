@@ -42,4 +42,4 @@ else
   echo Building $IMG
 fi
 
-tkn pipeline start $PIPELINE_NAME -w name=workspace,claimName=appstudio,subPath=$BUILD_TAG $PUSH_WORKSPACE -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
+tkn pipeline start $PIPELINE_NAME -w name=workspace,claimName=appstudio,subPath=$BUILD_TAG -w name=varlibcontainers,volumeClaimTemplateFile=$SCRIPTDIR/volume-claim-template.yaml $PUSH_WORKSPACE -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults

@@ -4,7 +4,7 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build
-  name: buildah
+  name: generate-sbom
 spec:
   description: |-
     Buildah task builds source into a container image and then pushes it to a container registry.
@@ -51,18 +51,53 @@ spec:
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
   steps:
-  - image: $(params.BUILDER_IMAGE)
-    name: build
-    resources:
-      limits:
-        memory: 2Gi
-        cpu: 2
+  - image: quay.io/redhat-appstudio/syft:v0.46.2
+    name: sbom-source
+    args:
+      - dir:$(workspaces.source.path)
+      - --file=$(workspaces.source.path)/sbom-source.json
+      - --output=cyclonedx-json
+  - image: quay.io/redhat-appstudio/syft:v0.46.2
+    name: sbom-image
+    args:
+      - oci-dir:/var/lib/containers/oci
+      - --file=$(workspaces.source.path)/sbom-image.json
+      - --output=cyclonedx-json
+  - image: registry.redhat.io/ubi8/python-39:1-51
+    name: merge-sboms
     script: |
-      buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-        $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
-        --tls-verify=$(params.TLSVERIFY) --no-cache \
-        -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
-      buildah push --storage-driver=$(params.STORAGE_DRIVER) $(params.IMAGE) oci:/var/lib/containers/oci
+      #!/bin/python3
+      import json
+
+      with open("./sbom-image.json") as f:
+        image_sbom = json.load(f)
+
+      with open("./sbom-source.json") as f:
+        source_sbom = json.load(f)
+
+      def get_identifier(component):
+        return component["name"] + '@' + component.get("version", "")
+
+      existing_components = [get_identifier(component) for component in image_sbom["components"]]
+
+      for component in source_sbom["components"]:
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+
+      image_sbom["components"].sort(key=lambda c: get_identifier(c))
+
+      with open("./sbom.json", "w") as f:
+        json.dump(image_sbom, f)
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+  - image: $(params.BUILDER_IMAGE)
+    name: inject-sbom
+    resources: {}
+    script: |
+      container=$(buildah from --storage-driver=$(params.STORAGE_DRIVER) --pull-never $(params.IMAGE))
+      buildah --storage-driver=$(params.STORAGE_DRIVER) copy $container sbom.json /root/
+      buildah --storage-driver=$(params.STORAGE_DRIVER) commit $container $(params.IMAGE)
     workingDir: $(workspaces.source.path)
   workspaces:
   - name: source
