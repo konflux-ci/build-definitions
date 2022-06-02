@@ -95,7 +95,7 @@ spec:
         source_sbom = json.load(f)
 
       def get_identifier(component):
-        return component["name"] + '@' + component["version"]
+        return component["name"] + '@' + component.get("version", "")
 
       existing_components = [get_identifier(component) for component in image_sbom["components"]]
 
