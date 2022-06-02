@@ -40,6 +40,22 @@
 - op: add
   path: /spec/tasks/-
   value:
+    name: deprecated-base-image-check
+    runAfter:
+      - sanity-inspect-image
+    taskRef:
+      name: deprecated-image-check
+    params:
+    - name: IMAGE_REGISTRY
+      value: quay.io
+    - name: IMAGE_REPOSITORY
+      value: $(params.git-url)
+    workspaces:
+    - name: sanity-ws
+      workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
     name: get-clair-results
     runAfter:
       - build-container
