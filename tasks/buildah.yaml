@@ -53,7 +53,10 @@ spec:
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
-    resources: {}
+    resources:
+      limits:
+        memory: 2Gi
+        cpu: 2
     script: |
       buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
         $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
