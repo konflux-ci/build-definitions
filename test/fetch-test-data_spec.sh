@@ -20,7 +20,7 @@ Last test EC_WORK_DIR=${EC_WORK_DIR} manually remove it"
 }
 AfterAll 'final_cleanup'
 
-Include ./appstudio-utils/util-scripts/fetch-test-data.sh
+Include ./appstudio-utils/util-scripts/lib/fetch.sh
 
 # This is not included in lib/fetch.sh and more, but include
 # it here so the rekor tests below continue to pass
