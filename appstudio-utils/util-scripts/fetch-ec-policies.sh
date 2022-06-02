@@ -18,7 +18,7 @@ source $(dirname $0)/lib/fetch.sh
 clear-policies
 
 title "Fetching policy files"
-git-fetch-policies
+git-fetch-policies "${POLICY_CONFIGURATION-}"
 
 title "Policy files"
 show-policies
