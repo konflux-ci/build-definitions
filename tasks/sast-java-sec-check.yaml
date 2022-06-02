@@ -32,6 +32,13 @@ spec:
     - name: java-sec-check
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
+      resources:
+        limits:
+          memory: 2Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
       script: |
         #!/bin/bash -x
 
