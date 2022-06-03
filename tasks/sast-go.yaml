@@ -13,6 +13,13 @@ spec:
     - name: sast-go
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      resources:
+        limits:
+          memory: 2Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
       script: |
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
 
