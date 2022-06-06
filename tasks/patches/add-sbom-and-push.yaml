@@ -63,9 +63,9 @@
     name: inject-sbom
     resources: {}
     script: |
-      container=$(buildah from --storage-driver=$(params.STORAGE_DRIVER) --pull-never $(params.IMAGE))
-      buildah --storage-driver=$(params.STORAGE_DRIVER) copy $container sbom.json /root/
-      buildah --storage-driver=$(params.STORAGE_DRIVER) commit $container $(params.IMAGE)
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah copy $container sbom.json /root/
+      buildah commit $container $(params.IMAGE)
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -78,7 +78,7 @@
     name: push
     resources: {}
     script: |
-      buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+      buildah push \
         $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
         --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
@@ -96,4 +96,3 @@
     script: |
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
-

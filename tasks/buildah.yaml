@@ -15,13 +15,9 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: registry.access.redhat.com/ubi8/buildah@sha256:31f84b19a0774be7cfad751be38fc97f5e86cefd26e0abaec8047ddc650b00bf
+  - default: registry.access.redhat.com/ubi8/buildah:8.6-12@sha256:82aa9592f3262313ec52f7a2335641e2581b0d0d9807980846d0539bb77d0657
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
-    type: string
-  - default: vfs
-    description: Set buildah storage driver
-    name: STORAGE_DRIVER
     type: string
   - default: ./Dockerfile
     description: Path to the Dockerfile to build.
@@ -34,10 +30,6 @@ spec:
   - default: "true"
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
-    type: string
-  - default: oci
-    description: The format of the built container, oci or docker
-    name: FORMAT
     type: string
   - default: ""
     description: Extra parameters passed for the build command when building images.
@@ -52,6 +44,12 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
+  stepTemplate:
+    env:
+    - name: BUILDAH_FORMAT
+      value: oci
+    - name: STORAGE_DRIVER
+      value: vfs
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
@@ -63,11 +61,11 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-        $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
+      buildah bud \
+        $(params.BUILD_EXTRA_ARGS) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
-      buildah push --storage-driver=$(params.STORAGE_DRIVER) $(params.IMAGE) oci:/var/lib/containers/oci
+      buildah push $(params.IMAGE) oci:/var/lib/containers/oci
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
