@@ -21,3 +21,11 @@ resources:
 - verify-enterprise-contract.yaml
 - sast-go.yaml
 - sast-java-sec-check.yaml
+
+patches:
+  - path: patches/add-sbom-and-push.yaml
+    target:
+      group: tekton.dev
+      version: v1beta1
+      kind: Task
+      labelSelector: build-definition.include = add-sbom-and-push

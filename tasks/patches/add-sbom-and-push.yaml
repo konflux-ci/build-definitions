@@ -1,0 +1,98 @@
+- op: remove
+  path: /metadata/labels/build-definition.include
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: quay.io/redhat-appstudio/syft:v0.46.2
+    name: sbom-source
+    args:
+      - dir:$(workspaces.source.path)
+      - --file=$(workspaces.source.path)/sbom-source.json
+      - --output=cyclonedx-json
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: quay.io/redhat-appstudio/syft:v0.46.2
+    name: sbom-image
+    args:
+      - oci-dir:/var/lib/containers/oci
+      - --file=$(workspaces.source.path)/sbom-image.json
+      - --output=cyclonedx-json
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: registry.redhat.io/ubi8/python-39:1-51
+    name: merge-sboms
+    script: |
+      #!/bin/python3
+      import json
+
+      with open("./sbom-image.json") as f:
+        image_sbom = json.load(f)
+
+      with open("./sbom-source.json") as f:
+        source_sbom = json.load(f)
+
+      def get_identifier(component):
+        return component["name"] + '@' + component.get("version", "")
+
+      existing_components = [get_identifier(component) for component in image_sbom["components"]]
+
+      for component in source_sbom["components"]:
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+
+      image_sbom["components"].sort(key=lambda c: get_identifier(c))
+
+      with open("./sbom.json", "w") as f:
+        json.dump(image_sbom, f)
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: $(params.BUILDER_IMAGE)
+    name: inject-sbom
+    resources: {}
+    script: |
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah copy $container sbom.json /root/
+      buildah commit $container $(params.IMAGE)
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: $(params.BUILDER_IMAGE)
+    name: push
+    resources: {}
+    script: |
+      buildah push \
+        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
+        docker://$(params.IMAGE)
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+
+- op: add
+  path: /spec/steps/-
+  value:
+    image: $(params.BUILDER_IMAGE)
+    name: digest-to-results
+    resources: {}
+    script: |
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
