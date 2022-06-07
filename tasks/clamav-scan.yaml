@@ -1,0 +1,108 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: clamav-scan
+spec:
+  params:
+    - name: image-digest
+      description: Image digest to scan
+    - name: image-url
+      description: Url to image
+  steps:
+    - name: extract-and-scan-image
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
+      workingDir: /work
+      # need to change user since 'oc image extract' requires more privileges when running as root
+      # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
+      securityContext:
+        runAsUser: 1000
+      env:
+        - name: HOME
+          value: /work
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
+      script: |
+        imagewithouttag=$(echo '$(params.image-url)' | sed "s/\(.*\):.*/\1/" | tr -d '\n')
+
+        # strip new-line escape symbol from parameter and save it to variable
+        imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
+
+        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="-a /workspace/registry-auth/.dockerconfigjson"
+        mkdir content
+        cd content
+        oc image extract $REGISTRY_ARGS $imageanddigest
+        clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
+        echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
+      volumeMounts:
+        - mountPath: /var/lib/clamav
+          name: dbfolder
+        - mountPath: /work
+          name: work
+    - name: modify-clam-output-to-json
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
+      script: |
+        #!/usr/bin/env python3.9
+        import json
+        import dateutil.parser as parser
+
+        with open("/tekton/home/clamscan-result.log", "r") as file:
+            clam_result_str = file.read()
+
+        def clam_result_str_to_json(clam_result_str):
+
+            clam_result_list = clam_result_str.split("\n")
+            clam_result_list.remove('')
+
+            results_marker = \
+                clam_result_list.index("----------- SCAN SUMMARY -----------")
+
+            hit_list = clam_result_list[:results_marker]
+            summary_list = clam_result_list[(results_marker + 1):]
+
+            r_dict = { "hits": hit_list }
+            for item in summary_list:
+                # in case of blank lines
+                if not item:
+                    continue
+                split_index = [c == ':' for c in item].index(True)
+                key = item[:split_index].lower()
+                key = key.replace(" ", "_")
+                value = item[(split_index + 1):].strip(" ")
+                if (key == "start_date" or key == "end_date"):
+                  isodate = parser.parse(value)
+                  value = isodate.isoformat()
+                r_dict[key] = value
+            print(json.dumps(r_dict))
+            with open('/tekton/home/clamscan-result.json', 'w') as f:
+              print(json.dumps(r_dict), file=f)
+
+        def main():
+            clam_result_str_to_json(clam_result_str)
+
+        if __name__ == "__main__":
+            main()
+  # sidecar is rebuilt daily(is meant to be updated daily), hence the usage of the tag instead of digest
+  # provides latest virus database for clamscan only
+  # does not execute anything
+  sidecars:
+    - image: quay.io/redhat-appstudio/clamav-db:latest
+      name: database
+      script: |
+        #!/usr/bin/env bash
+        cp -r /var/lib/clamav/* /tmp/clamdb
+      volumeMounts:
+        - mountPath: /tmp/clamdb
+          name: dbfolder
+  volumes:
+    - name: dbfolder
+      emptydir: {}
+    - name: work
+      emptydir: {}
+  workspaces:
+    - name: registry-auth
+      optional: true

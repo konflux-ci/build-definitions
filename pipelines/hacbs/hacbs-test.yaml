@@ -101,3 +101,19 @@
     workspaces:
     - name: workspace
       workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: clamav-scan
+    runAfter:
+      - build-container
+    taskRef:
+      name: clamav-scan
+    params:
+    - name: image-digest
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-container.results.IMAGE_URL)
+    workspaces:
+    - name: registry-auth
+      workspace: registry-auth
