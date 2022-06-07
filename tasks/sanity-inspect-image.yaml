@@ -52,6 +52,4 @@ spec:
       skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
       echo "$BASE_IMAGE" | tee $(results.BASE_IMAGE.path)
 
-      BASE_IMAGE_INSPECT_RAW=$(skopeo inspect --no-tags --raw docker://$BASE_IMAGE)
-      BASE_IMAGE_REPOSITORY="$(echo $BASE_IMAGE_INSPECT_RAW | jq -r ".annotations.\"org.opencontainers.image.source\"")"
-      echo "$BASE_IMAGE_REPOSITORY" > $(results.BASE_IMAGE_REPOSITORY.path)
+      jq -r ".Name" $BASE_IMAGE_INSPECT | cut -d"/" -f2,3 | tee $(results.BASE_IMAGE_REPOSITORY.path)
