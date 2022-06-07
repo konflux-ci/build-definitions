@@ -51,28 +51,14 @@
       image_sbom["components"].sort(key=lambda c: get_identifier(c))
 
       with open("./sbom-cyclonedx.json", "w") as f:
-        json.dump(image_sbom, f)
-    workingDir: $(workspaces.source.path)
-    securityContext:
-      runAsUser: 0
+        json.dump(image_sbom, f, indent=4)
 
-- op: add
-  path: /spec/steps/-
-  value:
-    image: registry.redhat.io/ubi8/python-39:1-51
-    name: convert-cyclonedx-to-purl
-    script: |
-      #!/bin/python3
-      import json
-
-      with open("./sbom-cyclonedx.json") as f:
-          data = json.load(f)
-
-      purls = [{"purl": component["purl"]} for component in data["components"] if "purl" in component]
+      purls = [{"purl": component["purl"]} for component in image_sbom["components"] if "purl" in component]
       purl_content = {"image_contents": {"dependencies": purls}}
 
       with open("sbom-purl.json", "w") as output_file:
-          json.dump(purl_content, output_file)
+          json.dump(purl_content, output_file, indent=4)
+
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
@@ -85,7 +71,7 @@
     resources: {}
     script: |
       container=$(buildah from --pull-never $(params.IMAGE))
-      buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/
+      buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah commit $container $(params.IMAGE)
     volumeMounts:
     - mountPath: /var/lib/containers
