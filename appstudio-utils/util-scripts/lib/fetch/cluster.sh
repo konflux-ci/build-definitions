@@ -54,11 +54,6 @@ save-policy-config() {
   if ! non_blocking_data=$(kubectl get enterprisecontractpolicies.appstudio.redhat.com "${args[*]}" -o jsonpath='{.spec.exceptions.nonBlocking}'); then
     local namespace=${namespace_arg#-n }
     echo "ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace ${namespace:-$(kubectl config view --minify -o jsonpath='{..namespace}')}" 1>&2
-    # TODO remove this condition once $1 is mandatory, i.e. we no longer
-    # use the config map or the fallback policy below
-    if [[ $# -gt 0 ]]; then # remove to fail unconditionally
-      return 1
-    fi
   else
     # Save the config data from the ECP
     echo "$non_blocking_data" | jq '{"config": {"policy": {"non_blocking_checks": . }}}' > "${config_file}"
