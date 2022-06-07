@@ -11,21 +11,38 @@ spec:
   steps:
     - name: extract-and-scan-image
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
-      workingDir: /workspace/clamav
+      workingDir: /work
+      # need to change user since 'oc image extract' requires more privileges when running as root
+      # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
+      securityContext:
+        runAsUser: 1000
+      env:
+        - name: HOME
+          value: /work
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
       script: |
-        # copy virus database from sidecar
-        cp -r /tmp/clamdb/* /var/lib/clamav
         imagewithouttag=$(echo '$(params.image-url)' | sed "s/\(.*\):.*/\1/" | tr -d '\n')
 
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
-        oc image extract -a /workspace/registry-auth/.dockerconfigjson $imageanddigest
+        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="-a /workspace/registry-auth/.dockerconfigjson"
+        mkdir content
+        cd content
+        oc image extract $REGISTRY_ARGS $imageanddigest
         clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
         echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
       volumeMounts:
-        - mountPath: /tmp/clamdb
+        - mountPath: /var/lib/clamav
           name: dbfolder
+        - mountPath: /work
+          name: work
     - name: modify-clam-output-to-json
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
       script: |
@@ -83,6 +100,8 @@ spec:
           name: dbfolder
   volumes:
     - name: dbfolder
+      emptydir: {}
+    - name: work
       emptydir: {}
   workspaces:
     - name: registry-auth
