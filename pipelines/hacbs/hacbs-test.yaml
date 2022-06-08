@@ -104,6 +104,17 @@
 - op: add
   path: /spec/tasks/-
   value:
+    name: sast-snyk-check
+    runAfter:
+      - clone-repository
+    taskRef:
+      name: sast-snyk-check
+    workspaces:
+    - name: workspace
+      workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
     name: clamav-scan
     runAfter:
       - build-container
