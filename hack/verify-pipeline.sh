@@ -46,7 +46,8 @@ conftest test $INPUT_FILE \
   --policy $POLICIES_DIR/policy \
   --namespace pipeline.main \
   --output json \
-  --no-fail
+  --no-fail \
+  | jq
 
 # Cleanup our created directories
 # Comment this out if you need to debug.
