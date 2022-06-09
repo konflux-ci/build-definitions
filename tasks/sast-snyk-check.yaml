@@ -40,16 +40,24 @@ spec:
         export SNYK_TOKEN
         SNYK_EXIT_CODE=0
         snyk code test $(params.ARGS) ../.. --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
+        test_not_skipped=0
+        SKIP_MSG="We found 0 supported files"
+        grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
             '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
                    timestamp: $date,
                    namespace: "default",
                    successes: 0,
+                   note: "",
                    failures: (.runs[].results // [])|map(.message.text)
                  }' sast_snyk_check_out.json || true)
+        # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
+        elif [[ "$test_not_skipped" -eq 0 ]]; then
+          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg SKIP_MESSAGE "${SKIP_MSG}" --null-input \
+            '{result: "SKIPPED", note: $SKIP_MESSAGE, timestamp: $date}')
         else
-          ERR_MSG="$(cat stdout.out)"
+          ERR_MSG="$(cat stdout.txt)"
           HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg ERR_MESSAGE "${ERR_MSG}" --null-input \
             '{result: "ERROR", timestamp: $date, failures: [$ERR_MESSAGE]}')
         fi

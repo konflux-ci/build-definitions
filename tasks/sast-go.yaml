@@ -21,31 +21,37 @@ spec:
           memory: 512Mi
           cpu: 10m
       script: |
-        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
+        /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... 2> gosec_output.txt
 
         # Test if any package was found
         # Even with -no-fail, gosec uses exit code 1 for several states,
         # including when there are no packages found.
-        grep "No packages found$" gosec_output.txt && echo "Skipping because no Go packages were found"
+        SKIP_MSG="No packages found"
+        test_not_skipped=0
+        grep -q "$SKIP_MSG" gosec_output.txt || test_not_skipped=$?
 
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
           '{result: "ERROR", timestamp: $date}')
 
         if [ -f gosec_output.json ];
         then
-          HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
-            '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
+          HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
+                                 --arg SKIP_MESSAGE "${SKIP_MSG}" \
+            '{ result: (if (.runs[].results | length > 0) then "FAILURE" elif $tmp_not_skipped=="0" then "SKIPPED" else "SUCCESS" end),
                timestamp: $date,
                namespace: "default",
                successes: 0,
+               note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
                failures: (.runs[].results // [])|map(.message.text)
              }' gosec_output.json || true)
         else
-          HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-            '{ result: "SUCCESS",
+          HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped --null-input \
+                                 --arg SKIP_MESSAGE "${SKIP_MSG}" \
+            '{ result: (if $tmp_not_skipped=="0" then "SKIPPED" else "SUCCESS" end),
                timestamp: $date,
                namespace: "default",
                successes: 0,
+               note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
                failures: 0
              }')
         fi
