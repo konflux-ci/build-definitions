@@ -103,10 +103,12 @@ spec:
               type: string
           steps:
             - name: e2e-test
-              image: quay.io/redhat-appstudio/e2e-tests:latest
+              # TODO: revert once https://github.com/redhat-appstudio/e2e-tests/pull/105/commits is merged
+              #image: quay.io/redhat-appstudio/e2e-tests:latest
+              image: quay.io/redhat-appstudio/pull-request-builds:e2e-c70495bffdc8fb9f49398b6f7b7fbb32cce51abd
               imagePullPolicy: Always
               args: [
-                "--ginkgo.focus=build-service-suite",
+                "--ginkgo.label-filter=build-templates-e2e",
                 "--ginkgo.progress",
                 "--ginkgo.v",
                 "--ginkgo.no-color"
