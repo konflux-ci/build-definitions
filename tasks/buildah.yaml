@@ -55,7 +55,7 @@ spec:
     name: build
     resources:
       limits:
-        memory: 2Gi
+        memory: 4Gi
         cpu: 2
       requests:
         memory: 512Mi
@@ -64,6 +64,7 @@ spec:
       buildah bud \
         $(params.BUILD_EXTRA_ARGS) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
+        --ulimit nofile=4096:4096 \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
       buildah push $(params.IMAGE) oci:/var/lib/containers/oci
     volumeMounts:
