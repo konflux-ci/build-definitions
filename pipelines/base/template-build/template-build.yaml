@@ -73,17 +73,6 @@ spec:
         - name: registry-auth
           workspace: registry-auth
     - name: build-container
-      params:
-        - name: IMAGE
-          value: $(params.output-image)
-        - name: DOCKERFILE
-          value: $(params.dockerfile)
-        - name: CONTEXT
-          value: $(params.path-context)
-        - name: BUILD_EXTRA_ARGS
-          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
-        - name: PUSH_EXTRA_ARGS
-          value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
       when:
       - input: $(tasks.appstudio-init.results.build)
         operator: in
