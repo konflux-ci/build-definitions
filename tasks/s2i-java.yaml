@@ -27,7 +27,7 @@ spec:
     description: Additional Maven arguments
     name: MAVEN_ARGS_APPEND
     type: string
-  - default: "false"
+  - default: "true"
     description: Remove the Maven repository after the artifact is built
     name: MAVEN_CLEAR_REPO
     type: string
@@ -110,13 +110,13 @@ spec:
       name: envparams
     workingDir: $(workspaces.source.path)
   - script: |
-      buildah bud --tls-verify=$(params.TLSVERIFY) --layers -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+      buildah bud --tls-verify=$(params.TLSVERIFY) --layers --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
       buildah push $(params.IMAGE) oci:/var/lib/containers/oci
     image: $(params.BUILDER_IMAGE)
     name: build
     resources:
       limits:
-        memory: 2Gi
+        memory: 4Gi
         cpu: 2
       requests:
         memory: 512Mi
