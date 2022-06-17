@@ -4,25 +4,45 @@
 - op: add
   path: /spec/steps/-
   value:
-    image: quay.io/redhat-appstudio/syft:v0.46.2
-    name: sbom-source
-    args:
-      - dir:$(workspaces.source.path)
-      - --file=$(workspaces.source.path)/sbom-source.json
-      - --output=cyclonedx-json
+    image: $(params.BUILDER_IMAGE)
+    name: mount-container
+    resources: {}
+    script: |
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah mount $container | tee /workspace/container_path
+      echo $container > /workspace/container_name
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
 
 - op: add
   path: /spec/steps/-
   value:
-    image: quay.io/redhat-appstudio/syft:v0.46.2
-    name: sbom-image
-    args:
-      - oci-dir:/var/lib/containers/oci
-      - --file=$(workspaces.source.path)/sbom-image.json
-      - --output=cyclonedx-json
+    image: quay.io/redhat-appstudio/syft:v0.47.0
+    name: sbom-get
+    script: |
+      syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      find $(cat /workspace/container_path) -xtype l -delete
+      syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+
+- op: add
+  path: /spec/steps/-
+  value:
+    name: analyse-dependencies-java-sbom
+    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:3f4824c3a29836a33a5bca3bcad386930b4197bc
+    script: |
+      if [ -f /var/lib/containers/java ]; then
+        /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path)
+      fi
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    securityContext:
+      runAsUser: 0
 
 - op: add
   path: /spec/steps/-
@@ -67,39 +87,58 @@
   path: /spec/steps/-
   value:
     image: $(params.BUILDER_IMAGE)
-    name: inject-sbom
+    name: inject-sbom-and-push
     resources: {}
     script: |
       container=$(buildah from --pull-never $(params.IMAGE))
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah commit $container $(params.IMAGE)
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
-
-- op: add
-  path: /spec/steps/-
-  value:
-    image: $(params.BUILDER_IMAGE)
-    name: push
-    resources: {}
-    script: |
       buildah push \
         $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
         --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
 
 - op: add
-  path: /spec/steps/-
+  path: /spec/sidecars
   value:
-    image: $(params.BUILDER_IMAGE)
-    name: digest-to-results
-    resources: {}
-    script: |
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+  - image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:3f4824c3a29836a33a5bca3bcad386930b4197bc
+    imagePullPolicy: Always
+    env:
+      - name: QUARKUS_REST_CLIENT_CACHE_SERVICE_URL
+        value: "http://hacbs-jvm-cache.jvm-build-service.svc.cluster.local"
+      - name: QUARKUS_S3_ENDPOINT_OVERRIDE
+        value: "http://localstack.jvm-build-service.svc.cluster.local:4572"
+      - name: QUARKUS_S3_AWS_REGION
+        value: "us-east-1"
+      - name: QUARKUS_S3_AWS_CREDENTIALS_STATIC_PROVIDER_ACCESS_KEY_ID
+        value: "accesskey"
+      - name: QUARKUS_S3_AWS_CREDENTIALS_STATIC_PROVIDER_SECRET_ACCESS_KEY
+        value: "secretkey"
+      - name: QUARKUS_S3_AWS_CREDENTIALS_TYPE
+        value: "static"
+    name: proxy
+    livenessProbe:
+      httpGet:
+        path: /q/health/live
+        port: 2000
+      initialDelaySeconds: 1
+      periodSeconds: 3
+    readinessProbe:
+      httpGet:
+        path: /q/health/ready
+        port: 2000
+      initialDelaySeconds: 1
+      periodSeconds: 3
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"

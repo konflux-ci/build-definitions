@@ -12,6 +12,9 @@ spec:
     Buildah task builds source into a container image and then pushes it to a container registry.
     Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
   params:
+  - default: ""
+    description: The base URL of a mirror used for retrieving artifacts
+    name: MAVEN_MIRROR_URL
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
@@ -61,12 +64,15 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
+      if [ -n "$(params.MAVEN_MIRROR_URL)" ] && grep -q '^RUN mvn' $(params.CONTEXT)/$(params.DOCKERFILE); then
+        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>$(params.MAVEN_MIRROR_URL)</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
+        touch /var/lib/containers/java
+      fi
       buildah bud \
         $(params.BUILD_EXTRA_ARGS) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
-      buildah push $(params.IMAGE) oci:/var/lib/containers/oci
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
