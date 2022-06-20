@@ -50,23 +50,30 @@ spec:
         fi
         popd
 
-        JAR_PATH=$(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar
-        if [ -f "$JAR_PATH" ]; then
+        JAR_PATH=`ls $(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar`
+        if [ -n "$JAR_PATH" ]; then
           /home/findsecbugs-cli/findsecbugs.sh $(params.OPTIONAL_ARGS) $(params.OUTPUT_ONLY_ANALYZE) -$(params.OUTPUT_FORMAT) \
             -output sast_java_sec_output.json $JAR_PATH  2> stderr.txt
+          test_skipped=0
         else
           echo "jar file $JAR_PATH doesn't exist" > stderr.txt
+          test_skipped=1
         fi
 
         ERR_MSG="$(cat stderr.txt)"
         ERR_MSG="${ERR_MSG:-unknown}"
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg ERR_MSG "${ERR_MSG: 0: 3000}" --null-input \
-          '{result: "ERROR", timestamp: $date, failures: [$ERR_MSG]}')
-        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg MSG "${ERR_MSG: 0: 3000}"
+                              --arg test_skipped $test_skipped --null-input \
+            '{result: (if $test_skipped=="1" then "SKIPPED" else "ERROR" end),
+              timestamp: $date,
+              note: (if $test_skipped=="1" then $MSG else "" end),
+              failures: (if $test_skipped=="1" then "" else [$MSG] end)}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s)  \
           '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
                    timestamp: $date,
                    namespace: "default",
                    successes: 0,
+                   note: "",
                    failures: (.runs[].results | length)
                  }' sast_java_sec_output.json || true)
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
