@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - ../base
   - e2e-ec.yaml
-  - hacbs-java-builder
 patches:
   - path: hacbs-test.yaml
     target:
@@ -17,6 +16,12 @@ patches:
       version: v1beta1
       kind: Pipeline
   - path: force-rebuild.yaml
+    target:
+      group: tekton.dev
+      version: v1beta1
+      kind: Pipeline
+      labelSelector: skip-hacbs-test != true
+  - path: hacbs-java-builds.yaml
     target:
       group: tekton.dev
       version: v1beta1

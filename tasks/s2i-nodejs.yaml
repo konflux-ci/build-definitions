@@ -11,9 +11,9 @@ metadata:
 spec:
   description: s2i-nodejs task clones a Git repository and builds and pushes a container image using S2I and a nodejs builder image.
   params:
-  - default: 14-ubi8
-    description: The tag of nodejs imagestream for nodejs version
-    name: VERSION
+  - default: registry.access.redhat.com/ubi8/nodejs-16:1-37.1654147900
+    description: NodeJS builder image
+    name: BASE_IMAGE
     type: string
   - default: .
     description: The location of the path to run s2i from.
@@ -35,6 +35,10 @@ spec:
     description: Extra parameters passed for the push command when pushing images.
     name: PUSH_EXTRA_ARGS
     type: string
+  # Unused only as placeholder
+  - default: ""
+    description: The base URL of a mirror used for retrieving artifacts
+    name: MAVEN_MIRROR_URL
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -51,7 +55,7 @@ spec:
     - s2i
     - build
     - $(params.PATH_CONTEXT)
-    - image-registry.openshift-image-registry.svc:5000/openshift/nodejs:$(params.VERSION)
+    - registry.access.redhat.com/ubi8/nodejs-16:1-37.1654147900
     - --as-dockerfile
     - /gen-source/Dockerfile.gen
     env:
@@ -66,7 +70,6 @@ spec:
     workingDir: $(workspaces.source.path)
   - script: |
       buildah bud --tls-verify=$(params.TLSVERIFY) --layers -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
-      buildah push $(params.IMAGE) oci:/var/lib/containers/oci
     image: $(params.BUILDER_IMAGE)
     name: build
     resources:
