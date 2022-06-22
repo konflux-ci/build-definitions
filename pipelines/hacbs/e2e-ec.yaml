@@ -18,6 +18,13 @@ spec:
     - name: IMAGE_REF
       type: string
       description: Image reference to verify
+    - name: IMAGES
+      type: string
+      description: |
+        Spec section of an ApplicationSnapshot. The containerImage of each
+        component will be verified.
+      # Eventually this will be a require parameter without a default value.
+      default: ""
     - name: HACBS_TEST_OUTPUT
       type: string
       description: The name of the tekton result that holds the test output
@@ -81,3 +88,19 @@ spec:
           value: "$(params.STRICT_POLICY)"
       taskRef:
         name: verify-enterprise-contract
+    - name: verify-enterprise-contract-v2
+      params:
+        - name: PUBLIC_KEY
+          value: "$(params.PUBLIC_KEY)"
+        - name: POLICY_CONFIGURATION
+          value: "$(params.POLICY_CONFIGURATION)"
+        - name: IMAGES
+          value: "$(params.IMAGES)"
+        - name: REKOR_HOST
+          value: "$(params.REKOR_HOST)"
+        - name: SSL_CERT_DIR
+          value: "$(params.SSL_CERT_DIR)"
+        - name: STRICT
+          value: "$(params.STRICT_POLICY)"
+      taskRef:
+        name: verify-enterprise-contract-v2
