@@ -33,7 +33,7 @@
   path: /spec/steps/-
   value:
     name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:3f4824c3a29836a33a5bca3bcad386930b4197bc
+    image: $(params.DEPENDENCY_ANALYSER_IMAGE)
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path)
