@@ -103,7 +103,7 @@ spec:
               type: string
           steps:
             - name: e2e-test
-              image: quay.io/redhat-appstudio/e2e-tests:latest
+              image: quay.io/redhat-appstudio/pull-request-builds:e2e-d67687af6f8932c58f05e04300c30e732cd75eab
               imagePullPolicy: Always
               args: [
                 "--ginkgo.label-filter=build-templates-e2e",
@@ -132,8 +132,8 @@ spec:
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by e2e test run
                 # TODO: Application and Component names should be unique, so the cleanup task doesn't affect other pipelineruns
-                oc delete --ignore-not-found application build-suite-test-application -n $(params.e2e_test_namespace)
-                oc delete --ignore-not-found component build-suite-test-component-git-source -n $(params.e2e_test_namespace)
+                oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
+                oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   workspaces:
     - name: workspace
       persistentVolumeClaim:
