@@ -33,11 +33,12 @@
   path: /spec/steps/-
   value:
     name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:3f4824c3a29836a33a5bca3bcad386930b4197bc
+    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:09743ae5f54cc12068bbb31b7050d2bca40a91d3
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path)
+        /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json
       fi
+
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -52,6 +53,7 @@
     script: |
       #!/bin/python3
       import json
+      import os.path
 
       with open("./sbom-image.json") as f:
         image_sbom = json.load(f)
@@ -59,12 +61,22 @@
       with open("./sbom-source.json") as f:
         source_sbom = json.load(f)
 
+      java_sbom = { "components" : [] }
+      if os.path.exists("./sbom-java.json"):
+        with open("./sbom-java.json") as f:
+          java_sbom = json.load(f)
+
       def get_identifier(component):
         return component["name"] + '@' + component.get("version", "")
 
       existing_components = [get_identifier(component) for component in image_sbom["components"]]
 
       for component in source_sbom["components"]:
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+          existing_components.append(get_identifier(component))
+
+      for component in java_sbom["components"]:
         if get_identifier(component) not in existing_components:
           image_sbom["components"].append(component)
 
@@ -110,7 +122,7 @@
 - op: add
   path: /spec/sidecars
   value:
-  - image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:3f4824c3a29836a33a5bca3bcad386930b4197bc
+  - image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:09743ae5f54cc12068bbb31b7050d2bca40a91d3
     imagePullPolicy: Always
     env:
       - name: QUARKUS_REST_CLIENT_CACHE_SERVICE_URL
