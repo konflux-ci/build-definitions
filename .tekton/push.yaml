@@ -85,6 +85,37 @@ spec:
               done
         taskRef:
           name: update-infra-deployments
+      - name: update-ec-policies
+        runAfter:
+          - build-bundles
+        params:
+          - name: ORIGIN_REPO
+            value: $(params.git-url)
+          - name: REVISION
+            value: $(params.revision)
+          - name: TARGET_GH_REPO
+            value: hacbs-contract/ec-policies
+          - name: GIT_IMAGE
+            value: "$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)"
+          - name: SCRIPT
+            value: |
+              TAG='$(params.revision)'
+
+              ec track bundle \
+                --input data/acceptable_tekton_bundles.yml \
+                --type task-bundles \
+                --replace \
+                --bundle "quay.io/redhat-appstudio/appstudio-tasks:${TAG}-1" \
+                --bundle "quay.io/redhat-appstudio/appstudio-tasks:${TAG}-2" \
+                --bundle "quay.io/redhat-appstudio/appstudio-tasks:${TAG}-3"
+
+              ec track bundle \
+                --input data/acceptable_tekton_bundles.yml \
+                --type pipeline-bundles \
+                --replace \
+                --bundle "quay.io/redhat-appstudio/build-templates-bundle:${TAG}"
+        taskRef:
+          name: update-infra-deployments
     workspaces:
       - name: workspace
   workspaces:
