@@ -54,6 +54,7 @@ spec:
 
         git status -s --porcelain | cut -c4- > ../updated_files.txt
 
+        cat ../updated_files.txt
       env:
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
@@ -180,18 +181,18 @@ spec:
                 main_branch_sha = self._request("GET", f"/repos/{target_gh_repo}/git/refs/heads/main").json()['object']['sha']
                 if "ref" in target_branch:
                     # update branch
-                    self._request(
+                    print(self._request(
                         "PATCH",
                         f"/repos/{target_gh_repo}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "force": True}
-                    )
+                    ).json())
                 else:
                     # create branch
-                    self._request(
+                    print(self._request(
                         "POST",
                         f"/repos/{target_gh_repo}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "ref": f"refs/heads/{branch}"}
-                    )
+                    ).json())
 
             def upload_content(self):
                 branch = os.environ.get('ORIGIN_REPO').split('/')[-1]
@@ -202,9 +203,9 @@ spec:
                         encoded_string = base64.b64encode(fd.read()).decode("utf-8")
                     old_sha = self._request("GET", f'/repos/{target_gh_repo}/contents/{file}').json().get("sha")
                     if old_sha is None:
-                        self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string})
+                        print(self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string}).json())
                     else:
-                        self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string, "sha": old_sha})
+                        print(self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string, "sha": old_sha}).json())
 
             def get_pr(self):
                 repo_name = os.environ.get('ORIGIN_REPO').split('/')[-1]
