@@ -17,6 +17,12 @@ spec:
       default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:af7dd5b3b1598a980f17d5f5d3d8a4b11ab4f5184677f7f17ad302baa36bd3c1
     - name: shared-secret
       default: infra-deployments-pr-creator
+    - name: GITHUB_APP_ID
+      description: ID of Github app used for updating PR
+      default: 172616
+    - name: GITHUB_APP_INSTALLATION_ID
+      description: Installation ID of Github app in the organization
+      default: 23331085
   volumes:
     - name: infra-deployments-pr-creator
       csi:
@@ -64,9 +70,9 @@ spec:
         - name: GITHUBAPP_KEY_PATH
           value: /secrets/deploy-key/appstudio-staging-ci
         - name: GITHUBAPP_APP_ID
-          value: "172616"
+          value: "$(params.GITHUB_APP_ID)"
         - name: GITHUBAPP_INSTALLATION_ID
-          value: "23331085"
+          value: "$(params.GITHUB_APP_INSTALLATION_ID)"
         - name: GITHUB_API_URL
           value: https://api.github.com
         - name: ORIGIN_REPO
