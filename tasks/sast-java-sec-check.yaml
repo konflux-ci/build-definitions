@@ -62,6 +62,7 @@ spec:
 
         ERR_MSG="$(cat stderr.txt)"
         ERR_MSG="${ERR_MSG:-unknown}"
+        ERR_MSG="${ERR_MSG//[$'\t\r\n']}"
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg MSG "${ERR_MSG: 0: 3000}"
                               --arg test_skipped $test_skipped --null-input \
             '{result: (if $test_skipped=="1" then "SKIPPED" else "ERROR" end),
