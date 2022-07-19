@@ -99,7 +99,7 @@ spec:
 
     # Modify these defaults as required
     #- name: STRICT
-    #  value: "1"
+    #  value: "false"
     #- name: POLICY_CONFIGURATION
     #  value: ${NAMESPACE}/ec-policy
 
