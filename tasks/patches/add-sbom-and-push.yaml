@@ -102,6 +102,9 @@
     name: inject-sbom-and-push
     resources: {}
     script: |
+      # Expose base image digests
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $(params.IMAGE) > $(results.BASE_IMAGES_DIGESTS.path)
+
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $(params.IMAGE))
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $(params.IMAGE))
       container=$(buildah from --pull-never $(params.IMAGE))
