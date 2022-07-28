@@ -87,7 +87,7 @@
           image_sbom["components"].append(component)
           existing_components.append(get_identifier(component))
 
-      for component in java_sbom["components"]:
+      for component in java_sbom.get("components", []):
         if get_identifier(component) not in existing_components:
           image_sbom["components"].append(component)
 
@@ -107,7 +107,7 @@
       # create Tekton result containing counting of Java publishers
       java_publishers = {}
 
-      for component in java_sbom["components"]:
+      for component in java_sbom.get("components", []):
         publisher = component.get("publisher", None)
 
         if publisher is None:
