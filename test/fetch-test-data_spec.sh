@@ -317,7 +317,7 @@ Describe 'save-policy-config'
       The contents of file "${EC_WORK_DIR}/data/config.json" should eq "$(echo '{"config":{"policy":{"non_blocking_checks":["a", "b", "c"]}}}'| jq)"
     End
 
-    It 'can fail to fetch from custom resource'
+    It 'can fail to fetch from custom resource and ConfigMap - uses the default'
       Mock kubectl
         kubectl_args=$*
         %preserve kubectl_args
@@ -330,9 +330,20 @@ Describe 'save-policy-config'
       When call save-policy-config custom-namespace/custom-policy
       The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com -n custom-namespace custom-policy'
       The error should equal 'ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace custom-namespace'
-      The file "${EC_WORK_DIR}/data/config.json" should not be exist
-      The status should be failure
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq "$(echo '{"config":{"policy":{"non_blocking_checks":["not_useful"]}}}'| jq)"
     End
+
+    It 'nothing blocked'
+      Mock kubectl
+        kubectl_args=$*
+        %preserve kubectl_args
+        echo ''
+      End
+      When call save-policy-config custom-policy
+      The variable kubectl_args should start with 'get enterprisecontractpolicies.appstudio.redhat.com custom-policy'
+      The contents of file "${EC_WORK_DIR}/data/config.json" should eq "$(echo '{"config":{"policy":{"non_blocking_checks":[]}}}'| jq)"
+    End
+
   End
 
   Describe 'handles errors from cr-* functions'
