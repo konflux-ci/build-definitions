@@ -55,6 +55,9 @@ save-policy-config() {
     local namespace=${namespace_arg#-n }
     echo "ERROR: unable to find the ec-policy EnterpriseContractPolicy in namespace ${namespace:-$(kubectl config view --minify -o jsonpath='{..namespace}')}" 1>&2
   else
+    if [[ -z "${non_blocking_data}" ]]; then
+      non_blocking_data='[]'
+    fi
     # Save the config data from the ECP
     echo "$non_blocking_data" | jq '{"config": {"policy": {"non_blocking_checks": . }}}' > "${config_file}"
     return 0
