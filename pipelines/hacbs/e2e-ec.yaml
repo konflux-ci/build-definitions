@@ -49,8 +49,12 @@ spec:
       default: ""
     - name: STRICT_POLICY
       type: string
-      description: Fail the task if policy fails. Set to "0" to disable it.
+      description: Fail the V1 task if policy fails. Set to "0" to disable it.
       default: "1"
+    - name: STRICT
+      type: string
+      description: Fail the V2 task if policy fails. Set to "false" to disable it.
+      default: "true"
   tasks:
     - name: verify-enterprise-contract
       params:
@@ -85,6 +89,6 @@ spec:
         - name: SSL_CERT_DIR
           value: "$(params.SSL_CERT_DIR)"
         - name: STRICT
-          value: "$(params.STRICT_POLICY)"
+          value: "$(params.STRICT)"
       taskRef:
         name: verify-enterprise-contract-v2
