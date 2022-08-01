@@ -56,9 +56,19 @@ spec:
       description: Fail the task if policy fails. Set to "false" to disable it.
       default: "true"
 
+    - name: HOMEDIR
+      type: string
+      description: Value for the HOME environment variable.
+      default: /tekton/home
+
   results:
     - name: REPORT
       description: Details of the policy evaluation for each image
+
+  stepTemplate:
+    env:
+      - name: HOME
+        value: "$(params.HOMEDIR)"
 
   steps:
     - name: version
