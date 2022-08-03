@@ -32,6 +32,12 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
+        # check if image is attestation one, skip the clamav scan in such case
+        if [[ $imageanddigest == *.att ]]
+        then
+            echo "$imageanddigest is an attestation image, skipping clamav scan"
+            exit 0
+        fi
         [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="-a /workspace/registry-auth/.dockerconfigjson"
         mkdir content
         cd content
@@ -49,6 +55,11 @@ spec:
         #!/usr/bin/env python3.9
         import json
         import dateutil.parser as parser
+        import os
+
+        if os.stat("/tekton/home/clamscan-result.log").st_size == 0:
+            print("clamscan-result.log file is empty, meaning previous step didn't extracted the compiled code, skipping parsing.")
+            exit(0)
 
         with open("/tekton/home/clamscan-result.log", "r") as file:
             clam_result_str = file.read()
