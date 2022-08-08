@@ -41,7 +41,12 @@ spec:
         [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="-a /workspace/registry-auth/.dockerconfigjson"
         mkdir content
         cd content
-        oc image extract $REGISTRY_ARGS $imageanddigest
+        echo Extracting image
+        if ! oc image extract $REGISTRY_ARGS $imageanddigest; then
+          echo "Unable to extract image! Skipping clamscan!"
+          exit 0
+        fi
+        echo Extraction done
         clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
         echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
       volumeMounts:
