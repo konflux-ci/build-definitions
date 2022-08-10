@@ -24,45 +24,6 @@ json-data-file() {
   echo "$file"
 }
 
-# Emulate in-place editing with jq
-jq-in-place-edit() {
-  local jq_filter="$1"
-  local file="$2"
-  local tmp_file="$(mktemp)"
-
-  jq "$jq_filter" "$file" > "$tmp_file" && \
-    mv "$tmp_file" "$file"
-}
-
-# Merge new data into an existing json file
-json-merge-with-key() {
-  local new_data="$1"
-  local file="$2"
-  local top_level_key="$3"
-  local second_level_key="$4"
-
-  local path=".\"$top_level_key\".\"$second_level_key\""
-
-  # Make sure the file exists
-  if [[ ! -f "$file" ]]; then
-    mkdir -p "$(dirname $file)"
-    echo "{}" > "$file"
-  fi
-
-  # Make sure we're not overwriting data
-  if [[ $( jq "$path" "$file" ) != "null" ]]; then
-    echo "ERROR: Path '$path' exists already in file '$file'"
-    exit 1
-  fi
-
-  # Insert the new data
-  jq-in-place-edit "$path = $new_data" "$file"
-}
-
-clear-data() {
-  rm -rf "$DATA_DIR"
-}
-
 clear-policies() {
   rm -rf "$POLICIES_DIR"
 }
@@ -71,12 +32,6 @@ clear-policies() {
 dir-checksum() {
   local dir=$1
   find "$dir" -type f -exec sha256sum {} \; | sort -k 2 | sha256sum | cut -d' ' -f1
-}
-
-# List all the data files
-show-data() {
-  echo "sha256sum: $( dir-checksum "$DATA_DIR" )"
-  find "$DATA_DIR" -type f
 }
 
 # List all the rego files
