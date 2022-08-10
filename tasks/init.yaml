@@ -11,6 +11,9 @@ spec:
     - name: rebuild
       description: Rebuild the image if exists
       default: "false"
+    - name: jvm-build-service-init
+      description: Set jvm build service config
+      default: "false"
   results:
     - name: build
   steps:
@@ -26,4 +29,10 @@ spec:
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)
+        fi
+    - name: hacbs-init
+      image: registry.redhat.io/openshift4/ose-cli:v4.10
+      script: |
+        if [ "$(params.jvm-build-service-init)" == "true" ] && ! oc get configmap jvm-build-config &>/dev/null; then
+          oc create configmap jvm-build-config --from-literal enable-rebuilds="false"
         fi
