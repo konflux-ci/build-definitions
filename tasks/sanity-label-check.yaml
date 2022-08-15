@@ -40,6 +40,6 @@ spec:
                    timestamp: $date,
                    namespace,
                    successes,
-                   failures: (.failures // [])|map(.metadata.details.name)
+                   failures: (.failures // [])|map(.metadata.details.name) | unique
                  }' sanity_label_check_output.json || true)
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
