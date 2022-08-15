@@ -26,4 +26,10 @@ patches:
       group: tekton.dev
       version: v1beta1
       kind: Pipeline
-      labelSelector: skip-hacbs-test != true
+      labelSelector: skip-hacbs-test != true, pipelines.openshift.io/runtime == java
+  - path: hacbs-java-builds.yaml
+    target:
+      group: tekton.dev
+      version: v1beta1
+      kind: Pipeline
+      labelSelector: skip-hacbs-test != true, pipelines.openshift.io/runtime == generic
