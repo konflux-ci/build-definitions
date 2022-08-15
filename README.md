@@ -56,27 +56,3 @@ Script `./hack/test-builds.sh` creates pipelines and tasks directly in current n
 Running script `./hack/test-builds.sh hacbs` executes modified pipelines for HACBS.
 
 Script `./hack/test-build.sh` provides way to test on custom git repository and pipeline. Usage example: `./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
-
-### ShellSpec tests
-
-There are tests in the `test` directory written using [ShellSpec](https://github.com/shellspec/shellspec), to run them [install it](https://github.com/shellspec/shellspec#installation) and run `shellspec`:
-
-```shell
-$ shellspec
-Running: /usr/bin/bash [bash 5.1.8(1)-release]
-....
-
-Finished in 0.17 seconds (user 0.15 seconds, sys 0.06 seconds)
-4 examples, 0 failures
-```
-
-Or run using the shellspec container, e.g. with `podman`:
-
-```shell
-$ podman run -it --rm -v "$PWD:/src":Z docker.io/shellspec/shellspec:kcov
-Running: /bin/bash [bash 5.0.17(1)-release]
-....
-
-Finished in 0.17 seconds (user 0.18 seconds, sys 0.03 seconds)
-4 examples, 0 failures
-```
