@@ -50,7 +50,7 @@ spec:
                    namespace: "default",
                    successes: 0,
                    note: "",
-                   failures: (.runs[].results // [])|map(.message.text)
+                   failures: (.runs[].results // [])|map(.message.text) | unique
                  }' sast_snyk_check_out.json || true)
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then

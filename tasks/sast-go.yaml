@@ -42,7 +42,7 @@ spec:
                namespace: "default",
                successes: 0,
                note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
-               failures: (.runs[].results // [])|map(.message.text)
+               failures: (.runs[].results // [])|map(.message.text) | unique
              }' gosec_output.json || true)
         else
           HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped --null-input \
