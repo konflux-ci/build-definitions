@@ -20,6 +20,11 @@ spec:
         requests:
           memory: 512Mi
           cpu: 10m
+      securityContext:
+        runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
       script: |
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
 

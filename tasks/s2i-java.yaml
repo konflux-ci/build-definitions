@@ -30,7 +30,7 @@ spec:
   - description: Location of the repo where image has to be pushed
     name: IMAGE
     type: string
-  - default: registry.access.redhat.com/ubi8/buildah:8.6-12@sha256:82aa9592f3262313ec52f7a2335641e2581b0d0d9807980846d0539bb77d0657
+  - default: registry.access.redhat.com/ubi9/buildah:9.0.0-19@sha256:c8b1d312815452964885680fc5bc8d99b3bfe9b6961228c71a09c72ca8e915eb
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
     type: string
@@ -76,6 +76,8 @@ spec:
     name: s2i-gen
     resources: {}
     workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
     volumeMounts:
     - mountPath: /gen-source
       name: gen-source
@@ -91,6 +93,10 @@ spec:
       requests:
         memory: 512Mi
         cpu: 10m
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers

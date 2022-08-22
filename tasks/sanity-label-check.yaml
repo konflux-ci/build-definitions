@@ -20,6 +20,10 @@ spec:
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:latest
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)-$(params.POLICY_NAMESPACE)
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
       script: |
         CONFTEST_OPTIONS=""
         if [ -s "../sanity-inspect-image/base_image_inspect.json" ]; then

@@ -17,6 +17,10 @@
       container=$(buildah from --pull-never $(params.IMAGE))
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -147,6 +151,10 @@
         docker://$(params.IMAGE)
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers

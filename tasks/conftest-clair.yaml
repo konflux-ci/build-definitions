@@ -10,6 +10,10 @@ spec:
   steps:
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
       script: |
         /usr/bin/conftest test --no-fail $(workspaces.conftest-ws.path)/clair-result.json \
         --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
