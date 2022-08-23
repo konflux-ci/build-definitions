@@ -70,6 +70,7 @@ spec:
         sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>$(params.MAVEN_MIRROR_URL)</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
         touch /var/lib/containers/java
       fi
+      sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       buildah bud \
         $(params.BUILD_EXTRA_ARGS) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \

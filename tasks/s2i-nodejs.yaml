@@ -71,6 +71,7 @@ spec:
       name: gen-source
     workingDir: $(workspaces.source.path)
   - script: |
+      sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       buildah bud --tls-verify=$(params.TLSVERIFY) --layers -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
     image: $(params.BUILDER_IMAGE)
     name: build
