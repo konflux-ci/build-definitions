@@ -152,6 +152,7 @@
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
     securityContext:
+      runAsUser: 0
       capabilities:
         add:
           - SETFCAP
@@ -178,6 +179,8 @@
       - name: QUARKUS_S3_AWS_CREDENTIALS_TYPE
         value: "static"
     name: proxy
+    securityContext:
+      runAsUser: 0
     livenessProbe:
       httpGet:
         path: /q/health/live
