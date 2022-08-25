@@ -99,6 +99,10 @@ spec:
               for file in $(git grep -l $BUNDLE); do
                 sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
               done
+              BUNDLE=quay.io/redhat-appstudio/hacbs-templates-bundle
+              for file in $(git grep -l $BUNDLE); do
+                sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
+              done
         taskRef:
           name: update-infra-deployments
       - name: update-ec-policies
