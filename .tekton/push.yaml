@@ -85,22 +85,23 @@ spec:
                   value: "$(results.PIPELINE_BUNDLES.path)"
           workspaces:
             - name: source
-      - name: update-infra-repo
-        runAfter:
-          - build-bundles
-        params:
-          - name: ORIGIN_REPO
-            value: $(params.git-url)
-          - name: REVISION
-            value: $(params.revision)
-          - name: SCRIPT
-            value: |
-              BUNDLE=quay.io/redhat-appstudio/build-templates-bundle
-              for file in $(git grep -l $BUNDLE); do
-                sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
-              done
-        taskRef:
-          name: update-infra-deployments
+# Disable automatic PR creation in main branch due to kcp transition
+#      - name: update-infra-repo
+#        runAfter:
+#          - build-bundles
+#        params:
+#          - name: ORIGIN_REPO
+#            value: $(params.git-url)
+#          - name: REVISION
+#            value: $(params.revision)
+#          - name: SCRIPT
+#            value: |
+#              BUNDLE=quay.io/redhat-appstudio/build-templates-bundle
+#              for file in $(git grep -l $BUNDLE); do
+#                sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
+#              done
+#        taskRef:
+#          name: update-infra-deployments
       - name: update-ec-policies
         runAfter:
           - build-bundles

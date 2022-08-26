@@ -4,12 +4,13 @@ resources:
 - ../hacbs
 
 patches:
-  - path: infra-deploy.yaml
-    target:
-      group: tekton.dev
-      version: v1beta1
-      kind: Pipeline
-      labelSelector: skip-hacbs-test != true
+# Disable automatic PR creation in main branch due to kcp transition
+#  - path: infra-deploy.yaml
+#    target:
+#      group: tekton.dev
+#      version: v1beta1
+#      kind: Pipeline
+#      labelSelector: skip-hacbs-test != true
   - path: csi-secret.yaml
     target:
       group: tekton.dev
