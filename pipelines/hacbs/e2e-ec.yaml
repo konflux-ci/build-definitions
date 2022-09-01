@@ -21,8 +21,16 @@ spec:
     - name: IMAGES
       type: string
       description: |
-        Spec section of an ApplicationSnapshot. The containerImage of each
-        component will be verified.
+        Spec section of an ApplicationSnapshot resource. Not all fields of the
+        resource are required. A minimal example:
+          {
+            "components": [
+              {
+                "containerImage": "quay.io/example/repo:latest"
+              }
+            ]
+          }
+        Each "containerImage" in the "components" array is validated.
       # Eventually this will be a require parameter without a default value.
       default: ""
     - name: HACBS_TEST_OUTPUT
