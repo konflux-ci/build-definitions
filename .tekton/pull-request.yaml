@@ -116,6 +116,13 @@ spec:
                 value: redhat-appstudio
               - name: E2E_APPLICATIONS_NAMESPACE
                 value: "$(params.e2e_test_namespace)"
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: github
+                    key: token
+              - name: GITHUB_E2E_ORGANIZATION
+                value: redhat-appstudio-appdata
     finally:
       - name: e2e-cleanup
         params:
