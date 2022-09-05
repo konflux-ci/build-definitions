@@ -46,8 +46,9 @@ fi
 # (This method is used in PR testing)
 : "${TEST_REPO_NAME:=}"
 
-APPSTUDIO_UTILS_IMG="quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+build-definitions-utils-}$BUILD_TAG"
+APPSTUDIO_UTILS_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+build-definitions-utils-}$BUILD_TAG
 APPSTUDIO_TASKS_REPO=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-tasks}
+HACBS_TASKS_REPO=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-tasks}
 PIPELINE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-build-templates-bundle}:${TEST_REPO_NAME:+build-}$BUILD_TAG
 HACBS_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}$BUILD_TAG
 HACBS_BUNDLE_LATEST_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}latest
@@ -55,57 +56,80 @@ HACBS_CORE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-core-service
 
 OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
 OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
-rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
-
-# Build appstudio-utils image
-if [ "$SKIP_BUILD" == "" ]; then
-    echo "Using $MY_QUAY_USER to push results "
-    docker build -t $APPSTUDIO_UTILS_IMG $SCRIPTDIR/../appstudio-utils/
-    docker push $APPSTUDIO_UTILS_IMG
-fi
+trap 'rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"' ERR EXIT
 
 # Create bundles with tasks
-PART=1
-COUNT=0
-TASK_TEMP=$(mktemp -d)
 PIPELINE_TEMP=$(mktemp -d)
-oc kustomize $SCRIPTDIR/../tasks | $CSPLIT_CMD -s -f $TASK_TEMP/task -b %02d.yaml - /^---$/ '{*}'
-oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
-oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
-oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
-## Limit number of tasks in bundle
-MAX=10
-TASKS=
-REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-for TASK in $TASK_TEMP/task*.yaml; do
-    TASK_NAME=$(yq e ".metadata.name" $TASK)
-    if [ $COUNT -eq $MAX ]; then
-        echo Creating $REF
-        tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
-        COUNT=0
-        PART=$((PART+1))
-        TASKS=
-    fi
-    REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-    # Replace appstudio-utils placeholder by newly build appstudio-utils image
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" $TASK
-    TASKS="$TASKS -f $TASK"
-    for file in $PIPELINE_TEMP/*.yaml; do
-        yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
-        yq e -i "(.spec.finally[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
+# Generate tasks, group them into bundles and update pipelines to point specific
+# task to corresponding bundle.
+# Requires access to global PIPELINE_YAMLS variable.
+# Arguments:
+#     First argument: the image repository name.
+#     Second argument: path of directory from where generate individual tasks.
+function handle_task_bundles {
+    local -r TASKS_REPO=$1 TASKS_DIR=$2
+    local -r TASK_TEMP=$(mktemp -d)
+    oc kustomize "$TASKS_DIR" | $CSPLIT_CMD -s -f $TASK_TEMP/task -b %02d.yaml - /^---$/ '{*}'
+    ## Limit number of tasks in bundle
+    local PART=1 COUNT=0 MAX=10 TASKS=
+    local REF="$TASKS_REPO:$BUILD_TAG-$PART"
+    for TASK in $TASK_TEMP/task*.yaml; do
+        TASK_NAME=$(yq e ".metadata.name" $TASK)
+        if [ $COUNT -eq $MAX ]; then
+            echo Creating $REF
+            tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
+            COUNT=0
+            PART=$((PART+1))
+            TASKS=
+        fi
+        REF="$TASKS_REPO:$BUILD_TAG-$PART"
+        # Replace appstudio-utils placeholder by newly build appstudio-utils image
+        yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" $TASK
+        TASKS="$TASKS -f $TASK"
+        for file in ${PIPELINE_YAMLS[@]}; do
+            yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
+            yq e -i "(.spec.finally[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
+        done
+        COUNT=$((COUNT+1))
     done
-    COUNT=$((COUNT+1))
-done
-echo Creating $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
-tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
+    echo Creating $TASKS_REPO:$BUILD_TAG-$PART
+    tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
+}
 
-# Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
-tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml | save_ref $PIPELINE_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
-tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
-tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
-tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
+function build_push_appstudio {
+    # Build appstudio-utils image
+    if [ "$SKIP_BUILD" == "" ]; then
+	echo "Using $MY_QUAY_USER to push results "
+	docker build -t $APPSTUDIO_UTILS_IMG $SCRIPTDIR/../appstudio-utils/
+	docker push $APPSTUDIO_UTILS_IMG
+    fi
 
-if [ "$SKIP_INSTALL" == "" ]; then
-    $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE_IMG $INSTALL_BUNDLE_NS
-fi
+    oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
+    PIPELINE_YAMLS=("${PIPELINE_TEMP}/base.yaml")
+    handle_task_bundles $APPSTUDIO_TASKS_REPO "$SCRIPTDIR/../tasks/base"
+    tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml | \
+	save_ref $PIPELINE_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
+
+    if [ "$SKIP_INSTALL" == "" ]; then
+	$SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE_IMG $INSTALL_BUNDLE_NS
+    fi
+}
+
+function build_push_hacbs {
+    oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
+    oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
+
+    PIPELINE_YAMLS=(
+	"${PIPELINE_TEMP}/hacbs.yaml"
+	"${PIPELINE_TEMP}/hacbs-core-service.yaml"
+    )
+    handle_task_bundles $HACBS_TASKS_REPO "$SCRIPTDIR/../tasks/hacbs"
+
+    tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
+    tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
+    tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
+}
+
+build_push_appstudio
+build_push_hacbs
