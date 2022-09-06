@@ -16,9 +16,16 @@ spec:
     - name: IMAGES
       type: string
       description: |
-        The spec portion of an ApplicationSnapshot resource providing
-        the image references to verify.
-
+        Spec section of an ApplicationSnapshot resource. Not all fields of the
+        resource are required. A minimal example:
+          {
+            "components": [
+              {
+                "containerImage": "quay.io/example/repo:latest"
+              }
+            ]
+          }
+        Each "containerImage" in the "components" array is validated.
     - name: POLICY_CONFIGURATION
       type: string
       description: |

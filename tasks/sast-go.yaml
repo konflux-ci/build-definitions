@@ -40,6 +40,7 @@ spec:
 
         if [ -f gosec_output.json ];
         then
+          cat gosec_output.json
           HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
                                  --arg SKIP_MESSAGE "${SKIP_MSG}" \
             '{ result: (if (.runs[].results | length > 0) then "FAILURE" elif $tmp_not_skipped=="0" then "SKIPPED" else "SUCCESS" end),
