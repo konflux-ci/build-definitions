@@ -29,7 +29,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         echo "Querying Pyxis for $(params.IMAGE_REPOSITORY)..."
-        http_code=$(curl -s -o $(workspaces.sanity-ws.path)/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/$(params.IMAGE_REGISTRY)/repository/$(params.IMAGE_REPOSITORY)")
+        http_code=$(curl -s -k -o $(workspaces.sanity-ws.path)/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/$(params.IMAGE_REGISTRY)/repository/$(params.IMAGE_REPOSITORY)")
 
         echo "Response code: $http_code"
         echo -n $http_code > $(results.PYXIS_HTTP_CODE.path)
@@ -46,22 +46,26 @@ spec:
           echo "Running conftest using $(params.POLICY_DIR) policy, $(params.POLICY_NAMESPACE) namespace"
           /usr/bin/conftest test --no-fail $(workspaces.sanity-ws.path)/repository_data.json \
           --policy $(params.POLICY_DIR) --namespace $(params.POLICY_NAMESPACE) \
-          --output=json | tee $(workspaces.sanity-ws.path)/deprecated_image_check_output.json || echo "Some tests failed"
+          --output=json 2> $(workspaces.sanity-ws.path)/stderr.txt | tee $(workspaces.sanity-ws.path)/deprecated_image_check_output.json
           echo "Done!"
           exit 0
         elif [ "$http_code" == "404" ];
         then
-          echo "Image not found in Pyxis"
+          echo "Registry/image $(params.IMAGE_REGISTRY)/$(params.IMAGE_REPOSITORY) not found in Pyxis" > $(workspaces.sanity-ws.path)/stderr.txt
+          cat $(workspaces.sanity-ws.path)/stderr.txt
         else
-          echo "Unexpected error (HTTP code $http_code) occured during running conftest"
+          echo "Unexpected error (HTTP code $http_code) occured for registry/image $(params.IMAGE_REGISTRY)/$(params.IMAGE_REPOSITORY) during running conftest" > $(workspaces.sanity-ws.path)/stderr.txt
+          cat $(workspaces.sanity-ws.path)/stderr.txt
         fi
 
     # Format the test results and save them as the HACBS_TEST_OUTPUT Tekton result
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        ERR_MSG="$(echo -n $(cat $(workspaces.sanity-ws.path)/stderr.txt))"
+        ERR_MSG="${ERR_MSG:-unknown}"
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg MSG "${ERR_MSG: 0: 3000}" --null-input \
+          '{result: "ERROR", timestamp: $date, failures: $MSG}')
         HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
           '.[] | { result: (if (.failures | length > 0) then "FAILURE" else "SUCCESS" end),
                    timestamp: $date,
@@ -69,6 +73,7 @@ spec:
                    successes,
                    failures: (.failures // [])|map(.metadata.details.name) | unique
                  }' $(workspaces.sanity-ws.path)/deprecated_image_check_output.json || true)
+
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   workspaces:
     - name: sanity-ws
