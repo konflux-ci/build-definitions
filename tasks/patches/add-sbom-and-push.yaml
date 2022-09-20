@@ -43,7 +43,7 @@
   path: /spec/steps/-
   value:
     name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:70a63556e607e02fe6a19a3f13bb35cedc1f3043
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:70a63556e607e02fe6a19a3f13bb35cedc1f3043
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json
@@ -160,33 +160,3 @@
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
-
-- op: add
-  path: /spec/sidecars
-  value:
-  - image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:70a63556e607e02fe6a19a3f13bb35cedc1f3043
-    env:
-      - name: QUARKUS_REST_CLIENT_CACHE_SERVICE_URL
-        value: "http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local"
-    name: proxy
-    securityContext:
-      runAsUser: 0
-    livenessProbe:
-      httpGet:
-        path: /q/health/live
-        port: 2000
-      initialDelaySeconds: 1
-      periodSeconds: 3
-    readinessProbe:
-      httpGet:
-        path: /q/health/ready
-        port: 2000
-      initialDelaySeconds: 1
-      periodSeconds: 3
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "250m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
