@@ -11,6 +11,7 @@ RUN curl -L https://github.com/hacbs-contract/ec-cli/releases/download/snapshot/
 
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \
+    skopeo \
     https://github.com/tektoncd/cli/releases/download/v0.22.0/tektoncd-cli-0.22.0_Linux-64bit.rpm \
     && dnf clean all
 

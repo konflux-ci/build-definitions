@@ -106,6 +106,13 @@ tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
 tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
 tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
+if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "redhat-appstudio" ] && [ -z "$TEST_REPO_NAME" ]; then
+    for img in "$PIPELINE_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
+        NEW_TAG="${img%:*}:devel"
+        skopeo copy "docker://${img}" "docker://${NEW_TAG}"
+    done
+fi
+
 if [ "$SKIP_INSTALL" == "" ]; then
     $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE_IMG $INSTALL_BUNDLE_NS
 fi
