@@ -5,6 +5,8 @@
 # Params:
 #   1. Image reference including the tag
 #   2. Output file
+# Returns the piped in standard input followed by a line containing the image
+# reference including tag and digest
 function save_ref() {
     local output
     output="$(< /dev/stdin)"
@@ -17,6 +19,25 @@ function save_ref() {
     local refFile
     refFile="$2"
     echo "${tagRef}@${digest}" >> "${refFile}"
+    echo "Created:"
+    echo "${tagRef}@${digest}"
+}
+
+# Pushes the Tekton task bundle, captures the pushed bundle image reference
+# including the digest and augments the pipelines with references to the task
+# bundle for tasks identified by name
+function push_tasks_bundle() {
+    REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
+    printf "\nCreating %s\n" "${REF}"
+    OUT=$(tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST)
+    echo "${OUT}"
+    TASK_REF_WITH_DIGEST="${OUT##*$'\n'}" # the last line holds the image reference with tag and digest
+    for pipeline in "$PIPELINE_TEMP"/*.yaml; do
+        for task_name in "${TASK_NAMES[@]}"; do
+            yq e -i "(.spec.tasks[].taskRef | select(.name == \"${task_name}\")) |= {\"name\": \"${task_name}\", \"bundle\":\"${TASK_REF_WITH_DIGEST}\"}" "${pipeline}"
+            yq e -i "(.spec.finally[].taskRef | select(.name == \"${task_name}\")) |= {\"name\": \"${task_name}\", \"bundle\":\"${TASK_REF_WITH_DIGEST}\"}" "${pipeline}"
+        done
+    done
 }
 
 # local dev build script
@@ -78,27 +99,24 @@ oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs
 MAX=10
 TASKS=
 REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
+TASK_NAMES=()
 for TASK in $TASK_TEMP/task*.yaml; do
-    TASK_NAME=$(yq e ".metadata.name" $TASK)
+    TASK_NAME=$(yq e ".metadata.name" "$TASK")
+    TASK_NAMES+=("$TASK_NAME")
+    # Replace appstudio-utils placeholder by newly build appstudio-utils image
+    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" "$TASK"
+    TASKS="$TASKS -f $TASK"
+    COUNT=$((COUNT+1))
     if [ $COUNT -eq $MAX ]; then
-        echo Creating $REF
-        tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
+        push_tasks_bundle
+
         COUNT=0
         PART=$((PART+1))
         TASKS=
+        TASK_NAMES=()
     fi
-    REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-    # Replace appstudio-utils placeholder by newly build appstudio-utils image
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" $TASK
-    TASKS="$TASKS -f $TASK"
-    for file in $PIPELINE_TEMP/*.yaml; do
-        yq e -i "(.spec.tasks[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
-        yq e -i "(.spec.finally[].taskRef | select(.name == \"$TASK_NAME\")) |= {\"name\": \"$TASK_NAME\", \"bundle\":\"$REF\"}" $file
-    done
-    COUNT=$((COUNT+1))
 done
-echo Creating $APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART
-tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST
+push_tasks_bundle # push the leftover tasks when the remaining $COUNT < $MAX
 
 # Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
 tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml | save_ref $PIPELINE_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
