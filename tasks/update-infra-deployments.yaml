@@ -15,6 +15,9 @@ spec:
     - name: GIT_IMAGE
       description: Image reference containing the git command
       default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:af7dd5b3b1598a980f17d5f5d3d8a4b11ab4f5184677f7f17ad302baa36bd3c1
+    - name: SCRIPT_IMAGE
+      description: Image reference for SCRIPT execution
+      default: registry.redhat.io/openshift4/ose-cli:v4.11
     - name: shared-secret
       default: infra-deployments-pr-creator
     - name: GITHUB_APP_ID
@@ -36,11 +39,9 @@ spec:
       emptyDir: {}
 
   steps:
-    - name: update-infra-deployments
+    - name: git-clone-infra-deployments
       image: $(params.GIT_IMAGE)
       volumeMounts:
-        - name: infra-deployments-pr-creator
-          mountPath: /secrets/deploy-key
         - name: shared-dir
           mountPath: /shared
       workingDir: /shared
@@ -48,15 +49,27 @@ spec:
         REPO_NAME=$(echo $(params.ORIGIN_REPO) | cut -f5 -d/)
 
         git clone "https://github.com/${TARGET_GH_REPO}.git" cloned
-        cd cloned
-
-        $(params.SCRIPT)
-
-        git status -s --porcelain | cut -c4- > ../updated_files.txt
-
       env:
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
+    - name: run-update-script
+      image: $(params.SCRIPT_IMAGE)
+      volumeMounts:
+        - name: shared-dir
+          mountPath: /shared
+      workingDir: /shared
+      script: |
+        cd cloned
+        $(params.SCRIPT)
+    - name: get-diff-files
+      image: $(params.GIT_IMAGE)
+      volumeMounts:
+        - name: shared-dir
+          mountPath: /shared
+      workingDir: /shared
+      script: |
+        cd cloned
+        git status -s --porcelain | cut -c4- > ../updated_files.txt
     # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/chmouel/github-app-token@sha256:bc45937ae588df876555ebb56c36350ed74592c7f55f2df255cabef39c926a88
