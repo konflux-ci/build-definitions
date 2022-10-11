@@ -70,6 +70,7 @@ fi
 APPSTUDIO_UTILS_IMG="quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+build-definitions-utils-}$BUILD_TAG"
 APPSTUDIO_TASKS_REPO=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-tasks}
 PIPELINE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-build-templates-bundle}:${TEST_REPO_NAME:+build-}$BUILD_TAG
+KCP_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-kcp-templates-bundle}:${TEST_REPO_NAME:+kcp-}$BUILD_TAG
 HACBS_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}$BUILD_TAG
 HACBS_BUNDLE_LATEST_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}latest
 HACBS_CORE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-core-service-templates-bundle}:${TEST_REPO_NAME:+hacbs-core-}latest
@@ -92,6 +93,7 @@ TASK_TEMP=$(mktemp -d)
 PIPELINE_TEMP=$(mktemp -d)
 oc kustomize $SCRIPTDIR/../tasks | $CSPLIT_CMD -s -f $TASK_TEMP/task -b %02d.yaml - /^---$/ '{*}'
 oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
+oc kustomize $SCRIPTDIR/../pipelines/base-no-shared > ${PIPELINE_TEMP}/base-no-shared.yaml
 oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
 oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
@@ -121,11 +123,12 @@ push_tasks_bundle # push the leftover tasks when the remaining $COUNT < $MAX
 # Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
 tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml | save_ref $PIPELINE_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
 tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
+tkn bundle push $KCP_BUNDLE_IMG -f ${PIPELINE_TEMP}/base-no-shared.yaml
 tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
 tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
 
 if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "redhat-appstudio" ] && [ -z "$TEST_REPO_NAME" ]; then
-    for img in "$PIPELINE_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
+    for img in "$PIPELINE_BUNDLE_IMG" "$KCP_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
         NEW_TAG="${img%:*}:devel"
         skopeo copy "docker://${img}" "docker://${NEW_TAG}"
     done

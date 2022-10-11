@@ -1,0 +1,53 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: configure-build-no-shared
+spec:
+  description: >-
+    App Studio Configure Build Secrets in Source.
+  results:
+    - name: registry-auth
+      description: docker config location
+    - name: buildah-auth-param
+      description: pass this to the build optional params to configure secrets
+  workspaces:
+    - name: source
+    - name: registry-auth
+      optional: true
+  steps:
+    - name: appstudio-configure-build
+      image: quay.io/redhat-appstudio/appstudio-utils:4580b3ba3012095ff3981e50b6bbf753d4afd4c3
+      script: |
+        #!/usr/bin/env bash
+        echo "App Studio Configure Build"
+
+        DEST=/workspace/source/.dockerconfigjson
+        AUTH=/workspace/registry-auth/.dockerconfigjson
+        TMP=$(mktemp)
+        echo '{}' > $DEST
+        # Use secrets from serviceAccount
+        cd /tekton/creds-secrets
+        for file in $(ls); do
+          if [ -f "$file/.dockerconfigjson" ]; then
+            FILES="$FILES $file/.dockerconfigjson"
+          elif [ -f "$file/.dockercfg" ]; then
+            # convert format from .dockercfg to .dockerconfigjson
+            newformat=$(mktemp)
+            jq '{"auths": .}' $file/.dockercfg > $newformat
+            FILES="$FILES $newformat"
+          fi
+        done
+        # set highest priority on registry-auth workspace
+        FILES="$FILES $AUTH"
+        echo "Looking for Registry Auth Configs"
+        # Merge secrets into one file
+        for file in $FILES; do
+          if [ -f "$file" ]; then
+            echo "$file found"
+            jq -M -s '.[0] * .[1]' $DEST $file > $TMP
+            mv $TMP $DEST
+          fi
+        done
+        chmod 644 $DEST
+        echo -n $DEST > /tekton/results/registry-auth
+        echo -n "--authfile $DEST"  >  /tekton/results/buildah-auth-param
