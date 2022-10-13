@@ -121,8 +121,8 @@ done
 push_tasks_bundle # push the leftover tasks when the remaining $COUNT < $MAX
 
 # Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
-tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml | save_ref $PIPELINE_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
-tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
+tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml
+tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml | save_ref $HACBS_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
 tkn bundle push $KCP_BUNDLE_IMG -f ${PIPELINE_TEMP}/base-no-shared.yaml
 tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
 tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
