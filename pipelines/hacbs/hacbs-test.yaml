@@ -97,31 +97,6 @@
 - op: add
   path: /spec/tasks/-
   value:
-    name: sast-go
-    runAfter:
-      - build-container
-    taskRef:
-      name: sast-go
-    workspaces:
-    - name: workspace
-      workspace: workspace
-- op: add
-  path: /spec/tasks/-
-  value:
-    name: sast-java-sec-check
-    runAfter:
-      - build-container
-    taskRef:
-      name: sast-java-sec-check
-    params:
-      - name: PATH_CONTEXT
-        value: $(params.path-context)
-    workspaces:
-    - name: workspace
-      workspace: workspace
-- op: add
-  path: /spec/tasks/-
-  value:
     name: sast-snyk-check
     runAfter:
       - clone-repository
