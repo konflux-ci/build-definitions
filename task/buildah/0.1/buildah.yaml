@@ -1,0 +1,257 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, appstudio, hacbs"
+  name: buildah
+spec:
+  description: |-
+    Buildah task builds source into a container image and then pushes it to a container registry.
+    Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
+  params:
+  - default: ""
+    description: The base URL of a mirror used for retrieving artifacts
+    name: MAVEN_MIRROR_URL
+  - description: Reference of the image buildah will produce.
+    name: IMAGE
+    type: string
+  - default: registry.access.redhat.com/ubi9/buildah:9.0.0-19@sha256:c8b1d312815452964885680fc5bc8d99b3bfe9b6961228c71a09c72ca8e915eb
+    description: The location of the buildah builder image.
+    name: BUILDER_IMAGE
+    type: string
+  - default: ./Dockerfile
+    description: Path to the Dockerfile to build.
+    name: DOCKERFILE
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - default: "true"
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
+    name: TLSVERIFY
+    type: string
+  - default: ""
+    description: Extra parameters passed for the build command when building images.
+    name: BUILD_EXTRA_ARGS
+    type: string
+  - default: ""
+    description: Extra parameters passed for the push command when pushing images.
+    name: PUSH_EXTRA_ARGS
+    type: string
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository where the built image was pushed
+    name: IMAGE_URL
+  - description: Digests of the base images used for build
+    name: BASE_IMAGES_DIGESTS
+  - name: SBOM_JAVA_COMPONENTS_COUNT
+    description: The counting of Java components by publisher in JSON format
+  stepTemplate:
+    env:
+    - name: BUILDAH_FORMAT
+      value: oci
+    - name: STORAGE_DRIVER
+      value: vfs
+  steps:
+  - image: $(params.BUILDER_IMAGE)
+    name: build
+    resources:
+      limits:
+        memory: 4Gi
+        cpu: 2
+      requests:
+        memory: 512Mi
+        cpu: 10m
+    script: |
+      if [ -n "$(params.MAVEN_MIRROR_URL)" ] && grep -q '^RUN mvn' $(params.CONTEXT)/$(params.DOCKERFILE); then
+        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>$(params.MAVEN_MIRROR_URL)</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
+        touch /var/lib/containers/java
+      fi
+      sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+      buildah bud \
+        $(params.BUILD_EXTRA_ARGS) \
+        --tls-verify=$(params.TLSVERIFY) --no-cache \
+        --ulimit nofile=4096:4096 \
+        -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+
+  - name: mount-container
+    image: $(params.BUILDER_IMAGE)
+    resources: {}
+    script: |
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah mount $container | tee /workspace/container_path
+      echo $container > /workspace/container_name
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+  - name: sbom-get
+    image: quay.io/redhat-appstudio/syft:v0.47.0
+    script: |
+      syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      find $(cat /workspace/container_path) -xtype l -delete
+      syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+  - name: analyse-dependencies-java-sbom
+    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:70a63556e607e02fe6a19a3f13bb35cedc1f3043
+    script: |
+      if [ -f /var/lib/containers/java ]; then
+        /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json
+      fi
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    securityContext:
+      runAsUser: 0
+  - name: merge-sboms
+    image: registry.redhat.io/ubi8/python-39:1-51
+    env:
+      - name: SBOM_JAVA_COMPONENTS_COUNT_PATH
+        value: $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+    script: |
+      #!/bin/python3
+      import json
+      import os
+
+      # load SBOMs
+      with open("./sbom-image.json") as f:
+        image_sbom = json.load(f)
+
+      with open("./sbom-source.json") as f:
+        source_sbom = json.load(f)
+
+      java_sbom = { "components" : [] }
+      if os.path.exists("./sbom-java.json"):
+        with open("./sbom-java.json") as f:
+          java_sbom = json.load(f)
+
+      # fetch unique components from available SBOMs
+      def get_identifier(component):
+        return component["name"] + '@' + component.get("version", "")
+
+      existing_components = [get_identifier(component) for component in image_sbom["components"]]
+
+      for component in source_sbom["components"]:
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+          existing_components.append(get_identifier(component))
+
+      for component in java_sbom.get("components", []):
+        if get_identifier(component) not in existing_components:
+          image_sbom["components"].append(component)
+
+      image_sbom["components"].sort(key=lambda c: get_identifier(c))
+
+      # write the CycloneDX unified SBOM
+      with open("./sbom-cyclonedx.json", "w") as f:
+        json.dump(image_sbom, f, indent=4)
+
+      # create and write the PURL unified SBOM
+      purls = [{"purl": component["purl"]} for component in image_sbom["components"] if "purl" in component]
+      purl_content = {"image_contents": {"dependencies": purls}}
+
+      with open("sbom-purl.json", "w") as output_file:
+        json.dump(purl_content, output_file, indent=4)
+
+      # create Tekton result containing counting of Java publishers
+      java_publishers = {}
+
+      for component in java_sbom.get("components", []):
+        publisher = component.get("publisher", None)
+
+        if publisher is None:
+          continue
+
+        if publisher not in java_publishers.keys():
+          java_publishers[publisher] = 0
+
+        java_publishers[publisher] += 1
+
+      with open(os.getenv("SBOM_JAVA_COMPONENTS_COUNT_PATH"), "w") as f:
+        json.dump(java_publishers, f, indent=4)
+
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+  - name: inject-sbom-and-push
+    image: $(params.BUILDER_IMAGE)
+    resources: {}
+    script: |
+      # Expose base image digests
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $(params.IMAGE) > $(results.BASE_IMAGES_DIGESTS.path)
+
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $(params.IMAGE))
+      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $(params.IMAGE))
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
+      buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
+      buildah commit $container $(params.IMAGE)
+      buildah push \
+        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
+        docker://$(params.IMAGE)
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+
+  sidecars:
+    - name: proxy
+      image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:70a63556e607e02fe6a19a3f13bb35cedc1f3043
+      env:
+        - name: QUARKUS_REST_CLIENT_CACHE_SERVICE_URL
+          value: "http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local"
+      securityContext:
+        runAsUser: 0
+      livenessProbe:
+        httpGet:
+          path: /q/health/live
+          port: 2000
+        initialDelaySeconds: 1
+        periodSeconds: 3
+      readinessProbe:
+        httpGet:
+          path: /q/health/ready
+          port: 2000
+        initialDelaySeconds: 1
+        periodSeconds: 3
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+
+  volumes:
+  - emptyDir: {}
+    name: varlibcontainers
+  workspaces:
+  - name: source

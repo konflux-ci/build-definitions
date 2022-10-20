@@ -1,0 +1,65 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: sanity-inspect-image
+spec:
+  description: >-
+    Get manifest data for the source image and its base image to workspace
+  params:
+    - name: IMAGE_URL
+      description: the fully qualified image name
+      type: string
+  results:
+    - description: Base image the source image is built from
+      name: BASE_IMAGE
+    - description: Base image repository URL
+      name: BASE_IMAGE_REPOSITORY
+  workspaces:
+    - name: workspace
+  steps:
+  - name: inspect-image
+    image: quay.io/redhat-appstudio/hacbs-test:latest
+    workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add:
+          - SETFCAP
+    script: |
+      IMAGE_INSPECT=image_inspect.json
+      BASE_IMAGE_INSPECT=base_image_inspect.json
+      RAW_IMAGE_INSPECT=raw_image_inspect.json
+
+      echo "Inspecting manifest for source image $(params.IMAGE_URL)"
+      skopeo inspect --no-tags docker://$(params.IMAGE_URL) > $IMAGE_INSPECT
+      skopeo inspect --no-tags --raw docker://$(params.IMAGE_URL) > $RAW_IMAGE_INSPECT
+
+      echo "Getting base image manifest for source image $(params.IMAGE_URL)"
+      BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
+      BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
+      if [ $BASE_IMAGE_NAME == 'null' ]; then
+        echo "Cannot get base image info from 'annotations'"
+        echo "Trying to get base image info from 'Labels'"
+        BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
+        BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
+        if [ "$BASE_IMAGE_NAME" == 'null' ]; then
+          echo "Cannot get base image info from 'Labels', please check the source image $(params.IMAGE_URL)"
+          exit 0
+        fi
+      fi
+      if [ -z "$BASE_IMAGE_NAME" ]; then
+        echo "Source image $(params.IMAGE_URL) is built from scratch, so there is no base image"
+        exit 0
+      fi
+      BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
+      echo "The base image is $BASE_IMAGE, get its manifest now"
+      skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
+      echo "$BASE_IMAGE" | tee $(results.BASE_IMAGE.path)
+
+      jq -r ".Name" $BASE_IMAGE_INSPECT | cut -d"/" -f2,3 | tee $(results.BASE_IMAGE_REPOSITORY.path)
