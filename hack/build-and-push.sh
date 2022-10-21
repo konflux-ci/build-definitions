@@ -1,5 +1,9 @@
 #!/bin/bash -e
 
+QUAY_ORG=redhat-appstudio-tekton-catalog
+# local dev build script
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 # Helper function to record the image reference from the output of
 # the "tkn bundle push" command into a given file.
 # Params:
@@ -23,26 +27,6 @@ function save_ref() {
     echo "${tagRef}@${digest}"
 }
 
-# Pushes the Tekton task bundle, captures the pushed bundle image reference
-# including the digest and augments the pipelines with references to the task
-# bundle for tasks identified by name
-function push_tasks_bundle() {
-    REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-    printf "\nCreating %s\n" "${REF}"
-    OUT=$(tkn bundle push $TASKS $REF | save_ref $REF $OUTPUT_TASK_BUNDLE_LIST)
-    echo "${OUT}"
-    TASK_REF_WITH_DIGEST="${OUT##*$'\n'}" # the last line holds the image reference with tag and digest
-    for pipeline in "$PIPELINE_TEMP"/*.yaml; do
-        for task_name in "${TASK_NAMES[@]}"; do
-            yq e -i "(.spec.tasks[].taskRef | select(.name == \"${task_name}\")) |= {\"name\": \"${task_name}\", \"bundle\":\"${TASK_REF_WITH_DIGEST}\"}" "${pipeline}"
-            yq e -i "(.spec.finally[].taskRef | select(.name == \"${task_name}\")) |= {\"name\": \"${task_name}\", \"bundle\":\"${TASK_REF_WITH_DIGEST}\"}" "${pipeline}"
-        done
-    done
-}
-
-# local dev build script
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
 if [[ $(uname) = Darwin ]]; then
     CSPLIT_CMD="gcsplit"
 else
@@ -54,10 +38,12 @@ if [ -z "$MY_QUAY_USER" ]; then
     exit 0
 fi
 if [ -z "$BUILD_TAG" ]; then
-    if [ "$MY_QUAY_USER" == "redhat-appstudio" ]; then
-        echo "'redhat-appstudio' repo is used, define BUILD_TAG"
+    if [ "$MY_QUAY_USER" == "$QUAY_ORG" ]; then
+        echo "'${QUAY_ORG}' repo is used, define BUILD_TAG"
         exit 1
     else
+        # At the step of converting tasks to Tekton catalog, this is only
+        # applied to non-task resources.
         BUILD_TAG=$(date +"%Y-%m-%d-%H%M%S")
         echo "BUILD_TAG is not defined, using $BUILD_TAG"
     fi
@@ -68,7 +54,6 @@ fi
 : "${TEST_REPO_NAME:=}"
 
 APPSTUDIO_UTILS_IMG="quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+build-definitions-utils-}$BUILD_TAG"
-APPSTUDIO_TASKS_REPO=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-tasks}
 PIPELINE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-build-templates-bundle}:${TEST_REPO_NAME:+build-}$BUILD_TAG
 KCP_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-kcp-templates-bundle}:${TEST_REPO_NAME:+kcp-}$BUILD_TAG
 HACBS_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}$BUILD_TAG
@@ -82,52 +67,54 @@ rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 # Build appstudio-utils image
 if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $MY_QUAY_USER to push results "
-    docker build -t $APPSTUDIO_UTILS_IMG $SCRIPTDIR/../appstudio-utils/
-    docker push $APPSTUDIO_UTILS_IMG
+    docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
+    docker push "$APPSTUDIO_UTILS_IMG"
 fi
 
 # Create bundles with tasks
-PART=1
-COUNT=0
-TASK_TEMP=$(mktemp -d)
-PIPELINE_TEMP=$(mktemp -d)
-oc kustomize $SCRIPTDIR/../tasks | $CSPLIT_CMD -s -f $TASK_TEMP/task -b %02d.yaml - /^---$/ '{*}'
-oc kustomize $SCRIPTDIR/../pipelines/base > ${PIPELINE_TEMP}/base.yaml
-oc kustomize $SCRIPTDIR/../pipelines/base-no-shared > ${PIPELINE_TEMP}/base-no-shared.yaml
-oc kustomize $SCRIPTDIR/../pipelines/hacbs > ${PIPELINE_TEMP}/hacbs.yaml
-oc kustomize $SCRIPTDIR/../pipelines/hacbs-core-service > ${PIPELINE_TEMP}/hacbs-core-service.yaml
+PIPELINE_TEMP=$(mktemp -d --suffix "-hacbs-pipelines")
+oc kustomize "$SCRIPTDIR/../pipelines/base" > "${PIPELINE_TEMP}/base.yaml"
+oc kustomize "$SCRIPTDIR/../pipelines/base-no-shared" > "${PIPELINE_TEMP}/base-no-shared.yaml"
+oc kustomize "$SCRIPTDIR/../pipelines/hacbs" > "${PIPELINE_TEMP}/hacbs.yaml"
+oc kustomize "$SCRIPTDIR/../pipelines/hacbs-core-service" > "${PIPELINE_TEMP}/hacbs-core-service.yaml"
 
-## Limit number of tasks in bundle
-MAX=10
-TASKS=
-REF="$APPSTUDIO_TASKS_REPO:$BUILD_TAG-$PART"
-TASK_NAMES=()
-for TASK in $TASK_TEMP/task*.yaml; do
-    TASK_NAME=$(yq e ".metadata.name" "$TASK")
-    TASK_NAMES+=("$TASK_NAME")
-    # Replace appstudio-utils placeholder by newly build appstudio-utils image
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image=\"$APPSTUDIO_UTILS_IMG\"" "$TASK"
-    TASKS="$TASKS -f $TASK"
-    COUNT=$((COUNT+1))
-    if [ $COUNT -eq $MAX ]; then
-        push_tasks_bundle
+# Build tasks
+(
+cd "$SCRIPTDIR/.."
+find task/*/*/*.yaml | awk -F '/' '{ print $0, $2, $3 }' | \
+while read -r task_file task_name task_version
+do
+    task_bundle=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-task-${task_name}}:${TEST_REPO_NAME:+${task_name}-}${task_version}
+    output=$(tkn bundle push -f "$task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
+    echo "$output"
+    task_bundle_with_digest="${output##*$'\n'}"
 
-        COUNT=0
-        PART=$((PART+1))
-        TASKS=
-        TASK_NAMES=()
-    fi
+    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$task_file"
+
+    # version placeholder is removed naturally by the substitution.
+    real_task_name=$(yq e '.metadata.name' "$task_file")
+    for pipeline in "$PIPELINE_TEMP"/*.yaml
+    do
+        yq e -i "
+            (.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+            |= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+        " "${pipeline}"
+        yq e -i "
+            (.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+            |= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+        " "${pipeline}"
+    done
 done
-push_tasks_bundle # push the leftover tasks when the remaining $COUNT < $MAX
+)
 
 # Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
-tkn bundle push $PIPELINE_BUNDLE_IMG -f ${PIPELINE_TEMP}/base.yaml
-tkn bundle push $HACBS_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs.yaml | save_ref $HACBS_BUNDLE_IMG $OUTPUT_PIPELINE_BUNDLE_LIST
-tkn bundle push $KCP_BUNDLE_IMG -f ${PIPELINE_TEMP}/base-no-shared.yaml
-tkn bundle push $HACBS_BUNDLE_LATEST_IMG -f ${PIPELINE_TEMP}/hacbs.yaml
-tkn bundle push $HACBS_CORE_BUNDLE_IMG -f ${PIPELINE_TEMP}/hacbs-core-service.yaml
+tkn bundle push "$PIPELINE_BUNDLE_IMG" -f "${PIPELINE_TEMP}/base.yaml"
+tkn bundle push "$HACBS_BUNDLE_IMG" -f "${PIPELINE_TEMP}/hacbs.yaml" | save_ref "$HACBS_BUNDLE_IMG" "$OUTPUT_PIPELINE_BUNDLE_LIST"
+tkn bundle push "$KCP_BUNDLE_IMG" -f "${PIPELINE_TEMP}/base-no-shared.yaml"
+tkn bundle push "$HACBS_BUNDLE_LATEST_IMG" -f "${PIPELINE_TEMP}/hacbs.yaml"
+tkn bundle push "$HACBS_CORE_BUNDLE_IMG" -f "${PIPELINE_TEMP}/hacbs-core-service.yaml"
 
-if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "redhat-appstudio" ] && [ -z "$TEST_REPO_NAME" ]; then
+if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
     for img in "$PIPELINE_BUNDLE_IMG" "$KCP_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
         NEW_TAG="${img%:*}:devel"
         skopeo copy "docker://${img}" "docker://${NEW_TAG}"
@@ -135,5 +122,5 @@ if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "redhat-appstudio" ] && [
 fi
 
 if [ "$SKIP_INSTALL" == "" ]; then
-    $SCRIPTDIR/util-install-bundle.sh $PIPELINE_BUNDLE_IMG $INSTALL_BUNDLE_NS
+    "$SCRIPTDIR/util-install-bundle.sh" "$PIPELINE_BUNDLE_IMG" "$INSTALL_BUNDLE_NS"
 fi

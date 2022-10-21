@@ -38,6 +38,7 @@ spec:
           value: "$(params.output-image)"
       taskRef:
         name: init
+        version: "0.1"
     - name: source-clone-repository
       runAfter:
         - setup-appstudio-init
@@ -58,6 +59,7 @@ spec:
         - source-clone-repository
       taskRef:
         name: configure-build
+        version: "0.1"
       workspaces:
         - name: source
           workspace: workspace
@@ -66,6 +68,7 @@ spec:
     - name: secret-detection-detect-secrets
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - source-clone-repository
       params:
@@ -76,6 +79,7 @@ spec:
     - name: policy-code-reviews-check
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - setup-appstudio-init
       params:
@@ -86,6 +90,7 @@ spec:
     - name: policy-branch-protection-check
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - setup-appstudio-init
       params:
@@ -96,6 +101,7 @@ spec:
     - name: build-placeholder-build-step
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-appstudio-configure-build
       params:
@@ -106,6 +112,7 @@ spec:
     - name: discovery-create-build-graph
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-placeholder-build-step
       params:
@@ -116,6 +123,7 @@ spec:
     - name: bill-of-materials-create-build-bom
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - discovery-create-build-graph
       params:
@@ -126,6 +134,7 @@ spec:
     - name: test-unit-test
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-placeholder-build-step
       params:
@@ -136,6 +145,7 @@ spec:
     - name: coverage-unit-test-coverage
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - test-unit-test
       params:
@@ -146,6 +156,7 @@ spec:
     - name: scan-lint
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-placeholder-build-step
       params:
@@ -156,6 +167,7 @@ spec:
     - name: scan-dependency-vulnerability-scan
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -166,6 +178,7 @@ spec:
     - name: scan-static-security-test
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-placeholder-build-step
       params:
@@ -176,6 +189,7 @@ spec:
     - name: scan-code-smells
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - build-placeholder-build-step
       params:
@@ -186,6 +200,7 @@ spec:
     - name: policy-provenance-check
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -196,6 +211,7 @@ spec:
     - name: policy-cis-checks
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -206,6 +222,7 @@ spec:
     - name: policy-license-check
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - bill-of-materials-create-build-bom
       params:
@@ -239,12 +256,14 @@ spec:
         - build-placeholder-build-step
       taskRef:
         name: buildah
+        version: "0.1"
       workspaces:
         - name: source
           workspace: workspace
     - name: discovery-create-output-graph
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - package-build-container
       params:
@@ -255,6 +274,7 @@ spec:
     - name: bill-of-materials-create-output-bom
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - discovery-create-output-graph
       params:
@@ -265,6 +285,7 @@ spec:
     - name: sign-artifacts-build
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - bill-of-materials-create-output-bom
       params:
@@ -275,6 +296,7 @@ spec:
     - name: publish-push-to-quay
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - sign-artifacts-build
       params:
@@ -285,6 +307,7 @@ spec:
     - name: scan-twistlock
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - publish-push-to-quay
       params:
@@ -295,6 +318,7 @@ spec:
     - name: provision-provision-dev
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - package-build-container
       params:
@@ -305,6 +329,7 @@ spec:
     - name: deploy-deploy-in-dev
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - publish-push-to-quay
         - provision-provision-dev
@@ -316,6 +341,7 @@ spec:
     - name: verify-deployment-verify-dev-deployment
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - deploy-deploy-in-dev
       params:
@@ -326,6 +352,7 @@ spec:
     - name: test-acceptance-test
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
@@ -336,6 +363,7 @@ spec:
     - name: scan-dynamic-security-test
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - verify-deployment-verify-dev-deployment
       params:
@@ -346,6 +374,7 @@ spec:
     - name: cleanup-deprovision-dev
       taskRef:
         name: utils-task
+        version: "0.1"
       runAfter:
         - scan-dynamic-security-test
         - scan-twistlock
@@ -360,6 +389,7 @@ spec:
         - cleanup-deprovision-dev
       taskRef:
         name: summary
+        version: "0.1"
       params:
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
@@ -376,6 +406,7 @@ spec:
         - record-results-show-summary
       taskRef:
         name: utils-task
+        version: "0.1"
       params:
       - name: SCRIPT
         value: |

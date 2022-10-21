@@ -6,6 +6,7 @@
       - build-container
     taskRef:
       name: sanity-inspect-image
+      version: "0.1"
     params:
     - name: IMAGE_URL
       value: $(params.output-image)
@@ -20,6 +21,7 @@
       - sanity-inspect-image
     taskRef:
       name: sanity-label-check
+      version: "0.1"
     workspaces:
     - name: workspace
       workspace: workspace
@@ -31,6 +33,7 @@
       - sanity-inspect-image
     taskRef:
       name: sanity-label-check
+      version: "0.1"
     params:
     - name: POLICY_NAMESPACE
       value: optional_checks
@@ -45,6 +48,7 @@
       - sanity-inspect-image
     taskRef:
       name: deprecated-image-check
+      version: "0.1"
     params:
     - name: IMAGE_REGISTRY
       value: registry.access.redhat.com
@@ -61,6 +65,7 @@
       - build-container
     taskRef:
       name: get-clair-scan
+      version: "0.1"
     params:
     - name: image-digest
       value: $(tasks.build-container.results.IMAGE_DIGEST)
@@ -77,6 +82,7 @@
     name: hacbs-test-evaluation
     taskRef:
       name: hacbs-test-evaluation
+      version: "0.1"
     params:
     - name: BASE_IMAGE
       value: $(tasks.sanity-inspect-image.results.BASE_IMAGE)
@@ -91,6 +97,7 @@
       - get-clair-results
     taskRef:
       name: conftest-clair
+      version: "0.1"
     workspaces:
     - name: conftest-ws
       workspace: workspace
@@ -102,6 +109,7 @@
       - clone-repository
     taskRef:
       name: sast-snyk-check
+      version: "0.1"
     workspaces:
     - name: workspace
       workspace: workspace
@@ -113,6 +121,7 @@
       - build-container
     taskRef:
       name: clamav-scan
+      version: "0.1"
     params:
     - name: image-digest
       value: $(tasks.build-container.results.IMAGE_DIGEST)

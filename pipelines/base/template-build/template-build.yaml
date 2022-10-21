@@ -39,6 +39,7 @@ spec:
           value: "$(params.rebuild)"
       taskRef:
         name: init
+        version: "0.1"
     - name: clone-repository
       when:
       - input: $(tasks.appstudio-init.results.build)
@@ -53,6 +54,7 @@ spec:
           value: "$(params.revision)"
       taskRef:
         name: git-clone
+        version: "0.1"
       workspaces:
         - name: output
           workspace: workspace
@@ -67,6 +69,7 @@ spec:
         values: ["true"]
       taskRef:
         name: configure-build
+        version: "0.1"
       workspaces:
         - name: source
           workspace: workspace
@@ -88,6 +91,7 @@ spec:
     - name: show-summary
       taskRef:
         name: summary
+        version: "0.1"
       params:
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
