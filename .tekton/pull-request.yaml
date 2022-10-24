@@ -89,6 +89,14 @@ spec:
                 SKIP_BUILD=1 \
                 INSTALL_BUNDLE_NS=$(params.e2e_test_namespace) \
                 hack/build-and-push.sh
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
       - name: e2e-test
