@@ -3,6 +3,7 @@
 QUAY_ORG=redhat-appstudio-tekton-catalog
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 
 # Helper function to record the image reference from the output of
 # the "tkn bundle push" command into a given file.
@@ -72,7 +73,7 @@ if [ "$SKIP_BUILD" == "" ]; then
 fi
 
 # Create bundles with tasks
-PIPELINE_TEMP=$(mktemp -d --suffix "-hacbs-pipelines")
+PIPELINE_TEMP=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
 oc kustomize "$SCRIPTDIR/../pipelines/base" > "${PIPELINE_TEMP}/base.yaml"
 oc kustomize "$SCRIPTDIR/../pipelines/base-no-shared" > "${PIPELINE_TEMP}/base-no-shared.yaml"
 oc kustomize "$SCRIPTDIR/../pipelines/hacbs" > "${PIPELINE_TEMP}/hacbs.yaml"
@@ -84,15 +85,17 @@ cd "$SCRIPTDIR/.."
 find task/*/*/*.yaml | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_file task_name task_version
 do
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$task_file"
+    prepared_task_file="${WORKDIR}/$(basename "$task_file" .yaml)-${task_version}.yaml"
+    cp "$task_file" "$prepared_task_file"
+    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$prepared_task_file"
 
     task_bundle=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-task-${task_name}}:${TEST_REPO_NAME:+${task_name}-}${task_version}
-    output=$(tkn bundle push -f "$task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
+    output=$(tkn bundle push -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
     echo "$output"
     task_bundle_with_digest="${output##*$'\n'}"
 
     # version placeholder is removed naturally by the substitution.
-    real_task_name=$(yq e '.metadata.name' "$task_file")
+    real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
     for pipeline in "$PIPELINE_TEMP"/*.yaml
     do
         yq e -i "
