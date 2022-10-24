@@ -142,6 +142,10 @@ spec:
       - name: workspace
   workspaces:
     - name: workspace
-      persistentVolumeClaim:
-        claimName: app-studio-default-workspace
-      subPath: build-definitions-bundle-{{ revision }}
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

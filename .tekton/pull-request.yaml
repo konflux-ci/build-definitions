@@ -150,6 +150,10 @@ spec:
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   workspaces:
     - name: workspace
-      persistentVolumeClaim:
-        claimName: app-studio-default-workspace
-      subPath: build-definitions-{{ revision }}
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
