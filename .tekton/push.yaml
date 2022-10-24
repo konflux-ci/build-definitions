@@ -103,10 +103,8 @@ spec:
             value: $(params.revision)
           - name: SCRIPT
             value: |
-              BUNDLE=quay.io/redhat-appstudio/build-templates-bundle
-              for file in $(git grep -l $BUNDLE); do
-                sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
-              done
+              sed -i "s|default_build_bundle=.*|default_build_bundle=quay.io/redhat-appstudio-tekton-catalog/build-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
+              sed -i "s|hacbs_build_bundle=.*|hacbs_build_bundle=quay.io/redhat-appstudio-tekton-catalog/hacbs-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
         taskRef:
           name: update-infra-deployments
       - name: update-ec-policies
