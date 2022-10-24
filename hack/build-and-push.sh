@@ -84,12 +84,12 @@ cd "$SCRIPTDIR/.."
 find task/*/*/*.yaml | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_file task_name task_version
 do
+    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$task_file"
+
     task_bundle=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-task-${task_name}}:${TEST_REPO_NAME:+${task_name}-}${task_version}
     output=$(tkn bundle push -f "$task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
     echo "$output"
     task_bundle_with_digest="${output##*$'\n'}"
-
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$task_file"
 
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$task_file")
