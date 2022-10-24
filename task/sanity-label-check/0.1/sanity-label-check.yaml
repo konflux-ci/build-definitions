@@ -1,0 +1,54 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: sanity-label-check
+spec:
+  params:
+    - name: POLICY_DIR
+      description: "Path to the directory containing conftest policies"
+      default: "/project/image/"
+    - name: POLICY_NAMESPACE
+      description: "Namespace for the conftest policy"
+      default: "required_checks"
+  workspaces:
+    - name: workspace
+  results:
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
+  steps:
+    - name: basic-sanity-checks-required-labels
+      image: quay.io/redhat-appstudio/hacbs-test:latest
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)-$(params.POLICY_NAMESPACE)
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        CONFTEST_OPTIONS=""
+        if [ -s "../sanity-inspect-image/base_image_inspect.json" ]; then
+          CONFTEST_OPTIONS="-d=../sanity-inspect-image/base_image_inspect.json"
+        fi
+
+        echo "Running conftest using $(params.POLICY_DIR) policy, $(params.POLICY_NAMESPACE) namespace"
+        /usr/bin/conftest test --no-fail ../sanity-inspect-image/image_inspect.json "${CONFTEST_OPTIONS}" \
+        --policy $(params.POLICY_DIR) --namespace $(params.POLICY_NAMESPACE) \
+        --output=json 2> stderr.txt | tee sanity_label_check_output.json
+
+        ERR_MSG="$(cat stderr.txt)"
+        ERR_MSG="${ERR_MSG:-unknown}"
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg ERR_MSG "${ERR_MSG: 0: 3000}" --null-input \
+          '{result: "ERROR", timestamp: $date, failures: [$ERR_MSG]}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
+          '.[] | { result: (if (.failures | length > 0) then "FAILURE" else "SUCCESS" end),
+                   timestamp: $date,
+                   namespace,
+                   successes,
+                   failures: (.failures // [])|map(.metadata.details.name) | unique
+                 }' sanity_label_check_output.json || true)
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)

@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: cleanup-build-directories
+spec:
+  description: >-
+    Utility to remove unused builds directories, with no corresponding build
+  results:
+    - name: status
+      description: Simple status line of storage usage saved and kept.
+  workspaces:
+    - name: source
+  steps:
+    - name: cleanup-build-directories
+      image: appstudio-utils
+      script: |
+        #!/usr/bin/env bash
+        { set +x ;} 2> /dev/null
+        echo "App Studio Utility Task $(context.task.name)"
+        /appstudio-utils/util-scripts/$(context.task.name).sh  /tekton/results

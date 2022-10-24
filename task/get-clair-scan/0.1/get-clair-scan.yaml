@@ -1,0 +1,33 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: get-clair-scan
+spec:
+  params:
+    - name: image-digest
+      description: Image digest to scan
+    - name: image-url
+      description: Url to image
+  steps:
+    - name: get-vulnerabilities
+      image: quay.io/redhat-appstudio/clair-in-ci:latest
+      script: |
+        #!/usr/bin/env bash
+
+        imagewithouttag=$(echo '$(params.image-url)' | sed "s/\(.*\):.*/\1/" | tr -d '\n')
+        # strip new-line escape symbol from parameter and save it to variable
+        imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
+
+        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="/workspace/registry-auth/"
+
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=$REGISTRY_ARGS > $(workspaces.clair-ws.path)/clair-result.json
+  workspaces:
+    - name: clair-ws
+    - name: registry-auth
+      optional: true

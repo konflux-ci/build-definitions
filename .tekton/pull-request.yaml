@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "pull_request"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[tasks/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
@@ -83,12 +83,20 @@ spec:
               workingDir: $(workspaces.source.path)
               script: |
                 #!/usr/bin/env bash
-                MY_QUAY_USER=redhat-appstudio \
+                MY_QUAY_USER=redhat-appstudio-tekton-catalog \
                 TEST_REPO_NAME=pull-request-builds \
                 BUILD_TAG=$(params.revision) \
                 SKIP_BUILD=1 \
                 INSTALL_BUNDLE_NS=$(params.e2e_test_namespace) \
                 hack/build-and-push.sh
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
       - name: e2e-test
@@ -142,6 +150,10 @@ spec:
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   workspaces:
     - name: workspace
-      persistentVolumeClaim:
-        claimName: app-studio-default-workspace
-      subPath: build-definitions-{{ revision }}
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

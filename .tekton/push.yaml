@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[tasks/update-infra-deployments.yaml, tasks/git-clone.yaml, .tekton/tasks/buildah.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -72,7 +72,7 @@ spec:
               command: ["./hack/build-and-push.sh"]
               env:
                 - name: MY_QUAY_USER
-                  value: redhat-appstudio
+                  value: redhat-appstudio-tekton-catalog
                 - name: BUILD_TAG
                   value: "$(params.revision)"
                 - name: SKIP_BUILD
@@ -83,6 +83,14 @@ spec:
                   value: "$(results.TASK_BUNDLES.path)"
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: "$(results.PIPELINE_BUNDLES.path)"
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
       - name: update-infra-repo
@@ -95,10 +103,8 @@ spec:
             value: $(params.revision)
           - name: SCRIPT
             value: |
-              BUNDLE=quay.io/redhat-appstudio/build-templates-bundle
-              for file in $(git grep -l $BUNDLE); do
-                sed -i "s|\($BUNDLE\):.*|\1:$(params.revision)|g" $file
-              done
+              sed -i "s|default_build_bundle=.*|default_build_bundle=quay.io/redhat-appstudio-tekton-catalog/build-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
+              sed -i "s|hacbs_build_bundle=.*|hacbs_build_bundle=quay.io/redhat-appstudio-tekton-catalog/hacbs-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
         taskRef:
           name: update-infra-deployments
       - name: update-ec-policies
@@ -134,6 +140,10 @@ spec:
       - name: workspace
   workspaces:
     - name: workspace
-      persistentVolumeClaim:
-        claimName: app-studio-default-workspace
-      subPath: build-definitions-bundle-{{ revision }}
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

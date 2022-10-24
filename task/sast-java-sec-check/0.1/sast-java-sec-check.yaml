@@ -1,0 +1,85 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs, java"
+  name: sast-java-sec-check
+spec:
+  workspaces:
+    - name: workspace
+  results:
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
+  params:
+    - name: PATH_CONTEXT
+      description: The path to your source code
+      type: string
+      default: .
+    - name: OUTPUT_FORMAT
+      description: the format of findsecbugs output
+      type: string
+      default: "sarif"
+    - name: OUTPUT_ONLY_ANALYZE
+      description: |
+        only analyze given classes and packages;
+        end with .* to indicate classes in a package, .- to indicate a package prefix
+      type: string
+      default: ""
+    - name: OPTIONAL_ARGS
+      description: optional parameters to run findsecbugs
+      type: string
+      default: ""
+  steps:
+    - name: java-sec-check
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
+      resources:
+        limits:
+          memory: 8Gi
+          cpu: 2
+        requests:
+          memory: 2Gi
+          cpu: 10m
+      script: |
+        #!/bin/bash -x
+
+        pushd $(workspaces.workspace.path)
+        if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
+          mvn package -f $(params.PATH_CONTEXT)/
+        else
+          echo "pom.xml file doesn't exist in $(workspaces.workspace.path)/$(params.PATH_CONTEXT)"
+        fi
+        popd
+
+        JAR_PATH=`ls $(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar`
+        if [ -n "$JAR_PATH" ]; then
+          /home/findsecbugs-cli/findsecbugs.sh $(params.OPTIONAL_ARGS) $(params.OUTPUT_ONLY_ANALYZE) -$(params.OUTPUT_FORMAT) \
+            -output sast_java_sec_output.json $JAR_PATH  2> stderr.txt
+          cat sast_java_sec_output.json
+          test_skipped=0
+        else
+          echo "jar file $JAR_PATH doesn't exist" > stderr.txt
+          test_skipped=1
+        fi
+
+        ERR_MSG="$(echo -n $(cat stderr.txt))"
+        ERR_MSG="${ERR_MSG:-unknown}"
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg MSG "${ERR_MSG: 0: 3000}" \
+                              --arg test_skipped $test_skipped --null-input \
+            '{result: (if $test_skipped=="1" then "SKIPPED" else "ERROR" end),
+              timestamp: $date,
+              note: (if $test_skipped=="1" then $MSG else "" end),
+              failures: (if $test_skipped=="1" then "" else [$MSG] end)}')
+        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s)  \
+          '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
+                   timestamp: $date,
+                   namespace: "default",
+                   successes: 0,
+                   note: "",
+                   failures: (.runs[].results | length)
+                 }' sast_java_sec_output.json || true)
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
