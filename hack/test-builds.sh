@@ -4,12 +4,16 @@
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-oc apply -k $SCRIPTDIR/test-build
-if [ "$1" == "" ]; then
-  oc apply -k $SCRIPTDIR/../pipelines/base
-else
-  oc apply -k $SCRIPTDIR/../pipelines/$1
-fi
+TASKSDIR=${SCRIPTDIR}/../task
+
+for task in $(ls $TASKSDIR); do
+  VERSIONDIR=$(ls -d $TASKSDIR/$task/*/ | sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n | tail -n1)
+  oc apply -f $VERSIONDIR/$task.yaml
+done
+
+oc apply -k $SCRIPTDIR/../pipelines/${1:-"base"} -o yaml --dry-run=client | \
+  yq e 'del(.items.[] | .spec.tasks.[] | .taskRef.version, .items.[] | .spec.finally.[] | .taskRef.version)' | \
+  oc apply -f-
 
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/single-nodejs-app nodejs-builder
