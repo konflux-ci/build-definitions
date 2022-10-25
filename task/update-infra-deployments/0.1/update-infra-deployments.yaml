@@ -33,13 +33,9 @@ spec:
       default: "23331085"
   volumes:
     - name: infra-deployments-pr-creator
-      csi:
-        readOnly: true
-        driver: csi.sharedresource.openshift.io
-        volumeAttributes:
-          sharedSecret: $(params.shared-secret)
-          # Must-contain:
-          # 'appstudio-staging-ci' - private key for appstudio-staging-ci Github app
+      secret:
+        # 'appstudio-staging-ci' - private key for appstudio-staging-ci Github app
+        secretName: $(params.shared-secret)
     - name: shared-dir
       emptyDir: {}
 
