@@ -226,6 +226,22 @@ spec:
       workspaces:
       - name: registry-auth
         workspace: registry-auth
+    - name: sbom-json-check
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - build-container
+      taskRef:
+        name: sbom-json-check
+        version: "0.1"
+      params:
+      - name: IMAGE_URL
+        value: $(tasks.build-container.results.IMAGE_URL)
+      workspaces:
+      - name: workspace
+        workspace: workspace
 
   finally:
     - name: show-summary
