@@ -6,8 +6,6 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 TASKSDIR=${SCRIPTDIR}/../task
 
-oc apply -k $SCRIPTDIR/test-build
-
 for task in $(ls $TASKSDIR); do
   VERSIONDIR=$(ls -d $TASKSDIR/$task/*/ | sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n | tail -n1)
   oc apply -f $VERSIONDIR/$task.yaml
