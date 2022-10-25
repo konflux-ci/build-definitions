@@ -22,11 +22,9 @@ spec:
       default: "--all-projects --exclude=test*,vendor,deps"
   volumes:
     - name: snyk-secret
-      csi:
-        readOnly: true
-        driver: csi.sharedresource.openshift.io
-        volumeAttributes:
-          sharedSecret: $(params.SHARED_SECRET)
+      secret:
+        secretName: $(params.SHARED_SECRET)
+        optional: true
   steps:
     - name: sast-snyk-check
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
