@@ -234,6 +234,16 @@ spec:
         docker://$(params.IMAGE)
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+
+      # Create and push sbom image
+      sbom_container=$(buildah from scratch)
+      sbom_container_mountpath=$(buildah mount $sbom_container)
+      cp sbom-cyclonedx.json sbom-purl.json $sbom_container_mountpath
+      buildah umount $sbom_container
+      buildah commit working-container $(params.IMAGE).sbom
+      buildah push \
+        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        $(params.IMAGE).sbom
     securityContext:
       runAsUser: 0
       capabilities:
