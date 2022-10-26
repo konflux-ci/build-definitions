@@ -11,10 +11,11 @@ for task in $(ls $TASKSDIR); do
   oc apply -f $VERSIONDIR/$task.yaml
 done
 
-oc apply -k $SCRIPTDIR/../pipelines/${1:-"base"} -o yaml --dry-run=client | \
+oc apply -k $SCRIPTDIR/../pipelines/ -o yaml --dry-run=client | \
   yq e 'del(.items.[] | .spec.tasks.[] | .taskRef.version, .items.[] | .spec.finally.[] | .taskRef.version)' | \
   oc apply -f-
 
+[ "$1" == "hacbs" ] && export HACBS=1
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/single-nodejs-app nodejs-builder
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/single-container-app docker-build

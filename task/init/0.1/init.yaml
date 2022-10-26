@@ -16,9 +16,10 @@ spec:
     - name: rebuild
       description: Rebuild the image if exists
       default: "false"
-    - name: jvm-build-service-init
-      description: Set jvm build service config
+    - name: hacbs
+      description: HACBS workflow
       default: "false"
+    - name: pipeline-run-name
   results:
     - name: build
   steps:
@@ -30,18 +31,19 @@ spec:
         echo
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
-        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ]; then
+        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.hacbs)" == "true" ]; then
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)
         fi
+
     - name: hacbs-init
       image: registry.redhat.io/openshift4/ose-cli:v4.10
       script: |
-        if [ "$(params.jvm-build-service-init)" == "true" ] && ! oc get configmap jvm-build-config &>/dev/null; then
-          oc create configmap jvm-build-config --from-literal enable-rebuilds="false"
-        fi
         # Create empty secret which is now hardcoded in PaC Pipelinerun template
         if ! oc get secret redhat-appstudio-registry-pull-secret &>/dev/null; then
           oc create secret generic redhat-appstudio-registry-pull-secret
+        fi
+        if [ "$(params.hacbs)" == "true" ]; then
+          oc annotate pipelinerun $(params.pipeline-run-name) 'appstudio.redhat.com/updateComponentOnSuccess="false"'
         fi
