@@ -1,0 +1,256 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: template-build
+  labels:
+    "pipelines.openshift.io/used-by": ""
+    "pipelines.openshift.io/runtime": ""
+    "pipelines.openshift.io/strategy": ""
+spec:
+  params:
+    - description: 'Source Repository URL'
+      name: git-url
+      type: string
+    - description: 'Revision of the Source Repository'
+      name: revision
+      type: string
+      default: ""
+    - description: 'Fully Qualified Output Image'
+      name: output-image
+      type: string
+    - description: The path to your source code
+      name: path-context
+      type: string
+      default: .
+    - description: Path to the Dockerfile
+      name: dockerfile
+      type: string
+      default: Dockerfile
+    - description: Force rebuild image
+      name: rebuild
+      type: string
+      default: "false"
+    - description: Enable HACBS tasks
+      name: hacbs
+      type: string
+      default: "false"
+    - description: Java build
+      name: java
+      type: string
+      default: "false"
+  tasks:
+    - name: appstudio-init
+      params:
+        - name: image-url
+          value: "$(params.output-image)"
+        - name: rebuild
+          value: "$(params.rebuild)"
+        - name: hacbs
+          value: "$(params.hacbs)"
+        - name: pipeline-run-name
+          value: "$(context.pipelineRun.name)"
+      taskRef:
+        name: init
+        version: "0.1"
+    - name: clone-repository
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - appstudio-init
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: "$(params.revision)"
+      taskRef:
+        name: git-clone
+        version: "0.1"
+      workspaces:
+        - name: output
+          workspace: workspace
+        - name: basic-auth
+          workspace: git-auth
+    - name: appstudio-configure-build
+      runAfter:
+        - clone-repository
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
+      taskRef:
+        name: configure-build
+        version: "0.1"
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: registry-auth
+          workspace: registry-auth
+    - name: build-container
+      when:
+      - input: $(tasks.appstudio-init.results.build)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - appstudio-configure-build
+      taskRef:
+        name: $REPLACE_ME
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: sanity-inspect-image
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - build-container
+      taskRef:
+        name: sanity-inspect-image
+        version: "0.1"
+      params:
+      - name: IMAGE_URL
+        value: $(params.output-image)
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: sanity-label-check
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - sanity-inspect-image
+      taskRef:
+        name: sanity-label-check
+        version: "0.1"
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: sanity-optional-label-check
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - sanity-inspect-image
+      taskRef:
+        name: sanity-label-check
+        version: "0.1"
+      params:
+      - name: POLICY_NAMESPACE
+        value: optional_checks
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: deprecated-base-image-check
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - sanity-inspect-image
+      taskRef:
+        name: deprecated-image-check
+        version: "0.1"
+      params:
+      - name: IMAGE_REGISTRY
+        value: registry.access.redhat.com
+      - name: IMAGE_REPOSITORY
+        value: $(tasks.sanity-inspect-image.results.BASE_IMAGE_REPOSITORY)
+      workspaces:
+      - name: sanity-ws
+        workspace: workspace
+    - name: get-clair-results
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - build-container
+      taskRef:
+        name: get-clair-scan
+        version: "0.1"
+      params:
+      - name: image-digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: image-url
+        value: $(tasks.build-container.results.IMAGE_URL)
+      workspaces:
+      - name: clair-ws
+        workspace: workspace
+      - name: registry-auth
+        workspace: registry-auth
+    - name: conftest-clair
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - get-clair-results
+      taskRef:
+        name: conftest-clair
+        version: "0.1"
+      workspaces:
+      - name: conftest-ws
+        workspace: workspace
+    - name: sast-snyk-check
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: sast-snyk-check
+        version: "0.1"
+      workspaces:
+      - name: workspace
+        workspace: workspace
+    - name: clamav-scan
+      when:
+      - input: $(params.hacbs)
+        operator: in
+        values: ["true"]
+      runAfter:
+        - build-container
+      taskRef:
+        name: clamav-scan
+        version: "0.1"
+      params:
+      - name: image-digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: image-url
+        value: $(tasks.build-container.results.IMAGE_URL)
+      workspaces:
+      - name: registry-auth
+        workspace: registry-auth
+
+  finally:
+    - name: show-summary
+      taskRef:
+        name: summary
+        version: "0.1"
+      params:
+      - name: pipeline-run-name
+        value: "$(context.pipelineRun.name)"
+      - name: git-url
+        value: "$(params.git-url)"
+      - name: image-url
+        value: $(params.output-image)
+  results:
+    - name: IMAGE_URL
+      value: "$(tasks.build-container.results.IMAGE_URL)"
+    - name: IMAGE_DIGEST
+      value: "$(tasks.build-container.results.IMAGE_DIGEST)"
+    - name: CHAINS-GIT_URL
+      value: "$(tasks.clone-repository.results.url)"
+    - name: CHAINS-GIT_COMMIT
+      value: "$(tasks.clone-repository.results.commit)"
+  workspaces:
+    - name: workspace
+    - name: registry-auth
+      optional: true
+    - name: git-auth
+      optional: true
