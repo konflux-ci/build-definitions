@@ -55,13 +55,9 @@ fi
 : "${TEST_REPO_NAME:=}"
 
 APPSTUDIO_UTILS_IMG="quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+build-definitions-utils-}$BUILD_TAG"
-PIPELINE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-build-templates-bundle}:${TEST_REPO_NAME:+build-}$BUILD_TAG
-HACBS_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}$BUILD_TAG
-HACBS_BUNDLE_LATEST_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-templates-bundle}:${TEST_REPO_NAME:+hacbs-}latest
-HACBS_CORE_BUNDLE_IMG=quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-hacbs-core-service-templates-bundle}:${TEST_REPO_NAME:+hacbs-core-}latest
 
-OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
-OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
+OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-${SCRIPTDIR}/../task-bundle-list}"
+OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-${SCRIPTDIR}/../pipeline-bundle-list}"
 rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 
 # Build appstudio-utils image
@@ -71,11 +67,18 @@ if [ "$SKIP_BUILD" == "" ]; then
     docker push "$APPSTUDIO_UTILS_IMG"
 fi
 
-# Create bundles with tasks
-PIPELINE_TEMP=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
-oc kustomize "$SCRIPTDIR/../pipelines/base" > "${PIPELINE_TEMP}/base.yaml"
-oc kustomize "$SCRIPTDIR/../pipelines/hacbs" > "${PIPELINE_TEMP}/hacbs.yaml"
-oc kustomize "$SCRIPTDIR/../pipelines/hacbs-core-service" > "${PIPELINE_TEMP}/hacbs-core-service.yaml"
+prepared_pipelines_dir=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
+defined_pipelines_dirs=(
+    "$SCRIPTDIR/../pipelines/base"
+    "$SCRIPTDIR/../pipelines/hacbs"
+    "$SCRIPTDIR/../pipelines/hacbs-core-service"
+)
+for dir_name in ${defined_pipelines_dirs[@]}
+do
+    output_dir="$prepared_pipelines_dir/$(basename "$dir_name")"
+    mkdir "$output_dir"
+    oc kustomize --output "$output_dir" "$dir_name"
+done
 
 # Build tasks
 (
@@ -94,25 +97,39 @@ do
 
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
-    for pipeline in "$PIPELINE_TEMP"/*.yaml
+    sub_expr_1="
+	(.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+	|= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+    "
+    sub_expr_2="
+	(.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+	|= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+    "
+    for filename in $(find "$prepared_pipelines_dir" -name *.yaml)
     do
-        yq e -i "
-            (.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-            |= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
-        " "${pipeline}"
-        yq e -i "
-            (.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-            |= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
-        " "${pipeline}"
+        yq e "$sub_expr_1" -i "${filename}"
+        yq e "$sub_expr_2" -i "${filename}"
     done
 done
 )
 
-# Build Pipeline bundle with pipelines pointing to newly built appstudio-tasks
-tkn bundle push "$PIPELINE_BUNDLE_IMG" -f "${PIPELINE_TEMP}/base.yaml"
-tkn bundle push "$HACBS_BUNDLE_IMG" -f "${PIPELINE_TEMP}/hacbs.yaml" | save_ref "$HACBS_BUNDLE_IMG" "$OUTPUT_PIPELINE_BUNDLE_LIST"
-tkn bundle push "$HACBS_BUNDLE_LATEST_IMG" -f "${PIPELINE_TEMP}/hacbs.yaml"
-tkn bundle push "$HACBS_CORE_BUNDLE_IMG" -f "${PIPELINE_TEMP}/hacbs-core-service.yaml"
+# Build Pipeline bundle with pipelines pointing to newly built task bundles
+(
+    cd "$prepared_pipelines_dir"
+    IFS=/
+    find */*.yaml | while read -r category pipeline_yaml
+    do
+	real_pipeline_name=$(yq e '.metadata.name' "${category}/${pipeline_yaml}")
+	partial_tag=${category}-${real_pipeline_name}
+	pipeline_bundle=quay.io/${MY_QUAY_USER}/${TEST_REPO_NAME:-pipeline-${partial_tag}}:${TEST_REPO_NAME:+${partial_tag}-}$BUILD_TAG
+	output=$(tkn bundle push "$pipeline_bundle" -f "${category}/${pipeline_yaml}")
+	echo "$output"
+	if [ "$category" == "hacbs" ]
+	then
+	    echo "$output" | save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
+	fi
+    done
+)
 
 if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
     for img in "$PIPELINE_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
