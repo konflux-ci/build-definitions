@@ -1,0 +1,41 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, hacbs"
+  name: prefetch-dependencies
+spec:
+  description: |-
+    Task that uses Cachi2 to prefetch build dependencies.
+  params:
+  - description: Package type
+    name: package-type
+  - description: Package path
+    name: package-path
+  - description: Flags
+    name: flags
+    default: ""
+  steps:
+  - image: quay.io/containerbuildsystem/cachi2:a4f1d24d4b9825d274353fba5c1921d7295c58ca
+    name: prefetch-dependencies
+    script: |
+      cachi2 fetch-deps \
+      --source=$(workspaces.source.path) \
+      --output=$(workspaces.source.path)/cachi2/output \
+      --package '{
+        "type": "$(params.package-type)",
+        "path": "$(params.package-path)"
+      }'
+
+      cachi2 generate-env $(workspaces.source.path)/cachi2/output \
+      --format env \
+      --for-output-dir=/cachi2/output \
+      --output $(workspaces.source.path)/cachi2/cachi2.env
+    volumeMounts:
+    - mountPath: /cachi2
+      name: prefetched-content
+  workspaces:
+  - name: source
