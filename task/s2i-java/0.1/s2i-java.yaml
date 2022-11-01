@@ -49,6 +49,8 @@ spec:
     name: BASE_IMAGES_DIGESTS
   - name: SBOM_JAVA_COMPONENTS_COUNT
     description: The counting of Java components by publisher in JSON format
+  - name: JAVA_COMMUNITY_DEPENDENCIES
+    description: The Java dependencies that came from community sources such as Maven central.
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -134,10 +136,10 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-dependency-analyser:70a63556e607e02fe6a19a3f13bb35cedc1f3043
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:c5dd2226190a1dcbfe06ea24c9d00034ac488e86
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json --task-run-name $(context.taskRun.name)
       fi
     volumeMounts:
     - mountPath: /var/lib/containers
@@ -253,34 +255,6 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
-
-  sidecars:
-    - image: quay.io/redhat-appstudio/hacbs-jvm-sidecar:70a63556e607e02fe6a19a3f13bb35cedc1f3043
-      env:
-        - name: QUARKUS_REST_CLIENT_CACHE_SERVICE_URL
-          value: "http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local"
-      name: proxy
-      securityContext:
-        runAsUser: 0
-      livenessProbe:
-        httpGet:
-          path: /q/health/live
-          port: 2000
-        initialDelaySeconds: 1
-        periodSeconds: 3
-      readinessProbe:
-        httpGet:
-          path: /q/health/ready
-          port: 2000
-        initialDelaySeconds: 1
-        periodSeconds: 3
-      resources:
-        requests:
-          memory: "256Mi"
-          cpu: "250m"
-        limits:
-          memory: "512Mi"
-          cpu: "500m"
 
   volumes:
   - emptyDir: {}
