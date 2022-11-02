@@ -12,9 +12,9 @@ spec:
     Buildah task builds source into a container image and then pushes it to a container registry.
     Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
   params:
-  - default: ""
-    description: The base URL of a mirror used for retrieving artifacts
-    name: MAVEN_MIRROR_URL
+  - default: "false"
+    description: HACBS workflow
+    name: HACBS
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
@@ -70,8 +70,8 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      if [ -n "$(params.MAVEN_MIRROR_URL)" ] && grep -q '^RUN mvn' $(params.CONTEXT)/$(params.DOCKERFILE); then
-        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>$(params.MAVEN_MIRROR_URL)</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
+      if [ "$(params.HACBS)" == "true" ] && grep -q '^RUN mvn' $(params.CONTEXT)/$(params.DOCKERFILE); then
+        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
         touch /var/lib/containers/java
       fi
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf

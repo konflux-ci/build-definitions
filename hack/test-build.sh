@@ -42,4 +42,8 @@ else
   echo Building $IMG
 fi
 
-tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $PUSH_WORKSPACE -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
+if [ "$HACBS" == "1" ]; then
+  HACBS_PARAM="-p hacbs=true"
+fi
+
+tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $PUSH_WORKSPACE $HACBS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
