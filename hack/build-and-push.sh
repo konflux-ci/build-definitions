@@ -115,14 +115,11 @@ do
     then
 	echo "$pipeline_bundle" >>"$default_pipeline_bundle"
     fi
+    if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
+        NEW_TAG="${pipeline_bundle%:*}:devel"
+        skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
+    fi
 done
-
-if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
-    for img in "$PIPELINE_BUNDLE_IMG" "$HACBS_BUNDLE_IMG" "$HACBS_BUNDLE_LATEST_IMG" "$HACBS_CORE_BUNDLE_IMG"; do
-        NEW_TAG="${img%:*}:devel"
-        skopeo copy "docker://${img}" "docker://${NEW_TAG}"
-    done
-fi
 
 if [ "$SKIP_INSTALL" == "" ]; then
     "$SCRIPTDIR/util-install-bundle.sh" "$(cat "$default_pipeline_bundle")" "$INSTALL_BUNDLE_NS"
