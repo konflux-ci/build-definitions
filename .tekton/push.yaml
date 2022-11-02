@@ -103,8 +103,8 @@ spec:
             value: $(params.revision)
           - name: SCRIPT
             value: |
-              sed -i "s|default_build_bundle=.*|default_build_bundle=quay.io/redhat-appstudio-tekton-catalog/build-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
-              sed -i "s|hacbs_build_bundle=.*|hacbs_build_bundle=quay.io/redhat-appstudio-tekton-catalog/hacbs-templates-bundle:$(params.revision)|" components/build-templates/kustomization.yaml
+              sed -i "s|default_build_bundle=.*|default_build_bundle=quay.io/redhat-appstudio-tekton-catalog/pipeline-docker-build:$(params.revision)|" components/build-templates/kustomization.yaml
+              sed -i "s|hacbs_build_bundle=.*|hacbs_build_bundle=quay.io/redhat-appstudio-tekton-catalog/pipeline-docker-build:$(params.revision)|" components/build-templates/kustomization.yaml
         taskRef:
           name: update-infra-deployments
       - name: update-ec-policies
