@@ -2,10 +2,16 @@
 
 set -e -o pipefail
 
+if [[ $(uname) = Darwin ]]; then
+    MKTEMP_CMD="gmktemp"
+else
+    MKTEMP_CMD="mktemp"
+fi
+
 QUAY_ORG=redhat-appstudio-tekton-catalog
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
+WORKDIR=$($MKTEMP_CMD -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 
 # Helper function to record the image reference from the output of
 # the "tkn bundle push" command into a given file.
@@ -29,12 +35,6 @@ function save_ref() {
     echo "Created:"
     echo "${tagRef}@${digest}"
 }
-
-if [[ $(uname) = Darwin ]]; then
-    CSPLIT_CMD="gcsplit"
-else
-    CSPLIT_CMD="csplit"
-fi
 
 if [ -z "$MY_QUAY_USER" ]; then
     echo "MY_QUAY_USER is not set, skip this build."
@@ -69,7 +69,7 @@ if [ "$SKIP_BUILD" == "" ]; then
     docker push "$APPSTUDIO_UTILS_IMG"
 fi
 
-generated_pipelines_dir=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
+generated_pipelines_dir=$($MKTEMP_CMD -d -p "$WORKDIR" pipelines.XXXXXXXX)
 oc kustomize --output "$generated_pipelines_dir" pipelines/
 
 # Generate YAML files separately since pipelines for core services have same .metadata.name.
@@ -119,6 +119,7 @@ do
 done
 )
 
+default_pipeline_bundle=$($MKTEMP_CMD -p "$WORKDIR" default_pipeline_bundle.XXXX)
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
 for pipeline_yaml in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
 do
