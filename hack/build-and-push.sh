@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/bin/bash
+
+set -e -o pipefail
 
 QUAY_ORG=redhat-appstudio-tekton-catalog
 # local dev build script
