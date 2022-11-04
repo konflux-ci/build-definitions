@@ -33,8 +33,16 @@ spec:
                    timestamp: $date,
                    namespace,
                    successes,
-                   failures: (.failures // [])|map(.metadata.details.name) | unique
+                   failures: (.failures | length)
                  }' $(workspaces.conftest-ws.path)/clair-vulnerabilities.json || true)
+
+        # Log out the failing runs
+        if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
+        then
+          echo "The clair-vulnerabilities test has failed with the following issues::"
+          jq '.[].failures // []|map(.metadata.details.name) | unique' $(workspaces.conftest-ws.path)/clair-vulnerabilities.json
+        fi
+
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   workspaces:
     - name: conftest-ws
