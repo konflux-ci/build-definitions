@@ -235,7 +235,7 @@ spec:
         --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+      echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
 
       # Create and push sbom image
       sbom_container=$(buildah from scratch)
