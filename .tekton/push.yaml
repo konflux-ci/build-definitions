@@ -60,11 +60,6 @@ spec:
           params:
             - name: revision
               type: string
-          results:
-            - name: TASK_BUNDLES
-              description: A "\n" separated list of created task bundles
-            - name: PIPELINE_BUNDLES
-              description: A "\n" separated list of created pipeline bundles
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
@@ -79,10 +74,6 @@ spec:
                   value: "1"
                 - name: SKIP_INSTALL
                   value: "1"
-                - name: OUTPUT_TASK_BUNDLE_LIST
-                  value: "$(results.TASK_BUNDLES.path)"
-                - name: OUTPUT_PIPELINE_BUNDLE_LIST
-                  value: "$(results.PIPELINE_BUNDLES.path)"
               volumeMounts:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
@@ -110,6 +101,8 @@ spec:
       - name: update-ec-policies
         runAfter:
           - build-bundles
+        taskRef:
+          name: update-infra-deployments
         params:
           - name: ORIGIN_REPO
             value: $(params.git-url)
@@ -124,18 +117,17 @@ spec:
           - name: SCRIPT
             value: |
               BUNDLES=(
-                $(tasks.build-bundles.results.TASK_BUNDLES)
-                $(tasks.build-bundles.results.PIPELINE_BUNDLES)
+                $(workspaces.artifacts.path)/task-bundle-list
+                $(workspaces.artifacts.path)/pipeline-bundle-list
               )
-              BUNDLES_PARAM=(
-                $(printf -- '--bundle=%s ' "${BUNDLES[@]}")
-              )
+              BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
               ec track bundle \
                 --input data/acceptable_tekton_bundles.yml \
                 --replace \
-                "${BUNDLES_PARAM[@]}"
-        taskRef:
-          name: update-infra-deployments
+                ${BUNDLES_PARAM[@]}
+        workspaces:
+          - name: artifacts
+            workspace: workspace
     workspaces:
       - name: workspace
   workspaces:
