@@ -70,8 +70,16 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      if [ "$(params.HACBS)" == "true" ] && grep -q '^RUN mvn' $(params.CONTEXT)/$(params.DOCKERFILE); then
-        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' $(params.CONTEXT)/$(params.DOCKERFILE)
+      if [ -e "$(params.CONTEXT)/$(params.DOCKERFILE)" ]; then
+        dockerfile_path=$(params.CONTEXT)/$(params.DOCKERFILE)
+      elif [ -e "$(params.DOCKERFILE)" ]; then
+        dockerfile_path=$(params.DOCKERFILE)
+      else
+        echo "Cannot find Dockerfile $(params.DOCKERFILE)"
+        exit 1
+      fi
+      if [ "$(params.HACBS)" == "true" ] && grep -q '^RUN mvn' "$dockerfile_path"; then
+        sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' "$dockerfile_path"
         touch /var/lib/containers/java
       fi
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
