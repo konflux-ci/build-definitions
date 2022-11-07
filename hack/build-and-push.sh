@@ -115,6 +115,11 @@ do
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
     if [ "$pipeline_name" == "docker-build" ]
     then
+        # Create Pipeline with HACBS enabled by default for testing purposes.
+        pipeline_bundle=quay.io/${MY_QUAY_USER}/${TEST_REPO_NAME:-pipeline-hacbs-${pipeline_name}}:${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
+        yq -i e '(.spec.params.[] | select(.name == "hacbs").default) = "true"' "${pipeline_yaml}"
+        tkn bundle push "$pipeline_bundle" -f "${pipeline_yaml}" | \
+            save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 	echo "$pipeline_bundle" >>"$default_pipeline_bundle"
     fi
     if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
