@@ -74,6 +74,14 @@ spec:
         dockerfile_path=$(params.CONTEXT)/$(params.DOCKERFILE)
       elif [ -e "$(params.DOCKERFILE)" ]; then
         dockerfile_path=$(params.DOCKERFILE)
+      elif echo "$(params.DOCKERFILE)" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $(params.DOCKERFILE)"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" $(params.DOCKERFILE))
+        if [ $http_code != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
       else
         echo "Cannot find Dockerfile $(params.DOCKERFILE)"
         exit 1
@@ -87,7 +95,7 @@ spec:
         $(params.BUILD_EXTRA_ARGS) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
-        -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
+        -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
     securityContext:
       capabilities:
         add:
