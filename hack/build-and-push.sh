@@ -87,6 +87,11 @@ do
     echo "$output"
     task_bundle_with_digest="${output##*$'\n'}"
 
+    # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
+    # even when original tag is updated
+    task_file_git_sha=$(git log -n 1 --pretty=format:%H -- ${task_file})
+    skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_git_sha}"
+
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
     sub_expr_1="
