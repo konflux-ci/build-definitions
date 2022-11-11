@@ -53,8 +53,15 @@ spec:
                namespace: "default",
                successes: 0,
                note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
-               failures: (.runs[].results // [])|map(.message.text) | unique
+               failures: (.runs[].results | length)
              }' gosec_output.json || true)
+
+          # Log out the failing runs
+          if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
+          then
+            echo "The sast-go test has failed with the following issues:"
+            jq '.runs[].results // []|map(.message.text) | unique' gosec_output.json
+          fi
         else
           HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped --null-input \
                                  --arg SKIP_MESSAGE "${SKIP_MSG}" \
