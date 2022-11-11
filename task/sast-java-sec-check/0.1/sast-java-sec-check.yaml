@@ -66,14 +66,17 @@ spec:
           test_skipped=1
         fi
 
-        ERR_MSG="$(echo -n $(cat stderr.txt))"
-        ERR_MSG="${ERR_MSG:-unknown}"
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg MSG "${ERR_MSG: 0: 3000}" \
+        if [ ! -z $(cat stderr.txt) ]; then
+          echo "The sast-java-sec-check test meets the following error:"
+          cat stderr.txt
+        fi
+
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) \
                               --arg test_skipped $test_skipped --null-input \
             '{result: (if $test_skipped=="1" then "SKIPPED" else "ERROR" end),
               timestamp: $date,
-              note: (if $test_skipped=="1" then $MSG else "" end),
-              failures: (if $test_skipped=="1" then "" else [$MSG] end)}')
+              note: (if $test_skipped=="1" then "Test is skipped" else "" end)
+              }')
         HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s)  \
           '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
                    timestamp: $date,
@@ -82,4 +85,11 @@ spec:
                    note: "",
                    failures: (.runs[].results | length)
                  }' sast_java_sec_output.json || true)
+
+        # Log out the failing runs
+        if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
+        then
+          echo "The sast-java-sec-check test has failed with the following issues:"
+          jq '.runs[].results' sast_java_sec_output.json
+        fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
