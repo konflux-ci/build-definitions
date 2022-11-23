@@ -167,16 +167,12 @@ spec:
       - input: $(params.hacbs)
         operator: in
         values: ["true"]
-      runAfter:
-        - sanity-inspect-image
       taskRef:
         name: deprecated-image-check
         version: "0.1"
       params:
-      - name: IMAGE_REGISTRY
-        value: registry.access.redhat.com
-      - name: IMAGE_REPOSITORY
-        value: $(tasks.sanity-inspect-image.results.BASE_IMAGE_REPOSITORY)
+      - name: BASE_IMAGES_DIGESTS
+        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
       workspaces:
       - name: sanity-ws
         workspace: workspace
