@@ -129,7 +129,7 @@ spec:
         version: "0.1"
       params:
       - name: IMAGE_URL
-        value: $(params.output-image)
+        value: "$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)"
       workspaces:
       - name: workspace
         workspace: workspace
@@ -270,9 +270,9 @@ spec:
       - name: pipeline-run-name
         value: "$(context.pipelineRun.name)"
       - name: git-url
-        value: "$(params.git-url)"
+        value: "$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)"
       - name: image-url
-        value: $(params.output-image)
+        value: "$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)"
   results:
     - name: IMAGE_URL
       value: "$(tasks.build-container.results.IMAGE_URL)"
