@@ -36,11 +36,18 @@ spec:
       BASE_IMAGE_INSPECT=base_image_inspect.json
       RAW_IMAGE_INSPECT=raw_image_inspect.json
 
-      echo "Inspecting manifest for source image $(params.IMAGE_URL)"
-      skopeo inspect --no-tags docker://$(params.IMAGE_URL) > $IMAGE_INSPECT
-      skopeo inspect --no-tags --raw docker://$(params.IMAGE_URL) > $RAW_IMAGE_INSPECT
+      IMAGE_URL="$(params.IMAGE_URL)"
+      # Given a tag and a the digest in the IMAGE_URL we opt to use the digest alone
+      # this is because containers/image currently doesn't support image references
+      # that contain both. See https://github.com/containers/image/issues/1736
+      if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
+        IMAGE_URL="${IMAGE_URL/:*@/@}"
+      fi
+      echo "Inspecting manifest for source image ${IMAGE_URL}"
+      skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT
+      skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT
 
-      echo "Getting base image manifest for source image $(params.IMAGE_URL)"
+      echo "Getting base image manifest for source image ${IMAGE_URL}"
       BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
       BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
       if [ $BASE_IMAGE_NAME == 'null' ]; then
@@ -49,12 +56,12 @@ spec:
         BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
         BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
         if [ "$BASE_IMAGE_NAME" == 'null' ]; then
-          echo "Cannot get base image info from 'Labels', please check the source image $(params.IMAGE_URL)"
+          echo "Cannot get base image info from 'Labels', please check the source image ${IMAGE_URL}"
           exit 0
         fi
       fi
       if [ -z "$BASE_IMAGE_NAME" ]; then
-        echo "Source image $(params.IMAGE_URL) is built from scratch, so there is no base image"
+        echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image"
         exit 0
       fi
       BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
