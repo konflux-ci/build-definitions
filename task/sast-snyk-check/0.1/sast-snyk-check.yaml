@@ -15,7 +15,7 @@ spec:
       name: HACBS_TEST_OUTPUT
   params:
     - name: SHARED_SECRET
-      default: test-team-snyk
+      default: snyk-shared-secret
     - name: ARGS
       type: string
       description: extra args needs to append
@@ -37,7 +37,7 @@ spec:
         #!/usr/bin/env bash
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
-          echo "SNYK_TOKEN is empty and a secret 'test-team-snyk' which includes 'snyk_token' need to be created in test-team namespace" | tee stdout.txt
+          echo "SNYK_TOKEN is empty and please set params.SHARED_SECRET" | tee stdout.txt
           exit 0
         fi
         export SNYK_TOKEN
