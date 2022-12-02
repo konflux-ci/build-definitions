@@ -65,6 +65,10 @@ spec:
         $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -80,6 +84,10 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
     workingDir: $(workspaces.source.path)
   - image: $(params.BUILDER_IMAGE)
     name: digest-to-results

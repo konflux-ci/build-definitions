@@ -9,12 +9,12 @@
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
 - op: replace
-  path: /spec/tasks/3/taskRef
+  path: /spec/tasks/4/taskRef
   value:
     name: buildah
     version: "0.1"
 - op: add
-  path: /spec/tasks/3/params
+  path: /spec/tasks/4/params
   value:
   - name: IMAGE
     value: $(params.output-image)
@@ -26,6 +26,8 @@
     value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
   - name: PUSH_EXTRA_ARGS
     value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+  - name: HERMETIC_BUILD
+    value: "$(tasks.clone-repository.results.hermetic-build)"
 - op: add
   path: /spec/results/-
   value:

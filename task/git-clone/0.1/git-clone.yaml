@@ -81,6 +81,8 @@ spec:
     name: commit
   - description: The precise URL that was fetched by this Task.
     name: url
+  - description: Set to `true` if a hermetic build parameters file was found in the cloned repo.
+    name: hermetic-build
   steps:
   - env:
     - name: HOME
@@ -189,6 +191,11 @@ spec:
       fi
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+      if [ -e cachi2.params ]; then
+        printf "true" > "$(results.hermetic-build.path)"
+      else
+        printf "false" > "$(results.hermetic-build.path)"
+      fi
   workspaces:
   - description: The git repo will be cloned onto the volume backing this Workspace.
     name: output

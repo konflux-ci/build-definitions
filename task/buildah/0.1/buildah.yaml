@@ -42,6 +42,10 @@ spec:
     description: Extra parameters passed for the push command when pushing images.
     name: PUSH_EXTRA_ARGS
     type: string
+  - default: "false"
+    description: Determines if build will be executed without network access.
+    name: HERMETIC_BUILD
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -90,9 +94,21 @@ spec:
         sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' "$dockerfile_path"
         touch /var/lib/containers/java
       fi
+
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+
+      if [ $(params.HERMETIC_BUILD) == "true" ];then
+        HERMETIC_BUILD_PARAMETERS="
+          --volume $(realpath ./cachi2/output):/cachi2/output:U \
+          --volume $(realpath ./cachi2/cachi2.env):/cachi2/cachi2.env:U \
+          --network none"
+
+        echo "Build will be executed with network isolation"
+      fi
+
       buildah bud \
         $(params.BUILD_EXTRA_ARGS) \
+        $HERMETIC_BUILD_PARAMETERS \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
