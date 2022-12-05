@@ -7,12 +7,29 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "appstudio, hacbs"
-  name: conftest-clair
+  name: clair-scan
 spec:
+  params:
+    - name: image-digest
+      description: Image digest to scan
+    - name: image-url
+      description: Url to image
   results:
     - name: HACBS_TEST_OUTPUT
       description: test output
   steps:
+    - name: get-vulnerabilities
+      image: quay.io/redhat-appstudio/clair-in-ci:latest
+      script: |
+        #!/usr/bin/env bash
+
+        imagewithouttag=$(echo '$(params.image-url)' | sed "s/\(.*\):.*/\1/" | tr -d '\n')
+        # strip new-line escape symbol from parameter and save it to variable
+        imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
+
+        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="/workspace/registry-auth/"
+
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=$REGISTRY_ARGS > /tekton/home/clair-result.json
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
       securityContext:
@@ -20,9 +37,9 @@ spec:
           add:
             - SETFCAP
       script: |
-        /usr/bin/conftest test --no-fail $(workspaces.conftest-ws.path)/clair-result.json \
+        /usr/bin/conftest test --no-fail /tekton/home/clair-result.json \
         --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
-        --output=json | tee $(workspaces.conftest-ws.path)/clair-vulnerabilities.json
+        --output=json | tee /tekton/home/clair-vulnerabilities.json
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
@@ -34,15 +51,15 @@ spec:
                    namespace,
                    successes,
                    failures: (.failures | length)
-                 }' $(workspaces.conftest-ws.path)/clair-vulnerabilities.json || true)
+                 }' /tekton/home/clair-vulnerabilities.json || true)
 
         # Log out the failing runs
         if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
         then
           echo "The clair-vulnerabilities test has failed with the following issues::"
-          jq '.[].failures // []|map(.metadata.details.name) | unique' $(workspaces.conftest-ws.path)/clair-vulnerabilities.json
+          jq '.[].failures // []|map(.metadata.details.name) | unique' /tekton/home/clair-vulnerabilities.json
         fi
-
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   workspaces:
-    - name: conftest-ws
+    - name: registry-auth
+      optional: true

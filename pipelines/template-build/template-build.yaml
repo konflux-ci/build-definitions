@@ -180,7 +180,7 @@ spec:
       workspaces:
       - name: sanity-ws
         workspace: workspace
-    - name: get-clair-results
+    - name: clair-scan
       when:
       - input: $(params.hacbs)
         operator: in
@@ -188,7 +188,7 @@ spec:
       runAfter:
         - build-container
       taskRef:
-        name: get-clair-scan
+        name: clair-scan
         version: "0.1"
       params:
       - name: image-digest
@@ -196,23 +196,8 @@ spec:
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
       workspaces:
-      - name: clair-ws
-        workspace: workspace
       - name: registry-auth
         workspace: registry-auth
-    - name: conftest-clair
-      when:
-      - input: $(params.hacbs)
-        operator: in
-        values: ["true"]
-      runAfter:
-        - get-clair-results
-      taskRef:
-        name: conftest-clair
-        version: "0.1"
-      workspaces:
-      - name: conftest-ws
-        workspace: workspace
     - name: sast-snyk-check
       when:
       - input: $(params.hacbs)
