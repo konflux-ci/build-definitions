@@ -1,0 +1,28 @@
+---
+- op: replace
+  path: /metadata/name
+  value: fbc-builder
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "fbc"
+    "pipelines.openshift.io/strategy": "fbc"
+- op: replace
+  path: /spec/tasks/4/taskRef
+  value:
+    name: buildah
+    version: "0.1"
+- op: add
+  path: /spec/tasks/4/params
+  value:
+  - name: IMAGE
+    value: $(params.output-image)
+  - name: DOCKERFILE
+    value: $(params.dockerfile)
+  - name: CONTEXT
+    value: $(params.path-context)
+  - name: BUILD_EXTRA_ARGS
+    value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+  - name: PUSH_EXTRA_ARGS
+    value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
