@@ -32,12 +32,6 @@ The pipelines can be found in the `pipelines` directories.
 - `hacbs`: extension of `base`, adds hacbs tests, creates hacbs-templates-bundle
 - `hacbs-core-service`: extension of `hacbs`, for core services of AppStudio/HACBS, allows to create MR in infra-deployments. Creates hacbs-core-service-templates-bundle.
 
-#### Gitops Mode
-
-Replace the file `https://github.com/redhat-appstudio/infra-deployments/blob/main/components/build/build-templates/bundle-config.yaml` in your own fork (dev mode). This will sync to the cluster and all builds-definitions will come from the bundle you configure.
-
-Please test in _gitops mode_ when doing a new release into staging as it will be the best way to ensure that the deployment will function correctly when deployed via gitops.
-
 ### Tasks
 
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the Cluster.
