@@ -1,0 +1,76 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: fbc-validation
+spec:
+  params:
+    - name: IMAGE_URL
+      description: the fully qualified image name
+  results:
+    - name: HACBS_TEST_OUTPUT
+  workspaces:
+    - name: workspace
+  steps:
+    - name: extract-and-check-binaries
+      image: quay.io/redhat-appstudio/hacbs-test:latest
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      securityContext:
+        runAsUser: 1000
+      env:
+        - name: HOME
+          value: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
+      script: |
+        ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
+        conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
+
+        mkdir confdir
+        if ! oc image extract $(params.IMAGE_URL) --file /bin/opm --file /bin/grpc_health_probe --path $conffolder*:confdir/ ; then
+        echo "Unable to extract image! Skipping checking binaries!"
+          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "ERROR", timestamp: $date, successes: 0, failures: 1}')
+          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          exit 0
+        fi
+
+        TESTPASSED=true
+        chmod +x opm grpc_health_probe
+
+        if ! ./opm version; then
+        echo "!FAILURE! - opm binary check failed"
+          TESTPASSED=false
+        fi
+        if [ ! -f "grpc_health_probe" ]; then
+        echo "!FAILURE! - grpc_health_probe binary check failed"
+          TESTPASSED=false
+        fi
+        if ! ./opm validate confdir; then
+        echo "!FAILURE! - opm validate check has failed"
+          TESTPASSED=false
+        fi
+        if [ $TESTPASSED == false ]; then
+          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "FAILURE", timestamp: $date, successes: 0, failures: 1}')
+          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        else
+          HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "SUCCESS",timestamp: $date, namespace: "default", successes: 1, failures: 0}')
+          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        fi
+      volumeMounts:
+        - mountPath: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+          name: work
+  volumes:
+    - name: work
+      emptydir: {}
