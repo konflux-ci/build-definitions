@@ -10,6 +10,9 @@ metadata:
 spec:
   description: >-
     App Studio Configure Build Secrets in Source.
+  params:
+    - name: shared-secret
+      default: redhat-appstudio-user-workload
   results:
     - name: registry-auth
       description: docker config location
@@ -19,17 +22,30 @@ spec:
     - name: source
     - name: registry-auth
       optional: true
+  volumes:
+    - name: default-push-secret
+      csi:
+        readOnly: true
+        driver: csi.sharedresource.openshift.io
+        volumeAttributes:
+          sharedSecret: $(params.shared-secret)
   steps:
     - name: appstudio-configure-build
       image: quay.io/redhat-appstudio/appstudio-utils:4580b3ba3012095ff3981e50b6bbf753d4afd4c3
+      volumeMounts:
+        - name: default-push-secret
+          mountPath: /secret/default-push-secret
       script: |
         #!/usr/bin/env bash
         echo "App Studio Configure Build"
 
         DEST=/workspace/source/.dockerconfigjson
+        DEF=/secret/default-push-secret/.dockerconfigjson
         AUTH=/workspace/registry-auth/.dockerconfigjson
         TMP=$(mktemp)
         echo '{}' > $DEST
+        # Set lowest priority on default shared secret
+        FILES="$DEF"
         # Use secrets from serviceAccount
         cd /tekton/creds-secrets
         for file in $(ls); do
