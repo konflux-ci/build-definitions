@@ -44,7 +44,11 @@ spec:
     type: string
   - default: "false"
     description: Determines if build will be executed without network access.
-    name: HERMETIC_BUILD
+    name: HERMETIC
+    type: string
+  - default: ""
+    description: In case it is not empty, the prefetched content should be made available to the build.
+    name: PREFETCH_INPUT
     type: string
   results:
   - description: Digest of the image just built
@@ -63,6 +67,10 @@ spec:
       value: oci
     - name: STORAGE_DRIVER
       value: vfs
+    - name: HERMETIC
+      value: $(params.HERMETIC)
+    - name: PREFETCH_INPUT
+      value: $(params.PREFETCH_INPUT)
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
@@ -98,18 +106,23 @@ spec:
 
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
-      if [ $(params.HERMETIC_BUILD) == "true" ];then
-        HERMETIC_BUILD_PARAMETERS="
-          --volume $(realpath ./cachi2/output):/cachi2/output:U \
-          --volume $(realpath ./cachi2/cachi2.env):/cachi2/cachi2.env:U \
-          --network none"
-
+      if [ "${HERMETIC}" == "true" ]; then
+        NETWORK="--network none"
         echo "Build will be executed with network isolation"
+      fi
+
+      if [ ! -z "${PREFETCH_INPUT}" ]; then
+        VOLUME_MOUNTS="
+          --volume $(realpath ./cachi2/output):/cachi2/output:U \
+          --volume $(realpath ./cachi2/cachi2.env):/cachi2/cachi2.env:U"
+
+        echo "Prefetched content will be made available"
       fi
 
       buildah bud \
         $(params.BUILD_EXTRA_ARGS) \
-        $HERMETIC_BUILD_PARAMETERS \
+        $NETWORK \
+        $VOLUME_MOUNTS \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
