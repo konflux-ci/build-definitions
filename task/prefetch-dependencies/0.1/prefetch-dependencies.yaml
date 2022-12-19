@@ -10,25 +10,29 @@ metadata:
 spec:
   description: |-
     Task that uses Cachi2 to prefetch build dependencies.
+    See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
   params:
-  - description: Package type
-    name: package-type
-  - description: Package path
-    name: package-path
-  - description: Flags
-    name: flags
-    default: ""
+  - description: Configures project packages that will have their dependencies prefetched.
+    name: input
   steps:
   - image: quay.io/containerbuildsystem/cachi2@sha256:febe4e3e8ac01063c2f7319c43a60ab13e4cd2a9124500b0f8c53311a7e26d0f
     name: prefetch-dependencies
+    env:
+    - name: INPUT
+      value: $(params.input)
     script: |
+      if [ -z "${INPUT}" ]
+      then
+        echo "Build will be executed with network isolation, but no content was configured to be prefetched."
+        echo "This will likely result in a build failure."
+
+        exit 0
+      fi
+
       cachi2 fetch-deps \
       --source=$(workspaces.source.path) \
       --output=$(workspaces.source.path)/cachi2/output \
-      --package '{
-        "type": "$(params.package-type)",
-        "path": "$(params.package-path)"
-      }'
+      "${INPUT}"
 
       cachi2 generate-env $(workspaces.source.path)/cachi2/output \
       --format env \
