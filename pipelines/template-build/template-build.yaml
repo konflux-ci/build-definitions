@@ -34,6 +34,14 @@ spec:
       name: skip-checks
       type: string
       default: "false"
+    - description: Execute the build with network isolation
+      name: hermetic
+      type: string
+      default: "false"
+    - description: Build dependencies to be prefetched by Cachi2
+      name: prefetch-input
+      type: string
+      default: ""
     - description: Java build
       name: java
       type: string
@@ -89,14 +97,12 @@ spec:
           workspace: registry-auth
     - name: prefetch-dependencies
       when:
-      - input: $(tasks.clone-repository.results.hermetic-build)
+      - input: $(params.hermetic)
         operator: in
         values: ["true"]
       params:
-        - name: package-type
-          value: gomod
-        - name: package-path
-          value: "$(params.path-context)"
+        - name: input
+          value: $(params.prefetch-input)
       runAfter:
         - appstudio-configure-build
       taskRef:
