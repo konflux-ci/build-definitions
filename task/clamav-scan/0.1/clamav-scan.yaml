@@ -70,11 +70,12 @@ spec:
         import dateutil.parser as parser
         import os
 
-        if os.stat("/tekton/home/clamscan-result.log").st_size == 0:
+        clamscan_result = "/tekton/home/clamscan-result.log"
+        if not os.path.exists(clamscan_result) or os.stat(clamscan_result).st_size == 0:
             print("clamscan-result.log file is empty, meaning previous step didn't extracted the compiled code, skipping parsing.")
             exit(0)
 
-        with open("/tekton/home/clamscan-result.log", "r") as file:
+        with open(clamscan_result, "r") as file:
             clam_result_str = file.read()
 
         def clam_result_str_to_json(clam_result_str):
