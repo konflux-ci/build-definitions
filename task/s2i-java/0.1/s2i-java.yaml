@@ -13,8 +13,8 @@ spec:
   description: s2i-java task clones a Git repository and builds and pushes a container image using S2I and a Java builder image.
   params:
   - default: "false"
-    description: HACBS workflow
-    name: HACBS
+    description: Skip checks against built image
+    name: SKIP_CHECKS
     type: string
   - default: registry.access.redhat.com/ubi8/openjdk-17:1.13-1.1653918216
     description: Java builder image
@@ -62,7 +62,7 @@ spec:
     - |-
       echo "MAVEN_CLEAR_REPO=true" > env-file
 
-      [[ '$(params.HACBS)' == "true" ]] &&
+      [[ '$(params.SKIP_CHECKS)' == "false" ]] &&
         echo "MAVEN_MIRROR_URL=http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/" >> env-file
 
       echo "Generated Env file"
