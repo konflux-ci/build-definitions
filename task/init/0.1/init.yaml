@@ -16,8 +16,8 @@ spec:
     - name: rebuild
       description: Rebuild the image if exists
       default: "false"
-    - name: hacbs
-      description: HACBS workflow
+    - name: skip-checks
+      description: skip checks against built image
       default: "false"
     - name: pipeline-run-name
   results:
@@ -31,7 +31,7 @@ spec:
         echo
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
-        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.hacbs)" == "true" ]; then
+        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.skip-checks)" == "false" ]; then
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)
@@ -44,6 +44,6 @@ spec:
         if ! oc get secret redhat-appstudio-registry-pull-secret &>/dev/null; then
           oc create secret generic redhat-appstudio-registry-pull-secret || true
         fi
-        if [ "$(params.hacbs)" == "true" ]; then
+        if [ "$(params.skip-checks)" == "false" ]; then
           oc annotate pipelinerun $(params.pipeline-run-name) 'appstudio.redhat.com/updateComponentOnSuccess="false"'
         fi

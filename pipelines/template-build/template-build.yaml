@@ -30,8 +30,8 @@ spec:
       name: rebuild
       type: string
       default: "false"
-    - description: Enable HACBS tasks
-      name: hacbs
+    - description: Skip checks against built image
+      name: skip-checks
       type: string
       default: "false"
     - description: Java build
@@ -45,8 +45,8 @@ spec:
           value: "$(params.output-image)"
         - name: rebuild
           value: "$(params.rebuild)"
-        - name: hacbs
-          value: "$(params.hacbs)"
+        - name: skip-checks
+          value: "$(params.skip-checks)"
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
       taskRef:
@@ -119,9 +119,9 @@ spec:
           workspace: workspace
     - name: sanity-inspect-image
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - build-container
       taskRef:
@@ -135,9 +135,9 @@ spec:
         workspace: workspace
     - name: sanity-label-check
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - sanity-inspect-image
       taskRef:
@@ -148,9 +148,9 @@ spec:
         workspace: workspace
     - name: sanity-optional-label-check
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - sanity-inspect-image
       taskRef:
@@ -164,9 +164,9 @@ spec:
         workspace: workspace
     - name: deprecated-base-image-check
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       taskRef:
         name: deprecated-image-check
         version: "0.1"
@@ -178,9 +178,9 @@ spec:
         workspace: workspace
     - name: clair-scan
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - build-container
       taskRef:
@@ -196,9 +196,9 @@ spec:
         workspace: registry-auth
     - name: sast-snyk-check
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - clone-repository
       taskRef:
@@ -209,9 +209,9 @@ spec:
         workspace: workspace
     - name: clamav-scan
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - build-container
       taskRef:
@@ -227,9 +227,9 @@ spec:
         workspace: registry-auth
     - name: sbom-json-check
       when:
-      - input: $(params.hacbs)
+      - input: $(params.skip-checks)
         operator: in
-        values: ["true"]
+        values: ["false"]
       runAfter:
         - build-container
       taskRef:

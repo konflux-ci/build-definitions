@@ -13,8 +13,8 @@ spec:
     Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
   params:
   - default: "false"
-    description: HACBS workflow
-    name: HACBS
+    description: Skip checks against built image
+    name: SKIP_CHECKS
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
@@ -90,7 +90,7 @@ spec:
         echo "Cannot find Dockerfile $(params.DOCKERFILE)"
         exit 1
       fi
-      if [ "$(params.HACBS)" == "true" ] && grep -q '^RUN mvn' "$dockerfile_path"; then
+      if [ "$(params.SKIP_CHECKS)" == "false" ] && grep -q '^RUN mvn' "$dockerfile_path"; then
         sed -i -e 's|RUN mvn|RUN echo "<settings><mirrors><mirror><id>mirror.default</id><url>http://jvm-build-workspace-artifact-cache.$(context.taskRun.namespace).svc.cluster.local/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>" > /tmp/settings.yaml; mvn -s /tmp/settings.yaml|g' "$dockerfile_path"
         touch /var/lib/containers/java
       fi

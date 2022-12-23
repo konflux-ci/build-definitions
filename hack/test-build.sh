@@ -42,8 +42,8 @@ else
   echo Building $IMG
 fi
 
-if [ "$HACBS" == "1" ]; then
-  HACBS_PARAM="-p hacbs=true"
+if [ "$SKIP_CHECKS" == "1" ]; then
+  SKIP_CHECKS_PARAM="-p skip-checks=true"
 fi
 
-tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $PUSH_WORKSPACE $HACBS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
+tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $PUSH_WORKSPACE $SKIP_CHECKS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
