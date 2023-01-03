@@ -31,6 +31,7 @@ spec:
           add:
             - SETFCAP
       script: |
+        . /utils.sh
         /usr/local/go/bin/gosec -no-fail -fmt=sarif -out=gosec_output.json $(workspaces.workspace.path)/... | tee gosec_output.txt
 
         # Test if any package was found
@@ -40,38 +41,18 @@ spec:
         test_not_skipped=0
         grep -q "$SKIP_MSG$" gosec_output.txt || test_not_skipped=$?
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
+                              --arg SKIP_MESSAGE "${SKIP_MSG} --null-input \
+            '{result: (if $tmp_not_skipped=="0" then "SKIPPED" else "ERROR" end),
+              timestamp: $date,
+              note: (if $tmp_not_skipped=="0" then "Test is skipped" else "" end)
+              }')
 
         if [ -f gosec_output.json ];
         then
           cat gosec_output.json
-          HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
-                                 --arg SKIP_MESSAGE "${SKIP_MSG}" \
-            '{ result: (if (.runs[].results | length > 0) then "FAILURE" elif $tmp_not_skipped=="0" then "SKIPPED" else "SUCCESS" end),
-               timestamp: $date,
-               namespace: "default",
-               successes: 0,
-               note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
-               failures: (.runs[].results | length)
-             }' gosec_output.json || true)
-
-          # Log out the failing runs
-          if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
-          then
-            echo "The sast-go test has failed with the following issues:"
-            jq '.runs[].results // []|map(.message.text) | unique' gosec_output.json
-          fi
-        else
-          HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped --null-input \
-                                 --arg SKIP_MESSAGE "${SKIP_MSG}" \
-            '{ result: (if $tmp_not_skipped=="0" then "SKIPPED" else "SUCCESS" end),
-               timestamp: $date,
-               namespace: "default",
-               successes: 0,
-               note: (if $tmp_not_skipped=="0" then $SKIP_MESSAGE else "" end),
-               failures: 0
-             }')
+          HACBS_TEST_OUTPUT=
+          parse_hacbs_test_output $(context.task.name) sarif gosec_output.json
         fi
 
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)

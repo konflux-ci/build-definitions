@@ -35,6 +35,7 @@ spec:
           readOnly: true
       script: |
         #!/usr/bin/env bash
+        . /utils.sh
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
           echo "SNYK_TOKEN is empty and a secret 'test-team-snyk' which includes 'snyk_token' need to be created in test-team namespace" | tee stdout.txt
@@ -48,21 +49,9 @@ spec:
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
-          HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
-            '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
-                   timestamp: $date,
-                   namespace: "default",
-                   successes: 0,
-                   note: "",
-                   failures: (.runs[].results | length)
-                 }' sast_snyk_check_out.json || true)
+          HACBS_TEST_OUTPUT=
+          parse_hacbs_test_output $(context.task.name) sarif sast_snyk_check_outs.json
 
-          # Log out the failing runs
-          if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
-          then
-            echo "The sast-snyk-check test fails with the following runs:"
-            jq '.runs[].results // []|map(.message.text) | unique' sast_snyk_check_out.json
-          fi
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
           HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg SKIP_MESSAGE "${SKIP_MSG}" --null-input \

@@ -47,6 +47,7 @@ spec:
       script: |
         #!/bin/bash -x
 
+        . /utils.sh
         pushd $(workspaces.workspace.path)
         if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
           mvn package -f $(params.PATH_CONTEXT)/
@@ -77,19 +78,7 @@ spec:
               timestamp: $date,
               note: (if $test_skipped=="1" then "Test is skipped" else "" end)
               }')
-        HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s)  \
-          '{ result: (if (.runs[].results | length > 0) then "FAILURE" else "SUCCESS" end),
-                   timestamp: $date,
-                   namespace: "default",
-                   successes: 0,
-                   note: "",
-                   failures: (.runs[].results | length)
-                 }' sast_java_sec_output.json || true)
+        HACBS_TEST_OUTPUT=
+        parse_hacbs_test_output $(context.task.name) sarif sast_java_sec_output.json
 
-        # Log out the failing runs
-        if [ $(echo $HACBS_TEST_OUTPUT | jq '.failures') -gt 0 ]
-        then
-          echo "The sast-java-sec-check test has failed with the following issues:"
-          jq '.runs[].results' sast_java_sec_output.json
-        fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
