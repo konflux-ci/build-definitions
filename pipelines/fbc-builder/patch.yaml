@@ -26,3 +26,22 @@
     value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
   - name: PUSH_EXTRA_ARGS
     value: "$(tasks.appstudio-configure-build.results.buildah-auth-param)"
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-label-check
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - sanity-inspect-image
+    taskRef:
+      name: sanity-label-check
+      version: "0.1"
+    params:
+    - name: POLICY_NAMESPACE
+      value: fbc_checks
+    workspaces:
+    - name: workspace
+      workspace: workspace
