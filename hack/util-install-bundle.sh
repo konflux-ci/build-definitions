@@ -6,11 +6,24 @@ NAMESPACE=${2:-$(oc project -q)}
 if [  -z "$BUNDLE" ]; then 
     echo "No Bundle Name"
     exit 1 
-fi   
+fi
 
-oc create configmap build-pipelines-defaults --from-literal=default_build_bundle=$BUNDLE -o yaml --dry-run=client | oc -n "$NAMESPACE" apply -f-
+cat << EOF | oc -n "$NAMESPACE" apply -f-
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: BuildPipelineSelector
+metadata:
+  name: build-pipeline-selector
+spec:
+  selectors:
+    - name: Docker build
+      pipelineRef:
+        name: docker-build
+        bundle: ${BUNDLE}
+      when:
+        dockerfile: true
+EOF
 
-echo "Default Pipelines configured to come from the namespace 'build-templates':"
-oc get cm build-pipelines-defaults -n build-templates -o jsonpath='{.data}{"\n"}'
-echo "Override Pipelines configured to come from the namespace '$NAMESPACE':"
-oc get cm build-pipelines-defaults -n "$NAMESPACE" -o jsonpath='{.data}{"\n"}'
+echo "Pipeline selectors configured to come from the namespace 'build-service':"
+oc get buildpipelineselector build-pipeline-selector -n build-service -o yaml | yq '.spec.selectors'
+echo "Overridden Pipeline selectors configured to come from the namespace '$NAMESPACE':"
+oc get buildpipelineselector build-pipeline-selector -n "$NAMESPACE" -o yaml | yq '.spec.selectors'
