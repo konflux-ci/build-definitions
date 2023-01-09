@@ -11,7 +11,7 @@ metadata:
 spec:
   description: s2i-nodejs task clones a Git repository and builds and pushes a container image using S2I and a nodejs builder image.
   params:
-  - default: registry.access.redhat.com/ubi8/nodejs-16:1-37.1654147900
+  - default: registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583
     description: NodeJS builder image
     name: BASE_IMAGE
     type: string
@@ -26,7 +26,7 @@ spec:
   - description: Location of the repo where image has to be pushed
     name: IMAGE
     type: string
-  - default: registry.access.redhat.com/ubi9/buildah:9.0.0-19@sha256:c8b1d312815452964885680fc5bc8d99b3bfe9b6961228c71a09c72ca8e915eb
+  - default: registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
     type: string
@@ -59,7 +59,7 @@ spec:
     - s2i
     - build
     - $(params.PATH_CONTEXT)
-    - registry.access.redhat.com/ubi8/nodejs-16:1-37.1654147900
+    - registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583
     - --as-dockerfile
     - /gen-source/Dockerfile.gen
     env:
@@ -117,7 +117,7 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - image: registry.redhat.io/ubi8/python-39:1-51
+  - image: registry.redhat.io/ubi9/python-39:1-90.1669637098
     name: merge-sboms
     script: |
       #!/bin/python3
