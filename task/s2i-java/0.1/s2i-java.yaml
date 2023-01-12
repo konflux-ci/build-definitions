@@ -61,6 +61,8 @@ spec:
   - args:
     - |-
       echo "MAVEN_CLEAR_REPO=true" > env-file
+      [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] &&
+        echo "MAVEN_MIRROR_URL=http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/" >> env-file
 
       echo "Generated Env file"
       echo "------------------------------"
@@ -143,7 +145,7 @@ spec:
       name: varlibcontainers
     securityContext:
       runAsUser: 0
-  - image: registry.redhat.io/ubi8/python-39:1-90.1669637098
+  - image: registry.redhat.io/ubi8/python-39:1-87.1669838026
     name: merge-sboms
     env:
       - name: SBOM_JAVA_COMPONENTS_COUNT_PATH

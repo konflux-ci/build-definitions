@@ -90,6 +90,11 @@ spec:
         echo "Cannot find Dockerfile $(params.DOCKERFILE)"
         exit 1
       fi
+      if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] && grep -q '^RUN \(./\)\?mvn' "$dockerfile_path"; then
+        sed -i -e "s|^RUN \(\(./\)\?mvn\(.*\)\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml|g" "$dockerfile_path"
+        touch /var/lib/containers/java
+      fi
+
 
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
