@@ -28,8 +28,8 @@ spec:
         echo "Build repository: $(params.git-url)"
         echo "Generated Image is in : $(params.image-url)"
         echo
-        oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/repo=$(params.git-url)
-        oc annotate pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/image=$(params.image-url)
+        oc annotate --overwrite pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/repo=$(params.git-url)
+        oc annotate --overwrite pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/image=$(params.image-url)
 
         echo "Output is in the following annotations:"
 
