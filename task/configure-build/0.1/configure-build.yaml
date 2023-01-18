@@ -14,14 +14,10 @@ spec:
     - name: shared-secret
       default: redhat-appstudio-user-workload
   results:
-    - name: registry-auth
-      description: docker config location
     - name: buildah-auth-param
       description: pass this to the build optional params to configure secrets
   workspaces:
     - name: source
-    - name: registry-auth
-      optional: true
   volumes:
     - name: default-push-secret
       csi:
@@ -40,35 +36,11 @@ spec:
         echo "App Studio Configure Build"
 
         DEST=/workspace/source/.dockerconfigjson
-        DEF=/secret/default-push-secret/.dockerconfigjson
-        AUTH=/workspace/registry-auth/.dockerconfigjson
-        TMP=$(mktemp)
-        echo '{}' > $DEST
-        # Set lowest priority on default shared secret
-        FILES="$DEF"
-        # Use secrets from serviceAccount
-        cd /tekton/creds-secrets
-        for file in $(ls); do
-          if [ -f "$file/.dockerconfigjson" ]; then
-            FILES="$FILES $file/.dockerconfigjson"
-          elif [ -f "$file/.dockercfg" ]; then
-            # convert format from .dockercfg to .dockerconfigjson
-            newformat=$(mktemp)
-            jq '{"auths": .}' $file/.dockercfg > $newformat
-            FILES="$FILES $newformat"
-          fi
-        done
-        # set highest priority on registry-auth workspace
-        FILES="$FILES $AUTH"
-        echo "Looking for Registry Auth Configs"
-        # Merge secrets into one file
-        for file in $FILES; do
-          if [ -f "$file" ]; then
-            echo "$file found"
-            jq -M -s '.[0] * .[1]' $DEST $file > $TMP
-            mv $TMP $DEST
-          fi
-        done
+        SHARED=/secret/default-push-secret/.dockerconfigjson
+        if [ -f $SHARED ]; then
+           jq -M -s '.[0] * .[1]' $SHARED ~/.docker/config.json > $DEST
+        else
+           cp ~/.docker/config.json $DEST
+        fi
         chmod 644 $DEST
-        echo -n $DEST > /tekton/results/registry-auth
         echo -n "--authfile $DEST"  >  /tekton/results/buildah-auth-param

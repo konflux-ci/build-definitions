@@ -85,8 +85,6 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
-        - name: registry-auth
-          workspace: registry-auth
     - name: prefetch-dependencies
       when:
       - input: $(tasks.clone-repository.results.hermetic-build)
@@ -191,9 +189,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
-      workspaces:
-      - name: registry-auth
-        workspace: registry-auth
     - name: sast-snyk-check
       when:
       - input: $(params.skip-checks)
@@ -222,9 +217,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
-      workspaces:
-      - name: registry-auth
-        workspace: registry-auth
     - name: sbom-json-check
       when:
       - input: $(params.skip-checks)
@@ -265,7 +257,5 @@ spec:
       value: "$(tasks.clone-repository.results.commit)"
   workspaces:
     - name: workspace
-    - name: registry-auth
-      optional: true
     - name: git-auth
       optional: true

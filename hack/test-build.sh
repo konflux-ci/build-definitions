@@ -27,7 +27,6 @@ if [ -z "$MY_QUAY_USER" ]; then
   echo MY_QUAY_USER env variable is not set, pushing to $IMG
 else
   if oc get secret redhat-appstudio-staginguser-pull-secret &>/dev/null; then
-     PUSH_WORKSPACE="-w name=registry-auth,secret=redhat-appstudio-staginguser-pull-secret"
      # Ensure that the pipeline service account has access to the secret. Although the
      # secret is mounted directly on the pipeline, Tekton Chains needs this linkage so
      # it can push the image signature and attestation to the same OCI repository.
@@ -46,4 +45,4 @@ if [ "$SKIP_CHECKS" == "1" ]; then
   SKIP_CHECKS_PARAM="-p skip-checks=true"
 fi
 
-tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $PUSH_WORKSPACE $SKIP_CHECKS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
+tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $SKIP_CHECKS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults

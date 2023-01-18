@@ -27,9 +27,7 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
-        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="/workspace/registry-auth/"
-
-        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=$REGISTRY_ARGS > /tekton/home/clair-result.json
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=~/.docker/config.json > /tekton/home/clair-result.json
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
       securityContext:
@@ -50,6 +48,3 @@ spec:
         parse_hacbs_test_output $(context.task.name) conftest /tekton/home/clair-vulnerabilities.json
 
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
-  workspaces:
-    - name: registry-auth
-      optional: true

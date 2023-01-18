@@ -46,11 +46,10 @@ spec:
             echo "$imageanddigest is an attestation image, skipping clamav scan"
             exit 0
         fi
-        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="-a /workspace/registry-auth/.dockerconfigjson"
         mkdir content
         cd content
         echo Extracting image
-        if ! oc image extract $REGISTRY_ARGS $imageanddigest; then
+        if ! oc image extract $imageanddigest; then
           echo "Unable to extract image! Skipping clamscan!"
           exit 0
         fi
@@ -144,6 +143,3 @@ spec:
       emptydir: {}
     - name: work
       emptydir: {}
-  workspaces:
-    - name: registry-auth
-      optional: true
