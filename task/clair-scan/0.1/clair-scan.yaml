@@ -27,8 +27,6 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
-        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="/workspace/registry-auth/"
-
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=~/.docker/config.json > /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
