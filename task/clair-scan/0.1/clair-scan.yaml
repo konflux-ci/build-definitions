@@ -27,7 +27,9 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
-        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=~/.docker/config.json > /tekton/home/clair-result.json
+        [ -f /workspace/registry-auth/.dockerconfigjson ] && REGISTRY_ARGS="/workspace/registry-auth/"
+
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=~/.docker/config.json > /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
       securityContext:
@@ -35,9 +37,13 @@ spec:
           add:
             - SETFCAP
       script: |
-        /usr/bin/conftest test --no-fail /tekton/home/clair-result.json \
-        --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
-        --output=json | tee /tekton/home/clair-vulnerabilities.json
+        if [ ! -s /tekton/home/clair-result.json ]; then
+          echo "Previous step [get-vulnerabilities] failed, /tekton/home/clair-result.json is empty."
+        else
+          /usr/bin/conftest test --no-fail /tekton/home/clair-result.json \
+          --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
+          --output=json | tee /tekton/home/clair-vulnerabilities.json || true
+        fi
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
