@@ -23,7 +23,7 @@ spec:
   results:
     - name: build
   steps:
-    - name: appstudio-init
+    - name: init
       image: registry.access.redhat.com/ubi9/skopeo:9.1.0-5@sha256:6ebbdfce633f9915a6a99d8ee035d9fd258121aa1acf944229e90696eb353549
       script: |
         #!/bin/bash
@@ -35,12 +35,4 @@ spec:
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)
-        fi
-
-    - name: hacbs-init
-      image: registry.redhat.io/openshift4/ose-cli:v4.11
-      script: |
-        # Create empty secret which is now hardcoded in PaC Pipelinerun template
-        if ! oc get secret redhat-appstudio-registry-pull-secret &>/dev/null; then
-          oc create secret generic redhat-appstudio-registry-pull-secret || true
         fi
