@@ -29,6 +29,9 @@ spec:
       - mountPath: /shared
         name: shared
     script: |
+      #!/usr/bin/env bash
+      source /utils.sh
+
       cd /shared
       touch fail_result.txt
       if [ -f "sbom-cyclonedx.json" ]
@@ -45,12 +48,10 @@ spec:
       FAIL_RESULTS="$(cat fail_result.txt)"
       if [[ -z $FAIL_RESULTS ]]
       then
-        HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "SUCCESS",timestamp: $date, namespace: "default", successes: 1, failures: 0}')
+        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -s 1)
       else
         echo "Fail to verify sbom-cyclonedx.json for image $(params.IMAGE_URL) with reason: $FAIL_RESULTS"
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "FAILURE", timestamp: $date, successes: 0, failures: 1}')
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "FAILURE" -f 1)
       fi
 
       echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)

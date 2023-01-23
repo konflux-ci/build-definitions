@@ -49,6 +49,8 @@ spec:
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
         #!/usr/bin/env sh
+        source /utils.sh
+
         success_counter=0
         failure_counter=0
         error_counter=0
@@ -78,16 +80,13 @@ spec:
           fi
         done < $(results.PYXIS_HTTP_CODE.path)
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input '{result: "ERROR", timestamp: $date}')
+        HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR -n "$(params.POLICY_NAMESPACE)")
         if [ "$error_counter" == 0 ];
         then
-          HACBS_TEST_OUTPUT=$(jq -rce --null-input --arg successes $success_counter --arg failures $failure_counter --arg namespace $(params.POLICY_NAMESPACE) --arg date $(date +%s) \
-            '. | { result: (if ($failures > "0") then "FAILURE" else "SUCCESS" end),
-                    timestamp: $date,
-                    namespace: $namespace,
-                    successes: $successes,
-                    failures: $failures
-                  }' )
+          if [[ "${failure_counter}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
+          HACBS_TEST_OUTPUT=$(make_result_json \
+            -r "${RES}" -n "$(params.POLICY_NAMESPACE)" \
+            -s "${success_counter}" -f "${failure_counter}")
         fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
 
