@@ -32,10 +32,15 @@ else
      # it can push the image signature and attestation to the same OCI repository.
      oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull
   else
-     echo redhat-appstudio-staginguser-pull-secret is not created, can be created by:
-     echo oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=$HOME/.docker/config.json
-     echo and link it to the pipeline ServiceAccount:
-     echo oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull
+     echo "Secret redhat-appstudio-staginguser-pull-secret is not created, can be created by:"
+     echo "Docker:"
+     echo "  oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=$HOME/.docker/config.json"
+     echo "Podman:"
+     echo "  oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=${XDG_RUNTIME_DIR}/containers/auth.json"
+     echo "(Note: it will upload all login credentials, make sure that you are not logged into sensitive registries, or create the particular secret manually!)"
+     echo "and link it to the pipeline ServiceAccount:"
+     echo "  oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull"
+     echo ""
   fi
   IMG=quay.io/$MY_QUAY_USER/$APPNAME:$IMAGE_SHORT_TAG
   echo Building $IMG
