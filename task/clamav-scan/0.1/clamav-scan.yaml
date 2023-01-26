@@ -113,17 +113,20 @@ spec:
     - name: store-hacbs-test-output-result
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        #!/usr/bin/env bash
+        source /utils.sh
+
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR")
         if [ -f /tekton/home/clamscan-result.json ];
         then
           cat /tekton/home/clamscan-result.json
-          HACBS_TEST_OUTPUT=$(jq -rce --arg date $(date +%s) \
-            '. | { result: (if (.infected_files != "0") then "FAILURE" else "SUCCESS" end),
-                    timestamp: $date,
-                    successes: 1,
-                    failures: .infected_files
-                  }' /tekton/home/clamscan-result.json || true)
+          INFECTED_FILES=$(jq -r '.infected_files' /tekton/home/clamscan-result.json || true )
+          if [ -z "${INFECTED_FILES}" ]; then
+            echo "Failed to get number of infected files"
+          else
+            if [[ "${INFECTED_FILES}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
+            HACBS_TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}")
+          fi
         fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   # sidecar is rebuilt daily(is meant to be updated daily), hence the usage of the tag instead of digest

@@ -32,15 +32,16 @@ spec:
           memory: 512Mi
           cpu: 10m
       script: |
+        #!/usr/bin/env bash
+        source /utils.sh
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
 
         mkdir confdir
         if ! oc image extract $(params.IMAGE_URL) --file /bin/opm --file /bin/grpc_health_probe --path $conffolder*:confdir/ ; then
         echo "Unable to extract image! Skipping checking binaries!"
-          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date, successes: 0, failures: 1}')
-          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -f 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
           exit 0
         fi
 
@@ -60,13 +61,11 @@ spec:
           TESTPASSED=false
         fi
         if [ $TESTPASSED == false ]; then
-          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "FAILURE", timestamp: $date, successes: 0, failures: 1}')
-          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          HACBS_ERROR_OUTPUT="$(make_result_json -r FAILURE -f 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
         else
-          HACBS_TEST_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "SUCCESS",timestamp: $date, namespace: "default", successes: 1, failures: 0}')
-          echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
         fi
       volumeMounts:
         - mountPath: $(workspaces.workspace.path)/hacbs/$(context.task.name)

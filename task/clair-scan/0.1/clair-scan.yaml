@@ -45,10 +45,10 @@ spec:
     - name: test-format-result
       image: quay.io/redhat-appstudio/hacbs-test:latest
       script: |
+        #!/usr/bin/env bash
         . /utils.sh
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR")
         HACBS_TEST_OUTPUT=
-        parse_hacbs_test_output $(context.task.name) conftest /tekton/home/clair-vulnerabilities.json
+        parse_hacbs_test_output $(context.task.name) conftest /tekton/home/clair-vulnerabilities.json || true
 
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
