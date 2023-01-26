@@ -47,10 +47,14 @@ spec:
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
+
+        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
+          '{result: "ERROR", timestamp: $date}')
+
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
           HACBS_TEST_OUTPUT=
-          parse_hacbs_test_output $(context.task.name) sarif sast_snyk_check_outs.json
+          parse_hacbs_test_output $(context.task.name) sarif sast_snyk_check_out.json  || true
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
@@ -59,8 +63,6 @@ spec:
         else
           echo "The sast-snyk-check test has failed with the following issues:"
           cat stdout.txt
-          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-            '{result: "ERROR", timestamp: $date}')
         fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   workspaces:
