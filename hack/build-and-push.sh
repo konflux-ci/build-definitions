@@ -115,7 +115,6 @@ do
 done
 )
 
-default_pipeline_bundle=$(mktemp -p "$WORKDIR" default_pipeline_bundle.XXXX)
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
 for pipeline_yaml in "$generated_pipelines_dir"/*.yaml
 do
@@ -123,15 +122,8 @@ do
     pipeline_bundle=quay.io/${MY_QUAY_USER}/${TEST_REPO_NAME:-pipeline-${pipeline_name}}:${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
     tkn bundle push "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
-    if [ "$pipeline_name" == "docker-build" ]
-    then
-        # Create Pipeline with HACBS enabled by default for testing purposes.
-        pipeline_bundle=quay.io/${MY_QUAY_USER}/${TEST_REPO_NAME:-pipeline-hacbs-${pipeline_name}}:${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
-        yq -i e '(.spec.params.[] | select(.name == "hacbs").default) = "true"' "${pipeline_yaml}"
-        tkn bundle push "$pipeline_bundle" -f "${pipeline_yaml}" | \
-            save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
-	echo "$pipeline_bundle" >>"$default_pipeline_bundle"
-    fi
+
+    [ "$pipeline_name" == "docker-build" ] && default_pipeline_bundle=$pipeline_bundle
     if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
@@ -139,5 +131,5 @@ do
 done
 
 if [ "$SKIP_INSTALL" == "" ]; then
-    "$SCRIPTDIR/util-install-bundle.sh" "$(cat "$default_pipeline_bundle")" "$INSTALL_BUNDLE_NS"
+    "$SCRIPTDIR/util-install-bundle.sh" $default_pipeline_bundle "$INSTALL_BUNDLE_NS"
 fi
