@@ -154,11 +154,11 @@ spec:
         taskSpec:
           steps:
             - name: fail-when-repo-is-missed
-              image: registry.redhat.io/openshift4/ose-cli:v4.11
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
               workingDir: $(workspaces.source.path)
               script: |
                 #!/usr/bin/env bash
-                .tekton/scripts/check-task-pipeline-bundle-repos.sh
+                PULL_REQUEST=1 .tekton/scripts/check-task-pipeline-bundle-repos.sh
           workspaces:
             - name: source
         workspaces:
