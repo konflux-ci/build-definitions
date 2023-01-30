@@ -37,14 +37,6 @@ spec:
     description: The format of the built container, oci or docker
     name: FORMAT
     type: string
-  - default: ""
-    description: Extra parameters passed for the build command when building images.
-    name: BUILD_EXTRA_ARGS
-    type: string
-  - default: ""
-    description: Extra parameters passed for the push command when pushing images.
-    name: PUSH_EXTRA_ARGS
-    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -62,7 +54,7 @@ spec:
         cpu: 10m
     script: |
       buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-        $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
+        --format=$(params.FORMAT) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
     securityContext:
@@ -78,7 +70,7 @@ spec:
     resources: {}
     script: |
       buildah --storage-driver=$(params.STORAGE_DRIVER) push \
-        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        --tls-verify=$(params.TLSVERIFY) \
         --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
     volumeMounts:
