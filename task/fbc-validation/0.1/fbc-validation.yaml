@@ -20,10 +20,7 @@ spec:
       image: quay.io/redhat-appstudio/hacbs-test:latest
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       securityContext:
-        runAsUser: 1000
-      env:
-        - name: HOME
-          value: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+        runAsUser: 0
       resources:
         limits:
           memory: 4Gi
@@ -38,7 +35,7 @@ spec:
         conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
 
         mkdir confdir
-        if ! oc image extract $(params.IMAGE_URL) --file /bin/opm --file /bin/grpc_health_probe --path $conffolder*:confdir/ ; then
+        if ! oc image extract $(params.IMAGE_URL) --file /bin/opm --file /bin/grpc_health_probe --path $conffolder/*:confdir/ ; then
         echo "Unable to extract image! Skipping checking binaries!"
           HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -f 1)"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
@@ -67,9 +64,3 @@ spec:
           HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
         fi
-      volumeMounts:
-        - mountPath: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-          name: work
-  volumes:
-    - name: work
-      emptydir: {}

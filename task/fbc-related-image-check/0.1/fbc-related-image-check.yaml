@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: fbc-related-image-check
+spec:
+  params:
+    - name: IMAGE_URL
+      description: the fully qualified image name
+  results:
+    - name: HACBS_TEST_OUTPUT
+  workspaces:
+    - name: workspace
+  steps:
+    - name: check-related-images
+      image: quay.io/redhat-appstudio/hacbs-test:latest
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 2
+        requests:
+          memory: 512Mi
+          cpu: 10m
+      script: |
+        #!/usr/bin/env bash
+        source /utils.sh
+        FAILEDIMAGES=""
+
+        relImgs=$(cat "$(workspaces.workspace.path)/hacbs/fbc-validation/confdir/catalog.yaml" | yq '.relatedImages[].image' | sed 's/---//')
+        echo -e "These are related images:\n $relImgs"
+        # cycle through those related images and show outputs
+        for i in ${relImgs// /}
+        do
+          if ! skopeo inspect --no-tags docker://"$i"; then
+            echo "Skopeo inspect failed on related image: $i"
+            FAILEDIMAGES+="$i, "
+          fi
+        done
+        if [ -z "$FAILEDIMAGES" ]; then
+          HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+        else
+          echo "These images failed inspection: $FAILEDIMAGES"
+          HACBS_TEST_OUTPUT="$(make_result_json -r FAILURE -f 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          exit 0
+        fi
