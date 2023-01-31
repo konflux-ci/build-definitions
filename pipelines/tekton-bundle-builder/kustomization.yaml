@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../template-build
+
+patches:
+# Use the template-build as a template replacing the Pipeline name and the
+# `build-container` step's task reference
+- patch: |-
+    - op: replace
+      path: /metadata/name
+      value: tekton-bundle-builder
+    - op: replace
+      path: /spec/tasks/4/taskRef
+      value:
+        name: tkn-bundle
+        version: "0.1"
+  target:
+    kind: Pipeline
+    name: template-build
