@@ -70,7 +70,7 @@ spec:
     - name: DOCKER_CONFIG
       value: $(params.DOCKER_AUTH)
   steps:
-  - image: $(params.BUILDER_IMAGE)
+  - image: quay.io/redhat-appstudio/buildah:v1.28
     name: build
     resources:
       limits:
@@ -104,22 +104,29 @@ spec:
 
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
+      # Setting new namespace to run buildah - 2^32-2
+      echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
+
       if [ "${HERMETIC}" == "true" ]; then
-        NETWORK="--network none"
+        BUILDAH_ARGS="--pull=never"
+        UNSHARE_ARGS="--net"
+        for image in $(grep -i '^FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+        done
         echo "Build will be executed with network isolation"
       fi
 
-      if [ ! -z "${PREFETCH_INPUT}" ]; then
+      if [ -n "${PREFETCH_INPUT}" ]; then
         VOLUME_MOUNTS="
           --volume $(realpath ./cachi2/output):/cachi2/output:U \
           --volume $(realpath ./cachi2/cachi2.env):/cachi2/cachi2.env:U"
-
+        sed -i 's|^\s*run |RUN source /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
       fi
 
-      buildah bud \
-        $NETWORK \
+      unshare -Ufp $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah bud \
         $VOLUME_MOUNTS \
+        $BUILDAH_ARGS \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
