@@ -27,7 +27,7 @@ spec:
         optional: true
   steps:
     - name: sast-snyk-check
-      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
+      image: quay.io/redhat-appstudio/hacbs-test:latest
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       volumeMounts:
         - name: snyk-secret
@@ -39,6 +39,7 @@ spec:
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
           echo "SNYK_TOKEN is empty and please set params.SHARED_SECRET" | tee stdout.txt
+          make_result_json -r SKIPPED -t "Check skipped: SNYK_TOKEN is empty"
           exit 0
         fi
         export SNYK_TOKEN
@@ -48,8 +49,7 @@ spec:
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --null-input \
-          '{result: "ERROR", timestamp: $date}')
+        HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR)
 
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
@@ -58,8 +58,7 @@ spec:
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
-          HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg SKIP_MESSAGE "${SKIP_MSG}" --null-input \
-            '{result: "SKIPPED", note: $SKIP_MESSAGE, timestamp: $date}')
+          HACBS_ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$SKIP_MSG")
         else
           echo "The sast-snyk-check test has failed with the following issues:"
           cat stdout.txt
