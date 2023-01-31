@@ -45,6 +45,25 @@
     workspaces:
       - name: workspace
         workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-related-image-check
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - fbc-validate
+    taskRef:
+      name: fbc-related-image-check
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-container.results.IMAGE_URL)
+    workspaces:
+      - name: workspace
+        workspace: workspace
 - op: replace
   path: /spec/tasks/6/name
   value: fbc-label-check
