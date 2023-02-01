@@ -94,47 +94,63 @@ spec:
     The output should include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("sha256:[a-z0-9]+")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("registry:5000/bundle@sha256:[a-z0-9]+")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:tag\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
   It 'creates Tekton bundles from specific context'
-    When call tkn task start tkn-bundle -p IMAGE=registry:5000/sub:tag -p CONTEXT=sub --timeout 1m --showlog -w name=source,claimName=source-pvc
+    When call tkn task start tkn-bundle -p IMAGE=registry:5000/sub:tag -p CONTEXT=sub --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
     The output should not include 'Added Task: test1 to image'
     The output should not include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/sub'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("sha256:[a-z0-9]+")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("registry:5000/sub@sha256:[a-z0-9]+")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/sub:tag\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
   It 'creates Tekton bundles when context points to a file'
-    When call tkn task start tkn-bundle -p IMAGE=registry:5000/file:tag -p CONTEXT=test2.yml --timeout 1m --showlog -w name=source,claimName=source-pvc
+    When call tkn task start tkn-bundle -p IMAGE=registry:5000/file:tag -p CONTEXT=test2.yml --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
     The output should not include 'Added Task: test1 to image'
     The output should not include 'Added Task: test3 to image'
     The output should include 'Added Task: test2 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/file'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("sha256:[a-z0-9]+")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("registry:5000/file@sha256:[a-z0-9]+")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/file:tag\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
   It 'creates Tekton bundles when context points to a file and a directory'
-    When call tkn task start tkn-bundle -p IMAGE=registry:5000/mix:tag -p CONTEXT=test2.yml,sub --timeout 1m --showlog -w name=source,claimName=source-pvc
+    When call tkn task start tkn-bundle -p IMAGE=registry:5000/mix:tag -p CONTEXT=test2.yml,sub --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
     The output should not include 'Added Task: test1 to image'
     The output should include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/mix'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("sha256:[a-z0-9]+")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("registry:5000/mix@sha256:[a-z0-9]+")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/mix:tag\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
   It 'creates Tekton bundles when using negation'
-    When call tkn task start tkn-bundle -p IMAGE=registry:5000/neg:tag -p CONTEXT=!sub --timeout 1m --showlog -w name=source,claimName=source-pvc
+    When call tkn task start tkn-bundle -p IMAGE=registry:5000/neg:tag -p CONTEXT=!sub --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
     The output should not include 'Added Task: test3 to image'
     The output should include 'Added Task: test1 to image'
     The output should include 'Added Task: test2 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/neg'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("sha256:[a-z0-9]+")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("registry:5000/neg@sha256:[a-z0-9]+")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/neg:tag\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
+  End
+
+  It 'allows overriding HOME environment variable'
+    When call tkn task start tkn-bundle -p IMAGE=registry:5000/bundle:summer-home -p HOME=/tekton/summer-home --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
+    The output should include 'Added Task: test1 to image'
+    The output should include 'Added Task: test2 to image'
+    The output should include 'Added Task: test3 to image'
+    The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:summer-home\\z")'
+    The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/summer-home\\z")'
   End
 End

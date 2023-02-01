@@ -15,6 +15,18 @@ patches:
       value:
         name: tkn-bundle
         version: "0.1"
+    - op: add
+      path: /spec/tasks/4/params
+      value:
+      - name: IMAGE
+        value: $(params.output-image)
+      - name: CONTEXT
+        value: $(params.path-context)
+    # Remove tasks that assume a binary image
+    - op: remove
+      path: /spec/tasks/12  # sbom-json-check
+    - op: remove
+      path: /spec/tasks/8  # deprecated-base-image-check
   target:
     kind: Pipeline
     name: template-build
