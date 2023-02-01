@@ -133,6 +133,22 @@ spec:
                     key: token
               - name: MY_GITHUB_ORG
                 value: redhat-appstudio-appdata
+      - name: check-task-pipeline-repo-existence
+        runAfter:
+          - build-bundles
+        taskSpec:
+          steps:
+            - name: fail-when-repo-is-missed
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/usr/bin/env bash
+                PULL_REQUEST=1 .tekton/scripts/check-task-pipeline-bundle-repos.sh
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
     finally:
       - name: e2e-cleanup
         params:
@@ -150,20 +166,6 @@ spec:
                 # Perform cleanup of resources created by gitops service
                 oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
-      - name: check-task-pipeline-repo-existence
-        taskSpec:
-          steps:
-            - name: fail-when-repo-is-missed
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
-              workingDir: $(workspaces.source.path)
-              script: |
-                #!/usr/bin/env bash
-                PULL_REQUEST=1 .tekton/scripts/check-task-pipeline-bundle-repos.sh
-          workspaces:
-            - name: source
-        workspaces:
-          - name: source
-            workspace: workspace
   workspaces:
     - name: workspace
       volumeClaimTemplate:
