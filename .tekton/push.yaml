@@ -99,6 +99,7 @@ spec:
               sed -i "s|default_build_bundle=.*|default_build_bundle=quay.io/redhat-appstudio-tekton-catalog/pipeline-docker-build:$(params.revision)|" components/build-templates/kustomization.yaml
               sed -i "s|hacbs_build_bundle=.*|hacbs_build_bundle=quay.io/redhat-appstudio-tekton-catalog/pipeline-docker-build:$(params.revision)|" components/build-templates/kustomization.yaml
               sed -i -E 's/[0-9a-f]{40}/$(params.revision)/g' components/build-service/build-pipeline-selector.yaml
+              sed -i -e 's|\(https://github.com/redhat-appstudio/build-service/.*?ref=\)\(.*\)|\1{{ revision }}|' components/monitoring/grafana/base/kustomization.yaml
         taskRef:
           name: update-infra-deployments
       - name: update-ec-policies
