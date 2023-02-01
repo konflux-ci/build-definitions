@@ -15,6 +15,7 @@ The task supports the following input parameters.
 |---------|-------------------------|------------------------------------------|
 | IMAGE   | registry.io/my-task:tag | Reference of the image task will produce |
 | CONTEXT | my-task/0.1             | Paths to include in the bundle image     |
+| HOME    | /tekton/home            | Value for the HOME environment variable  |
 
 `CONTEXT` can include multiple directories or files separated by comma or space.
 Paths can be negated with exclamation mark to prevent inclusion of certain
@@ -44,7 +45,7 @@ Only the `0.1/tkn-bundle.yaml` file will be included in the bundle.
 
 The task emits the following results.
 
-| Name         | Example                           | Description                                       |
-|--------------|-----------------------------------|---------------------------------------------------|
-| IMAGE_URL    | registry.io/my-task@sha256-abc... | Image repository where the built image was pushed |
-| IMAGE_DIGEST | abc...                            | Digest of the image just built                    |
+| Name         | Example                 | Description                                                     |
+|--------------|-------------------------|-----------------------------------------------------------------|
+| IMAGE_URL    | registry.io/my-task:tag | Image repository where the built image was pushed with tag only |
+| IMAGE_DIGEST | abc...                  | Digest of the image just built                                  |
