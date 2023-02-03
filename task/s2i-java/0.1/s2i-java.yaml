@@ -35,10 +35,9 @@ spec:
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
     type: string
-  # Additional parameter for auth configuration
   - default: ""
-    description: Extra parameters passed for the push command when pushing images.
-    name: PUSH_EXTRA_ARGS
+    description: folder with config.json for container auth
+    name: DOCKER_AUTH
     type: string
   results:
   - description: Digest of the image just built
@@ -57,6 +56,8 @@ spec:
       value: oci
     - name: STORAGE_DRIVER
       value: vfs
+    - name: DOCKER_CONFIG
+      value: $(params.DOCKER_AUTH)
   steps:
   - args:
     - |-
@@ -230,21 +231,12 @@ spec:
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
       buildah commit $container $(params.IMAGE)
       buildah push \
-        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+        --tls-verify=$(params.TLSVERIFY) \
         --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
 
-      # Create and push sbom image
-      sbom_container=$(buildah from scratch)
-      sbom_container_mountpath=$(buildah mount $sbom_container)
-      cp sbom-cyclonedx.json sbom-purl.json $sbom_container_mountpath
-      buildah umount $sbom_container
-      buildah commit working-container $(params.IMAGE).sbom
-      buildah push \
-        $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-        $(params.IMAGE).sbom
     securityContext:
       runAsUser: 0
       capabilities:
@@ -253,6 +245,18 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+
+  - name: upload-sbom
+    image: quay.io/redhat-appstudio/cosign:v1.13.1
+    args:
+      - attach
+      - sbom
+      - --sbom
+      - sbom-cyclonedx.json
+      - --type
+      - cyclonedx
+      - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
 
   volumes:

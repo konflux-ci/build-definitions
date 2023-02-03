@@ -14,8 +14,8 @@ spec:
     - name: shared-secret
       default: redhat-appstudio-user-workload
   results:
-    - name: buildah-auth-param
-      description: pass this to the build optional params to configure secrets
+    - name: docker-auth
+      description: pass composed docker auth file
   workspaces:
     - name: source
   volumes:
@@ -34,8 +34,8 @@ spec:
       script: |
         #!/usr/bin/env bash
         echo "App Studio Configure Build"
-
-        DEST=/workspace/source/.dockerconfigjson
+        mkdir /workspace/source/.docker
+        DEST=/workspace/source/.docker/config.json
         SHARED=/secret/default-push-secret/.dockerconfigjson
         if [ -f $SHARED ]; then
            jq -M -s '.[0] * .[1]' $SHARED ~/.docker/config.json > $DEST
@@ -43,4 +43,4 @@ spec:
            cp ~/.docker/config.json $DEST
         fi
         chmod 644 $DEST
-        echo -n "--authfile $DEST"  >  /tekton/results/buildah-auth-param
+        echo -n /workspace/source/.docker > /tekton/results/docker-auth
