@@ -36,7 +36,7 @@ spec:
     name: BUILDER_IMAGE
     type: string
   - default: ""
-    description: folder with config.json for container auth
+    description: secret with config.json for container auth
     name: DOCKER_AUTH
     type: string
   results:
@@ -57,7 +57,7 @@ spec:
     - name: STORAGE_DRIVER
       value: vfs
     - name: DOCKER_CONFIG
-      value: $(params.DOCKER_AUTH)
+      value: /secrets/registry-auth
   steps:
   - args:
     - |-
@@ -86,10 +86,16 @@ spec:
     volumeMounts:
     - mountPath: /gen-source
       name: gen-source
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
   - script: |
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       buildah bud --tls-verify=$(params.TLSVERIFY) --layers --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+
+      container=$(buildah from --pull-never $(params.IMAGE))
+      buildah mount $container | tee /workspace/container_path
+      echo $container > /workspace/container_name
     image: $(params.BUILDER_IMAGE)
     name: build
     resources:
@@ -109,23 +115,10 @@ spec:
       name: varlibcontainers
     - mountPath: /gen-source
       name: gen-source
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
     workingDir: /gen-source
 
-  - image: $(params.BUILDER_IMAGE)
-    name: mount-container
-    resources: {}
-    script: |
-      container=$(buildah from --pull-never $(params.IMAGE))
-      buildah mount $container | tee /workspace/container_path
-      echo $container > /workspace/container_name
-    securityContext:
-      capabilities:
-        add:
-          - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/syft:v0.47.0
     name: sbom-get
     script: |
@@ -245,6 +238,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
+
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
@@ -258,12 +254,19 @@ spec:
       - cyclonedx
       - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
   - emptyDir: {}
     name: gen-source
+  - name: registry-auth
+    secret:
+      secretName: $(params.DOCKER_AUTH)
+      optional: true
   workspaces:
   - mountPath: /workspace/source
     name: source

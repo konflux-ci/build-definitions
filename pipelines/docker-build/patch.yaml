@@ -9,12 +9,12 @@
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
 - op: replace
-  path: /spec/tasks/4/taskRef
+  path: /spec/tasks/3/taskRef
   value:
     name: buildah
     version: "0.1"
 - op: add
-  path: /spec/tasks/4/params
+  path: /spec/tasks/3/params
   value:
   - name: IMAGE
     value: $(params.output-image)
@@ -23,7 +23,7 @@
   - name: CONTEXT
     value: $(params.path-context)
   - name: DOCKER_AUTH
-    value: "$(tasks.appstudio-configure-build.results.docker-auth)"
+    value: "$(tasks.init.results.container-registry-secret)"
   - name: HERMETIC
     value: "$(params.hermetic)"
   - name: PREFETCH_INPUT

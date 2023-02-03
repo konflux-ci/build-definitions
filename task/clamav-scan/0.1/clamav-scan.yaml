@@ -16,6 +16,9 @@ spec:
       description: Image digest to scan
     - name: image-url
       description: Url to image
+    - name: docker-auth
+      description: secret with config.json for container auth
+
   steps:
     - name: extract-and-scan-image
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
@@ -27,6 +30,8 @@ spec:
       env:
         - name: HOME
           value: /work
+        - name: DOCKER_CONFIG
+          value: /secrets/registry-auth
       resources:
         limits:
           memory: 4Gi
@@ -61,6 +66,8 @@ spec:
           name: dbfolder
         - mountPath: /work
           name: work
+        - mountPath: /secrets/registry-auth
+          name: registry-auth
     - name: modify-clam-output-to-json
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.3
       script: |
@@ -146,3 +153,7 @@ spec:
       emptydir: {}
     - name: work
       emptydir: {}
+    - name: registry-auth
+      secret:
+        secretName: $(params.docker-auth)
+        optional: true

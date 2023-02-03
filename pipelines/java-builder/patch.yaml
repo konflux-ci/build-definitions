@@ -9,19 +9,19 @@
     "pipelines.openshift.io/runtime": "java"
     "pipelines.openshift.io/strategy": "s2i"
 - op: replace
-  path: /spec/tasks/4/taskRef
+  path: /spec/tasks/3/taskRef
   value:
     name: s2i-java
     version: "0.1"
 - op: add
-  path: /spec/tasks/4/params
+  path: /spec/tasks/3/params
   value:
   - name: PATH_CONTEXT
     value: $(params.path-context)
   - name: IMAGE
     value: "$(params.output-image)"
   - name: DOCKER_AUTH
-    value: "$(tasks.appstudio-configure-build.results.docker-auth)"
+    value: "$(tasks.init.results.container-registry-secret)"
   - name: SKIP_CHECKS
     value: "$(params.skip-checks)"
 - op: add

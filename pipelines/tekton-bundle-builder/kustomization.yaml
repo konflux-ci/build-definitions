@@ -11,7 +11,7 @@ patches:
       path: /metadata/name
       value: tekton-bundle-builder
     - op: replace
-      path: /spec/tasks/4/taskRef
+      path: /spec/tasks/3/taskRef
       value:
         name: tkn-bundle
         version: "0.1"
@@ -24,9 +24,9 @@ patches:
         value: $(params.path-context)
     # Remove tasks that assume a binary image
     - op: remove
-      path: /spec/tasks/12  # sbom-json-check
+      path: /spec/tasks/11  # sbom-json-check
     - op: remove
-      path: /spec/tasks/8  # deprecated-base-image-check
+      path: /spec/tasks/7  # deprecated-base-image-check
   target:
     kind: Pipeline
     name: template-build

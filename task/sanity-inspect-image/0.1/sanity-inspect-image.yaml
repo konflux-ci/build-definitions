@@ -17,22 +17,37 @@ spec:
     - name: IMAGE_DIGEST
       description: image digest
       type: string
+    - name: DOCKER_AUTH
+      description: secret with config.json for container auth
+      type: string
   results:
     - description: Base image the source image is built from
       name: BASE_IMAGE
     - description: Base image repository URL
       name: BASE_IMAGE_REPOSITORY
   workspaces:
-    - name: workspace
+    - name: source
+  volumes:
+    - name: registry-auth
+      secret:
+        secretName: $(params.DOCKER_AUTH)
+        optional: true
   steps:
   - name: inspect-image
     image: quay.io/redhat-appstudio/hacbs-test:latest
-    workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+    workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
     securityContext:
       runAsUser: 0
       capabilities:
         add:
           - SETFCAP
+    env:
+      - name: DOCKER_CONFIG
+        value: /secrets/registry-auth
+    volumeMounts:
+      - mountPath: /secrets/registry-auth
+        name: registry-auth
+
     script: |
       IMAGE_INSPECT=image_inspect.json
       BASE_IMAGE_INSPECT=base_image_inspect.json
