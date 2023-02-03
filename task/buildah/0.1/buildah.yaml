@@ -117,9 +117,9 @@ spec:
       fi
 
       if [ -n "${PREFETCH_INPUT}" ]; then
-        VOLUME_MOUNTS="
-          --volume $(realpath ./cachi2/output):/cachi2/output:U \
-          --volume $(realpath ./cachi2/cachi2.env):/cachi2/cachi2.env:U"
+        mv cachi2 /tmp/
+        chmod -R go+rwX /tmp/cachi2
+        VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN source /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
       fi
