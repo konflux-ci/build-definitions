@@ -30,7 +30,7 @@ else
      # Ensure that the pipeline service account has access to the secret. Although the
      # secret is mounted directly on the pipeline, Tekton Chains needs this linkage so
      # it can push the image signature and attestation to the same OCI repository.
-     oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull
+     oc secrets link pipeline redhat-appstudio-staginguser-pull-secret
   else
      echo "Secret redhat-appstudio-staginguser-pull-secret is not created, can be created by:"
      echo "Docker:"
@@ -39,7 +39,7 @@ else
      echo "  oc create secret docker-registry redhat-appstudio-staginguser-pull-secret --from-file=.dockerconfigjson=${XDG_RUNTIME_DIR}/containers/auth.json"
      echo "(Note: it will upload all login credentials, make sure that you are not logged into sensitive registries, or create the particular secret manually!)"
      echo "and link it to the pipeline ServiceAccount:"
-     echo "  oc secrets link pipeline redhat-appstudio-staginguser-pull-secret --for=pull"
+     echo "  oc secrets link pipeline redhat-appstudio-staginguser-pull-secret"
      echo ""
   fi
   IMG=quay.io/$MY_QUAY_USER/$APPNAME:$IMAGE_SHORT_TAG
