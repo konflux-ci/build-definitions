@@ -18,6 +18,19 @@ metadata:
   name: build-pipeline-selector
 spec:
   selectors:
+    - name: Hermetic build (docker)
+      pipelineParams:
+        - name: hermetic
+          value: "true"
+        - name: prefetch-input
+          value: "gomod"
+      pipelineRef:
+        name: docker-build
+        bundle: ${BUNDLE}
+      when:
+        dockerfile: true
+        language: Go
+        projectType: test-hermetic-build
     - name: Docker build
       pipelineRef:
         name: docker-build
