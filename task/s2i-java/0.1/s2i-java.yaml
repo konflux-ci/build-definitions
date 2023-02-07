@@ -136,10 +136,10 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:efd0d0342a2c0fbbf35b107fb51c3ca850073f23
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-java.json --task-run-name $(context.taskRun.name)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path) -u $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       fi
     volumeMounts:
     - mountPath: /var/lib/containers
@@ -148,9 +148,6 @@ spec:
       runAsUser: 0
   - image: registry.redhat.io/ubi8/python-39:1-87.1669838026
     name: merge-sboms
-    env:
-      - name: SBOM_JAVA_COMPONENTS_COUNT_PATH
-        value: $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
     script: |
       #!/bin/python3
       import json
@@ -163,11 +160,6 @@ spec:
       with open("./sbom-source.json") as f:
         source_sbom = json.load(f)
 
-      java_sbom = { "components" : [] }
-      if os.path.exists("./sbom-java.json"):
-        with open("./sbom-java.json") as f:
-          java_sbom = json.load(f)
-
       # fetch unique components from available SBOMs
       def get_identifier(component):
         return component["name"] + '@' + component.get("version", "")
@@ -178,10 +170,6 @@ spec:
         if get_identifier(component) not in existing_components:
           image_sbom["components"].append(component)
           existing_components.append(get_identifier(component))
-
-      for component in java_sbom.get("components", []):
-        if get_identifier(component) not in existing_components:
-          image_sbom["components"].append(component)
 
       image_sbom["components"].sort(key=lambda c: get_identifier(c))
 
@@ -195,23 +183,6 @@ spec:
 
       with open("sbom-purl.json", "w") as output_file:
         json.dump(purl_content, output_file, indent=4)
-
-      # create Tekton result containing counting of Java publishers
-      java_publishers = {}
-
-      for component in java_sbom.get("components", []):
-        publisher = component.get("publisher", None)
-
-        if publisher is None:
-          continue
-
-        if publisher not in java_publishers.keys():
-          java_publishers[publisher] = 0
-
-        java_publishers[publisher] += 1
-
-      with open(os.getenv("SBOM_JAVA_COMPONENTS_COUNT_PATH"), "w") as f:
-        json.dump(java_publishers, f, indent=4)
 
     workingDir: $(workspaces.source.path)
     securityContext:
