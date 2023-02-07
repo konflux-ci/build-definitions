@@ -32,7 +32,12 @@ spec:
       #!/usr/bin/env bash
       source /utils.sh
 
-      cd /shared
+      mkdir /manifests/ && cd /manifests/
+
+      if ! oc image extract $(params.IMAGE_URL) --path '/root/buildinfo/content_manifests/*:/manifests/'; then
+        echo "Failed to extract manifests from image $(params.IMAGE_URL)"
+      fi
+
       touch fail_result.txt
       if [ -f "sbom-cyclonedx.json" ]
       then
@@ -55,13 +60,6 @@ spec:
       fi
 
       echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
-  sidecars:
-  - image: $(params.IMAGE_URL)
-    name: copy-the-tested-file
-    volumeMounts:
-    - mountPath: /shared
-      name: shared
-    script: cp -R /root/buildinfo/content_manifests/* /shared/
   volumes:
   - name: shared
     emptyDir: {}
