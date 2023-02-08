@@ -11,6 +11,9 @@ spec:
     - name: IMAGE_URL
       description: the fully qualified image name to be verified
       type: string
+    - name: IMAGE_DIGEST
+      description: image digest
+      type: string
   results:
     - description: Test output
       name: HACBS_TEST_OUTPUT
@@ -34,8 +37,10 @@ spec:
 
       mkdir /manifests/ && cd /manifests/
 
-      if ! oc image extract $(params.IMAGE_URL) --path '/root/buildinfo/content_manifests/*:/manifests/'; then
-        echo "Failed to extract manifests from image $(params.IMAGE_URL)"
+      image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
+
+      if ! oc image extract "${image_with_digest}" --path '/root/buildinfo/content_manifests/*:/manifests/'; then
+        echo "Failed to extract manifests from image ${image_with_digest}"
       fi
 
       touch fail_result.txt

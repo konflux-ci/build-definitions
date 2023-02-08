@@ -11,6 +11,8 @@ spec:
   params:
     - name: IMAGE_URL
       description: the fully qualified image name
+    - name: IMAGE_DIGEST
+      description: image digest
   results:
     - name: HACBS_TEST_OUTPUT
   workspaces:
@@ -34,8 +36,10 @@ spec:
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
 
+        image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
+
         mkdir confdir
-        if ! oc image extract $(params.IMAGE_URL) --file /bin/opm --file /bin/grpc_health_probe --path $conffolder/*:confdir/ ; then
+        if ! oc image extract "${image_with_digest}" --file /bin/opm --file /bin/grpc_health_probe --path $conffolder/*:confdir/ ; then
           echo "Unable to extract image! Skipping checking binaries!"
           HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -f 1 -t 'Unable to extract image! Skipping checking binaries!')"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
