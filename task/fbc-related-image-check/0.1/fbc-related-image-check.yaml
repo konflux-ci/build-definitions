@@ -8,9 +8,6 @@ metadata:
     tekton.dev/tags: "appstudio, hacbs"
   name: fbc-related-image-check
 spec:
-  params:
-    - name: IMAGE_URL
-      description: the fully qualified image name
   results:
     - name: HACBS_TEST_OUTPUT
   workspaces:
@@ -19,9 +16,6 @@ spec:
     - name: check-related-images
       image: quay.io/redhat-appstudio/hacbs-test:latest
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-      env:
-        - name: IMAGE_URL
-          value: $(params.IMAGE_URL)
       resources:
         limits:
           memory: 4Gi
