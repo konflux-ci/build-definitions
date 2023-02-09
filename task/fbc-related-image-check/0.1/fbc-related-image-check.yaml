@@ -34,12 +34,12 @@ spec:
         source /utils.sh
         FAILEDIMAGES=""
 
-        relImgs=$(cat "$(workspaces.workspace.path)/hacbs/fbc-validation/confdir/catalog.yaml" | yq '.relatedImages[].image' | sed 's/---//')
-        echo -e "These are related images:\n $relImgs"
+        relImgs=$(cat "$(workspaces.workspace.path)/hacbs/fbc-validation/confdir/catalog.yaml" | yq -r '.relatedImages[].image' | sed 's/---//')
+        echo -e "These are related images:\n$relImgs"
         # cycle through those related images and show outputs
         for i in ${relImgs// /}
         do
-          if ! skopeo inspect --no-tags docker://"$i"; then
+          if ! skopeo inspect --no-tags "docker://${i}"; then
             echo "Skopeo inspect failed on related image: $i"
             FAILEDIMAGES+="$i, "
           fi
