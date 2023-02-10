@@ -14,8 +14,8 @@ spec:
     - description: Test output
       name: HACBS_TEST_OUTPUT
   params:
-    - name: SHARED_SECRET
-      default: snyk-shared-secret
+    - name: SNYK_SECRET
+      default: ""
     - name: ARGS
       type: string
       description: extra args needs to append
@@ -23,7 +23,7 @@ spec:
   volumes:
     - name: snyk-secret
       secret:
-        secretName: $(params.SHARED_SECRET)
+        secretName: $(params.SNYK_SECRET)
         optional: true
   steps:
     - name: sast-snyk-check
@@ -38,7 +38,7 @@ spec:
         . /utils.sh
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
-          echo "SNYK_TOKEN is empty and please set params.SHARED_SECRET" | tee stdout.txt
+          echo "SNYK_TOKEN is not defined, please create the $(params.SNYK_SECRET) secret with the snyk_token key containing the Snyk token." | tee stdout.txt
           make_result_json -r SKIPPED -t "Check skipped: SNYK_TOKEN is empty"
           exit 0
         fi
