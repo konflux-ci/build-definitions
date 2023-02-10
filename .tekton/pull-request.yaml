@@ -117,11 +117,14 @@ spec:
               imagePullPolicy: Always
               args: [
                 "--ginkgo.label-filter=build-templates-e2e",
-                "--ginkgo.progress",
                 "--ginkgo.v",
                 "--ginkgo.no-color"
               ]
               env:
+              - name: APP_SUFFIX
+                value: "{{ pull_request_number }}"
+              - name: COMPONENT_REPO_URLS
+                value: "https://github.com/redhat-appstudio-qe/devfile-sample-python-basic,https://github.com/redhat-appstudio-qe/retrodep"
               - name: QUAY_E2E_ORGANIZATION
                 value: redhat-appstudio
               - name: E2E_APPLICATIONS_NAMESPACE
