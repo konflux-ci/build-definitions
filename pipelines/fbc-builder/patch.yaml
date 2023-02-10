@@ -40,6 +40,8 @@
     params:
     - name: IMAGE_URL
       value: $(tasks.build-container.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
     workspaces:
       - name: workspace
         workspace: workspace
@@ -56,9 +58,6 @@
     taskRef:
       name: fbc-related-image-check
       version: "0.1"
-    params:
-    - name: IMAGE_URL
-      value: $(tasks.build-container.results.IMAGE_URL)
     workspaces:
       - name: workspace
         workspace: workspace
