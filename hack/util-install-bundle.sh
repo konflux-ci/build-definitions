@@ -18,7 +18,7 @@ metadata:
   name: build-pipeline-selector
 spec:
   selectors:
-    - name: Hermetic build (docker)
+    - name: Hermetic build - golang
       pipelineParams:
         - name: hermetic
           value: "true"
@@ -30,6 +30,19 @@ spec:
       when:
         dockerfile: true
         language: Go
+        projectType: test-hermetic-build
+    - name: Hermetic build - python
+      pipelineParams:
+        - name: hermetic
+          value: "true"
+        - name: prefetch-input
+          value: "pip"
+      pipelineRef:
+        name: docker-build
+        bundle: ${BUNDLE}
+      when:
+        dockerfile: true
+        language: Python
         projectType: test-hermetic-build
     - name: Docker build
       pipelineRef:
