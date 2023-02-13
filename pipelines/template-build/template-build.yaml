@@ -46,6 +46,10 @@ spec:
       name: java
       type: string
       default: "false"
+    - description: Snyk Token Secret Name
+      name: snyk-secret
+      type: string
+      default: ""
   tasks:
     - name: appstudio-init
       params:
@@ -202,11 +206,17 @@ spec:
       - input: $(params.skip-checks)
         operator: in
         values: ["false"]
+      - input: $(params.snyk-secret)
+        operator: notin
+        values: [""]
       runAfter:
         - clone-repository
       taskRef:
         name: sast-snyk-check
         version: "0.1"
+      params:
+        - name: SNYK_SECRET
+          value: $(params.snyk-secret)
       workspaces:
       - name: workspace
         workspace: workspace
