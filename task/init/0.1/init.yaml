@@ -19,19 +19,47 @@ spec:
     - name: skip-checks
       description: skip checks against built image
       default: "false"
-    - name: pipeline-run-name
+    - name: pipelinerun-name
+    - name: pipelinerun-uid
+    - name: shared-secret
+      default: redhat-appstudio-user-workload
   results:
     - name: build
+    - name: container-registry-secret
+      description: Name of secret with credentials
+  volumes:
+    - name: default-push-secret
+      csi:
+        readOnly: true
+        driver: csi.sharedresource.openshift.io
+        volumeAttributes:
+          sharedSecret: $(params.shared-secret)
   steps:
     - name: init
-      image: registry.access.redhat.com/ubi9/skopeo:9.1.0-5@sha256:6ebbdfce633f9915a6a99d8ee035d9fd258121aa1acf944229e90696eb353549
+      image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:253d042ecfad7b64593112a4aa3f528d39cb5fe738852e44f009db87964cf051
+      volumeMounts:
+        - name: default-push-secret
+          mountPath: /secret/default-push-secret
       script: |
         #!/bin/bash
-        echo "App Studio Build Initialize: $(params.image-url)"
+        echo "Build Initialize: $(params.image-url)"
         echo
+        echo "Create pipelinerun repository secret"
+        SHARED=/secret/default-push-secret/.dockerconfigjson
+        export DOCKER_CONFIG=/tmp/docker/
+        mkdir -p $DOCKER_CONFIG
+        if [ -f $SHARED ]; then
+          jq -M -s '.[0] * .[1]' $SHARED /root/.docker/config.json > $DOCKER_CONFIG/config.json
+        else
+          cp /root/.docker/config.json $DOCKER_CONFIG/config.json
+        fi
+        oc create secret generic --from-file=$DOCKER_CONFIG/config.json $SHARED_PARAM $(params.pipelinerun-name)
+        oc patch secret $(params.pipelinerun-name) -p "{\"metadata\": {\"ownerReferences\": [{\"apiVersion\": \"tekton.dev/v1beta1\", \"blockOwnerDeletion\": false, \"controller\": true, \"kind\": \"PipelineRun\", \"name\": \"$(params.pipelinerun-name)\", \"uid\": \"$(params.pipelinerun-uid)\" }]}}"
+        echo -n $(params.pipelinerun-name) > $(results.container-registry-secret.path)
+
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
-        if ! skopeo inspect --no-tags docker://$(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.skip-checks)" == "false" ]; then
+        if ! oc image info $(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.skip-checks)" == "false" ]; then
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)

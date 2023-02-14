@@ -34,8 +34,7 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
-  - default: ""
-    description: folder with config.json for container auth
+  - description: secret with config.json for container auth
     name: DOCKER_AUTH
     type: string
   - default: "false"
@@ -68,7 +67,7 @@ spec:
     - name: PREFETCH_INPUT
       value: $(params.PREFETCH_INPUT)
     - name: DOCKER_CONFIG
-      value: $(params.DOCKER_AUTH)
+      value: /secrets/registry-auth
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.28
     name: build
@@ -130,22 +129,11 @@ spec:
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
-    securityContext:
-      capabilities:
-        add:
-          - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
 
-  - name: mount-container
-    image: $(params.BUILDER_IMAGE)
-    resources: {}
-    script: |
       container=$(buildah from --pull-never $(params.IMAGE))
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
+
     securityContext:
       capabilities:
         add:
@@ -153,7 +141,10 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
     workingDir: $(workspaces.source.path)
+
   - name: sbom-get
     image: quay.io/redhat-appstudio/syft:v0.47.0
     script: |
@@ -273,6 +264,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
@@ -286,9 +279,16 @@ spec:
       - cyclonedx
       - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /secrets/registry-auth
+      name: registry-auth
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - name: registry-auth
+    secret:
+      secretName: $(params.DOCKER_AUTH)
+      optional: true
   workspaces:
   - name: source

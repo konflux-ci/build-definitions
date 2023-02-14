@@ -51,7 +51,7 @@ spec:
       type: string
       default: ""
   tasks:
-    - name: appstudio-init
+    - name: init
       params:
         - name: image-url
           value: "$(params.output-image)"
@@ -59,18 +59,20 @@ spec:
           value: "$(params.rebuild)"
         - name: skip-checks
           value: "$(params.skip-checks)"
-        - name: pipeline-run-name
+        - name: pipelinerun-name
           value: "$(context.pipelineRun.name)"
+        - name: pipelinerun-uid
+          value: "$(context.pipelineRun.uid)"
       taskRef:
         name: init
         version: "0.1"
     - name: clone-repository
       when:
-      - input: $(tasks.appstudio-init.results.build)
+      - input: $(tasks.init.results.build)
         operator: in
         values: ["true"]
       runAfter:
-        - appstudio-init
+        - init
       params:
         - name: url
           value: $(params.git-url)
@@ -84,19 +86,6 @@ spec:
           workspace: workspace
         - name: basic-auth
           workspace: git-auth
-    - name: appstudio-configure-build
-      runAfter:
-        - clone-repository
-      when:
-      - input: $(tasks.appstudio-init.results.build)
-        operator: in
-        values: ["true"]
-      taskRef:
-        name: configure-build
-        version: "0.1"
-      workspaces:
-        - name: source
-          workspace: workspace
     - name: prefetch-dependencies
       when:
       - input: $(params.hermetic)
@@ -106,7 +95,7 @@ spec:
         - name: input
           value: $(params.prefetch-input)
       runAfter:
-        - appstudio-configure-build
+        - clone-repository
       taskRef:
         name: prefetch-dependencies
         version: "0.1"
@@ -115,7 +104,7 @@ spec:
           workspace: workspace
     - name: build-container
       when:
-      - input: $(tasks.appstudio-init.results.build)
+      - input: $(tasks.init.results.build)
         operator: in
         values: ["true"]
       runAfter:
@@ -140,8 +129,10 @@ spec:
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: DOCKER_AUTH
+        value: "$(tasks.init.results.container-registry-secret)"
       workspaces:
-      - name: workspace
+      - name: source
         workspace: workspace
     - name: sanity-label-check
       when:
@@ -201,6 +192,8 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
+      - name: docker-auth
+        value: "$(tasks.init.results.container-registry-secret)"
     - name: sast-snyk-check
       when:
       - input: $(params.skip-checks)
@@ -235,6 +228,8 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
+      - name: docker-auth
+        value: "$(tasks.init.results.container-registry-secret)"
     - name: sbom-json-check
       when:
       - input: $(params.skip-checks)
@@ -250,9 +245,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-container.results.IMAGE_DIGEST)
-      workspaces:
-      - name: workspace
-        workspace: workspace
 
   finally:
     - name: show-summary
@@ -260,7 +252,7 @@ spec:
         name: summary
         version: "0.1"
       params:
-      - name: pipeline-run-name
+      - name: pipelinerun-name
         value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)"

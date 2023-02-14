@@ -14,12 +14,18 @@ spec:
       description: Image digest to scan
     - name: image-url
       description: Url to image
+    - name: docker-auth
+      description: folder with config.json for container auth
+      default: ""
   results:
     - name: HACBS_TEST_OUTPUT
       description: test output
   steps:
     - name: get-vulnerabilities
       image: quay.io/redhat-appstudio/clair-in-ci:latest
+      env:
+        - name: DOCKER_CONFIG
+          value: $(params.docker-auth)
       script: |
         #!/usr/bin/env bash
 
@@ -27,7 +33,7 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
 
-        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay --docker-config-dir=~/.docker/config.json > /tekton/home/clair-result.json || true
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay > /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:latest
       securityContext:

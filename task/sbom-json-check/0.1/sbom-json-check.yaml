@@ -17,12 +17,9 @@ spec:
   results:
     - description: Test output
       name: HACBS_TEST_OUTPUT
-  workspaces:
-    - name: workspace
   steps:
   - name: sbom-json-check
     image: quay.io/redhat-appstudio/hacbs-test:latest
-    workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
     securityContext:
       runAsUser: 0
       capabilities:

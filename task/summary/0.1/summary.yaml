@@ -9,9 +9,9 @@ metadata:
   name: summary
 spec:
   description: >-
-    App Studio Summary Pipeline Task.
+    Summary Pipeline Task.
   params:
-    - name: pipeline-run-name
+    - name: pipelinerun-name
       description: pipeline-run to annotate
     - name: git-url
       description: Git URL
@@ -23,20 +23,13 @@ spec:
       script: |
         #!/usr/bin/env bash
         echo
-        echo "App Studio Build Summary:"
+        echo "Build Summary:"
         echo
         echo "Build repository: $(params.git-url)"
         echo "Generated Image is in : $(params.image-url)"
         echo
-        oc annotate --overwrite pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/repo=$(params.git-url)
-        oc annotate --overwrite pipelinerun $(params.pipeline-run-name) build.appstudio.openshift.io/image=$(params.image-url)
-
-        echo "Output is in the following annotations:"
-
-        echo "Build Repo is in 'build.appstudio.openshift.io/repo' "
-        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/repo}"'
-
-        echo "Build Image is in 'build.appstudio.openshift.io/image' "
-        echo 'oc get pr $(params.pipeline-run-name) -o jsonpath="{.metadata.annotations.build\.appstudio\.openshift\.io/image}"'
-
+        oc annotate --overwrite pipelinerun $(params.pipelinerun-name) build.appstudio.openshift.io/repo=$(params.git-url)
+        oc annotate --overwrite pipelinerun $(params.pipelinerun-name) build.appstudio.openshift.io/image=$(params.image-url)
         echo End Summary
+
+        oc delete --ignore-not-found=true secret $(params.pipelinerun-name)
