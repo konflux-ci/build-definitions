@@ -20,6 +20,7 @@ spec:
       description: skip checks against built image
       default: "false"
     - name: pipelinerun-name
+    - name: pipelinerun-uid
     - name: shared-secret
       default: redhat-appstudio-user-workload
   results:
@@ -53,6 +54,7 @@ spec:
           cp /root/.docker/config.json $DOCKER_CONFIG/config.json
         fi
         oc create secret generic --from-file=$DOCKER_CONFIG/config.json $SHARED_PARAM $(params.pipelinerun-name)
+        oc patch secret $(params.pipelinerun-name) -p "{\"metadata\": {\"ownerReferences\": [{\"apiVersion\": \"tekton.dev/v1beta1\", \"blockOwnerDeletion\": false, \"controller\": true, \"kind\": \"PipelineRun\", \"name\": \"$(params.pipelinerun-name)\", \"uid\": \"$(params.pipelinerun-uid)\" }]}}"
         echo -n $(params.pipelinerun-name) > $(results.container-registry-secret.path)
 
         echo "Determine if Image Already Exists"
