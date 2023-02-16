@@ -22,7 +22,8 @@ spec:
       description: test output
   steps:
     - name: get-vulnerabilities
-      image: quay.io/redhat-appstudio/clair-in-ci:latest
+      image: quay.io/redhat-appstudio/clair-in-ci:latest  # explicit floating tag, daily updates
+      imagePullPolicy: Always
       env:
         - name: DOCKER_CONFIG
           value: $(params.docker-auth)

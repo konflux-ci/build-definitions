@@ -140,7 +140,8 @@ spec:
   # provides latest virus database for clamscan only
   # does not execute anything
   sidecars:
-    - image: quay.io/redhat-appstudio/clamav-db:latest
+    - image: quay.io/redhat-appstudio/clamav-db:latest  # explicit floating tag, daily updates
+      imagePullPolicy: Always
       name: database
       script: |
         #!/usr/bin/env bash
