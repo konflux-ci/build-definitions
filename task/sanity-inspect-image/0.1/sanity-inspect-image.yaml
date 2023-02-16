@@ -25,6 +25,8 @@ spec:
       name: BASE_IMAGE
     - description: Base image repository URL
       name: BASE_IMAGE_REPOSITORY
+    - description: Test output
+      name: HACBS_TEST_OUTPUT
   workspaces:
     - name: source
   volumes:
@@ -49,6 +51,8 @@ spec:
         name: registry-auth
 
     script: |
+      #!/usr/bin/env bash
+      source /utils.sh
       IMAGE_INSPECT=image_inspect.json
       BASE_IMAGE_INSPECT=base_image_inspect.json
       RAW_IMAGE_INSPECT=raw_image_inspect.json
@@ -61,9 +65,16 @@ spec:
         IMAGE_URL="${IMAGE_URL/:*@/@}"
       fi
       echo "Inspecting manifest for source image ${IMAGE_URL}"
-      skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT
-      skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT
+      skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT 2> stderr.txt || true
+      skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
 
+      if [ ! -z $(cat stderr.txt) ]; then
+        echo "skopeo inspect fails, the sanity-inspect-image test meets the following error:"
+        cat stderr.txt
+        HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'skopeo inspect meets errors')"
+        echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        exit 0
+      fi
       echo "Getting base image manifest for source image ${IMAGE_URL}"
       BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
       BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
@@ -88,3 +99,6 @@ spec:
 
       BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
       echo -n "$BASE_IMAGE_REPOSITORY" | tee $(results.BASE_IMAGE_REPOSITORY.path)
+
+      HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
+      echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)

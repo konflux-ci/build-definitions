@@ -34,6 +34,13 @@ spec:
         #!/usr/bin/env bash
         source /utils.sh
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
+        if [ ! -f ../sanity-inspect-image/image_inspect.json ] || [ -z $(cat ../sanity-inspect-image/image_inspect.json) ]; then
+          echo "File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image"
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image!')"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          exit 0
+        fi
+
         conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
 
         image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
@@ -41,7 +48,7 @@ spec:
         mkdir confdir
         if ! oc image extract "${image_with_digest}" --file /bin/opm --file /bin/grpc_health_probe --path $conffolder/*:confdir/ ; then
           echo "Unable to extract image! Skipping checking binaries!"
-          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -f 1 -t 'Unable to extract image! Skipping checking binaries!')"
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'Unable to extract image! Skipping checking binaries!')"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
           exit 0
         fi
