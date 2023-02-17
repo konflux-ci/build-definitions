@@ -27,7 +27,7 @@ spec:
   steps:
     # Download Pyxis metadata about the image
     - name: query-pyxis
-      image: registry.access.redhat.com/ubi8/ubi
+      image: registry.access.redhat.com/ubi8/ubi-minimal:8.7@sha256:65a240ad8bd3f2fff3e18a22ebadc40da0b145616231fc1e16251f3c6dee087a
       script: |
         #!/usr/bin/env bash
         readarray -t IMAGE_ARRAY < <(echo -n "$(params.BASE_IMAGES_DIGESTS)" | sed 's/\\n/\'$'\n''/g')
@@ -46,7 +46,7 @@ spec:
 
     # Run the tests and save output
     - name: run-conftest
-      image: quay.io/redhat-appstudio/hacbs-test:latest
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.9@sha256:e3714c1ec1bd7bc754a510cba6892052a74bf523a185cf75a59d84059375444f
       script: |
         #!/usr/bin/env sh
         source /utils.sh
