@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "pull_request"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
@@ -49,6 +49,17 @@ spec:
         params:
         - name: args
           value: ["."]
+      - name: sast-snyk-check
+        params:
+          - name: SNYK_SECRET
+            value: snyk-shared-secret
+        runAfter:
+          - fetch-repository
+        taskRef:
+          name: sast-snyk-check
+        workspaces:
+          - name: workspace
+            workspace: workspace
       - name: build-container
         runAfter:
           - yaml-lint-check
