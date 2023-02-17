@@ -123,7 +123,8 @@ do
     tkn bundle push "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
-    [ "$pipeline_name" == "docker-build" ] && default_pipeline_bundle=$pipeline_bundle
+    [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
+    [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
     if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
@@ -131,5 +132,5 @@ do
 done
 
 if [ "$SKIP_INSTALL" == "" ]; then
-    "$SCRIPTDIR/util-install-bundle.sh" $default_pipeline_bundle "$INSTALL_BUNDLE_NS"
+    "$SCRIPTDIR/util-install-bundle.sh" "$docker_pipeline_bundle,$fbc_pipeline_bundle" "$INSTALL_BUNDLE_NS"
 fi
