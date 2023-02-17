@@ -51,18 +51,18 @@ spec:
         dockerfile: true
         language: Python
         projectType: test-hermetic-build
+    - name: FBC build
+      pipelineRef:
+        name: fbc-builder
+        bundle: ${FBC_BUNDLE}
+      when:
+        language: fbc
     - name: Docker build
       pipelineRef:
         name: docker-build
         bundle: ${DOCKER_BUNDLE}
       when:
         dockerfile: true
-    - name: FBC
-      pipelineRef:
-        name: fbc-builder
-        bundle: ${FBC_BUNDLE}
-      when:
-        language: fbc
 EOF
 
 echo "Overridden Pipeline selectors configured to come from the namespace '$NAMESPACE':"
