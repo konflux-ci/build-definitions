@@ -2,14 +2,21 @@
 
 set -e -o pipefail
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-BUNDLE=$1
+BUNDLES=$1
 NAMESPACE=${2:-$(oc project -q)}
-if [  -z "$BUNDLE" ]; then 
-    echo "No Bundle Name"
+if [  -z "$BUNDLES" ]; then 
+    echo "No Pipeline Bundles specified"
     exit 1 
 fi
+
+IFS=',' read -ra BUNDLE <<< "$BUNDLES"
+for i in "${BUNDLE[@]}"; do
+  if [[ $i == *"docker-build"* ]]; then
+    DOCKER_BUNDLE=$i
+  elif [[ $i == *"fbc-builder"* ]]; then
+    FBC_BUNDLE=$i
+  fi
+done
 
 cat << EOF | oc -n "$NAMESPACE" apply -f-
 apiVersion: appstudio.redhat.com/v1alpha1
@@ -26,7 +33,7 @@ spec:
           value: "gomod"
       pipelineRef:
         name: docker-build
-        bundle: ${BUNDLE}
+        bundle: ${DOCKER_BUNDLE}
       when:
         dockerfile: true
         language: Go
@@ -39,7 +46,7 @@ spec:
           value: "pip"
       pipelineRef:
         name: docker-build
-        bundle: ${BUNDLE}
+        bundle: ${DOCKER_BUNDLE}
       when:
         dockerfile: true
         language: Python
@@ -47,9 +54,15 @@ spec:
     - name: Docker build
       pipelineRef:
         name: docker-build
-        bundle: ${BUNDLE}
+        bundle: ${DOCKER_BUNDLE}
       when:
         dockerfile: true
+    - name: FBC
+      pipelineRef:
+        name: fbc-builder
+        bundle: ${FBC_BUNDLE}
+      when:
+        language: fbc
 EOF
 
 echo "Overridden Pipeline selectors configured to come from the namespace '$NAMESPACE':"
