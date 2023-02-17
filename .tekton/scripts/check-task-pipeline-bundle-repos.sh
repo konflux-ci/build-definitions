@@ -32,7 +32,10 @@ for task_file in task/*/*/*.yaml; do
 done
 
 # pipelines
-for pl_name in $(oc kustomize pipelines/ | oc apply --dry-run=client -f - -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+pl_names=($(oc kustomize pipelines/ | oc apply --dry-run=client -f - -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'))
+# Currently, only one pipeline for core services CI
+pl_names+=($(oc kustomize pipelines/core-services/ | oc apply --dry-run=client -f - -o jsonpath='{"core-services-"}{.metadata.name}'))
+for pl_name in ${pl_names[@]}; do
     found=$(locate_bundle_repo pipeline "$pl_name")
     if [ "$found" != "200" ]; then
         echo "Missing pipeline bundle repo: pipeline-$pl_name"

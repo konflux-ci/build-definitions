@@ -72,6 +72,10 @@ fi
 generated_pipelines_dir=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
 oc kustomize --output "$generated_pipelines_dir" pipelines/
 
+# Generate YAML files separately since pipelines for core services have same .metadata.name.
+core_services_pipelines_dir=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XXXXXXXX)
+oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
+
 # Build tasks
 (
 cd "$SCRIPTDIR/.."
@@ -107,7 +111,7 @@ do
 	(.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
 	|= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
     "
-    find "$generated_pipelines_dir" -name "*.yaml" | while read -r filename
+    for filename in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
     do
         yq e "$sub_expr_1" -i "${filename}"
         yq e "$sub_expr_2" -i "${filename}"
@@ -116,10 +120,19 @@ done
 )
 
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
-for pipeline_yaml in "$generated_pipelines_dir"/*.yaml
+for pipeline_yaml in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
 do
-    pipeline_name=$(yq e '.metadata.name' "${pipeline_yaml}")
-    pipeline_bundle=quay.io/${MY_QUAY_USER}/${TEST_REPO_NAME:-pipeline-${pipeline_name}}:${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
+    pipeline_name=$(yq e '.metadata.name' "$pipeline_yaml")
+    core_services_ci=$(yq e '.metadata.annotations."appstudio.openshift.io/core-services-ci" // ""' "$pipeline_yaml")
+    if [ "$core_services_ci" == "1" ]; then
+        pipeline_name="core-services-${pipeline_name}"
+        BUILD_TAG=latest
+    fi
+
+    repository=${TEST_REPO_NAME:-pipeline-${pipeline_name}}
+    tag=${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
+    pipeline_bundle=quay.io/${MY_QUAY_USER}/${repository}:${tag}
+
     tkn bundle push "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 

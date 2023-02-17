@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../docker-build
+
+commonAnnotations:
+  # Make it easier to create bundle for these pipelines
+  appstudio.openshift.io/core-services-ci: "1"
+
+patches:
+- path: infra-deploy.yaml
+  target:
+    kind: Pipeline
