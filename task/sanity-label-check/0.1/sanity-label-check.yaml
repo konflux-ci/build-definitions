@@ -33,6 +33,13 @@ spec:
         #!/usr/bin/env bash
 
         . /utils.sh
+        if [ ! -f ../sanity-inspect-image/image_inspect.json ] || [ -z $(cat ../sanity-inspect-image/image_inspect.json) ]; then
+          echo "File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image"
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image!')"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          exit 0
+        fi
+
         CONFTEST_OPTIONS=""
         if [ -s "../sanity-inspect-image/base_image_inspect.json" ]; then
           CONFTEST_OPTIONS="-d=../sanity-inspect-image/base_image_inspect.json"
