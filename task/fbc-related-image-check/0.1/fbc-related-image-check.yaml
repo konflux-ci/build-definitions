@@ -25,10 +25,18 @@ spec:
           cpu: 10m
       script: |
         #!/usr/bin/env bash
+        set -o pipefail
         source /utils.sh
         FAILEDIMAGES=""
 
         relImgs=$(cat "$(workspaces.workspace.path)/hacbs/fbc-validation/confdir/catalog.yaml" | yq -r '.relatedImages[].image' | sed 's/---//')
+        if [ $? -ne 0 ]; then
+          echo "Could not get related images, make sure catalog.yaml exists in FBC fragment image and has valid yaml format."
+          HACBS_TEST_OUTPUT="$(make_result_json -r FAILURE -f 1)"
+          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          exit 0
+        fi
+
         echo -e "These are related images:\n$relImgs"
         # cycle through those related images and show outputs
         for i in ${relImgs// /}
