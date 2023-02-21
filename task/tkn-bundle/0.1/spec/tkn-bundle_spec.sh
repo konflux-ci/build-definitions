@@ -8,9 +8,19 @@ eval "$(shellspec - -c) exit 1"
 
 Describe "tkn-bundle task"
   setup() {
+    if ! command -v kubectl &> /dev/null; then
+      echo "ERROR: Please install kubectl"
+      return 1
+    fi
+
     # Create Kind cluster if it doesn't exist already
     CLUSTER_NAME="test-tkn-bundle"
-    kind get clusters -q | grep -q "${CLUSTER_NAME}" || kind create cluster -q --name="${CLUSTER_NAME}"
+    if ! command -v kind &> /dev/null; then
+      curl https://i.jpillora.com/kubernetes-sigs/kind | bash
+      mv kind "$HOME/.local/bin"
+    fi
+    kind get clusters -q | grep -q "${CLUSTER_NAME}" || kind create cluster -q --name="${CLUSTER_NAME}" || { echo 'ERROR: Unable to create a kind cluster'; return 1; }
+    kubectl cluster-info 2>&1 || { echo 'ERROR: Failed to access the cluster'; return 1; }
 
     # Install Tekton Pipeline, proceed with the rest of the test of the setup
     kubectl apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.42.0/release.yaml
