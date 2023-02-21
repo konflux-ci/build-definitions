@@ -39,6 +39,8 @@ For quick local innerloop style task development, you may install new Tasks in y
 
 There is a container which is used to support multiple set of tasks called `quay.io/redhat-appstudio/appstudio-utils:GIT_SHA` , which is a single container which is used by multiple tasks. Tasks may also be in their own container as well however many simple tasks are utilities and will be packaged for app studio in a single container. Tasks can rely on other tasks in the system which are co-packed in a container allowing combined tasks (build-only vs build-deploy) which use the same core implementations.
 
+Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
+
 ## Release
 
 Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
