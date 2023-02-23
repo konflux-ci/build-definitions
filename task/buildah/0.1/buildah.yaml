@@ -119,7 +119,7 @@ spec:
         mv cachi2 /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
-        sed -i 's|^\s*run |RUN source /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
+        sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
       fi
 
