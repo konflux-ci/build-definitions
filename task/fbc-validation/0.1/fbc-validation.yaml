@@ -19,10 +19,13 @@ spec:
     - name: workspace
   steps:
     - name: extract-and-check-binaries
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.9@sha256:e3714c1ec1bd7bc754a510cba6892052a74bf523a185cf75a59d84059375444f
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.10@sha256:ae276785973aaffb4554c1798cf629df33e7058b30c32b75bd8ada54b2afe42f
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       securityContext:
         runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
       resources:
         limits:
           memory: 4Gi
@@ -32,9 +35,11 @@ spec:
           cpu: 10m
       script: |
         #!/usr/bin/env bash
+        set -o pipefail
         source /utils.sh
+
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
-        if [ ! -f ../sanity-inspect-image/image_inspect.json ] || [ -z $(cat ../sanity-inspect-image/image_inspect.json) ]; then
+        if [ ! -s ../sanity-inspect-image/image_inspect.json ]; then
           echo "File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image"
           HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'File ../sanity-inspect-image/image_inspect.json is not generated correctly, please check HACBS_TEST_OUTPUT of task sanity-inspect-image!')"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
@@ -42,14 +47,29 @@ spec:
         fi
 
         conffolder=$(cat ../sanity-inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
-
+        if [ $? -ne 0 ]; then
+          echo "Could not get labels from sanity-inspect-image/image_inspect.json, make sure the file exists and contains this label: operators.operatorframework.io.index.configs.v1."
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          exit 0
+        fi
+        mkdir -p /tmp/image-content
+        pushd /tmp/image-content
         image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
 
-        mkdir confdir
-        if ! oc image extract "${image_with_digest}" --file /bin/opm --file /bin/grpc_health_probe --path $conffolder/*:confdir/ ; then
+        if ! oc image extract "${image_with_digest}" ; then
           echo "Unable to extract image! Skipping checking binaries!"
           HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'Unable to extract image! Skipping checking binaries!')"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          popd
+          exit 0
+        fi
+
+        if [ -z "$(ls -A .$conffolder)" ]; then
+          echo "$conffolder is empty, missing catalog file."
+          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          popd
           exit 0
         fi
 
@@ -57,24 +77,23 @@ spec:
         check_num=4
         failure_num=0
         TESTPASSED=true
-        chmod +x opm grpc_health_probe
 
-        if ! ./opm version; then
-          echo "!FAILURE! - opm binary check failed"
+        if [ ! $(find . -name "opm") ]; then
+          echo "!FAILURE! - opm binary presence check failed"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if [ ! -f "grpc_health_probe" ]; then
-          echo "!FAILURE! - grpc_health_probe binary check failed"
+        if [ ! $(find . -name grpc_health_probe ) ]; then
+          echo "!FAILURE! - grpc_health_probe binary presence check failed"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if ! ./opm validate confdir; then
+        if ! opm validate ."${conffolder}"; then
           echo "!FAILURE! - opm validate check has failed"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if ! ./opm render confdir | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) == 1'; then
+        if ! opm render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) == 1'; then
           echo "!FAILURE! - more than one olm.packages are not permitted in a FBC fragment"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
@@ -86,3 +105,4 @@ spec:
           HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s $check_num)"
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
         fi
+        popd
