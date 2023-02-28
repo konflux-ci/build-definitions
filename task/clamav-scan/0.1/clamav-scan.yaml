@@ -8,16 +8,18 @@ metadata:
     tekton.dev/tags: "virus, appstudio, hacbs"
   name: clamav-scan
 spec:
+  description: >-
+    Scans image for malware with ClamAV.
   results:
     - name: HACBS_TEST_OUTPUT
-      description: test output
+      description: Tekton task test output.
   params:
     - name: image-digest
-      description: Image digest to scan
+      description: Image digest to scan.
     - name: image-url
-      description: Url to image
+      description: Image URL.
     - name: docker-auth
-      description: secret with config.json for container auth
+      description: Folder where container authorization in config.json is stored.
 
   steps:
     - name: extract-and-scan-image
@@ -52,17 +54,17 @@ spec:
         # check if image is attestation one, skip the clamav scan in such case
         if [[ $imageanddigest == *.att ]]
         then
-            echo "$imageanddigest is an attestation image, skipping clamav scan"
+            echo "$imageanddigest is an attestation image. Skipping ClamAV scan."
             exit 0
         fi
         mkdir content
         cd content
-        echo Extracting image
+        echo Extracting image.
         if ! oc image extract $imageanddigest; then
-          echo "Unable to extract image! Skipping clamscan!"
+          echo "Unable to extract image. Skipping ClamAV scan!"
           exit 0
         fi
-        echo Extraction done
+        echo Extraction done.
         clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
         echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
       volumeMounts:
@@ -82,7 +84,7 @@ spec:
 
         clamscan_result = "/tekton/home/clamscan-result.log"
         if not os.path.exists(clamscan_result) or os.stat(clamscan_result).st_size == 0:
-            print("clamscan-result.log file is empty, meaning previous step didn't extracted the compiled code, skipping parsing.")
+            print("clamscan-result.log file is empty, so compiled code not extracted. Parsing skipped.")
             exit(0)
 
         with open(clamscan_result, "r") as file:
@@ -127,18 +129,23 @@ spec:
         #!/usr/bin/env bash
         source /utils.sh
 
-        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR")
         if [ -f /tekton/home/clamscan-result.json ];
         then
           cat /tekton/home/clamscan-result.json
           INFECTED_FILES=$(jq -r '.infected_files' /tekton/home/clamscan-result.json || true )
           if [ -z "${INFECTED_FILES}" ]; then
-            echo "Failed to get number of infected files"
+            echo "Failed to get number of infected files."
+            note="Task $(context.task.name) failed: Unable to get number of infected files from /tekton/home/clamscan-result.json. For details, check Tekton task log."
           else
             if [[ "${INFECTED_FILES}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
-            HACBS_TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}")
+            note="Task $(context.task.name) completed: Check result for antivirus scan result."
+            HACBS_TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}" -t "$note")
           fi
+        else
+          note="Task $(context.task.name) failed: /tekton/home/clamscan-result.json doesn't exist. For details, check Tekton task log."
         fi
+
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   # sidecar is rebuilt daily(is meant to be updated daily), hence the usage of the tag instead of digest
   # provides latest virus database for clamscan only

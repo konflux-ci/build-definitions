@@ -5,17 +5,16 @@ metadata:
   name: sbom-json-check
 spec:
   description: >-
-    Check the syntax of the sbom-cyclonedx.json file which should be found
-    in the /root/buildinfo/content_manifests/ directory
+    Check syntax of sbom-cyclonedx.json file in /root/buildinfo/content_manifests/.
   params:
     - name: IMAGE_URL
-      description: the fully qualified image name to be verified
+      description: Fully qualified image name to verify.
       type: string
     - name: IMAGE_DIGEST
-      description: image digest
+      description: Image digest.
       type: string
   results:
-    - description: Test output
+    - description: Tekton task test output.
       name: HACBS_TEST_OUTPUT
   steps:
   - name: sbom-json-check
@@ -42,7 +41,9 @@ spec:
       image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
 
       if ! oc image extract "${image_with_digest}" --path '/root/buildinfo/content_manifests/*:/manifests/'; then
-        echo "Failed to extract manifests from image ${image_with_digest}"
+        echo "Failed to extract manifests from image ${image_with_digest}."
+        note="Task $(context.task.name) failed: Failed to extract manifests from image ${image_with_digest} with oc extract. For details, check Tekton task log."
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
       fi
 
       touch fail_result.txt
@@ -54,16 +55,18 @@ spec:
           echo "sbom-cyclonedx.json: $result" > fail_result.txt
         fi
       else
-        echo "cannot access 'sbom-cyclonedx.json': No such file or directory" > fail_result.txt
+        echo "Cannot access sbom-cyclonedx.json: No such file or directory exists." > fail_result.txt
       fi
 
       FAIL_RESULTS="$(cat fail_result.txt)"
       if [[ -z $FAIL_RESULTS ]]
       then
-        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -s 1)
+        note="Task $(context.task.name) completed: Check result for JSON check result."
+        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -s 1 -t "$note")
       else
-        echo "Fail to verify sbom-cyclonedx.json for image $IMAGE_URL with reason: $FAIL_RESULTS"
-        HACBS_ERROR_OUTPUT=$(make_result_json -r "FAILURE" -f 1)
+        echo "Failed to verify sbom-cyclonedx.json for image $IMAGE_URL with reason: $FAIL_RESULTS."
+        note="Task $(context.task.name) failed: Failed to verify SBOM for image $IMAGE_URL."
+        HACBS_ERROR_OUTPUT=$(make_result_json -r "FAILURE" -f 1 -t "$note")
       fi
 
       echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
