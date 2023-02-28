@@ -66,7 +66,7 @@ spec:
       fi
       echo "Inspecting manifest for source image ${IMAGE_URL}"
       skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT 2> stderr.txt || true
-      skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
+      skopeo inspect --no-tags --raw --config docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
 
       if [ ! -z $(cat stderr.txt) ]; then
         echo "skopeo inspect fails, the sanity-inspect-image test meets the following error:"
