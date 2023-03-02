@@ -20,6 +20,8 @@ spec:
   results:
     - name: HACBS_TEST_OUTPUT
       description: test output
+    - name: CLAIR_SCAN_RESULT
+      description: clair scan result
   steps:
     - name: get-vulnerabilities
       image: quay.io/redhat-appstudio/clair-in-ci:latest  # explicit floating tag, daily updates
@@ -54,8 +56,21 @@ spec:
       script: |
         #!/usr/bin/env bash
         . /utils.sh
-        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR")
-        HACBS_TEST_OUTPUT=
-        parse_hacbs_test_output $(context.task.name) conftest /tekton/home/clair-vulnerabilities.json || true
 
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        if [[ ! -f /tekton/home/clair-vulnerabilities.json ]] || [[ "$(jq '.[] | has("failures")' /tekton/home/clair-vulnerabilities.json)" == "false" ]]; then
+          HACBS_TEST_OUTPUT=$(make_result_json -r "ERROR" -t "/tekton/home/clair-vulnerabilities.json is not generated correctly, please check again")
+          echo "/tekton/home/clair-vulnerabilities.json is not generated correctly, please check again"
+          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          exit 0
+        fi
+
+        jq -rce \
+          '{vulnerabilities:{
+              critical: (.[] | .failures | map(select(.metadata.details.name=="clair_critical_vulnerabilities")) | length),
+              high: (.[] | .failures | map(select(.metadata.details.name=="clair_high_vulnerabilities")) | length),
+              medium: (.[] | .failures | map(select(.metadata.details.name=="clair_medium_vulnerabilities")) | length),
+              low: (.[] | .failures | map(select(.metadata.details.name=="clair_low_vulnerabilities")) | length)
+            }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
+
+        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "Please refer to result CLAIR_SCAN_RESULT for the vulnerabilities scanned by clair")
+        echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
