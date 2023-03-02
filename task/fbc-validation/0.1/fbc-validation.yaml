@@ -53,7 +53,7 @@ spec:
           echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
           exit 0
         fi
-        mkdir -p /tmp/image-content
+        mkdir -p /tmp/image-content confdir
         pushd /tmp/image-content
         image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
 
@@ -72,18 +72,20 @@ spec:
           popd
           exit 0
         fi
+        # copy content of conffolder to confdir - will be used in next task - related image check
+        cp -r .$conffolder/* $(workspaces.workspace.path)/hacbs/$(context.task.name)/confdir
 
         # We have totally 4 checks here currently
         check_num=4
         failure_num=0
         TESTPASSED=true
 
-        if [ ! $(find . -name "opm") ]; then
+        if [[ ! $(find . -name "opm") ]]; then
           echo "!FAILURE! - opm binary presence check failed"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if [ ! $(find . -name grpc_health_probe ) ]; then
+        if [[ ! $(find . -name "grpc_health_probe") ]]; then
           echo "!FAILURE! - grpc_health_probe binary presence check failed"
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
