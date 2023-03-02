@@ -245,6 +245,8 @@ spec:
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: DOCKER_AUTH
+        value: "$(tasks.init.results.container-registry-secret)"
 
   finally:
     - name: show-summary

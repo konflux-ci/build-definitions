@@ -14,6 +14,9 @@ spec:
     - name: IMAGE_DIGEST
       description: image digest
       type: string
+    - name: DOCKER_AUTH
+      description: secret with config.json for container auth
+      type: string
   results:
     - description: Test output
       name: HACBS_TEST_OUTPUT
@@ -28,6 +31,11 @@ spec:
     volumeMounts:
       - mountPath: /shared
         name: shared
+      - mountPath: /secrets/registry-auth
+        name: registry-auth
+    env:
+      - name: DOCKER_CONFIG
+        value: /secrets/registry-auth
     script: |
       #!/usr/bin/env bash
       source /utils.sh
@@ -65,3 +73,7 @@ spec:
   volumes:
   - name: shared
     emptyDir: {}
+  - name: registry-auth
+    secret:
+      secretName: $(params.DOCKER_AUTH)
+      optional: true
