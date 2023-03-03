@@ -79,6 +79,7 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
+      touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       if [ -e "$(params.CONTEXT)/$(params.DOCKERFILE)" ]; then
         dockerfile_path=$(params.CONTEXT)/$(params.DOCKERFILE)
       elif [ -e "$(params.DOCKERFILE)" ]; then
