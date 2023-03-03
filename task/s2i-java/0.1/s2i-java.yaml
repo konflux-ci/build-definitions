@@ -62,7 +62,6 @@ spec:
   steps:
   - args:
     - |-
-      touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       echo "MAVEN_CLEAR_REPO=true" > env-file
       [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] &&
         echo "MAVEN_MIRROR_URL=http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/" >> env-file
@@ -136,6 +135,8 @@ spec:
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
+      else
+        touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       fi
     volumeMounts:
     - mountPath: /var/lib/containers
