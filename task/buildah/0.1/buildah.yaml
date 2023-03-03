@@ -54,6 +54,7 @@ spec:
     name: BASE_IMAGES_DIGESTS
   - name: SBOM_JAVA_COMPONENTS_COUNT
     description: The counting of Java components by publisher in JSON format
+    type: string
   - name: JAVA_COMMUNITY_DEPENDENCIES
     description: The Java dependencies that came from community sources such as Maven central.
   stepTemplate:
@@ -160,6 +161,7 @@ spec:
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       fi
     volumeMounts:
     - mountPath: /var/lib/containers
