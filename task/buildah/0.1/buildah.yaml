@@ -80,7 +80,6 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       if [ -e "$(params.CONTEXT)/$(params.DOCKERFILE)" ]; then
         dockerfile_path=$(params.CONTEXT)/$(params.DOCKERFILE)
       elif [ -e "$(params.DOCKERFILE)" ]; then
@@ -162,6 +161,8 @@ spec:
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
+      else
+        touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       fi
     volumeMounts:
     - mountPath: /var/lib/containers
