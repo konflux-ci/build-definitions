@@ -11,12 +11,14 @@ INCREMENTAL=${INCREMENTAL:-1}
 
 readarray SPEC_DIRS < <(find "${ROOT}" -name spec -type d -print0)
 
-REF=main
-if ! git rev-parse --verify main 2>/dev/null; then
-    REF=$(openssl rand -base64 12)
-fi
-git fetch origin "main:${REF}"
-readarray CHANGED_FILES < <(git diff .."${REF}" --name-only; git status --porcelain=v1 | cut -c 4-)
+REF=temp-$(openssl rand -base64 12)
+git fetch origin "${GITHUB_BASE_REF:-main}:${REF}" >/dev/null 2>&1
+function cleanup() {
+    # shellcheck disable=SC2317
+    git branch --delete "${REF}" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+readarray CHANGED_FILES < <({ if [[ -n "${GITHUB_ACTIONS:-}" ]]; then git diff HEAD~1 --name-only; else git diff .."${REF}" --name-only; git status --porcelain=v1 | cut -c 4-; fi; }| uniq)
 
 for CHANGED in "${CHANGED_FILES[@]}"; do
     CHANGED_DIR="${ROOT}/$(dirname "${CHANGED}")"
