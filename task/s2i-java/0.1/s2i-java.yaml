@@ -92,7 +92,7 @@ spec:
   - script: |
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      buildah bud --tls-verify=$(params.TLSVERIFY) --layers --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+      buildah bud --tls-verify=$(params.TLSVERIFY) --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
 
       container=$(buildah from --pull-never $(params.IMAGE))
       buildah mount $container | tee /workspace/container_path
