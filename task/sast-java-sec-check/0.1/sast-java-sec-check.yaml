@@ -37,6 +37,15 @@ spec:
     - name: java-sec-check
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
+      env:
+        - name: PATH_CONTEXT
+          value: $(params.PATH_CONTEXT)
+        - name: OPTIONAL_ARGS
+          value: $(params.OPTIONAL_ARGS)
+        - name: OUTPUT_ONLY_ANALYZE
+          value: $(params.OUTPUT_ONLY_ANALYZE)
+        - name: OUTPUT_FORMAT
+          value: $(params.OUTPUT_FORMAT)
       resources:
         limits:
           memory: 8Gi
@@ -49,16 +58,16 @@ spec:
 
         . /utils.sh
         pushd $(workspaces.workspace.path)
-        if [ -f "$(params.PATH_CONTEXT)/pom.xml" ]; then
-          mvn package -f $(params.PATH_CONTEXT)/
+        if [ -f "$PATH_CONTEXT/pom.xml" ]; then
+          mvn package -f $PATH_CONTEXT/
         else
-          echo "pom.xml file doesn't exist in $(workspaces.workspace.path)/$(params.PATH_CONTEXT)"
+          echo "pom.xml file doesn't exist in $(workspaces.workspace.path)/$PATH_CONTEXT"
         fi
         popd
 
-        JAR_PATH=`ls $(workspaces.workspace.path)/$(params.PATH_CONTEXT)/target/*.jar`
+        JAR_PATH=`ls $(workspaces.workspace.path)/$PATH_CONTEXT/target/*.jar`
         if [ -n "$JAR_PATH" ]; then
-          /home/findsecbugs-cli/findsecbugs.sh $(params.OPTIONAL_ARGS) $(params.OUTPUT_ONLY_ANALYZE) -$(params.OUTPUT_FORMAT) \
+          /home/findsecbugs-cli/findsecbugs.sh $OPTIONAL_ARGS $OUTPUT_ONLY_ANALYZE -$OUTPUT_FORMAT \
             -output sast_java_sec_output.json $JAR_PATH  2> stderr.txt
           cat sast_java_sec_output.json
           test_skipped=0

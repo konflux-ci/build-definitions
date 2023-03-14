@@ -25,6 +25,11 @@ spec:
     - name: basic-sanity-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.10@sha256:ae276785973aaffb4554c1798cf629df33e7058b30c32b75bd8ada54b2afe42f
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)-$(params.POLICY_NAMESPACE)
+      env:
+        - name: POLICY_NAMESPACE
+          value: $(params.POLICY_NAMESPACE)
+        - name: POLICY_DIR
+          value: $(params.POLICY_DIR)
       securityContext:
         capabilities:
           add:
@@ -45,9 +50,9 @@ spec:
           CONFTEST_OPTIONS="-d=../sanity-inspect-image/base_image_inspect.json"
         fi
 
-        echo "Running conftest using $(params.POLICY_DIR) policy, $(params.POLICY_NAMESPACE) namespace"
+        echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace"
         /usr/bin/conftest test --no-fail ../sanity-inspect-image/image_inspect.json "${CONFTEST_OPTIONS}" \
-        --policy $(params.POLICY_DIR) --namespace $(params.POLICY_NAMESPACE) \
+        --policy $POLICY_DIR --namespace $POLICY_NAMESPACE \
         --output=json 2> stderr.txt | tee sanity_label_check_output.json
 
         if [ ! -z $(cat stderr.txt) ]; then

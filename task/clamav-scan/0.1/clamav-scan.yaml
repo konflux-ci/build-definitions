@@ -32,6 +32,10 @@ spec:
           value: /work
         - name: DOCKER_CONFIG
           value: /secrets/registry-auth
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
       resources:
         limits:
           memory: 4Gi
@@ -40,10 +44,10 @@ spec:
           memory: 512Mi
           cpu: 10m
       script: |
-        imagewithouttag=$(echo '$(params.image-url)' | sed "s/\(.*\):.*/\1/" | tr -d '\n')
+        imagewithouttag=$(echo $IMAGE_URL | sed "s/\(.*\):.*/\1/" | tr -d '\n')
 
         # strip new-line escape symbol from parameter and save it to variable
-        imageanddigest=$(echo $imagewithouttag@'$(params.image-digest)')
+        imageanddigest=$(echo $imagewithouttag@$IMAGE_DIGEST)
 
         # check if image is attestation one, skip the clamav scan in such case
         if [[ $imageanddigest == *.att ]]

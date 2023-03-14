@@ -28,13 +28,18 @@ spec:
     volumeMounts:
       - mountPath: /shared
         name: shared
+    env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
     script: |
       #!/usr/bin/env bash
       source /utils.sh
 
       mkdir /manifests/ && cd /manifests/
 
-      image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
+      image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
 
       if ! oc image extract "${image_with_digest}" --path '/root/buildinfo/content_manifests/*:/manifests/'; then
         echo "Failed to extract manifests from image ${image_with_digest}"
@@ -57,7 +62,7 @@ spec:
       then
         HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -s 1)
       else
-        echo "Fail to verify sbom-cyclonedx.json for image $(params.IMAGE_URL) with reason: $FAIL_RESULTS"
+        echo "Fail to verify sbom-cyclonedx.json for image $IMAGE_URL with reason: $FAIL_RESULTS"
         HACBS_ERROR_OUTPUT=$(make_result_json -r "FAILURE" -f 1)
       fi
 

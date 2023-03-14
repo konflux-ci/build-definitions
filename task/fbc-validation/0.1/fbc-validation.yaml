@@ -21,6 +21,11 @@ spec:
     - name: extract-and-check-binaries
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.10@sha256:ae276785973aaffb4554c1798cf629df33e7058b30c32b75bd8ada54b2afe42f
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
       securityContext:
         runAsUser: 0
         capabilities:
@@ -55,7 +60,7 @@ spec:
         fi
         mkdir -p /tmp/image-content confdir
         pushd /tmp/image-content
-        image_with_digest="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
+        image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
 
         if ! oc image extract "${image_with_digest}" ; then
           echo "Unable to extract image! Skipping checking binaries!"

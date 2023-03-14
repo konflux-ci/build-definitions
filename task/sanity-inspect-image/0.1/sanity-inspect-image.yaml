@@ -46,6 +46,11 @@ spec:
     env:
       - name: DOCKER_CONFIG
         value: /secrets/registry-auth
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
+
     volumeMounts:
       - mountPath: /secrets/registry-auth
         name: registry-auth
@@ -57,7 +62,7 @@ spec:
       BASE_IMAGE_INSPECT=base_image_inspect.json
       RAW_IMAGE_INSPECT=raw_image_inspect.json
 
-      IMAGE_URL="$(params.IMAGE_URL)@$(params.IMAGE_DIGEST)"
+      IMAGE_URL="${IMAGE_URL}@${IMAGE_DIGEST}"
       # Given a tag and a the digest in the IMAGE_URL we opt to use the digest alone
       # this is because containers/image currently doesn't support image references
       # that contain both. See https://github.com/containers/image/issues/1736

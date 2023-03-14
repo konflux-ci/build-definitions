@@ -46,6 +46,12 @@ spec:
       value: vfs
     - name: DOCKER_CONFIG
       value: /secrets/registry-auth
+    - name: PATH_CONTEXT
+      value: $(params.PATH_CONTEXT)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: IMAGE
+      value: $(params.IMAGE)
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -59,8 +65,8 @@ spec:
     command:
     - s2i
     - build
-    - $(params.PATH_CONTEXT)
-    - registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583
+    - $PATH_CONTEXT
+    - $(params.BASE_IMAGE)
     - --as-dockerfile
     - /gen-source/Dockerfile.gen
     env:
@@ -75,9 +81,9 @@ spec:
     workingDir: $(workspaces.source.path)
   - script: |
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      buildah bud --tls-verify=$(params.TLSVERIFY) -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+      buildah bud --tls-verify=$TLSVERIFY -f /gen-source/Dockerfile.gen -t $IMAGE .
 
-      container=$(buildah from --pull-never $(params.IMAGE))
+      container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
     image: $(params.BUILDER_IMAGE)
@@ -158,20 +164,20 @@ spec:
     resources: {}
     script: |
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $(params.IMAGE) > $(results.BASE_IMAGES_DIGESTS.path)
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
 
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $(params.IMAGE))
-      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $(params.IMAGE))
-      container=$(buildah from --pull-never $(params.IMAGE))
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE)
+      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
+      container=$(buildah from --pull-never $IMAGE)
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-      buildah commit $container $(params.IMAGE)
+      buildah commit $container $IMAGE
       buildah push \
-        --tls-verify=$(params.TLSVERIFY) \
-        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
-        docker://$(params.IMAGE)
+        --tls-verify=$TLSVERIFY \
+        --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+        docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
     securityContext:
       runAsUser: 0
