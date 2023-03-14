@@ -29,3 +29,18 @@ spec:
         - yamllint
       args:
         - $(params.args)
+    - name: ensure-params-not-in-script
+      image: quay.io/redhat-appstudio/appstudio-utils:d8a93bf5650424a4f20ee065578609792d70af1c
+      script: |
+        #!/bin/bash
+        for task in $(find task -name '*.yaml'); do
+          if yq '.spec.steps[] | .script' $task | grep -q 'params\.'; then
+            FAILED_TASKS="$FAILED_TASKS $task"
+          fi
+        done
+        if [ -n "$FAILED_TASKS" ]; then
+          echo "Tasks contains params in script section (https://tekton.dev/docs/pipelines/tasks/#substituting-in-script-blocks)"
+          echo $FAILED_TASKS | tr ' ' '\n' | sort
+          exit 1
+        fi
+      workingDir: $(workspaces.shared-workspace.path)
