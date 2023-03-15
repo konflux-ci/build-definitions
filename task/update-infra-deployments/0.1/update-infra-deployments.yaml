@@ -27,14 +27,14 @@ spec:
       default: infra-deployments-pr-creator
     - name: GITHUB_APP_ID
       description: ID of Github app used for updating PR
-      default: "172616"
+      default: "305606"
     - name: GITHUB_APP_INSTALLATION_ID
       description: Installation ID of Github app in the organization
-      default: "23331085"
+      default: "35269675"
   volumes:
     - name: infra-deployments-pr-creator
       secret:
-        # 'appstudio-staging-ci' - private key for appstudio-staging-ci Github app
+        # 'private-key' - private key for infra-deployments-updater Github app
         secretName: $(params.shared-secret)
     - name: shared-dir
       emptyDir: {}
@@ -87,7 +87,7 @@ spec:
       workingDir: /shared
       env:
         - name: GITHUBAPP_KEY_PATH
-          value: /secrets/deploy-key/appstudio-staging-ci
+          value: /secrets/deploy-key/private-key
         - name: GITHUBAPP_APP_ID
           value: "$(params.GITHUB_APP_ID)"
         - name: GITHUBAPP_INSTALLATION_ID
@@ -236,7 +236,7 @@ spec:
                     })
                 json_output = req.json()
                 for item in json_output:
-                    if item["user"]["login"] == "appstudio-staging-ci[bot]" and item["head"]["ref"] == repo_name:
+                    if item["user"]["login"] == "infra-deployments-updater[bot]" and item["head"]["ref"] == repo_name:
                         return item
 
             def get_pr_url_from_sha(self, sha):
