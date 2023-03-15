@@ -46,22 +46,27 @@ spec:
         - name: shared-dir
           mountPath: /shared
       workingDir: /shared
-      script: |
-        REPO_NAME=$(echo $(params.ORIGIN_REPO) | cut -f5 -d/)
-
-        git clone "https://github.com/${TARGET_GH_REPO}.git" cloned
       env:
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
+        - name: ORIGIN_REPO
+          value: $(params.ORIGIN_REPO)
+      script: |
+        REPO_NAME=$(echo $ORIGIN_REPO | cut -f5 -d/)
+
+        git clone "https://github.com/${TARGET_GH_REPO}.git" cloned
     - name: run-update-script
       image: $(params.SCRIPT_IMAGE)
       volumeMounts:
         - name: shared-dir
           mountPath: /shared
       workingDir: /shared
+      env:
+        - name: SCRIPT
+          value: $(params.SCRIPT)
       script: |
         cd cloned
-        $(params.SCRIPT)
+        $SCRIPT
     - name: get-diff-files
       image: $(params.GIT_IMAGE)
       volumeMounts:

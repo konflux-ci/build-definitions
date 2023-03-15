@@ -12,10 +12,6 @@ metadata:
 spec:
   description: s2i-java task clones a Git repository and builds and pushes a container image using S2I and a Java builder image.
   params:
-  - default: "false"
-    description: Skip checks against built image
-    name: SKIP_CHECKS
-    type: string
   - default: registry.access.redhat.com/ubi9/openjdk-17:1.13-10.1669632202
     description: Java builder image
     name: BASE_IMAGE
@@ -59,6 +55,14 @@ spec:
       value: vfs
     - name: DOCKER_CONFIG
       value: /secrets/registry-auth
+    - name: PATH_CONTEXT
+      value: $(params.PATH_CONTEXT)
+    - name: BASE_IMAGE
+      value: $(params.BASE_IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: IMAGE
+      value: $(params.IMAGE)
   steps:
   - args:
     - |-
@@ -70,7 +74,7 @@ spec:
       echo "------------------------------"
       cat env-file
       echo "------------------------------"
-      s2i build $(params.PATH_CONTEXT) $(params.BASE_IMAGE) --image-scripts-url image:///usr/local/s2i --as-dockerfile /gen-source/Dockerfile.gen --environment-file env-file
+      s2i build $PATH_CONTEXT $BASE_IMAGE --image-scripts-url image:///usr/local/s2i --as-dockerfile /gen-source/Dockerfile.gen --environment-file env-file
 
     command:
     - /bin/sh
@@ -92,9 +96,9 @@ spec:
   - script: |
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      buildah bud --tls-verify=$(params.TLSVERIFY) --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $(params.IMAGE) .
+      buildah bud --tls-verify=$TLSVERIFY --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
 
-      container=$(buildah from --pull-never $(params.IMAGE))
+      container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
     image: $(params.BUILDER_IMAGE)
@@ -190,20 +194,20 @@ spec:
     resources: {}
     script: |
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $(params.IMAGE) > $(results.BASE_IMAGES_DIGESTS.path)
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
 
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $(params.IMAGE))
-      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $(params.IMAGE))
-      container=$(buildah from --pull-never $(params.IMAGE))
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE)
+      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
+      container=$(buildah from --pull-never $IMAGE)
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-      buildah commit $container $(params.IMAGE)
+      buildah commit $container $IMAGE
       buildah push \
-        --tls-verify=$(params.TLSVERIFY) \
-        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
-        docker://$(params.IMAGE)
+        --tls-verify=$TLSVERIFY \
+        --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+        docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
     securityContext:
       runAsUser: 0

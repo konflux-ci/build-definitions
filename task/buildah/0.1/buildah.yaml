@@ -12,9 +12,6 @@ spec:
     Buildah task builds source into a container image and then pushes it to a container registry.
     Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
   params:
-  - default: "false"
-    description: Skip checks against built image
-    name: SKIP_CHECKS
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
@@ -69,6 +66,14 @@ spec:
       value: $(params.PREFETCH_INPUT)
     - name: DOCKER_CONFIG
       value: /secrets/registry-auth
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.28
     name: build
@@ -80,20 +85,20 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      if [ -e "$(params.CONTEXT)/$(params.DOCKERFILE)" ]; then
-        dockerfile_path=$(params.CONTEXT)/$(params.DOCKERFILE)
-      elif [ -e "$(params.DOCKERFILE)" ]; then
-        dockerfile_path=$(params.DOCKERFILE)
-      elif echo "$(params.DOCKERFILE)" | grep -q "^https\?://"; then
-        echo "Fetch Dockerfile from $(params.DOCKERFILE)"
+      if [ -e "$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$CONTEXT/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        dockerfile_path="$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" $(params.DOCKERFILE))
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
         if [ $http_code != 200 ]; then
           echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
       else
-        echo "Cannot find Dockerfile $(params.DOCKERFILE)"
+        echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
       fi
       if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_path"; then
@@ -127,11 +132,11 @@ spec:
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah bud \
         $VOLUME_MOUNTS \
         $BUILDAH_ARGS \
-        --tls-verify=$(params.TLSVERIFY) --no-cache \
+        --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $(params.IMAGE) $(params.CONTEXT)
+        -f "$dockerfile_path" -t $IMAGE $CONTEXT
 
-      container=$(buildah from --pull-never $(params.IMAGE))
+      container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
 
@@ -216,20 +221,20 @@ spec:
     resources: {}
     script: |
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $(params.IMAGE) > $(results.BASE_IMAGES_DIGESTS.path)
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
 
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $(params.IMAGE))
-      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $(params.IMAGE))
-      container=$(buildah from --pull-never $(params.IMAGE))
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE)
+      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
+      container=$(buildah from --pull-never $IMAGE)
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-      buildah commit $container $(params.IMAGE)
+      buildah commit $container $IMAGE
       buildah push \
-        --tls-verify=$(params.TLSVERIFY) \
-        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
-        docker://$(params.IMAGE)
+        --tls-verify=$TLSVERIFY \
+        --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+        docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
     securityContext:
       runAsUser: 0

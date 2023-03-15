@@ -40,9 +40,20 @@ spec:
       volumeMounts:
         - name: default-push-secret
           mountPath: /secret/default-push-secret
+      env:
+        - name: PIPELINERUN_NAME
+          value: $(params.pipelinerun-name)
+        - name: PIPELINERUN_UID
+          value: $(params.pipelinerun-uid)
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: REBUILD
+          value: $(params.rebuild)
+        - name: SKIP_CHECKS
+          value: $(params.skip-checks)
       script: |
         #!/bin/bash
-        echo "Build Initialize: $(params.image-url)"
+        echo "Build Initialize: $IMAGE_URL"
         echo
         echo "Create pipelinerun repository secret"
         SHARED=/secret/default-push-secret/.dockerconfigjson
@@ -53,13 +64,13 @@ spec:
         else
           cp /root/.docker/config.json $DOCKER_CONFIG/config.json
         fi
-        oc create secret generic --from-file=$DOCKER_CONFIG/config.json $SHARED_PARAM $(params.pipelinerun-name)
-        oc patch secret $(params.pipelinerun-name) -p "{\"metadata\": {\"ownerReferences\": [{\"apiVersion\": \"tekton.dev/v1beta1\", \"blockOwnerDeletion\": false, \"controller\": true, \"kind\": \"PipelineRun\", \"name\": \"$(params.pipelinerun-name)\", \"uid\": \"$(params.pipelinerun-uid)\" }]}}"
-        echo -n $(params.pipelinerun-name) > $(results.container-registry-secret.path)
+        oc create secret generic --from-file=$DOCKER_CONFIG/config.json $SHARED_PARAM $PIPELINERUN_NAME
+        oc patch secret $PIPELINERUN_NAME -p "{\"metadata\": {\"ownerReferences\": [{\"apiVersion\": \"tekton.dev/v1beta1\", \"blockOwnerDeletion\": false, \"controller\": true, \"kind\": \"PipelineRun\", \"name\": \"$PIPELINERUN_NAME\", \"uid\": \"$PIPELINERUN_UID\" }]}}"
+        echo -n $PIPELINERUN_NAME > $(results.container-registry-secret.path)
 
         echo "Determine if Image Already Exists"
         # Build the image when image does not exists or rebuild is set to true
-        if ! oc image info $(params.image-url) &>/dev/null || [ "$(params.rebuild)" == "true" ] || [ "$(params.skip-checks)" == "false" ]; then
+        if ! oc image info $IMAGE_URL &>/dev/null || [ "$REBUILD" == "true" ] || [ "$SKIP_CHECKS" == "false" ]; then
           echo -n "true" > $(results.build.path)
         else
           echo -n "false" > $(results.build.path)

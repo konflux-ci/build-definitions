@@ -33,18 +33,23 @@ spec:
         - name: snyk-secret
           mountPath: "/etc/secrets"
           readOnly: true
+      env:
+        - name: SNYK_SECRET
+          value: $(params.SNYK_SECRET)
+        - name: ARGS
+          value: $(params.ARGS)
       script: |
         #!/usr/bin/env bash
         . /utils.sh
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
-          echo "SNYK_TOKEN is not defined, please create the $(params.SNYK_SECRET) secret with the snyk_token key containing the Snyk token." | tee stdout.txt
+          echo "SNYK_TOKEN is not defined, please create the $SNYK_SECRET secret with the snyk_token key containing the Snyk token." | tee stdout.txt
           make_result_json -r SKIPPED -t "Check skipped: SNYK_TOKEN is empty"
           exit 0
         fi
         export SNYK_TOKEN
         SNYK_EXIT_CODE=0
-        snyk code test $(params.ARGS) ../.. --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
+        snyk code test $ARGS ../.. --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
