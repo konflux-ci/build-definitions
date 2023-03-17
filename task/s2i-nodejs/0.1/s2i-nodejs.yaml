@@ -46,8 +46,6 @@ spec:
       value: vfs
     - name: DOCKER_CONFIG
       value: /secrets/registry-auth
-    - name: PATH_CONTEXT
-      value: $(params.PATH_CONTEXT)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
     - name: IMAGE
@@ -65,7 +63,7 @@ spec:
     command:
     - s2i
     - build
-    - $PATH_CONTEXT
+    - $(params.PATH_CONTEXT)
     - $(params.BASE_IMAGE)
     - --as-dockerfile
     - /gen-source/Dockerfile.gen
