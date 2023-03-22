@@ -44,7 +44,7 @@ spec:
 
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay > /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.11@sha256:acf4e35adfbe16916d400f36b616236d872c2527c7618ffc6758ae930e353668
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
       securityContext:
         capabilities:
           add:
@@ -58,7 +58,7 @@ spec:
           --output=json | tee /tekton/home/clair-vulnerabilities.json || true
         fi
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.11@sha256:acf4e35adfbe16916d400f36b616236d872c2527c7618ffc6758ae930e353668
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
       script: |
         #!/usr/bin/env bash
         . /utils.sh
@@ -73,10 +73,10 @@ spec:
 
         jq -rce \
           '{vulnerabilities:{
-              critical: (.[] | .failures | map(select(.metadata.details.name=="clair_critical_vulnerabilities")) | length),
-              high: (.[] | .failures | map(select(.metadata.details.name=="clair_high_vulnerabilities")) | length),
-              medium: (.[] | .failures | map(select(.metadata.details.name=="clair_medium_vulnerabilities")) | length),
-              low: (.[] | .failures | map(select(.metadata.details.name=="clair_low_vulnerabilities")) | length)
+              critical: (.[] | .failures | map(select(.metadata.details.name=="clair_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add),
+              high: (.[] | .failures | map(select(.metadata.details.name=="clair_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add),
+              medium: (.[] | .failures | map(select(.metadata.details.name=="clair_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add),
+              low: (.[] | .failures | map(select(.metadata.details.name=="clair_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add)
             }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
 
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
