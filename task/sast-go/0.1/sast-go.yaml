@@ -9,10 +9,12 @@ metadata:
     tekton.dev/tags: "appstudio, hacbs"
   name: sast-go
 spec:
+  description: >-
+    Static application security testing for Go code.
   workspaces:
     - name: workspace
   results:
-    - description: Test output
+    - description: Tekton task test output.
       name: HACBS_TEST_OUTPUT
   steps:
     - name: sast-go
@@ -42,10 +44,10 @@ spec:
         grep -q "$SKIP_MSG$" gosec_output.txt || test_not_skipped=$?
 
         HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
-                              --arg SKIP_MESSAGE "${SKIP_MSG} --null-input \
+                               --null-input \
             '{result: (if $tmp_not_skipped=="0" then "SKIPPED" else "ERROR" end),
               timestamp: $date,
-              note: (if $tmp_not_skipped=="0" then "Test is skipped" else "" end)
+              note: (if $tmp_not_skipped=="0" then "Task sast-go skipped: No packages found." else "Task sast-go failed: For details, check Tekton task log." end)
               }')
 
         if [ -f gosec_output.json ];

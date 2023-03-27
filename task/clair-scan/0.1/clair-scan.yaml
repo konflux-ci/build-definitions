@@ -9,19 +9,21 @@ metadata:
     tekton.dev/tags: "appstudio, hacbs"
   name: clair-scan
 spec:
+  description: >-
+    Scans image for vulnerabilities with Clair.
   params:
     - name: image-digest
-      description: Image digest to scan
+      description: Image digest to scan.
     - name: image-url
-      description: Url to image
+      description: Image URL.
     - name: docker-auth
-      description: folder with config.json for container auth
+      description: Folder where container authorization in config.json is stored.
       default: ""
   results:
     - name: HACBS_TEST_OUTPUT
-      description: test output
+      description: Tekton task test output.
     - name: CLAIR_SCAN_RESULT
-      description: clair scan result
+      description: Clair scan result.
   steps:
     - name: get-vulnerabilities
       image: quay.io/redhat-appstudio/clair-in-ci:latest  # explicit floating tag, daily updates
@@ -49,7 +51,7 @@ spec:
             - SETFCAP
       script: |
         if [ ! -s /tekton/home/clair-result.json ]; then
-          echo "Previous step [get-vulnerabilities] failed, /tekton/home/clair-result.json is empty."
+          echo "Previous step [get-vulnerabilities] failed: /tekton/home/clair-result.json is empty."
         else
           /usr/bin/conftest test --no-fail /tekton/home/clair-result.json \
           --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
@@ -62,8 +64,9 @@ spec:
         . /utils.sh
 
         if [[ ! -f /tekton/home/clair-vulnerabilities.json ]] || [[ "$(jq '.[] | has("failures")' /tekton/home/clair-vulnerabilities.json)" == "false" ]]; then
-          HACBS_TEST_OUTPUT=$(make_result_json -r "ERROR" -t "/tekton/home/clair-vulnerabilities.json is not generated correctly, please check again")
-          echo "/tekton/home/clair-vulnerabilities.json is not generated correctly, please check again"
+          note="Task $(context.task.name) failed: /tekton/home/clair-vulnerabilities.json did not generate correctly. For details, check Tekton task log."
+          HACBS_TEST_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "/tekton/home/clair-vulnerabilities.json did not generate correctly. For details, check conftest command in Tekton task log."
           echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
           exit 0
         fi
@@ -76,5 +79,6 @@ spec:
               low: (.[] | .failures | map(select(.metadata.details.name=="clair_low_vulnerabilities")) | length)
             }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
 
-        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "Please refer to result CLAIR_SCAN_RESULT for the vulnerabilities scanned by clair")
+        note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
+        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
         echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)

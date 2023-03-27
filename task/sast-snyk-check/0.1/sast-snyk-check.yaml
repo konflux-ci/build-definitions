@@ -9,16 +9,17 @@ metadata:
   name: sast-snyk-check
 spec:
   description: >-
-    Static code security test with snyk
+    Static application security testing with Snyk.
   results:
-    - description: Test output
+    - description: Tekton task test output.
       name: HACBS_TEST_OUTPUT
   params:
     - name: SNYK_SECRET
+      description: Name of secret which contains Snyk token.
       default: ""
     - name: ARGS
       type: string
-      description: extra args needs to append
+      description: Append arguments.
       default: "--all-projects --exclude=test*,vendor,deps"
   volumes:
     - name: snyk-secret
@@ -43,8 +44,9 @@ spec:
         . /utils.sh
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
-          echo "SNYK_TOKEN is not defined, please create the $SNYK_SECRET secret with the snyk_token key containing the Snyk token." | tee stdout.txt
-          make_result_json -r SKIPPED -t "Check skipped: SNYK_TOKEN is empty"
+          echo "SNYK_TOKEN not defined. Create $SNYK_SECRET secret with key containing Snyk token." | tee stdout.txt
+          note="Task $(context.task.name) skipped: SNYK_TOKEN is empty."
+          HACBS_TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           exit 0
         fi
         export SNYK_TOKEN
@@ -54,8 +56,6 @@ spec:
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
 
-        HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR)
-
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
           HACBS_TEST_OUTPUT=
@@ -63,10 +63,13 @@ spec:
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
-          HACBS_ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$SKIP_MSG")
+          note="Task $(context.task.name) skipped: Snyk code test found zero supported files."
+          HACBS_ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
         else
-          echo "The sast-snyk-check test has failed with the following issues:"
+          echo "sast-snyk-check test failed because of the following issues:"
           cat stdout.txt
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
   workspaces:
