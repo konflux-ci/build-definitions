@@ -138,6 +138,59 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
+
+
+      - name: get-tasks-to-evaluate
+        runAfter:
+          - fetch-repository        
+        taskSpec:
+          results:
+          - description: Directory containing the build tasks
+            name: build_tasks_dir
+          - description: Directory containing all tasks
+            name: all_tasks_dir
+          steps:
+            - name: gather-tasks
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/usr/bin/env bash
+                source .tekton/scripts/ec-checks.sh
+                $(build_tasks_dir build_tasks)
+                $(all_tasks_dir all_tasks)
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
+
+
+    - name: evaluate tasks
+        runAfter:
+          - get-tasks-to-evaluate        
+        taskSpec:
+          steps:
+            - name: validate
+              workingDir: "$(workspaces.output.path)"
+              image: quay.io/hacbs-contract/ec-cli:snapshot
+              command: [ec]
+              args:
+                - validate
+                - definition
+                - "--file"
+                - "all_tasks"
+                - "--policy"
+                - "git::https://github.com/hacbs-contract/ec-policies//policy/task"
+                - "--policy"
+                - "git::https://github.com/hacbs-contract/ec-policies//policy/lib"
+                - "--data"
+                - "git::https://github.com/hacbs-contract/ec-policies//data"
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
+
     finally:
       - name: e2e-cleanup
         params:
