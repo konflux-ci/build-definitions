@@ -73,7 +73,7 @@ generated_pipelines_dir=$($MKTEMP_CMD -d -p "$WORKDIR" pipelines.XXXXXXXX)
 oc kustomize --output "$generated_pipelines_dir" pipelines/
 
 # Generate YAML files separately since pipelines for core services have same .metadata.name.
-core_services_pipelines_dir=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XXXXXXXX)
+core_services_pipelines_dir=$($MKTEMP_CMD -d -p "$WORKDIR" core-services-pipelines.XXXXXXXX)
 oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 
 # Build tasks
