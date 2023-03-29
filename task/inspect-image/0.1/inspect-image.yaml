@@ -7,7 +7,7 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "appstudio, hacbs"
-  name: sanity-inspect-image
+  name: inspect-image
 spec:
   description: >-
     Get manifest data for source and base images and save them to workspace.
@@ -74,7 +74,7 @@ spec:
       skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
 
       if [ ! -z $(cat stderr.txt) ]; then
-        echo "Skopeo inspect failed, sanity-inspect-image test encountered the following error:"
+        echo "Skopeo inspect failed, inspect-image test encountered the following error:"
         cat stderr.txt
         note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
         HACBS_TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")

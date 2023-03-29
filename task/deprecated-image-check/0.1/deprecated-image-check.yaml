@@ -41,7 +41,7 @@ spec:
           IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE; echo "[$IMAGE_REGISTRY] [$IMAGE_WITH_TAG]"
           IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
           IMAGE_REGISTRY=${IMAGE_REGISTRY//registry.redhat.io/registry.access.redhat.com}
-          export IMAGE_REPO_PATH=$(workspaces.sanity-ws.path)/${IMAGE_REPOSITORY}
+          export IMAGE_REPO_PATH=$(workspaces.test-ws.path)/${IMAGE_REPOSITORY}
           mkdir -p ${IMAGE_REPO_PATH}
           echo "Querying Pyxis for $BASE_IMAGE."
           http_code=$(curl -s -k -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY}/repository/${IMAGE_REPOSITORY}")
@@ -70,7 +70,7 @@ spec:
         while IFS= read -r line
         do
           IFS=:' ' read -r http_code IMAGE_REGISTRY IMAGE_REPOSITORY <<< $line; echo "[$http_code] [$IMAGE_REGISTRY] [$IMAGE_REPOSITORY]"
-          export IMAGE_REPO_PATH=$(workspaces.sanity-ws.path)/${IMAGE_REPOSITORY}
+          export IMAGE_REPO_PATH=$(workspaces.test-ws.path)/${IMAGE_REPOSITORY}
           if [ "$http_code" == "200" ];
           then
             echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace."
@@ -83,11 +83,11 @@ spec:
 
           elif [ "$http_code" == "404" ];
           then
-            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis." >> $(workspaces.sanity-ws.path)/stderr.txt
-            cat $(workspaces.sanity-ws.path)/stderr.txt
+            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis." >> $(workspaces.test-ws.path)/stderr.txt
+            cat $(workspaces.test-ws.path)/stderr.txt
           else
-            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}." >> $(workspaces.sanity-ws.path)/stderr.txt
-            cat $(workspaces.sanity-ws.path)/stderr.txt
+            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}." >> $(workspaces.test-ws.path)/stderr.txt
+            cat $(workspaces.test-ws.path)/stderr.txt
             error_counter=$((error_counter++))
             exit 0
           fi
@@ -106,4 +106,4 @@ spec:
         echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
 
   workspaces:
-    - name: sanity-ws
+    - name: test-ws
