@@ -8,8 +8,11 @@ metadata:
     tekton.dev/tags: "appstudio, hacbs"
   name: fbc-related-image-check
 spec:
+  description: >-
+    Checks whether all images referenced in file-based catalog (FBC) are valid.
   results:
     - name: HACBS_TEST_OUTPUT
+      description: Tekton task test output.
   workspaces:
     - name: workspace
   steps:
@@ -38,28 +41,31 @@ spec:
         if [ $? -ne 0 ]; then
           relImgs="$(jq -r '.relatedImages[]?.image' $catalog)"
           if [ $? -ne 0 ]; then
-            echo "Could not get related images, make sure catalog.yaml exists in FBC fragment image and has valid yaml format."
-            HACBS_TEST_OUTPUT="$(make_result_json -r FAILURE -f 1)"
+            echo "Could not get related images. Make sure catalog.yaml exists in FBC fragment image and it is valid .yaml format."
+            note="Task $(context.task.name) failed: Could not fetch related images. Make sure you have catalog.yaml formatted correctly in your file-based catalog (FBC) fragment image."
+            HACBS_TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
             echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
           exit 0
           fi
         fi
 
-        echo -e "These are related images:\n$relImgs"
+        echo -e "These are related images:\n$relImgs."
         # cycle through those related images and show outputs
         for i in ${relImgs// /}
         do
           if ! skopeo inspect --no-tags "docker://${i}"; then
-            echo "Skopeo inspect failed on related image: $i"
+            echo "Skopeo inspect failed on related image: $i."
             FAILEDIMAGES+="$i, "
           fi
         done
         if [ -z "$FAILEDIMAGES" ]; then
-          HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
+          note="Task $(context.task.name) succeeded: For details, check Tekton task result HACBS_TEST_OUTPUT."
+          HACBS_TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
           echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
         else
-          echo "These images failed inspection: $FAILEDIMAGES"
-          HACBS_TEST_OUTPUT="$(make_result_json -r FAILURE -f 1)"
+          echo "These images failed inspection: $FAILEDIMAGES."
+          note="Task $(context.task.name) failed: Command skopeo inspect could not inspect images. For details, check Tekton task log."
+          HACBS_TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
           echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
           exit 0
         fi

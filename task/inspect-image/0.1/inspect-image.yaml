@@ -7,25 +7,25 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "appstudio, hacbs"
-  name: sanity-inspect-image
+  name: inspect-image
 spec:
   description: >-
-    Get manifest data for the source image and its base image to workspace
+    Get manifest data for source and base images and save them to workspace.
   params:
     - name: IMAGE_URL
-      description: the fully qualified image name
+      description: Fully qualified image name.
     - name: IMAGE_DIGEST
-      description: image digest
+      description: Image digest.
       type: string
     - name: DOCKER_AUTH
-      description: secret with config.json for container auth
+      description: Secret with config.json for container auth.
       type: string
   results:
-    - description: Base image the source image is built from
+    - description: Base image source image is built from.
       name: BASE_IMAGE
-    - description: Base image repository URL
+    - description: Base image repository URL.
       name: BASE_IMAGE_REPOSITORY
-    - description: Test output
+    - description: Tekton task test output.
       name: HACBS_TEST_OUTPUT
   workspaces:
     - name: source
@@ -69,41 +69,43 @@ spec:
       if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
         IMAGE_URL="${IMAGE_URL/:*@/@}"
       fi
-      echo "Inspecting manifest for source image ${IMAGE_URL}"
+      echo "Inspecting manifest for source image ${IMAGE_URL}."
       skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT 2> stderr.txt || true
       skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
 
       if [ ! -z $(cat stderr.txt) ]; then
-        echo "skopeo inspect fails, the sanity-inspect-image test meets the following error:"
+        echo "Skopeo inspect failed, inspect-image test encountered the following error:"
         cat stderr.txt
-        HACBS_TEST_OUTPUT="$(make_result_json -r ERROR -t 'skopeo inspect meets errors')"
+        note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+        HACBS_TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
         echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
         exit 0
       fi
-      echo "Getting base image manifest for source image ${IMAGE_URL}"
+      echo "Getting base image manifest for source image ${IMAGE_URL}."
       BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
       BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
       if [ $BASE_IMAGE_NAME == 'null' ]; then
-        echo "Cannot get base image info from 'annotations'"
-        echo "Trying to get base image info from 'Labels'"
+        echo "Cannot get base image info from annotations."
+        echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
         BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
         BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
         if [ "$BASE_IMAGE_NAME" == 'null' ]; then
-          echo "Cannot get base image info from 'Labels', please check the source image ${IMAGE_URL}"
+          echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
           exit 0
         fi
       fi
       if [ -z "$BASE_IMAGE_NAME" ]; then
-        echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image"
+        echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
         exit 0
       fi
       BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
-      echo "The base image is $BASE_IMAGE, get its manifest now"
+      echo "The base image is $BASE_IMAGE. Fetch its manifest."
       skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
       echo -n "$BASE_IMAGE" | tee $(results.BASE_IMAGE.path)
 
       BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
       echo -n "$BASE_IMAGE_REPOSITORY" | tee $(results.BASE_IMAGE_REPOSITORY.path)
 
-      HACBS_TEST_OUTPUT="$(make_result_json -r SUCCESS -s 1)"
+      note="Task $(context.task.name) completed: Check inspected JSON files under $(workspaces.source.path)/hacbs/$(context.task.name)."
+      HACBS_TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
       echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
