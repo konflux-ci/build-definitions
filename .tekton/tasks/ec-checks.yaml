@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ec-checks
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/displayName: "Enterprise Contract Checks"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    This task can be used to run enterprise contract checks
+  steps:
+  - name: gather-tasks
+    image: quay.io/redhat-appstudio/appstudio-utils:512cca38316355d6dbfc9c23ed3c5afabb943d24
+    workingDir: $(workspaces.source.path)
+    script: |
+      source hack/ec-checks.sh
+      $(build_tasks_dir build_tasks-ec)
+      $(all_tasks_dir all_tasks-ec)
+  - name: validate-all-tasks
+    workingDir: "$(workspaces.source.path)"
+    image: quay.io/hacbs-contract/ec-cli:snapshot
+    command: [ec]
+    args:
+      - validate
+      - definition
+      - "--file"
+      - "./all_tasks-ec"
+      - "--policy"
+      - "git::https://github.com/hacbs-contract/ec-policies//policy/task"
+      - "--policy"
+      - "git::https://github.com/hacbs-contract/ec-policies//policy/lib"
+      - "--data"
+      - "git::https://github.com/hacbs-contract/ec-policies//data"
+      - "--strict"
+  - name: validate-build-tasks
+    workingDir: "$(workspaces.source.path)"
+    image: quay.io/hacbs-contract/ec-cli:snapshot
+    command: [ec]
+    args:
+      - validate
+      - definition
+      - "--file"
+      - "./build_tasks-ec"
+      - "--policy"
+      - "git::https://github.com/hacbs-contract/ec-policies//policy/build_task"
+      - "--policy"
+      - "git::https://github.com/hacbs-contract/ec-policies//policy/lib"
+      - "--data"
+      - "git::https://github.com/hacbs-contract/ec-policies//data"
+      - "--strict"
+  workspaces:
+    - name: source
