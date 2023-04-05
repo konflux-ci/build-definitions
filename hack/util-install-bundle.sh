@@ -15,6 +15,10 @@ for i in "${BUNDLE[@]}"; do
     DOCKER_BUNDLE=$i
   elif [[ $i == *"fbc-builder"* ]]; then
     FBC_BUNDLE=$i
+  elif [[ $i == *"nodejs-builder"* ]]; then
+    NODEJS_BUNDLE=$i
+  elif [[ $i == *"java-builder"* ]]; then
+    JAVA_BUNDLE=$i
   fi
 done
 
@@ -57,6 +61,18 @@ spec:
         bundle: ${FBC_BUNDLE}
       when:
         language: fbc
+    - name: S2I - NodeJS
+      pipelineRef:
+        name: nodejs-builder
+        bundle: ${NODEJS_BUNDLE}
+      when:
+        language: nodejs
+    - name: S2I - Java
+      pipelineRef:
+        name: java-builder
+        bundle: ${JAVA_BUNDLE}
+      when:
+        language: java
     - name: Docker build
       pipelineRef:
         name: docker-build
