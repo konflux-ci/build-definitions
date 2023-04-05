@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "pull_request"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
@@ -112,41 +112,16 @@ spec:
               secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
-      - name: e2e-test
+      - name: e2e-tests
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
+          - name: app_suffix
+            value: "{{ pull_request_number }}"
         runAfter:
           - build-bundles
-        taskSpec:
-          params:
-            - name: e2e_test_namespace
-              type: string
-          steps:
-            - name: e2e-test
-              image: quay.io/redhat-appstudio/e2e-tests:main
-              imagePullPolicy: Always
-              args: [
-                "--ginkgo.label-filter=build-templates-e2e",
-                "--ginkgo.v",
-                "--ginkgo.no-color"
-              ]
-              env:
-              - name: APP_SUFFIX
-                value: "{{ pull_request_number }}"
-              - name: COMPONENT_REPO_URLS
-                value: "https://github.com/redhat-appstudio-qe/devfile-sample-python-basic,https://github.com/redhat-appstudio-qe/retrodep,https://github.com/cachito-testing/pip-e2e-test,https://github.com/redhat-appstudio-qe/fbc-sample-repo"
-              - name: QUAY_E2E_ORGANIZATION
-                value: redhat-appstudio
-              - name: E2E_APPLICATIONS_NAMESPACE
-                value: "$(params.e2e_test_namespace)"
-              - name: GITHUB_TOKEN
-                valueFrom:
-                  secretKeyRef:
-                    name: github
-                    key: token
-              - name: MY_GITHUB_ORG
-                value: redhat-appstudio-appdata
+        taskRef:
+          name: e2e-test
       - name: check-task-pipeline-repo-existence
         runAfter:
           - build-bundles
