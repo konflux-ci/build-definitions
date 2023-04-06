@@ -42,7 +42,7 @@ spec:
         # strip new-line escape symbol from parameter and save it to variable
         imageanddigest=$(echo $imagewithouttag@$IMAGE_DIGEST)
 
-        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay > /tekton/home/clair-result.json || true
+        clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
       securityContext:
