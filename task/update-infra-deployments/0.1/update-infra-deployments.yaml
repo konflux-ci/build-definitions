@@ -8,12 +8,15 @@ metadata:
     tekton.dev/tags: "appstudio, hacbs"
   name: update-infra-deployments
 spec:
-  description: Update redhat-appstudio/infra-deployments repository
+  description: |
+    Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' parameter, generates pull-request for redhat-appstudio/infra-deployments repository.
   params:
     - name: SCRIPT
-      description: Script for changing the infra-deployments
+      description: Bash script for changing the infra-deployments
     - name: ORIGIN_REPO
+      description: URL of github repository which was built by the Pipeline
     - name: REVISION
+      description: Git reference which was built by the Pipeline
     - name: TARGET_GH_REPO
       description: GitHub repository of the infra-deployments code
       default: redhat-appstudio/infra-deployments
@@ -25,6 +28,7 @@ spec:
       default: quay.io/mkovarik/ose-cli-git:4.11
     - name: shared-secret
       default: infra-deployments-pr-creator
+      description: secret in the namespace which contains private key for the GitHub App
     - name: GITHUB_APP_ID
       description: ID of Github app used for updating PR
       default: "305606"
@@ -291,8 +295,3 @@ spec:
 
         if __name__ == '__main__':
             main()
-
-  workspaces:
-    - name: artifacts
-      description: Workspace containing arbitrary artifacts used during the task run.
-      optional: true

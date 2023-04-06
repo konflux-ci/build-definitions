@@ -10,7 +10,9 @@ metadata:
     tekton.dev/tags: s2i, nodejs, workspace
   name: s2i-nodejs
 spec:
-  description: s2i-nodejs task clones a Git repository and builds and pushes a container image using S2I and a nodejs builder image.
+  description: |
+    s2i-nodejs task builds source code into a container image and pushes the image into container registry using S2I and buildah tool.
+    In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
   params:
   - default: registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583
     description: NodeJS builder image
@@ -217,3 +219,4 @@ spec:
   workspaces:
   - mountPath: /workspace/source
     name: source
+    description: Workspace containing the source code to build.

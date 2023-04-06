@@ -9,10 +9,10 @@ metadata:
   name: init
 spec:
   description: >-
-    App Studio Initialize Pipeline Task, include flags for rebuild and auth.
+    Initialize Pipeline Task, include flags for rebuild and auth. Generates image repository secret used by the PipelineRun.
   params:
     - name: image-url
-      description: Image URL for testing
+      description: Image URL for build by PipelineRun
     - name: rebuild
       description: Rebuild the image if exists
       default: "false"
@@ -20,11 +20,15 @@ spec:
       description: skip checks against built image
       default: "false"
     - name: pipelinerun-name
+      description: Name of current pipelinerun, should be "$(context.pipelineRun.name)"
     - name: pipelinerun-uid
+      description: UID of current pipelinerun, should be "$(context.pipelineRun.uid)"
     - name: shared-secret
       default: redhat-appstudio-user-workload
+      description: Shared resource secret for accessing user-workload image repository
   results:
     - name: build
+      description: Defines if the image in param image-url should be built
     - name: container-registry-secret
       description: Name of secret with credentials
   volumes:
