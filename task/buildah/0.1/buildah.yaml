@@ -100,6 +100,11 @@ spec:
           echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ $http_code = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" $CONTEXT/.dockerignore
+        fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
