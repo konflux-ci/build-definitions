@@ -15,7 +15,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 |DOCKER_AUTH|secret with config.json for container auth||true|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
-|PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.||false|
+|PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 
 ## Results
 |name|description|

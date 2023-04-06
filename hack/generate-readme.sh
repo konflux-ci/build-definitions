@@ -9,12 +9,12 @@ echo "# $(yq '.metadata.name' $TASK) task"
 echo
 yq '.spec.description' $TASK
 echo
-PARAMS=$(yq '.spec.params.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.default // "") + "|" + (.default != "*") + "|")' $TASK)
+PARAMS=$(yq '.spec.params.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.default // (.default != "*" | "")) + "|" + (.default != "*") + "|")' $TASK)
 if [ -n "$PARAMS" ]; then
   echo "## Parameters"
   echo "|name|description|default value|required|"
   echo "|---|---|---|---|"
-  echo "$PARAMS"
+  echo "$PARAMS" | sed 's/||false|$/|""|false|/'
   echo
 fi
 
