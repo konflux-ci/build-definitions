@@ -146,6 +146,33 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
+      - name: check-task-migration-md
+        runAfter:
+          - fetch-repository
+        taskSpec:
+          steps:
+            - name: check-task-migration-md
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/usr/bin/env bash
+                EXIT=0
+                for TASK_DIR in $(ls task); do
+                  # Do not check on initial version of task
+                  for VERSION in $(ls -d task/$TASK_DIR/*/ | sort --version-sort | tail -n+2); do
+                    MIGRATION_FILE=${VERSION}MIGRATION.md
+                    if [ ! -f $MIGRATION_FILE ]; then
+                       echo "Missing file $MIGRATION_FILE"
+                       EXIT=1
+                    fi
+                  done
+                done
+                exit $EXIT
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
     finally:
       - name: e2e-cleanup
         params:

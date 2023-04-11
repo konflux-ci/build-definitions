@@ -45,6 +45,14 @@ Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
 Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
 
+### Versioning
+
+When the task update changes the interface (eg. change of parameters, workspaces or results names) then a new version of the task should be created. The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+
+Adding a new parameter with a default value does not require the task version increase.
+
+Task version increase must be approved by Project Manager.
+
 ## Testing
 
 Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. Images are pushed into OpenShift image streams, by setting environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
