@@ -1,0 +1,25 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: show-sbom
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+spec:
+  description: >-
+    Shows the Software Bill of Materials (SBOM) generated for the built image in CyloneDX JSON format.
+  params:
+    - name: IMAGE_URL
+      description: Fully qualified image name to show SBOM for.
+      type: string
+  steps:
+  - name: show-sbom
+    image: quay.io/redhat-appstudio/cosign:v1.13.1
+    command:
+    - sh
+    args:
+    - -c
+    - cosign download sbom $(params.IMAGE_URL) 2>/dev/null
