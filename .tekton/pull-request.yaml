@@ -73,6 +73,22 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
+      - name: check-partner-tasks
+        runAfter:
+          - build-container
+        taskSpec:
+          steps:
+            - name: check-task-structure
+              image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/usr/bin/env bash
+                .tekton/scripts/check-partner-tasks.sh
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
       - name: build-bundles
         params:
           - name: revision
