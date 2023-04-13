@@ -1,0 +1,110 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: deprecated-image-check
+spec:
+  description: >-
+    Identifies the unmaintained and potentially insecure deprecated base images.
+    Pyxis API collects metadata from image repository, and Conftest applies supplied policy to identify the deprecated images using that metadata.
+  params:
+    - name: POLICY_DIR
+      description: Path to directory containing Conftest policies.
+      default: "/project/repository/"
+    - name: POLICY_NAMESPACE
+      description: Namespace for Conftest policy.
+      default: "required_checks"
+    - name: BASE_IMAGES_DIGESTS
+      description: Digests of base build images.
+
+  results:
+    - name: PYXIS_HTTP_CODE
+      description: HTTP code returned by Pyxis API endpoint.
+    - description: Tekton task test output.
+      name: HACBS_TEST_OUTPUT
+
+  steps:
+    # Download Pyxis metadata about the image
+    - name: query-pyxis
+      image: registry.access.redhat.com/ubi8/ubi-minimal:8.7-1107@sha256:987ae81ce046652ee4a2c3df54dad5e82faa1b078dab5d09f7cfaae11784ed30
+      env:
+        - name: BASE_IMAGES_DIGESTS
+          value: $(params.BASE_IMAGES_DIGESTS)
+      script: |
+        #!/usr/bin/env bash
+        readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
+        for BASE_IMAGE in ${IMAGE_ARRAY[@]};
+        do
+          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE; echo "[$IMAGE_REGISTRY] [$IMAGE_WITH_TAG]"
+          IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
+          IMAGE_REGISTRY=${IMAGE_REGISTRY//registry.redhat.io/registry.access.redhat.com}
+          export IMAGE_REPO_PATH=$(workspaces.test-ws.path)/${IMAGE_REPOSITORY}
+          mkdir -p ${IMAGE_REPO_PATH}
+          echo "Querying Pyxis for $BASE_IMAGE."
+          http_code=$(curl -s -k -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY}/repository/${IMAGE_REPOSITORY}")
+          echo "Response code: $http_code."
+          echo $http_code $IMAGE_REGISTRY $IMAGE_REPOSITORY>> $(results.PYXIS_HTTP_CODE.path)
+        done
+
+    # Run the tests and save output
+    - name: run-conftest
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
+      env:
+        - name: POLICY_DIR
+          value: $(params.POLICY_DIR)
+        - name: POLICY_NAMESPACE
+          value: $(params.POLICY_NAMESPACE)
+      script: |
+        #!/usr/bin/env sh
+        source /utils.sh
+
+        success_counter=0
+        failure_counter=0
+        error_counter=0
+        if [ ! -f $(results.PYXIS_HTTP_CODE.path) ]; then
+          error_counter=$((error_counter++))
+        fi
+        while IFS= read -r line
+        do
+          IFS=:' ' read -r http_code IMAGE_REGISTRY IMAGE_REPOSITORY <<< $line; echo "[$http_code] [$IMAGE_REGISTRY] [$IMAGE_REPOSITORY]"
+          export IMAGE_REPO_PATH=$(workspaces.test-ws.path)/${IMAGE_REPOSITORY}
+          if [ "$http_code" == "200" ];
+          then
+            echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace."
+            /usr/bin/conftest test --no-fail ${IMAGE_REPO_PATH}/repository_data.json \
+            --policy $POLICY_DIR --namespace $POLICY_NAMESPACE \
+            --output=json 2> ${IMAGE_REPO_PATH}/stderr.txt | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
+
+            failure_counter=$((failure_counter+$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
+            success_counter=$((success_counter+$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
+
+          elif [ "$http_code" == "404" ];
+          then
+            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis." >> $(workspaces.test-ws.path)/stderr.txt
+            cat $(workspaces.test-ws.path)/stderr.txt
+          else
+            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}." >> $(workspaces.test-ws.path)/stderr.txt
+            cat $(workspaces.test-ws.path)/stderr.txt
+            error_counter=$((error_counter++))
+            exit 0
+          fi
+        done < $(results.PYXIS_HTTP_CODE.path)
+
+        note="Task $(context.task.name) failed: Command conftest failed. For details, check Tekton task log."
+        HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR -n "$POLICY_NAMESPACE" -t "$note")
+        if [[ "$error_counter" == 0 && "$success_counter" > 0 ]];
+        then
+          if [[ "${failure_counter}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
+          note="Task $(context.task.name) completed: Check result for task result."
+          HACBS_TEST_OUTPUT=$(make_result_json \
+            -r "${RES}" -n "$POLICY_NAMESPACE" \
+            -s "${success_counter}" -f "${failure_counter}" -t "$note")
+        fi
+        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+
+  workspaces:
+    - name: test-ws
