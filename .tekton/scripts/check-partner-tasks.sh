@@ -105,13 +105,35 @@ check_task_schema() {
     return 0
 }
 
-check_dir_structure || exit 1
-
 exitcode=0
-if ! check_task_schema; then
-    exitcode=$((exitcode+1))
+check_dir_structure_status=Fail
+check_task_schema_status="n/a "
+check_privilege_use_status="n/a "
+
+if check_dir_structure; then
+    check_dir_structure_status=Pass
+    if check_task_schema; then
+        check_task_schema_status=Pass
+    else
+        check_task_schema_status=Fail
+        exitcode=$((exitcode+1))
+    fi
+
+    if check_privilege_use; then
+        check_privilege_use_status=Pass
+    else
+        check_privilege_use_status=Fail
+        exitcode=$((exitcode+1))
+    fi
+else
+    exitcode=1
 fi
-if ! check_privilege_use; then
-    exitcode=$((exitcode+1))
-fi
+
+echo "
+|        Check         | Status |
+|----------------------+--------|
+| Directory structure  | $check_dir_structure_status   |
+| Task YAML definition | $check_task_schema_status   |
+| Privilege use        | $check_privilege_use_status   |"
+
 exit $exitcode
