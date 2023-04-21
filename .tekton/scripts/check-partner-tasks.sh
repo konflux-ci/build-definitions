@@ -9,14 +9,23 @@ if [ ! -e "partners/" ]; then
 fi
 
 check_dir_structure() {
-    issue_found=0
+    resultf=$(mktemp)
+    check_result=$(mktemp)
+
     for task_dir in partners/*; do
+        owners_file="$task_dir/OWNERS"
+        if [ ! -e "$owners_file" ]; then
+            echo "error: missing file $owners_file" >>"$check_result"
+            echo "issue found" >"$resultf"
+        fi
+
         task_name=$(basename "$task_dir")
-        for version_dir in "$task_dir"/*; do
+        find "$task_dir" -mindepth 1 -maxdepth 1 -type d | \
+        while read -r version_dir; do
             task_version=$(basename "$version_dir")
             if ! echo "$task_version" | grep "^[0-9]\+\.[0-9]\+$" >/dev/null 2>&1; then
-                echo "error: $version_dir is not a version directory. A version directory name only contains digits and dot, e.g. 0.1, 1.2"
-                issue_found=1
+                echo "error: $version_dir is not a version directory. A version directory name only contains digits and dot, e.g. 0.1, 1.2" >>"$check_result"
+                echo "issue found" >"$resultf"
             else
                 # Ignore empty directory whatever it is a version directory or not.
                 if [ -n "$(ls "$version_dir")" ]; then
@@ -30,19 +39,26 @@ check_dir_structure() {
                         fi
                     done
                     if [ -z "$found" ]; then
-                        echo "error: no task file is found under $version_dir. A task file must be named with the same task name. For example, task name is task1, then task file must have name task1.yaml"
-                        issue_found=1
+                        echo "error: no task file is found under $version_dir. A task file must be named with the same task name. For example, task name is task1, then task file must have name task1.yaml" >>"$check_result"
+                        echo "issue found" >"$resultf"
                     fi
                     # Check README
                     readme_file="$version_dir/README.md"
                     if [ ! -s "$readme_file" ]; then
-                        echo "warning: it is recommended to provide an informative document for task $task_name in $readme_file"
+                        echo "warning: it is recommended to provide an informative document for task $task_name in $readme_file" >>"$check_result"
                     fi
                 fi
             fi
         done
     done
-    return $issue_found
+
+    if [ -s "$check_result" ]; then
+        cat "$check_result"
+        echo
+    fi
+
+    [ -s "$resultf" ] && return 1
+    return 0
 }
 
 check_privilege_use() {
