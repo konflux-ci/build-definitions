@@ -72,31 +72,31 @@ privileged:true:securityContext.privileged is not allowed to be true."
 
     find partners/*/*/*.yaml | awk -F '/' '{ print $0, $2, $4 }' | \
     while read -r task_file task_name yaml_file; do
-    if [ "${task_name}.yaml" != "$yaml_file" ]; then
-        continue
-    fi
+        if [ "${task_name}.yaml" != "$yaml_file" ]; then
+            continue
+        fi
 
-    while IFS=: read -r sc_config check_value err_msg; do
-        task_idx=0
-        # When no securityContext config is set, yq outputs message "Error: no matches found" to stderr.
-        # Redirect this message into stdout in order to suppress these potential Errors, and such error
-        # messages does not match any config value obviously.
-        for value in $(yq -e ".spec.steps[].securityContext.$sc_config" "$task_file" 2>&1); do
-            if [ "$value" == "$check_value" ]; then
-                echo "found" >>"$resultf"
-                step_name=$(yq -e ".spec.steps[$task_idx].name" "$task_file")
-                echo "error: in step $step_name, $err_msg" >>"$check_result"
-            fi
-            task_idx=$((task_idx+1))
-        done
-    done <<<"$check_cases"
+        while IFS=: read -r sc_config check_value err_msg; do
+            task_idx=0
+            # When no securityContext config is set, yq outputs message "Error: no matches found" to stderr.
+            # Redirect this message into stdout in order to suppress these potential Errors, and such error
+            # messages does not match any config value obviously.
+            for value in $(yq -e ".spec.steps[].securityContext.$sc_config" "$task_file" 2>&1); do
+                if [ "$value" == "$check_value" ]; then
+                    echo "found" >>"$resultf"
+                    step_name=$(yq -e ".spec.steps[$task_idx].name" "$task_file")
+                    echo "error: in step $step_name, $err_msg" >>"$check_result"
+                fi
+                task_idx=$((task_idx+1))
+            done
+        done <<<"$check_cases"
 
-    if [ -s "$check_result" ]; then
-        echo "Task $task_file has unexpected privileges:"
-        cat "$check_result"
-        echo
-        echo >"$check_result"
-    fi
+        if [ -s "$check_result" ]; then
+            echo "Task $task_file has unexpected privileges:"
+            cat "$check_result"
+            echo
+            echo >"$check_result"
+        fi
     done
 
     [ -s "$resultf" ] && return 1
