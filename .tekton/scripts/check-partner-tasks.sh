@@ -73,7 +73,7 @@ privileged:true:securityContext.privileged is not allowed to be true."
     done <<<"$check_cases"
 
     if [ -s "$check_result" ]; then
-        echo "Task $task_file uses unexpected privileges:"
+        echo "Task $task_file has unexpected privileges:"
         cat "$check_result"
         echo
         echo >"$check_result"
