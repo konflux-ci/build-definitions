@@ -7,6 +7,7 @@ cd "$SCRIPTDIR/../.." || exit 1
 # task/partners/<task name>/<version>/<task file>
 
 if [ ! -e "partners/" ]; then
+    echo "No partners directory exists. Skip checks against partner tasks."
     exit 0
 fi
 
