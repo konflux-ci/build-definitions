@@ -3,9 +3,6 @@
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$SCRIPTDIR/../.." || exit 1
 
-# Expected partner task directory structure:
-# task/partners/<task name>/<version>/<task file>
-
 if [ ! -e "partners/" ]; then
     echo "No partners directory exists. Skip checks against partner tasks."
     exit 0
@@ -24,6 +21,7 @@ check_dir_structure() {
                 # Ignore empty directory whatever it is a version directory or not.
                 if [ -n "$(ls "$version_dir")" ]; then
                     found=
+                    # Check the task YAML file
                     for yaml_file in "$version_dir"/*.yaml; do
                         task_file=$(basename "$yaml_file")
                         if [ "${task_name}.yaml" == "$task_file" ]; then
@@ -34,6 +32,11 @@ check_dir_structure() {
                     if [ -z "$found" ]; then
                         echo "error: no task file is found under $version_dir. A task file must be named with the same task name. For example, task name is task1, then task file must have name task1.yaml"
                         issue_found=1
+                    fi
+                    # Check README
+                    readme_file="$version_dir/README.md"
+                    if [ ! -s "$readme_file" ]; then
+                        echo "warning: it is recommended to provide an informative document for task $task_name in $readme_file"
                     fi
                 fi
             fi
