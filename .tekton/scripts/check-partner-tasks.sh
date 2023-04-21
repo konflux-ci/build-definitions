@@ -17,8 +17,8 @@ check_dir_structure() {
         task_name=$(basename "$task_dir")
         for version_dir in "$task_dir"/*; do
             task_version=$(basename "$version_dir")
-            if ! echo "$task_version" | grep "^[0-9.]\+$" >/dev/null 2>&1; then
-                echo "error: $version_dir is not a version directory. A version directory name only contains digits and dot, e.g. 0.1, 0.2.1"
+            if ! echo "$task_version" | grep "^[0-9]\+\.[0-9]\+$" >/dev/null 2>&1; then
+                echo "error: $version_dir is not a version directory. A version directory name only contains digits and dot, e.g. 0.1, 1.2"
                 issue_found=1
             else
                 # Ignore empty directory whatever it is a version directory or not.
