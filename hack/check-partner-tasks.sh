@@ -94,7 +94,7 @@ privileged:true:securityContext.privileged is not allowed to be true."
             echo "Task $task_file has unexpected privileges:"
             cat "$check_result"
             echo
-            echo >"$check_result"
+            echo -n >"$check_result"
         fi
     done
 
@@ -118,7 +118,7 @@ check_task_schema() {
             echo
         fi
 
-        echo >"$check_result"
+        echo -n >"$check_result"
     done
     [ -s "$resultf" ] && return 1
     return 0
