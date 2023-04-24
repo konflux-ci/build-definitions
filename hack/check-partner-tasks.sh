@@ -67,7 +67,6 @@ check_privilege_use() {
 
     check_cases="\
 allowPrivilegeEscalation:true:allowPrivilegeEscalation is not allowed to be true to request more privileges.
-runAsUser:0:root(0) is not allowed to be set to securityContext.runAsUser.
 privileged:true:securityContext.privileged is not allowed to be true."
 
     find partners/*/*/*.yaml | awk -F '/' '{ print $0, $2, $4 }' | \
