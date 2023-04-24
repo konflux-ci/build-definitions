@@ -132,11 +132,17 @@ check_privilege_use_status="n/a "
 
 if check_dir_structure; then
     check_dir_structure_status=Pass
-    if check_task_schema; then
-        check_task_schema_status=Pass
+
+    if ! oc whoami >/dev/null 2>&1; then
+        echo "warning: haven't logged in an OpenShift instance. Task definition can't be validated on server side."
+        check_task_schema_status=Ignored
     else
-        check_task_schema_status=Fail
-        exitcode=$((exitcode+1))
+        if check_task_schema; then
+            check_task_schema_status=Pass
+        else
+            check_task_schema_status=Fail
+            exitcode=$((exitcode+1))
+        fi
     fi
 
     if check_privilege_use; then
@@ -150,10 +156,10 @@ else
 fi
 
 echo "
-|        Check         | Status |
-|----------------------+--------|
-| Directory structure  | $check_dir_structure_status   |
-| Task YAML definition | $check_task_schema_status   |
-| Privilege use        | $check_privilege_use_status   |"
+|        Check         | Status  |
+|----------------------+---------|
+| Directory structure  |$(printf " %-8s" "$check_dir_structure_status")|
+| Task YAML definition |$(printf " %-8s" "$check_task_schema_status")|
+| Privilege use        |$(printf " %-8s" "$check_privilege_use_status")|"
 
 exit $exitcode
