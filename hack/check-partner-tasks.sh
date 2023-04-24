@@ -156,7 +156,7 @@ fi
 
 echo "
 |        Check         | Status  |
-|----------------------+---------|
+|----------------------|---------|
 | Directory structure  |$(printf " %-8s" "$check_dir_structure_status")|
 | Task YAML definition |$(printf " %-8s" "$check_task_schema_status")|
 | Privilege use        |$(printf " %-8s" "$check_privilege_use_status")|"
