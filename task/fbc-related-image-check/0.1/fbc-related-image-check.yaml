@@ -39,6 +39,7 @@ spec:
 
         relImgs="$(yq -r '.relatedImages[]?.image' $catalog)"
         if [ $? -ne 0 ]; then
+          echo "Processing the catalog with yq failed because catalog.yaml contains data type other than yaml. Attempting to process with jq..."
           relImgs="$(jq -r '.relatedImages[]?.image' $catalog)"
           if [ $? -ne 0 ]; then
             echo "Could not get related images. Make sure catalog.yaml exists in FBC fragment image and it is valid .yaml format."
