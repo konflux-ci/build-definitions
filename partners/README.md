@@ -40,6 +40,6 @@ Log in to the Openshift cluster first before running the script, otherwise Task 
 ### Can partner engineers revoke a Task?
 
 Yes, they can also submit a pull request removing the Task directory from `partners` directory.
-Before sending the pull request make sure that revoking a Task will not be impacting any users pipeline.
+Before sending the pull request make sure that revoking a Task will not be impacting any user's pipeline.
 build-definitions repository maintainers will review and merge the pull request.
 
