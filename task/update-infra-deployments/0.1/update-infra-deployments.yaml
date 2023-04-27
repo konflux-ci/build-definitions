@@ -38,7 +38,7 @@ spec:
   volumes:
     - name: infra-deployments-pr-creator
       secret:
-        # 'private-key' - private key for infra-deployments-updater Github app
+        # 'private-key' - private key for Github app
         secretName: $(params.shared-secret)
     - name: shared-dir
       emptyDir: {}
@@ -240,7 +240,7 @@ spec:
                     })
                 json_output = req.json()
                 for item in json_output:
-                    if item["user"]["login"] == "infra-deployments-updater[bot]" and item["head"]["ref"] == repo_name:
+                    if item["user"]["login"].endswith("[bot]") and item["head"]["ref"] == repo_name:
                         return item
 
             def get_pr_url_from_sha(self, sha):
