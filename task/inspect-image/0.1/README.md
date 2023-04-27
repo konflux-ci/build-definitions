@@ -19,7 +19,7 @@ that base image.
 |-----------------------|----------------------------------------|
 | BASE_IMAGE            | Base image source image is built from. |
 | BASE_IMAGE_REPOSITORY | Base image repository URL.             |
-| HACBS_TEST_OUTPUT     | Tekton task test output.               |
+| TEST_OUTPUT     | Tekton task test output.               |
 
 ## Source repository for image:
 https://github.com/redhat-appstudio/hacbs-test

@@ -21,7 +21,7 @@ FindSecBugs-CLI uses a set of rules and checks to scan Java bytecode and generat
 
 | name                  | description              |
 |-----------------------|--------------------------|
-| HACBS_TEST_OUTPUT     | Tekton task test output. |
+| TEST_OUTPUT     | Tekton task test output. |
 
 ## Source repository for image:
 

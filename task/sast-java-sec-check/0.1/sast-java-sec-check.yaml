@@ -15,7 +15,7 @@ spec:
     - name: workspace
   results:
     - description: Tekton task test output.
-      name: HACBS_TEST_OUTPUT
+      name: TEST_OUTPUT
   params:
     - name: PATH_CONTEXT
       description: Path to your source code.
@@ -83,13 +83,13 @@ spec:
           cat stderr.txt
         fi
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) \
+        ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) \
                               --arg test_skipped $test_skipped --null-input \
             '{result: (if $test_skipped=="1" then "SKIPPED" else "ERROR" end),
               timestamp: $date,
               note: (if $test_skipped=="1" then "Task sast-java-sec-check skipped: .jar file does not exist. For details, check Tekton task log." else "Task sast-java-sec-check failed: For details, check Tekton task log." end)
               }')
-        HACBS_TEST_OUTPUT=
+        TEST_OUTPUT=
         parse_hacbs_test_output $(context.task.name) sarif sast_java_sec_output.json
 
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)

@@ -22,7 +22,7 @@ spec:
     - name: workspace
   results:
     - description: Tekton task test output.
-      name: HACBS_TEST_OUTPUT
+      name: TEST_OUTPUT
   steps:
     - name: surface-level-checks-required-labels
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
@@ -42,9 +42,9 @@ spec:
         . /utils.sh
         if [ ! -s ../inspect-image/image_inspect.json ]; then
           echo "File $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check task inspect-image log."
-          note="Task $(context.task.name) failed: $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result HACBS_TEST_OUTPUT in task inspect-image."
-          HACBS_TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          note="Task $(context.task.name) failed: $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
         fi
 
@@ -62,10 +62,10 @@ spec:
           echo "label-check test encountered the following error:"
           cat stderr.txt
           note="Task $(context.task.name) failed: Command conftest failed. For details, check Tekton task log."
-          HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
         fi
 
-        HACBS_TEST_OUTPUT=
+        TEST_OUTPUT=
         parse_hacbs_test_output $(context.task.name) conftest label_check_output.json || true
 
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)

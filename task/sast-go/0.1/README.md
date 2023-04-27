@@ -12,7 +12,7 @@ This helps in identifying a wide range of security issues, including buffer over
 
 | name               | description              |
 |--------------------|--------------------------|
-| HACBS_TEST_OUTPUT  | Tekton task test output. |
+| TEST_OUTPUT  | Tekton task test output. |
 
 ## Source repository for image:
 

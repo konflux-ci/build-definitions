@@ -17,7 +17,7 @@ spec:
     - name: IMAGE_DIGEST
       description: Image digest.
   results:
-    - name: HACBS_TEST_OUTPUT
+    - name: TEST_OUTPUT
       description: Tekton task test output.
   workspaces:
     - name: workspace
@@ -50,17 +50,17 @@ spec:
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         if [ ! -s ../inspect-image/image_inspect.json ]; then
           echo "File $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
-          note="Task $(context.task.name) failed: $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result HACBS_TEST_OUTPUT in task inspect-image."
-          HACBS_TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          note="Task $(context.task.name) failed: $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
         fi
 
         conffolder=$(cat ../inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
         if [ $? -ne 0 ]; then
           echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: operators.operatorframework.io.index.configs.v1."
-          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR)"
-          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
         mkdir -p /tmp/image-content confdir
@@ -70,16 +70,16 @@ spec:
         if ! oc image extract "${image_with_digest}" ; then
           echo "Unable to extract or validate extracted binaries."
           note="Task $(context.task.name) failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
-          HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           popd
           exit 0
         fi
 
         if [ -z "$(ls -A .$conffolder)" ]; then
           echo "$conffolder is missing catalog file."
-          HACBS_TEST_OUTPUT="$(make_result_json -r ERROR)"
-          echo "${HACBS_TEST_OUTPUT}" | tee "$(results.HACBS_TEST_OUTPUT.path)"
+          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           popd
           exit 0
         fi
@@ -113,10 +113,10 @@ spec:
         fi
         note="Task $(context.task.name) completed: Check result for task result."
         if [ $TESTPASSED == false ]; then
-          HACBS_ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s `expr $check_num - $failure_num` -t "$note")
-          echo "${HACBS_ERROR_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s `expr $check_num - $failure_num` -t "$note")
+          echo "${ERROR_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
         else
-          HACBS_TEST_OUTPUT=$(make_result_json -r SUCCESS -s $check_num -t "$note")
-          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          TEST_OUTPUT=$(make_result_json -r SUCCESS -s $check_num -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
         fi
         popd

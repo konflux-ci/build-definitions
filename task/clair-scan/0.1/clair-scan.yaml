@@ -20,7 +20,7 @@ spec:
       description: Folder where container authorization in config.json is stored.
       default: ""
   results:
-    - name: HACBS_TEST_OUTPUT
+    - name: TEST_OUTPUT
       description: Tekton task test output.
     - name: CLAIR_SCAN_RESULT
       description: Clair scan result.
@@ -65,9 +65,9 @@ spec:
 
         if [[ ! -f /tekton/home/clair-vulnerabilities.json ]]; then
           note="Task $(context.task.name) failed: /tekton/home/clair-vulnerabilities.json did not generate. For details, check Tekton task log."
-          HACBS_TEST_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          TEST_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
           echo "/tekton/home/clair-vulnerabilities.json did not generate correctly. For details, check conftest command in Tekton task log."
-          echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
         fi
 
@@ -80,5 +80,5 @@ spec:
             }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
 
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
-        HACBS_TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
-        echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
+        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)

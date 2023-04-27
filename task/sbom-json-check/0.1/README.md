@@ -17,7 +17,7 @@ The syntax of the sbom-cyclonedx.json file (found in the `/root/buildinfo/conten
 
 | name                  | description              |
 |-----------------------|--------------------------|
-| HACBS_TEST_OUTPUT     | Tekton task test output. |
+| TEST_OUTPUT     | Tekton task test output. |
 
 ## Source repository for image:
 

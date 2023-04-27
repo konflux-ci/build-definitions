@@ -27,7 +27,7 @@ spec:
     - description: Base image repository URL.
       name: BASE_IMAGE_REPOSITORY
     - description: Tekton task test output.
-      name: HACBS_TEST_OUTPUT
+      name: TEST_OUTPUT
   workspaces:
     - name: source
   volumes:
@@ -78,8 +78,8 @@ spec:
         echo "Skopeo inspect failed, inspect-image test encountered the following error:"
         cat stderr.txt
         note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
-        HACBS_TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-        echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
         exit 0
       fi
       echo "Getting base image manifest for source image ${IMAGE_URL}."
@@ -108,5 +108,5 @@ spec:
       echo -n "$BASE_IMAGE_REPOSITORY" | tee $(results.BASE_IMAGE_REPOSITORY.path)
 
       note="Task $(context.task.name) completed: Check inspected JSON files under $(workspaces.source.path)/hacbs/$(context.task.name)."
-      HACBS_TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
-      echo "${HACBS_TEST_OUTPUT}" | tee $(results.HACBS_TEST_OUTPUT.path)
+      TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
+      echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
