@@ -12,7 +12,8 @@ check_dir_structure() {
     resultf=$(mktemp)
     check_result=$(mktemp)
 
-    for task_dir in partners/*; do
+    find partners/ -mindepth 1 -maxdepth 1 -type d | \
+    while read -r task_dir; do
         owners_file="$task_dir/OWNERS"
         if [ ! -e "$owners_file" ]; then
             echo "error: missing file $owners_file" >>"$check_result"
