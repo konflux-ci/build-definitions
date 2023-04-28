@@ -19,7 +19,7 @@ Snyk's SAST tool uses a combination of static analysis and machine learning tech
 
 | name                  | description              |
 |-----------------------|--------------------------|
-| HACBS_TEST_OUTPUT     | Tekton task test output. |
+| TEST_OUTPUT     | Tekton task test output. |
 
 ## Source repository for image:
 

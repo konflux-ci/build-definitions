@@ -11,7 +11,7 @@ spec:
   description: >-
     Scans the content of container images for viruses, malware, and other malicious content using ClamAV antivirus scanner.
   results:
-    - name: HACBS_TEST_OUTPUT
+    - name: TEST_OUTPUT
       description: Tekton task test output.
   params:
     - name: image-digest
@@ -139,14 +139,14 @@ spec:
           else
             if [[ "${INFECTED_FILES}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
             note="Task $(context.task.name) completed: Check result for antivirus scan result."
-            HACBS_TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}" -t "$note")
+            TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}" -t "$note")
           fi
         else
           note="Task $(context.task.name) failed: /tekton/home/clamscan-result.json doesn't exist. For details, check Tekton task log."
         fi
 
-        HACBS_ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
   # sidecar is rebuilt daily(is meant to be updated daily), hence the usage of the tag instead of digest
   # provides latest virus database for clamscan only
   # does not execute anything

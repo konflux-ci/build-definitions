@@ -17,7 +17,7 @@ analyzing the components of a container image and comparing them against Clair's
 
 | name              | description              |
 |-------------------|--------------------------|
-| HACBS_TEST_OUTPUT | Tekton task test output. |
+| TEST_OUTPUT | Tekton task test output. |
 | CLAIR_SCAN_RESULT | Clair scan result.       |
 
 ## Clair-action repository:

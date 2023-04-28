@@ -12,7 +12,7 @@ spec:
     Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
   results:
     - description: Tekton task test output.
-      name: HACBS_TEST_OUTPUT
+      name: TEST_OUTPUT
   params:
     - name: SNYK_SECRET
       description: Name of secret which contains Snyk token.
@@ -46,7 +46,7 @@ spec:
         if [[ -z $SNYK_TOKEN ]]; then
           echo "SNYK_TOKEN not defined. Create $SNYK_SECRET secret with key containing Snyk token." | tee stdout.txt
           note="Task $(context.task.name) skipped: SNYK_TOKEN is empty."
-          HACBS_TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           exit 0
         fi
         export SNYK_TOKEN
@@ -58,19 +58,19 @@ spec:
 
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
-          HACBS_TEST_OUTPUT=
+          TEST_OUTPUT=
           parse_hacbs_test_output $(context.task.name) sarif sast_snyk_check_out.json  || true
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
           note="Task $(context.task.name) skipped: Snyk code test found zero supported files."
-          HACBS_ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
         else
           echo "sast-snyk-check test failed because of the following issues:"
           cat stdout.txt
           note="Task $(context.task.name) failed: For details, check Tekton task log."
-          HACBS_ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
   workspaces:
   - name: workspace

@@ -15,7 +15,7 @@ spec:
     - name: workspace
   results:
     - description: Tekton task test output.
-      name: HACBS_TEST_OUTPUT
+      name: TEST_OUTPUT
   steps:
     - name: sast-go
       image: quay.io/redhat-appstudio/hacbs-test:feature-sast
@@ -43,7 +43,7 @@ spec:
         test_not_skipped=0
         grep -q "$SKIP_MSG$" gosec_output.txt || test_not_skipped=$?
 
-        HACBS_ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
+        ERROR_OUTPUT=$(jq -rc --arg date $(date +%s) --arg tmp_not_skipped $test_not_skipped \
                                --null-input \
             '{result: (if $tmp_not_skipped=="0" then "SKIPPED" else "ERROR" end),
               timestamp: $date,
@@ -53,8 +53,8 @@ spec:
         if [ -f gosec_output.json ];
         then
           cat gosec_output.json
-          HACBS_TEST_OUTPUT=
+          TEST_OUTPUT=
           parse_hacbs_test_output $(context.task.name) sarif gosec_output.json
         fi
 
-        echo "${HACBS_TEST_OUTPUT:-${HACBS_ERROR_OUTPUT}}" | tee $(results.HACBS_TEST_OUTPUT.path)
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)

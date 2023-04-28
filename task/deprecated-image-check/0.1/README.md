@@ -19,7 +19,7 @@ in a high-level declarative language called Rego.
 | name              | description                               |
 |-------------------|-------------------------------------------|
 | PYXIS_HTTP_CODE   | HTTP code returned by Pyxis API endpoint. |
-| HACBS_TEST_OUTPUT | Tekton task test output.                  |
+| TEST_OUTPUT | Tekton task test output.                  |
 
 ## Source repository for image:
 https://github.com/redhat-appstudio/hacbs-test

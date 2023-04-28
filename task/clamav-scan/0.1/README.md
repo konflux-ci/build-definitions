@@ -17,7 +17,7 @@ The task will extract compiled code to compare it against the latest virus datab
 
 | name               | description               |
 |--------------------|---------------------------|
-| HACBS_TEST_OUTPUT  | Tekton task test output.  |
+| TEST_OUTPUT  | Tekton task test output.  |
 
 ## Source repository for image:
 https://github.com/redhat-appstudio/hacbs-test/tree/main/clamav
