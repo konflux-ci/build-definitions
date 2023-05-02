@@ -44,7 +44,7 @@ spec:
 
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.13@sha256:c6f4487bb1fc7b397e4a8ca8d59d305981cf16de99d56f39f68c9d61eecbc8ae
       securityContext:
         capabilities:
           add:
@@ -58,7 +58,7 @@ spec:
           --output=json | tee /tekton/home/clair-vulnerabilities.json || true
         fi
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.12@sha256:8c833349cad40d34262548295cd4eb1bd330e42fbb221ef54e6caee15ae1d208
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.13@sha256:c6f4487bb1fc7b397e4a8ca8d59d305981cf16de99d56f39f68c9d61eecbc8ae
       script: |
         #!/usr/bin/env bash
         . /utils.sh
