@@ -83,9 +83,43 @@ spec:
               workingDir: $(workspaces.source.path)
               script: |
                 #!/usr/bin/env bash
-                ./hack/check-partner-tasks.sh
+                ./hack/check-partner-tasks.sh > partner-tasks.out
+                echo $? > partner-tasks-code.out
+                cat partner-tasks.out
+            - name: create-comment
+              image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
+              volumeMounts:
+                - name: infra-deployments-pr-creator
+                  mountPath: /secrets/deploy-key
+              workingDir: $(workspaces.source.path)
+              env:
+                - name: GITHUBAPP_KEY_PATH
+                  value: /secrets/deploy-key/private-key
+                - name: GITHUBAPP_APP_ID
+                  value: "305606"
+                - name: GITHUBAPP_INSTALLATION_ID
+                  value: "35269675"
+                - name: GITHUB_API_URL
+                  value: https://api.github.com
+                - name: REPO_OWNER
+                  value: "{{repo_owner}}"
+                - name: REPO_NAME
+                  value: "{{repo_name}}"
+                - name: PULL_REQUEST_NUMBER
+                  value: "{{pull_request_number}}"
+              script: |
+                #!/usr/bin/env bash
+                exit_code=$(cat partner-tasks-code.out)
+                if [ $exit_code != "0" ]; then
+                  .tekton/scripts/github-update-comment.py partner-tasks.out
+                fi
+                exit $exit_code
           workspaces:
             - name: source
+          volumes:
+            - name: infra-deployments-pr-creator
+              secret:
+                secretName: infra-deployments-pr-creator
         workspaces:
           - name: source
             workspace: workspace
