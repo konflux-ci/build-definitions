@@ -82,7 +82,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - script: |
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      buildah bud --tls-verify=$TLSVERIFY -f /gen-source/Dockerfile.gen -t $IMAGE .
+      buildah build --tls-verify=$TLSVERIFY -f /gen-source/Dockerfile.gen -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
