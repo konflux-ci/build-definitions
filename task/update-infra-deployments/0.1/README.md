@@ -16,3 +16,7 @@ Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' pa
 |GITHUB_APP_ID|ID of Github app used for updating PR|305606|false|
 |GITHUB_APP_INSTALLATION_ID|Installation ID of Github app in the organization|35269675|false|
 
+## Workspaces
+|name|description|optional|
+|---|---|---|
+|artifacts|Workspace containing arbitrary artifacts used during the task run.|true|
