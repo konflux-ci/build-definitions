@@ -107,7 +107,7 @@ spec:
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS="--label quay.expires-after=$IMAGE_EXPIRES_AFTER"
-      buildah bud --tls-verify=$TLSVERIFY $LABELS --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
+      buildah build --tls-verify=$TLSVERIFY $LABELS --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path

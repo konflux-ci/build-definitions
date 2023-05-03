@@ -8,7 +8,7 @@ metadata:
 spec:
   description: |-
     Buildah task builds source into a container image and then pushes it to a container registry.
-    Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah bud command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
+    Buildah Task builds source into a container image using Project Atomic's Buildah build tool.It uses Buildah's support for building from Dockerfiles, using its buildah build command.This command executes the directives in the Dockerfile to assemble a container image, then pushes that image to a container registry.
   params:
   - description: Reference of the image buildah will produce.
     name: IMAGE
@@ -53,7 +53,7 @@ spec:
         memory: 512Mi
         cpu: 10m
     script: |
-      buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
+      buildah --storage-driver=$(params.STORAGE_DRIVER) build \
         --format=$(params.FORMAT) \
         --tls-verify=$(params.TLSVERIFY) --no-cache \
         -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
