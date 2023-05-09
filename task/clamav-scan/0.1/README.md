@@ -13,7 +13,7 @@ The task will extract compiled code to compare it against the latest virus datab
 | image-url    | Image URL.                                                     |
 | docker-auth  | Folder where container authorization in config.json is stored. |
 
-## Params:
+## Results:
 
 | name               | description               |
 |--------------------|---------------------------|
