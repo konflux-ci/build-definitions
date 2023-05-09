@@ -34,6 +34,10 @@ spec:
       name: skip-checks
       type: string
       default: "false"
+    - description: Skip optional checks, set false if you want to run optional checks
+      name: skip-optional
+      type: string
+      default: "true"
     - description: Execute the build with network isolation
       name: hermetic
       type: string
@@ -62,6 +66,8 @@ spec:
           value: "$(params.rebuild)"
         - name: skip-checks
           value: "$(params.skip-checks)"
+        - name: skip-optional
+          value: "$(params.skip-optional)"
         - name: pipelinerun-name
           value: "$(context.pipelineRun.name)"
         - name: pipelinerun-uid
@@ -152,7 +158,7 @@ spec:
         workspace: workspace
     - name: optional-label-check
       when:
-      - input: $(params.skip-checks)
+      - input: $(params.skip-optional)
         operator: in
         values: ["false"]
       runAfter:
