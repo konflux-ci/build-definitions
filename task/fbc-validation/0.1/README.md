@@ -12,7 +12,7 @@ information and then contents are checked using the OpenShift Operator Framework
 | image-digest | Image digest.               |
 | image-url    | Fully qualified image name. |
 
-## Params:
+## Results:
 
 | name               | description               |
 |--------------------|---------------------------|

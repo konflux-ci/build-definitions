@@ -14,7 +14,7 @@ in a high-level declarative language called Rego.
 | POLICY_NAMESPACE    | Namespace for Conftest policy.                  |
 | BASE_IMAGES_DIGESTS | Digests of base build images.                   |
 
-## Params:
+## Results:
 
 | name              | description                               |
 |-------------------|-------------------------------------------|
