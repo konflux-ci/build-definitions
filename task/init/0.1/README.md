@@ -10,7 +10,6 @@ Initialize Pipeline Task, include flags for rebuild and auth. Generates image re
 |skip-checks|skip checks against built image|false|false|
 |pipelinerun-name|Name of current pipelinerun, should be "$(context.pipelineRun.name)"||true|
 |pipelinerun-uid|UID of current pipelinerun, should be "$(context.pipelineRun.uid)"||true|
-|shared-secret|Shared resource secret for accessing user-workload image repository|redhat-appstudio-user-workload|false|
 
 ## Results
 |name|description|
