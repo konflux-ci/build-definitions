@@ -87,6 +87,8 @@ spec:
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
       fi
+      echo "Image ${IMAGE_URL} metadata:"
+      cat "$IMAGE_INSPECT"
 
       for run in $(seq 1 $max_run); do
         status=0
@@ -101,6 +103,8 @@ spec:
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
       fi
+      echo "Image ${IMAGE_URL} raw metadata:"
+      cat "$RAW_IMAGE_INSPECT" | jq  # jq for readable formatting
 
       echo "Getting base image manifest for source image ${IMAGE_URL}."
       BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
@@ -120,12 +124,14 @@ spec:
         exit 0
       fi
       BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
-      echo "The base image is $BASE_IMAGE. Fetch its manifest."
+      echo "The base image is $BASE_IMAGE. Fetching its manifest."
       skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
-      echo -n "$BASE_IMAGE" | tee $(results.BASE_IMAGE.path)
+      echo "Detected base image: $BASE_IMAGE"
+      echo -n "$BASE_IMAGE" > $(results.BASE_IMAGE.path)
 
       BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
-      echo -n "$BASE_IMAGE_REPOSITORY" | tee $(results.BASE_IMAGE_REPOSITORY.path)
+      echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
+      echo -n "$BASE_IMAGE_REPOSITORY" > $(results.BASE_IMAGE_REPOSITORY.path)
 
       note="Task $(context.task.name) completed: Check inspected JSON files under $(workspaces.source.path)/hacbs/$(context.task.name)."
       TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
