@@ -111,7 +111,6 @@ spec:
       BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
       if [ $BASE_IMAGE_NAME == 'null' ]; then
         echo "Cannot get base image info from annotations."
-        echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
         BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
         BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
         if [ "$BASE_IMAGE_NAME" == 'null' ]; then
