@@ -122,11 +122,24 @@ spec:
         echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
         exit 0
       fi
+
       BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
-      echo "The base image is $BASE_IMAGE. Fetching its manifest."
-      skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
       echo "Detected base image: $BASE_IMAGE"
       echo -n "$BASE_IMAGE" > $(results.BASE_IMAGE.path)
+
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting base image ${BASE_IMAGE} (try $run/$max_run)."
+        skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to inspect base image ${$BASE_IMAGE}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
 
       BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
       echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
