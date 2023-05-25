@@ -17,8 +17,11 @@ spec:
       description: Rebuild the image if exists
       default: "false"
     - name: skip-checks
-      description: skip checks against built image
+      description: Skip checks against built image
       default: "false"
+    - name: skip-optional
+      default: "true"
+      description: Skip optional checks, set false if you want to run optional checks
     - name: pipelinerun-name
       description: Name of current pipelinerun, should be "$(context.pipelineRun.name)"
     - name: pipelinerun-uid
@@ -43,6 +46,8 @@ spec:
           value: $(params.rebuild)
         - name: SKIP_CHECKS
           value: $(params.skip-checks)
+        - name: SKIP_OPTIONAL
+          value: $(params.skip-optional)
       script: |
         #!/bin/bash
         echo "Build Initialize: $IMAGE_URL"
