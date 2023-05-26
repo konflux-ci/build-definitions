@@ -36,7 +36,7 @@ spec:
     name: BUILDER_IMAGE
     type: string
   - default: ""
-    description: secret with config.json for container auth
+    description: unused, should be removed in next task version
     name: DOCKER_AUTH
     type: string
   - default: ""
@@ -61,8 +61,6 @@ spec:
       value: oci
     - name: STORAGE_DRIVER
       value: vfs
-    - name: DOCKER_CONFIG
-      value: /secrets/registry-auth
     - name: PATH_CONTEXT
       value: $(params.PATH_CONTEXT)
     - name: BASE_IMAGE
@@ -101,8 +99,6 @@ spec:
     volumeMounts:
     - mountPath: /gen-source
       name: gen-source
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
   - script: |
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -134,8 +130,6 @@ spec:
       name: varlibcontainers
     - mountPath: /gen-source
       name: gen-source
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
     workingDir: /gen-source
 
   - image: quay.io/redhat-appstudio/syft:v0.47.0
@@ -231,8 +225,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
 
     workingDir: $(workspaces.source.path)
 
@@ -247,19 +239,12 @@ spec:
       - cyclonedx
       - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
-    volumeMounts:
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
   - emptyDir: {}
     name: gen-source
-  - name: registry-auth
-    secret:
-      secretName: $(params.DOCKER_AUTH)
-      optional: true
   workspaces:
   - mountPath: /workspace/source
     name: source

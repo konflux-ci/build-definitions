@@ -13,7 +13,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
-|DOCKER_AUTH|secret with config.json for container auth||true|
+|DOCKER_AUTH|unused, should be removed in next task version|""|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|

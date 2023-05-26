@@ -34,9 +34,10 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
-  - description: secret with config.json for container auth
+  - description: unused, should be removed in next task version
     name: DOCKER_AUTH
     type: string
+    default: ""
   - default: "false"
     description: Determines if build will be executed without network access.
     name: HERMETIC
@@ -71,8 +72,6 @@ spec:
       value: $(params.HERMETIC)
     - name: PREFETCH_INPUT
       value: $(params.PREFETCH_INPUT)
-    - name: DOCKER_CONFIG
-      value: /secrets/registry-auth
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE
@@ -165,8 +164,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
     workingDir: $(workspaces.source.path)
 
   - name: sbom-get
@@ -262,8 +259,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
@@ -277,17 +272,10 @@ spec:
       - cyclonedx
       - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
-    volumeMounts:
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
-  - name: registry-auth
-    secret:
-      secretName: $(params.DOCKER_AUTH)
-      optional: true
   workspaces:
   - name: source
     description: Workspace containing the source code to build.

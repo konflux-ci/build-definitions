@@ -19,7 +19,8 @@ spec:
     - name: image-url
       description: Image URL.
     - name: docker-auth
-      description: Folder where container authorization in config.json is stored.
+      description: unused
+      default: ""
 
   steps:
     - name: extract-and-scan-image
@@ -32,8 +33,6 @@ spec:
       env:
         - name: HOME
           value: /work
-        - name: DOCKER_CONFIG
-          value: /secrets/registry-auth
         - name: IMAGE_URL
           value: $(params.image-url)
         - name: IMAGE_DIGEST
@@ -72,8 +71,6 @@ spec:
           name: dbfolder
         - mountPath: /work
           name: work
-        - mountPath: /secrets/registry-auth
-          name: registry-auth
     - name: modify-clam-output-to-json
       image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
       script: |
@@ -166,7 +163,3 @@ spec:
       emptydir: {}
     - name: work
       emptydir: {}
-    - name: registry-auth
-      secret:
-        secretName: $(params.docker-auth)
-        optional: true
