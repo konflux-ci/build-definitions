@@ -40,7 +40,7 @@ spec:
 
       image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
 
-      if ! oc image extract "${image_with_digest}" --path '/root/buildinfo/content_manifests/*:/manifests/'; then
+      if ! oc image extract --registry-config ~/.docker/config.json "${image_with_digest}" --path '/root/buildinfo/content_manifests/*:/manifests/'; then
         echo "Failed to extract manifests from image ${image_with_digest}."
         note="Task $(context.task.name) failed: Failed to extract manifests from image ${image_with_digest} with oc extract. For details, check Tekton task log."
         ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")

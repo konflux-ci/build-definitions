@@ -60,7 +60,7 @@ spec:
         mkdir content
         cd content
         echo Extracting image.
-        if ! oc image extract $imageanddigest; then
+        if ! oc image extract --registry-config ~/.docker/config.json $imageanddigest; then
           echo "Unable to extract image. Skipping ClamAV scan!"
           exit 0
         fi
