@@ -26,27 +26,15 @@ spec:
       description: Name of current pipelinerun, should be "$(context.pipelineRun.name)"
     - name: pipelinerun-uid
       description: UID of current pipelinerun, should be "$(context.pipelineRun.uid)"
-    - name: shared-secret
-      default: redhat-appstudio-user-workload
-      description: Shared resource secret for accessing user-workload image repository
   results:
     - name: build
       description: Defines if the image in param image-url should be built
     - name: container-registry-secret
       description: Name of secret with credentials
-  volumes:
-    - name: default-push-secret
-      csi:
-        readOnly: true
-        driver: csi.sharedresource.openshift.io
-        volumeAttributes:
-          sharedSecret: $(params.shared-secret)
+
   steps:
     - name: init
       image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:4d89da145a14501b049397dc723a2b5feba1f2238c9f71659c9512bd27ca4e95
-      volumeMounts:
-        - name: default-push-secret
-          mountPath: /secret/default-push-secret
       env:
         - name: PIPELINERUN_NAME
           value: $(params.pipelinerun-name)
@@ -65,14 +53,9 @@ spec:
         echo "Build Initialize: $IMAGE_URL"
         echo
         echo "Create pipelinerun repository secret"
-        SHARED=/secret/default-push-secret/.dockerconfigjson
         export DOCKER_CONFIG=/tmp/docker/
         mkdir -p $DOCKER_CONFIG
-        if [ -f $SHARED ]; then
-          jq -M -s '.[0] * .[1]' $SHARED /root/.docker/config.json > $DOCKER_CONFIG/config.json
-        else
-          cp /root/.docker/config.json $DOCKER_CONFIG/config.json
-        fi
+        cp /root/.docker/config.json $DOCKER_CONFIG/config.json
         oc create secret generic --from-file=$DOCKER_CONFIG/config.json $SHARED_PARAM $PIPELINERUN_NAME
         oc patch secret $PIPELINERUN_NAME -p "{\"metadata\": {\"ownerReferences\": [{\"apiVersion\": \"tekton.dev/v1beta1\", \"blockOwnerDeletion\": false, \"controller\": true, \"kind\": \"PipelineRun\", \"name\": \"$PIPELINERUN_NAME\", \"uid\": \"$PIPELINERUN_UID\" }]}}"
         echo -n $PIPELINERUN_NAME > $(results.container-registry-secret.path)

@@ -43,10 +43,6 @@ spec:
           echo "Generated Image is in : $IMAGE_URL"
         fi
         echo
-        oc annotate --overwrite pipelinerun $PIPELINERUN_NAME build.appstudio.openshift.io/repo=$GIT_URL
-        if [ "$BUILD_TASK_STATUS" == "Succeeded" ]; then
-          oc annotate --overwrite pipelinerun $PIPELINERUN_NAME build.appstudio.openshift.io/image=$IMAGE_URL
-        fi
         echo End Summary
 
         oc delete --ignore-not-found=true secret $PIPELINERUN_NAME
