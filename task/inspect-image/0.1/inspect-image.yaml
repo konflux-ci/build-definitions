@@ -70,24 +70,47 @@ spec:
       if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
         IMAGE_URL="${IMAGE_URL/:*@/@}"
       fi
-      echo "Inspecting manifest for source image ${IMAGE_URL}."
-      skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT 2> stderr.txt || true
-      skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT 2>> stderr.txt || true
 
-      if [ ! -z $(cat stderr.txt) ]; then
-        echo "Skopeo inspect failed, inspect-image test encountered the following error:"
-        cat stderr.txt
-        note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
-        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
-        exit 0
+      status=-1
+      max_run=5
+      sleep_sec=10
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting manifest for source image ${IMAGE_URL} (try $run/$max_run)."
+        skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to inspect image ${IMAGE_URL}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
       fi
+      echo "Image ${IMAGE_URL} metadata:"
+      cat "$IMAGE_INSPECT"
+
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting raw image manifest ${IMAGE_URL} (try $run/$max_run)."
+        skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to get raw metadata of image ${IMAGE_URL}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
+      echo "Image ${IMAGE_URL} raw metadata:"
+      cat "$RAW_IMAGE_INSPECT" | jq  # jq for readable formatting
+
       echo "Getting base image manifest for source image ${IMAGE_URL}."
       BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
       BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
       if [ $BASE_IMAGE_NAME == 'null' ]; then
         echo "Cannot get base image info from annotations."
-        echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
         BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
         BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
         if [ "$BASE_IMAGE_NAME" == 'null' ]; then
@@ -99,13 +122,28 @@ spec:
         echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
         exit 0
       fi
+
       BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
-      echo "The base image is $BASE_IMAGE. Fetch its manifest."
-      skopeo inspect --no-tags docker://$BASE_IMAGE  > $BASE_IMAGE_INSPECT || true
-      echo -n "$BASE_IMAGE" | tee $(results.BASE_IMAGE.path)
+      echo "Detected base image: $BASE_IMAGE"
+      echo -n "$BASE_IMAGE" > $(results.BASE_IMAGE.path)
+
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting base image ${BASE_IMAGE} (try $run/$max_run)."
+        skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to inspect base image ${$BASE_IMAGE}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
 
       BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
-      echo -n "$BASE_IMAGE_REPOSITORY" | tee $(results.BASE_IMAGE_REPOSITORY.path)
+      echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
+      echo -n "$BASE_IMAGE_REPOSITORY" > $(results.BASE_IMAGE_REPOSITORY.path)
 
       note="Task $(context.task.name) completed: Check inspected JSON files under $(workspaces.source.path)/hacbs/$(context.task.name)."
       TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
