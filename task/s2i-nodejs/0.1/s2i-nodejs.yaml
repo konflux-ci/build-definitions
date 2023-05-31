@@ -87,6 +87,9 @@ spec:
       name: registry-auth
     workingDir: $(workspaces.source.path)
   - script: |
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
+
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS="--label quay.expires-after=$IMAGE_EXPIRES_AFTER"
       buildah build --tls-verify=$TLSVERIFY $LABELS -f /gen-source/Dockerfile.gen -t $IMAGE .
