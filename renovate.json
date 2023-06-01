@@ -10,8 +10,47 @@
   },
   "packageRules": [
     {
-      "matchPackagePatterns": ["*"],
-      "groupName": "all"
+      "matchPackageNames": [
+        "quay.io/redhat-appstudio/pull-request-builds",
+        "quay.io/redhat-appstudio/github-app-token",
+        "quay.io/redhat-appstudio/appstudio-utils",
+        "quay.io/redhat-appstudio/e2e-tests",
+        "quay.io/redhat-appstudio/buildah",
+        "quay.io/redhat-appstudio/syft",
+        "quay.io/redhat-appstudio/hacbs-jvm-build-request-processor",
+        "quay.io/redhat-appstudio/cosign",
+        "quay.io/redhat-appstudio/cachi2"
+      ],
+      "groupName": "build",
+      "reviewers": ["Michkov", "tkdchen", "psturc", "brunoapimentel"]
+    },
+    {
+      "matchPackagePrefixes": [
+        "quay.io/hacbs-contract/"
+      ],
+      "matchPackageNames": [
+        "quay.io/openshift-pipeline/openshift-pipelines-cli-tkn"
+      ],
+      "groupName": "ec",
+      "reviewers": ["zregvart", "lcarva"]
+    },
+    {
+      "matchPackageNames": [
+        "quay.io/redhat-appstudio/hacbs-test",
+        "quay.io/redhat-appstudio/clair-in-ci",
+        "quay.io/redhat-appstudio/clamav-db"
+      ],
+      "groupName": "integration",
+      "reviewers": ["dirgim", "hongweiliu17", "jsztuka", "jinqi7", "Josh-Everett", "MartinBasti", "dheerajodha"]
+    },
+    {
+      "matchPackagePrefixes": [
+        "registry.redhat.io",
+        "registry.access.redhat.com",
+        "docker.io"
+      ],
+      "schedule": ["on monday and wednesday"],
+      "groupName": "shared"
     }
   ]
 }
