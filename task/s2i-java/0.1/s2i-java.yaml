@@ -104,6 +104,9 @@ spec:
     - mountPath: /secrets/registry-auth
       name: registry-auth
   - script: |
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
+
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS="--label quay.expires-after=$IMAGE_EXPIRES_AFTER"

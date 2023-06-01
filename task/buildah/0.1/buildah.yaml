@@ -120,6 +120,8 @@ spec:
         touch /var/lib/containers/java
       fi
 
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
 
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
