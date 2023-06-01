@@ -134,7 +134,7 @@ spec:
         skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
-          echo "Failed to inspect base image ${$BASE_IMAGE}"
+          echo "Failed to inspect base image ${BASE_IMAGE}"
           note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
