@@ -138,8 +138,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-container.results.IMAGE_DIGEST)
-      - name: DOCKER_AUTH
-        value: "$(tasks.init.results.container-registry-secret)"
       workspaces:
       - name: source
         workspace: workspace
@@ -201,8 +199,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
-      - name: docker-auth
-        value: "$(tasks.init.results.container-registry-secret)"
     - name: sast-snyk-check
       when:
       - input: $(params.skip-checks)
@@ -237,8 +233,6 @@ spec:
         value: $(tasks.build-container.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-container.results.IMAGE_URL)
-      - name: docker-auth
-        value: "$(tasks.init.results.container-registry-secret)"
     - name: sbom-json-check
       when:
       - input: $(params.skip-checks)

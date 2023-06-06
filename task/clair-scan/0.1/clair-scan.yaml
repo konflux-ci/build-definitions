@@ -17,7 +17,7 @@ spec:
     - name: image-url
       description: Image URL.
     - name: docker-auth
-      description: Folder where container authorization in config.json is stored.
+      description: unused, should be removed in next task version.
       default: ""
   results:
     - name: TEST_OUTPUT
@@ -29,8 +29,6 @@ spec:
       image: quay.io/redhat-appstudio/clair-in-ci:latest  # explicit floating tag, daily updates
       imagePullPolicy: Always
       env:
-        - name: DOCKER_CONFIG
-          value: $(params.docker-auth)
         - name: IMAGE_URL
           value: $(params.image-url)
         - name: IMAGE_DIGEST

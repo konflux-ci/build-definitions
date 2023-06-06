@@ -19,7 +19,8 @@ spec:
       description: Image digest.
       type: string
     - name: DOCKER_AUTH
-      description: Secret with config.json for container auth.
+      description: unused, should be removed in next task version
+      default: ""
       type: string
   results:
     - description: Base image source image is built from.
@@ -30,11 +31,6 @@ spec:
       name: TEST_OUTPUT
   workspaces:
     - name: source
-  volumes:
-    - name: registry-auth
-      secret:
-        secretName: $(params.DOCKER_AUTH)
-        optional: true
   steps:
   - name: inspect-image
     image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
@@ -45,16 +41,10 @@ spec:
         add:
           - SETFCAP
     env:
-      - name: DOCKER_CONFIG
-        value: /secrets/registry-auth
       - name: IMAGE_URL
         value: $(params.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(params.IMAGE_DIGEST)
-
-    volumeMounts:
-      - mountPath: /secrets/registry-auth
-        name: registry-auth
 
     script: |
       #!/usr/bin/env bash

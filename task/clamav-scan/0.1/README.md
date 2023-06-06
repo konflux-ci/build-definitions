@@ -11,7 +11,7 @@ The task will extract compiled code to compare it against the latest virus datab
 |--------------|----------------------------------------------------------------|
 | image-digest | Image digest to scan.                                          |
 | image-url    | Image URL.                                                     |
-| docker-auth  | Folder where container authorization in config.json is stored. |
+| docker-auth  | Unused, should be removed in next task version.                |
 
 ## Results:
 

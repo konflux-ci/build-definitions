@@ -7,14 +7,14 @@ Initialize Pipeline Task, include flags for rebuild and auth. Generates image re
 |---|---|---|---|
 |image-url|Image URL for build by PipelineRun||true|
 |rebuild|Rebuild the image if exists|false|false|
-|skip-checks|skip checks against built image|false|false|
-|skip-optional| skip optional checks, set false if you want to run optional checks |true|false|
-|pipelinerun-name|Name of current pipelinerun, should be "$(context.pipelineRun.name)"||true|
-|pipelinerun-uid|UID of current pipelinerun, should be "$(context.pipelineRun.uid)"||true|
+|skip-checks|Skip checks against built image|false|false|
+|skip-optional|Skip optional checks, set false if you want to run optional checks|true|false|
+|pipelinerun-name|unused, should be removed in next task version|""|false|
+|pipelinerun-uid|unused, should be removed in next task version|""|false|
 
 ## Results
 |name|description|
 |---|---|
 |build|Defines if the image in param image-url should be built|
-|container-registry-secret|Name of secret with credentials|
+|container-registry-secret|unused, should be removed in next task version|
 
