@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: slack-webhook-notification
+spec:
+  description: >-
+    Sends message to slack using incoming webhook
+  params:
+    - name: message
+      description: Message to be sent
+    - name: secret-name
+      description: |
+        Secret with at least one key where value is webhook URL for slack.
+        eg. oc create secret generic my-secret --from-literal team1=https://hooks.slack.com/services/XXX/XXXXXX --from-literal team2=https://hooks.slack.com/services/YYY/YYYYYY
+      default: slack-webhook-notification-secret
+    - name: key-name
+      description: Key in the key in secret which contains webhook URL for slack.
+  volumes:
+    - name: webhook-secret
+      secret:
+        secretName: $(params.secret-name)
+        optional: true
+  steps:
+    - name: send-message
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.2-484@sha256:90d72025de22146c02d80fd4712cc9de828ec279bc107d7b4561f42e71687b0a
+      volumeMounts:
+        - name: webhook-secret
+          mountPath: "/etc/secrets"
+          readOnly: true
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: KEY_NAME
+          value: $(params.key-name)
+        - name: MESSAGE
+          value: $(params.message)
+      script: |
+        #!/usr/bin/env bash
+        if [ -f "/etc/secrets/$KEY_NAME" ]; then
+          WEBHOOK_URL=$(cat "/etc/secrets/$KEY_NAME"))
+        else
+          echo "Secret not defined properly"
+          exit 1
+        fi
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"$MESSAGE\"}" $WEBHOOK_URL
