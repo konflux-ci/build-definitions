@@ -1,11 +1,10 @@
-# The purpose of this pipeline is to execute the verify-enterprise-contract-v2 task for container
-# images that are built but not automatically released in order to provide early feedback to users.
-# When auto release is enabled, the task is executed by the release pipeline immediately after the
-# container images are built, thus it is not necessary to execute the task via this pipeline.
+# This is a copy of enterprise-contract.yaml with a different default value for the
+# POLICY_CONFIGURATION parameter. This is a workaround until the UI can provide sufficient
+# controls to allow users to provide parameters. https://issues.redhat.com/browse/HACBS-2294
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: enterprise-contract
+  name: enterprise-contract-everything
   labels:
     build.appstudio.redhat.com/pipeline: "enterprise-contract"
 spec:
@@ -29,7 +28,7 @@ spec:
         Name of the policy configuration (EnterpriseContractConfiguration
         object) to use. `namespace/name` or `name` syntax supported. If
         namespace is omitted the namespace where the task runs is used.
-      default: github.com/enterprise-contract/config//default
+      default: github.com/enterprise-contract/config//everything
     - name: SSL_CERT_DIR
       type: string
       description: |
