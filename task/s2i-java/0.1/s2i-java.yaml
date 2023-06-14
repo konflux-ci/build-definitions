@@ -43,6 +43,10 @@ spec:
     description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     name: IMAGE_EXPIRES_AFTER
     type: string
+  - name: COMMIT_SHA
+    description: The image is built from this commit.
+    type: string
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -103,16 +107,26 @@ spec:
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
 
+      LABELS=(
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
+      )
+      [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS="--label quay.expires-after=$IMAGE_EXPIRES_AFTER"
-      buildah build --tls-verify=$TLSVERIFY $LABELS --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
+      buildah build --tls-verify=$TLSVERIFY ${LABELS[@]} --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
     image: $(params.BUILDER_IMAGE)
     name: build
+    env:
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
     resources:
       limits:
         memory: 4Gi
