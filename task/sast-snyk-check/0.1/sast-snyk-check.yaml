@@ -44,7 +44,10 @@ spec:
         . /utils.sh
         SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
         if [[ -z $SNYK_TOKEN ]]; then
-          echo "SNYK_TOKEN not defined. Create $SNYK_SECRET secret with key containing Snyk token." | tee stdout.txt
+          
+
+          echo "If you wish to use the Snyk code SAST task, please consult documentation on how to create a secret with the key containing the Snyk token." | tee stdout.txt
+
           note="Task $(context.task.name) skipped: SNYK_TOKEN is empty."
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           exit 0
