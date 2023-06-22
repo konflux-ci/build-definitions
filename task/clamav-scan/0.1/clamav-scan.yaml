@@ -19,11 +19,12 @@ spec:
     - name: image-url
       description: Image URL.
     - name: docker-auth
-      description: Folder where container authorization in config.json is stored.
+      description: unused
+      default: ""
 
   steps:
     - name: extract-and-scan-image
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
       workingDir: /work
       # need to change user since 'oc image extract' requires more privileges when running as root
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
@@ -32,8 +33,6 @@ spec:
       env:
         - name: HOME
           value: /work
-        - name: DOCKER_CONFIG
-          value: /secrets/registry-auth
         - name: IMAGE_URL
           value: $(params.image-url)
         - name: IMAGE_DIGEST
@@ -72,10 +71,8 @@ spec:
           name: dbfolder
         - mountPath: /work
           name: work
-        - mountPath: /secrets/registry-auth
-          name: registry-auth
     - name: modify-clam-output-to-json
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
       script: |
         #!/usr/bin/env python3.9
         import json
@@ -124,7 +121,7 @@ spec:
         if __name__ == "__main__":
             main()
     - name: store-hacbs-test-output-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
       script: |
         #!/usr/bin/env bash
         source /utils.sh
@@ -166,7 +163,3 @@ spec:
       emptydir: {}
     - name: work
       emptydir: {}
-    - name: registry-auth
-      secret:
-        secretName: $(params.docker-auth)
-        optional: true

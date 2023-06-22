@@ -17,7 +17,7 @@ spec:
     - name: image-url
       description: Image URL.
     - name: docker-auth
-      description: Folder where container authorization in config.json is stored.
+      description: unused, should be removed in next task version.
       default: ""
   results:
     - name: TEST_OUTPUT
@@ -29,8 +29,6 @@ spec:
       image: quay.io/redhat-appstudio/clair-in-ci:latest  # explicit floating tag, daily updates
       imagePullPolicy: Always
       env:
-        - name: DOCKER_CONFIG
-          value: $(params.docker-auth)
         - name: IMAGE_URL
           value: $(params.image-url)
         - name: IMAGE_DIGEST
@@ -44,7 +42,7 @@ spec:
 
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
       securityContext:
         capabilities:
           add:
@@ -58,7 +56,7 @@ spec:
           --output=json | tee /tekton/home/clair-vulnerabilities.json || true
         fi
     - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
       script: |
         #!/usr/bin/env bash
         . /utils.sh
@@ -73,10 +71,10 @@ spec:
 
         jq -rce \
           '{vulnerabilities:{
-              critical: (.[] | .failures? // [] | map(select(.metadata.details.name=="clair_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
-              high: (.[] | .failures? // [] | map(select(.metadata.details.name=="clair_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
-              medium: (.[] | .failures? // [] | map(select(.metadata.details.name=="clair_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
-              low: (.[] | .failures? // [] | map(select(.metadata.details.name=="clair_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
+              critical: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              high: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              medium: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              low: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
             }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
 
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."

@@ -29,6 +29,32 @@ Task is validated against the following mandatory checks:
 * Task is not using any privilege escalations
 * Task schema is a valid one i.e. the Task resource can be applied in the Openshift cluster
 
+### Example task
+
+Example task is in `partners/example-hello-world`. The example task is printing a message and optionally can print sha256 of predefined secret.
+
+### Inclusion of partner task in Pipeline
+
+[Git resolver](https://tekton.dev/docs/pipelines/git-resolver/) can be used for injection of the task into PipelineRun:
+```yaml
+    - name: hello-world
+      params:
+      - name: message
+        value: my-test-message
+      taskRef:
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/redhat-appstudio/build-definitions
+        - name: revision
+          value: main
+        - name: pathInRepo
+          value: partners/example-hello-world/0.1/example-hello-world.yaml
+      runAfter:
+      - init
+```
+This snippet can be added into `tasks` or `finally` section. The order of execution is managed by [runAfter](https://tekton.dev/docs/pipelines/pipelines/#using-the-runafter-field). In the example snippet the task would be run after `init` task.
+
 ## FAQs
 
 ### Can I validate the Task locally?

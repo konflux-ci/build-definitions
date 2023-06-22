@@ -7,11 +7,11 @@ that base image.
 
 ## Params:
 
-| name         | description                                 |
-|--------------|---------------------------------------------|
-| IMAGE_URL    | Fully qualified image name.                 |
-| IMAGE_DIGEST | Image digest.                               |
-| DOCKER_AUTH  | Secret with config.json for container auth. |
+| name         | description                                     |
+|--------------|-------------------------------------------------|
+| IMAGE_URL    | Fully qualified image name.                     |
+| IMAGE_DIGEST | Image digest.                                   |
+| DOCKER_AUTH  | unused, should be removed in next task version. |
 
 ## Results:
 

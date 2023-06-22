@@ -11,7 +11,7 @@ analyzing the components of a container image and comparing them against Clair's
 |--------------|----------------------------------------------------------------|
 | image-digest | Image digest to scan.                                          |
 | image-url    | Image URL.                                                     |
-| docker-auth  | Folder where container authorization in config.json is stored. |
+| docker-auth  | unused, should be removed in next task version                 |
 
 ## Results:
 

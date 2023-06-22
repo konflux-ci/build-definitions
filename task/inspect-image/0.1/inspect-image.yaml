@@ -19,7 +19,8 @@ spec:
       description: Image digest.
       type: string
     - name: DOCKER_AUTH
-      description: Secret with config.json for container auth.
+      description: unused, should be removed in next task version
+      default: ""
       type: string
   results:
     - description: Base image source image is built from.
@@ -30,14 +31,9 @@ spec:
       name: TEST_OUTPUT
   workspaces:
     - name: source
-  volumes:
-    - name: registry-auth
-      secret:
-        secretName: $(params.DOCKER_AUTH)
-        optional: true
   steps:
   - name: inspect-image
-    image: quay.io/redhat-appstudio/hacbs-test:v1.0.14@sha256:24ccb3f35bb088c261793b84f0297ab58d5a3e13f1cea3fe5094592276d3cb6a
+    image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
     workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
     securityContext:
       runAsUser: 0
@@ -45,16 +41,10 @@ spec:
         add:
           - SETFCAP
     env:
-      - name: DOCKER_CONFIG
-        value: /secrets/registry-auth
       - name: IMAGE_URL
         value: $(params.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(params.IMAGE_DIGEST)
-
-    volumeMounts:
-      - mountPath: /secrets/registry-auth
-        name: registry-auth
 
     script: |
       #!/usr/bin/env bash
@@ -134,7 +124,7 @@ spec:
         skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
-          echo "Failed to inspect base image ${$BASE_IMAGE}"
+          echo "Failed to inspect base image ${BASE_IMAGE}"
           note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)

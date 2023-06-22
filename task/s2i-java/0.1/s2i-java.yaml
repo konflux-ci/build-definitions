@@ -36,13 +36,17 @@ spec:
     name: BUILDER_IMAGE
     type: string
   - default: ""
-    description: secret with config.json for container auth
+    description: unused, should be removed in next task version
     name: DOCKER_AUTH
     type: string
   - default: ""
     description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     name: IMAGE_EXPIRES_AFTER
     type: string
+  - name: COMMIT_SHA
+    description: The image is built from this commit.
+    type: string
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -61,8 +65,6 @@ spec:
       value: oci
     - name: STORAGE_DRIVER
       value: vfs
-    - name: DOCKER_CONFIG
-      value: /secrets/registry-auth
     - name: PATH_CONTEXT
       value: $(params.PATH_CONTEXT)
     - name: BASE_IMAGE
@@ -101,19 +103,30 @@ spec:
     volumeMounts:
     - mountPath: /gen-source
       name: gen-source
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
   - script: |
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
+
+      LABELS=(
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
+      )
+      [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
       touch /var/lib/containers/java
       sed -i 's/^short-name-mode = .*/short-name-mode = "disabled"/' /etc/containers/registries.conf
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS="--label quay.expires-after=$IMAGE_EXPIRES_AFTER"
-      buildah build --tls-verify=$TLSVERIFY $LABELS --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
+      buildah build --tls-verify=$TLSVERIFY ${LABELS[@]} --ulimit nofile=4096:4096 -f /gen-source/Dockerfile.gen -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
     image: $(params.BUILDER_IMAGE)
     name: build
+    env:
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
     resources:
       limits:
         memory: 4Gi
@@ -131,8 +144,6 @@ spec:
       name: varlibcontainers
     - mountPath: /gen-source
       name: gen-source
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
     workingDir: /gen-source
 
   - image: quay.io/redhat-appstudio/syft:v0.47.0
@@ -207,7 +218,7 @@ spec:
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
 
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE)
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
@@ -228,8 +239,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
 
     workingDir: $(workspaces.source.path)
 
@@ -244,19 +253,12 @@ spec:
       - cyclonedx
       - $(params.IMAGE)
     workingDir: $(workspaces.source.path)
-    volumeMounts:
-    - mountPath: /secrets/registry-auth
-      name: registry-auth
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
   - emptyDir: {}
     name: gen-source
-  - name: registry-auth
-    secret:
-      secretName: $(params.DOCKER_AUTH)
-      optional: true
   workspaces:
   - mountPath: /workspace/source
     name: source

@@ -20,10 +20,10 @@
     value: $(params.path-context)
   - name: IMAGE
     value: "$(params.output-image)"
-  - name: DOCKER_AUTH
-    value: "$(tasks.init.results.container-registry-secret)"
   - name: IMAGE_EXPIRES_AFTER
     value: "$(params.image-expires-after)"
+  - name: COMMIT_SHA
+    value: "$(tasks.clone-repository.results.commit)"
 - op: add
   path: /spec/results/-
   value:
