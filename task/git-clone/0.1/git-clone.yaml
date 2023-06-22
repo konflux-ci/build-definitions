@@ -124,7 +124,10 @@ spec:
       value: $(workspaces.basic-auth.path)
     image: $(params.gitInitImage)
     name: clone
-    resources: {}
+    resources: #we request the same amount of memory as the buildah task, as this task is run first it will determine the AZ the pipeline runs in
+      requests:
+        memory: 512Mi
+        cpu: 250m
     securityContext:
       runAsUser: 0
     script: |
