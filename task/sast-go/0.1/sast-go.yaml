@@ -54,7 +54,7 @@ spec:
         then
           cat gosec_output.json
           TEST_OUTPUT=
-          parse_hacbs_test_output $(context.task.name) sarif gosec_output.json
+          parse_test_output $(context.task.name) sarif gosec_output.json
         fi
 
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
