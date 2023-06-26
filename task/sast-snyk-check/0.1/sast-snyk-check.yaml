@@ -28,7 +28,7 @@ spec:
         optional: true
   steps:
     - name: sast-snyk-check
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.0@sha256:82b43bffe4eacc717239424f64478b18f36528df47c2d11df3a8d031e81a3c67
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       volumeMounts:
         - name: snyk-secret
@@ -59,7 +59,7 @@ spec:
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
           TEST_OUTPUT=
-          parse_hacbs_test_output $(context.task.name) sarif sast_snyk_check_out.json  || true
+          parse_test_output $(context.task.name) sarif sast_snyk_check_out.json  || true
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
