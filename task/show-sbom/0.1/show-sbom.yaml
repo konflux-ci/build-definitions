@@ -18,8 +18,15 @@ spec:
   steps:
   - name: show-sbom
     image: quay.io/redhat-appstudio/cosign:v1.13.1
-    command:
-    - sh
-    args:
-    - -c
-    - cosign download sbom $(params.IMAGE_URL) 2>/dev/null
+    env:
+    - name: IMAGE_URL
+      value: $(params.IMAGE_URL)
+    script: |
+       #!/busybox/sh
+       cosign download sbom $IMAGE_URL 2>err
+       RET=$?
+       if [ $RET -ne 0 ]; then
+         echo Failed to get SBOM >&2
+         cat err >&2
+       fi
+       exit $RET
