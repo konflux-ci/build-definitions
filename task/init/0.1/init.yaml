@@ -37,6 +37,13 @@ spec:
   steps:
     - name: init
       image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
+      resources:
+        limits:
+          memory: 4Gi
+          cpu: 2
+        requests:
+          memory: 1Gi
+          cpu: 500m
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
