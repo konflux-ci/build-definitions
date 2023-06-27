@@ -147,7 +147,7 @@ spec:
     workingDir: /gen-source
 
   - image: quay.io/redhat-appstudio/syft:v0.47.0
-    name: sbom-get
+    name: sbom-syft-generate
     script: |
       syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
       find $(cat /workspace/container_path) -xtype l -delete
