@@ -105,11 +105,11 @@ do
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
     sub_expr_1="
 	(.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-	|= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+	|= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" }, { \"name\": \"kind\", \"value\": \"task\" }] }
     "
     sub_expr_2="
 	(.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-	|= {\"name\": \"${real_task_name}\", \"bundle\": \"${task_bundle_with_digest}\"}
+	|= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" },{ \"name\": \"kind\", \"value\": \"task\" }] }
     "
     for filename in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
     do
