@@ -75,13 +75,19 @@ spec:
       the gitInitImage param with an image containing custom user configuration.
     name: userHome
     type: string
+  - default: "true"
+    description: |
+      Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.
+    name: enableSymlinkCheck
+    type: string
   results:
   - description: The precise commit SHA that was fetched by this Task.
     name: commit
   - description: The precise URL that was fetched by this Task.
     name: url
   steps:
-  - env:
+  - name: clone
+    env:
     - name: HOME
       value: $(params.userHome)
     - name: PARAM_URL
@@ -123,7 +129,6 @@ spec:
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
       value: $(workspaces.basic-auth.path)
     image: $(params.gitInitImage)
-    name: clone
     resources: {}
     securityContext:
       runAsUser: 0
@@ -190,6 +195,40 @@ spec:
       fi
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+  - name: symlink-check
+    image: registry.redhat.io/ubi9:9.2-696
+    env:
+    - name: PARAM_ENABLE_SYMLINK_CHECK
+      value: $(params.enableSymlinkCheck)
+    - name: PARAM_SUBDIRECTORY
+      value: $(params.subdirectory)
+    - name: WORKSPACE_OUTPUT_PATH
+      value: $(workspaces.output.path)
+    resources: {}
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      CHECKOUT_DIR="${WORKSPACE_OUTPUT_PATH}/${PARAM_SUBDIRECTORY}"
+      check_symlinks() {
+        FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=false
+        while read symlink
+        do
+          target=$(readlink -f "$symlink")
+          if ! [[ "$target" =~ ^$CHECKOUT_DIR ]]; then
+            echo "The cloned repository contains symlink pointing outside of the cloned repository: $symlink"
+            FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=true
+          fi
+        done < <(find $CHECKOUT_DIR -type l -print)
+        if [ "$FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO" = true ] ; then
+          return 1
+        fi
+      }
+
+      if [ "${PARAM_ENABLE_SYMLINK_CHECK}" = "true" ] ; then
+        echo "Running symlink check"
+        check_symlinks
+      fi
   workspaces:
   - description: The git repo will be cloned onto the volume backing this Workspace.
     name: output
