@@ -47,6 +47,10 @@ spec:
     description: The image is built from this commit.
     type: string
     default: ""
+  - name: MEMORY_REQUEST
+    description: Set memory request and limit for building step.
+    type: string
+    default: "4Gi"
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -129,10 +133,10 @@ spec:
       value: $(params.COMMIT_SHA)
     resources:
       limits:
-        memory: 4Gi
+        memory: $(params.MEMORY_REQUEST)
         cpu: 2
       requests:
-        memory: 512Mi
+        memory: $(params.MEMORY_REQUEST)
         cpu: 10m
     securityContext:
       runAsUser: 0
