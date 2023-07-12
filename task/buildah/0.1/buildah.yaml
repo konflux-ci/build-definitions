@@ -100,6 +100,7 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     script: |
+      cp -r $(workspaces.source.path)/* .
       if [ -e "$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$CONTEXT/$DOCKERFILE"
       elif [ -e "$DOCKERFILE" ]; then
@@ -178,22 +179,26 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
+    - mountPath: /build
+      name: build
+    workingDir: /build
 
   - name: sbom-syft-generate
     image: quay.io/redhat-appstudio/syft:v0.47.0
     script: |
-      syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      syft dir:/build --file=/build/sbom-source.json --output=cyclonedx-json
       find $(cat /workspace/container_path) -xtype l -delete
-      syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
+      syft dir:$(cat /workspace/container_path) --file=/build/sbom-image.json --output=cyclonedx-json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /build
+      name: build
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s /build/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
         touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
@@ -201,6 +206,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /build
+      name: build
     securityContext:
       runAsUser: 0
   - name: merge-sboms
@@ -241,10 +248,12 @@ spec:
       with open("sbom-purl.json", "w") as output_file:
         json.dump(purl_content, output_file, indent=4)
 
-    workingDir: $(workspaces.source.path)
+    workingDir: /build
     securityContext:
       runAsUser: 0
-
+    volumeMounts:
+      - mountPath: /build
+        name: build
   - name: inject-sbom-and-push
     image: $(params.BUILDER_IMAGE)
     resources: {}
@@ -260,9 +269,9 @@ spec:
       buildah commit $container $IMAGE
       buildah push \
         --tls-verify=$TLSVERIFY \
-        --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+        --digestfile /build/image-digest $IMAGE \
         docker://$IMAGE
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      cat /build/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
     securityContext:
@@ -273,7 +282,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
+    - mountPath: /build
+      name: build
+    workingDir: /build
 
   - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v1.13.1
@@ -285,11 +296,25 @@ spec:
       - --type
       - cyclonedx
       - $(params.IMAGE)
-    workingDir: $(workspaces.source.path)
-
+    workingDir: /build
+    volumeMounts:
+      - mountPath: /build
+        name: build
+  - name: copy-to-workspace
+    image: $(params.BUILDER_IMAGE)
+    script: |
+      #!/bin/sh
+      cp -r /build/* $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+      - mountPath: /build
+        name: build
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - emptyDir: {}
+    name: build
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
