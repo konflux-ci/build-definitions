@@ -27,7 +27,7 @@ spec:
         optional: true
   steps:
     - name: send-message
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.2-484@sha256:90d72025de22146c02d80fd4712cc9de828ec279bc107d7b4561f42e71687b0a
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.2-691@sha256:a717a237599c1e32e76b8846a1be1d1bc4eb0c6f45a363f9ea34c3ab0d61f7e5
       volumeMounts:
         - name: webhook-secret
           mountPath: "/etc/secrets"
@@ -42,7 +42,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         if [ -f "/etc/secrets/$KEY_NAME" ]; then
-          WEBHOOK_URL=$(cat "/etc/secrets/$KEY_NAME"))
+          WEBHOOK_URL=$(cat "/etc/secrets/$KEY_NAME")
         else
           echo "Secret not defined properly"
           exit 1
