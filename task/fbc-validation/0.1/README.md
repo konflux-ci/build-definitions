@@ -7,10 +7,11 @@ information and then contents are checked using the OpenShift Operator Framework
 
 ## Params:
 
-| name         | description                 |
-|--------------|-----------------------------|
-| image-digest | Image digest.               |
-| image-url    | Fully qualified image name. |
+| name         | description                      |
+|--------------|----------------------------------|
+| image-digest | Image digest.                    |
+| image-url    | Fully qualified image name.      |
+| BASE_IMAGE   | Fully qualified base image name. |
 
 ## Results:
 
