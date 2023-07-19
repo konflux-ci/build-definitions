@@ -171,6 +171,11 @@ spec:
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
 
+      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      if [ -n "${PREFETCH_INPUT}" ]; then
+        cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+      fi
+
     securityContext:
       capabilities:
         add:
@@ -203,7 +208,7 @@ spec:
       name: varlibcontainers
     securityContext:
       runAsUser: 0
-  - name: merge-sboms
+  - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-125
     script: |
       #!/bin/python3
@@ -241,6 +246,20 @@ spec:
       with open("sbom-purl.json", "w") as output_file:
         json.dump(purl_content, output_file, indent=4)
 
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+  - name: merge-cachi2-sbom
+    image: quay.io/redhat-appstudio/cachi2:0.2.0@sha256:4bbc8bb086522568c76aa71a0d0c0a1a891ed5a683ffb1e3d696f3a02914ecaa
+    script: |
+      if [ -n "${PREFETCH_INPUT}" ]; then
+        echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
+        /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
+        mv sbom-temp.json sbom-cyclonedx.json
+      else
+        echo "Skipping step since no Cachi2 SBOM was produced"
+      fi
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
