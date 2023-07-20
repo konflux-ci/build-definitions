@@ -79,17 +79,24 @@ oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 # Build tasks
 (
 cd "$SCRIPTDIR/.."
-find task/*/*/*.yaml | awk -F '/' '{ print $0, $2, $3 }' | \
-while read -r task_file task_name task_version
+find task/*/*/ -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+while read -r task_dir task_name task_version
 do
-    prepared_task_file="${WORKDIR}/$(basename "$task_file" .yaml)-${task_version}.yaml"
-    cp "$task_file" "$prepared_task_file"
-    yq e -i ".spec.steps[] |= select(.image == \"appstudio-utils\").image = \"${APPSTUDIO_UTILS_IMG}\"" "$prepared_task_file"
+    prepared_task_file="${WORKDIR}/$task_name-${task_version}.yaml"
+    if [ -f $task_dir/$task_name.yaml ]; then
+        cp $task_dir/$task_name.yaml $prepared_task_file
+	task_file_sha=$(git log -n 1 --pretty=format:%H -- $task_dir/$task_name.yaml)
+    elif [ -f $task_dir/kustomization.yaml ]; then
+        oc kustomize $task_dir > $prepared_task_file
+	task_file_sha=$(sha256sum $prepared_task_file | awk '{print $1}')
+    else
+        echo Unknown task in $task_dir
+	continue
+    fi
     repository=${TEST_REPO_NAME:-task-${task_name}}
     tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
     task_bundle=quay.io/$MY_QUAY_USER/${repository}:${tag}
-    task_file_git_sha=$(git log -n 1 --pretty=format:%H -- ${task_file})
-    digest=$(curl -s https://quay.io/api/v1/repository/$MY_QUAY_USER/$repository/tag/?specificTag=${tag}-${task_file_git_sha} | yq '.tags[0].manifest_digest')
+    digest=$(curl -s https://quay.io/api/v1/repository/$MY_QUAY_USER/$repository/tag/?specificTag=${tag}-${task_file_sha} | yq '.tags[0].manifest_digest')
     if [ "$digest" == "null" ]; then
       output=$(tkn bundle push -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
       echo "$output"
@@ -97,7 +104,7 @@ do
 
       # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
       # even when original tag is updated
-      skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_git_sha}"
+      skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
     else
       task_bundle_with_digest=${task_bundle}@${digest}
     fi
