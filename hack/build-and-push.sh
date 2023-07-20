@@ -79,7 +79,7 @@ oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 # Build tasks
 (
 cd "$SCRIPTDIR/.."
-find task/*/*/ -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+find task/*/*/ -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_dir task_name task_version
 do
     prepared_task_file="${WORKDIR}/$task_name-${task_version}.yaml"
