@@ -38,7 +38,7 @@ spec:
   steps:
     - name: java-sec-check
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.0@sha256:82b43bffe4eacc717239424f64478b18f36528df47c2d11df3a8d031e81a3c67
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       env:
         - name: PATH_CONTEXT
           value: $(params.PATH_CONTEXT)
@@ -90,6 +90,6 @@ spec:
               note: (if $test_skipped=="1" then "Task sast-java-sec-check skipped: .jar file does not exist. For details, check Tekton task log." else "Task sast-java-sec-check failed: For details, check Tekton task log." end)
               }')
         TEST_OUTPUT=
-        parse_test_output $(context.task.name) sarif sast_java_sec_output.json
+        parse_hacbs_test_output $(context.task.name) sarif sast_java_sec_output.json
 
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)

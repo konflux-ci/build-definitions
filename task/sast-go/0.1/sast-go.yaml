@@ -18,7 +18,7 @@ spec:
       name: TEST_OUTPUT
   steps:
     - name: sast-go
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.0@sha256:82b43bffe4eacc717239424f64478b18f36528df47c2d11df3a8d031e81a3c67
+      image: quay.io/redhat-appstudio/hacbs-test:feature-sast
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       resources:
         limits:
@@ -54,7 +54,7 @@ spec:
         then
           cat gosec_output.json
           TEST_OUTPUT=
-          parse_test_output $(context.task.name) sarif gosec_output.json
+          parse_hacbs_test_output $(context.task.name) sarif gosec_output.json
         fi
 
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
