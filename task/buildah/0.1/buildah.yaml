@@ -208,12 +208,12 @@ spec:
       name: varlibcontainers
     securityContext:
       runAsUser: 0
+
   - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-125
     script: |
       #!/bin/python3
       import json
-      import os
 
       # load SBOMs
       with open("./sbom-image.json") as f:
@@ -238,14 +238,6 @@ spec:
       # write the CycloneDX unified SBOM
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
-
-      # create and write the PURL unified SBOM
-      purls = [{"purl": component["purl"]} for component in image_sbom["components"] if "purl" in component]
-      purl_content = {"image_contents": {"dependencies": purls}}
-
-      with open("sbom-purl.json", "w") as output_file:
-        json.dump(purl_content, output_file, indent=4)
-
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
@@ -260,6 +252,24 @@ spec:
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
       fi
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+  - name: create-purl-sbom
+    image: registry.access.redhat.com/ubi9/python-39:1-125
+    script: |
+      #!/bin/python3
+      import json
+
+      with open("./sbom-cyclonedx.json") as f:
+        cyclonedx_sbom = json.load(f)
+
+      purls = [{"purl": component["purl"]} for component in cyclonedx_sbom["components"] if "purl" in component]
+      purl_content = {"image_contents": {"dependencies": purls}}
+
+      with open("sbom-purl.json", "w") as output_file:
+        json.dump(purl_content, output_file, indent=4)
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
