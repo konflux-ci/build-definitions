@@ -8,7 +8,13 @@ TASKSDIR=${SCRIPTDIR}/../task
 
 for task in $(ls $TASKSDIR); do
   VERSIONDIR=$(ls -d $TASKSDIR/$task/*/ | sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n | tail -n1)
-  oc apply -f $VERSIONDIR/$task.yaml
+  if [ -f $VERSIONDIR/$task.yaml ]; then
+    oc apply -f $VERSIONDIR/$task.yaml
+  elif [ -f $VERSIONDIR/kustomization.yaml ]; then
+    oc apply -k $VERSIONDIR
+  else
+    echo Unable to apply task in $VERSIONDIR
+  fi
 done
 
 oc apply -k $SCRIPTDIR/../pipelines/ -o yaml --dry-run=client | \

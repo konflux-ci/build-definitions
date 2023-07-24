@@ -21,9 +21,12 @@ has_missing_repo=
 echo "Checking existence of task and pipeline bundle repositories ..."
 
 # tasks
-for task_file in task/*/*/*.yaml; do
-    task_name=$(oc apply --dry-run=client -f "$task_file" -o jsonpath='{.metadata.name}')
-    dir=${task_file%/*}
+for task_dir in $(find task/*/*/ -maxdepth 0 -type d); do
+    if [ ! -f $task_dir/kustomization.yaml ]; then
+      task_name=$(oc apply --dry-run=client -f "$task_dir/*.yaml" -o jsonpath='{.metadata.name}')
+    else
+      task_name=$(oc apply --dry-run=client -k "$task_dir" -o jsonpath='{.metadata.name}')
+    fi
     found=$(locate_bundle_repo task "$task_name")
     if [ "$found" != "200" ]; then
         echo "Missing task bundle repo: task-$task_name"
