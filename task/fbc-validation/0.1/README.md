@@ -9,8 +9,8 @@ information and then contents are checked using the OpenShift Operator Framework
 
 | name         | description                      |
 |--------------|----------------------------------|
-| image-digest | Image digest.                    |
-| image-url    | Fully qualified image name.      |
+| IMAGE_DIGEST | Image digest.                    |
+| IMAGE_URL    | Fully qualified image name.      |
 | BASE_IMAGE   | Fully qualified base image name. |
 
 ## Results:
