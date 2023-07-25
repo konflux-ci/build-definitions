@@ -16,6 +16,8 @@ spec:
       description: Fully qualified image name.
     - name: IMAGE_DIGEST
       description: Image digest.
+    - name: BASE_IMAGE
+      description: Fully qualified base image name.
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -30,6 +32,8 @@ spec:
           value: $(params.IMAGE_URL)
         - name: IMAGE_DIGEST
           value: $(params.IMAGE_DIGEST)
+        - name: BASE_IMAGE
+          value: "$(params.BASE_IMAGE)"
       securityContext:
         runAsUser: 0
         capabilities:
@@ -46,6 +50,37 @@ spec:
         #!/usr/bin/env bash
         set -o pipefail
         source /utils.sh
+
+        declare -a ALLOWED_BASE_IMAGES=("registry.redhat.io/openshift4/ose-operator-registry")
+
+        ### FBC base image check
+        if [ -z "${BASE_IMAGE}" ]; then
+          echo "Base image is uknown. The file-based catalog must have base image defined. Check inspect-image task log."
+          note="Task $(context.task.name) failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+        fi
+
+        IMAGE_WITHOUT_TAG=$(echo "${BASE_IMAGE}" | sed "s/:.*$//" | sed "s/@.*$//")
+
+        allowed=false
+        for value in "${ALLOWED_BASE_IMAGES[@]}"
+        do
+          if [[ "${IMAGE_WITHOUT_TAG}" == "${value}" ]]; then
+            allowed=true
+            break
+          fi
+        done
+
+        if [[ "${allowed}" == false ]]; then
+          echo "Base image ${BASE_IMAGE} is not allowed for the file based catalog image. Allowed images: ${ALLOWED_BASE_IMAGES}"
+          note="Task $(context.task.name) failed: Base image ${BASE_IMAGE} is not allowed for the file based catalog image. For details, check Tekton task logs"
+          TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+        fi
+
 
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         if [ ! -s ../inspect-image/image_inspect.json ]; then
