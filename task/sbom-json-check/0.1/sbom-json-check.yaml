@@ -49,8 +49,8 @@ spec:
       touch fail_result.txt
       if [ -f "sbom-cyclonedx.json" ]
       then
-        result=$(echo -n $(cyclonedx-linux-x64 validate --input-file sbom-cyclonedx.json))
-        if [[ ! $result =~ "BOM validated successfully" ]]
+        result=$(echo -n $(sbom-utility validate --input-file sbom-cyclonedx.json))
+        if [[ ! $result =~ "SBOM valid against JSON schema: `true`" ]]
         then
           echo "sbom-cyclonedx.json: $result" > fail_result.txt
         fi
