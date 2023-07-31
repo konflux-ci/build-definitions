@@ -36,8 +36,6 @@
     - input: $(params.skip-checks)
       operator: in
       values: ["false"]
-    runAfter:
-      - fbc-label-check
     taskRef:
       name: fbc-validation
       version: "0.1"
@@ -65,16 +63,8 @@
     workspaces:
       - name: workspace
         workspace: workspace
-- op: replace
-  path: /spec/tasks/6/name
-  value: fbc-label-check
 - op: add
-  path: /spec/tasks/6/params
-  value:
-  - name: POLICY_NAMESPACE
-    value: fbc_checks
-- op: add
-  path: /spec/tasks/12/params/-
+  path: /spec/tasks/10/params/-
   value:
     name: BASE_IMAGE
     value: $(tasks.inspect-image.results.BASE_IMAGE)

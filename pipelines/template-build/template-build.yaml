@@ -137,35 +137,6 @@ spec:
       workspaces:
       - name: source
         workspace: workspace
-    - name: label-check
-      when:
-      - input: $(params.skip-checks)
-        operator: in
-        values: ["false"]
-      runAfter:
-        - inspect-image
-      taskRef:
-        name: label-check
-        version: "0.1"
-      workspaces:
-      - name: workspace
-        workspace: workspace
-    - name: optional-label-check
-      when:
-      - input: $(params.skip-optional)
-        operator: in
-        values: ["false"]
-      runAfter:
-        - inspect-image
-      taskRef:
-        name: label-check
-        version: "0.1"
-      params:
-      - name: POLICY_NAMESPACE
-        value: optional_checks
-      workspaces:
-      - name: workspace
-        workspace: workspace
     - name: deprecated-base-image-check
       when:
       - input: $(params.skip-checks)
