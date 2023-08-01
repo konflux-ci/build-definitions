@@ -30,7 +30,7 @@ spec:
   steps:
     # Download Pyxis metadata about the image
     - name: query-pyxis
-      image: registry.access.redhat.com/ubi8/ubi-minimal:8.8-860@sha256:621f5245fb3e8597a626163cdf1229e1f8311e07ab71bb1e9332014b51c59f9c
+      image: registry.access.redhat.com/ubi8/ubi-minimal:8.8-1014@sha256:e52fc1de73dc2879516431ff1865e0fb61b1a32f57b6f914bdcddb13c62f84e6
       env:
         - name: BASE_IMAGES_DIGESTS
           value: $(params.BASE_IMAGES_DIGESTS)
@@ -52,7 +52,7 @@ spec:
 
     # Run the tests and save output
     - name: run-conftest
-      image: quay.io/redhat-appstudio/hacbs-test:v1.0.15@sha256:cd0f631514e204f9ec4a596b75b2282ace28c3770d5e3c6ac0e789ea60af057c
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.0@sha256:82b43bffe4eacc717239424f64478b18f36528df47c2d11df3a8d031e81a3c67
       env:
         - name: POLICY_DIR
           value: $(params.POLICY_DIR)

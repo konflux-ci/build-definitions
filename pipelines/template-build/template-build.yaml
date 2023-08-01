@@ -50,10 +50,6 @@ spec:
       name: java
       type: string
       default: "false"
-    - description: Snyk Token Secret Name
-      name: snyk-secret
-      type: string
-      default: ""
     - description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
       default: ""
@@ -204,17 +200,11 @@ spec:
       - input: $(params.skip-checks)
         operator: in
         values: ["false"]
-      - input: $(params.snyk-secret)
-        operator: notin
-        values: [""]
       runAfter:
         - clone-repository
       taskRef:
         name: sast-snyk-check
         version: "0.1"
-      params:
-        - name: SNYK_SECRET
-          value: $(params.snyk-secret)
       workspaces:
       - name: workspace
         workspace: workspace

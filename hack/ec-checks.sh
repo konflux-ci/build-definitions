@@ -14,11 +14,14 @@ function build_container_task_name {
 function copy_all_task_versions {
   local task=$1
   local tmp_dir=$2
-  for version in task/"${task}"/*/"${task}".yaml
+  for version in $(find task/"${task}"/*/ -maxdepth 0 -type d)
     do
-      number=$(basename "$(dirname "$version")")
-      file=$(basename "$version")
-      cp $version "${tmp_dir}/${number}_${file}"
+      number=$(basename "$version")
+      if [ -f $version/${task}.yaml ]; then
+        cp $version/${task}.yaml "${tmp_dir}/${number}_${task}.yaml"
+      else
+        oc kustomize $version > "${tmp_dir}/${number}_${task}.yaml"
+      fi
   done
 }
 
