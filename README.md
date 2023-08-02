@@ -4,11 +4,11 @@ This repository contains components that are installed or managed by the managed
 
 This includes default Pipelines and Tasks. You need to have bootstrapped a working appstudio configuration from (see `https://github.com/redhat-appstudio/infra-deployments`) for the dev of pipelines or new tasks.
 
-Pipelines are delivered into App Studio via `quay.io/redhat-appstudio/build-templates-bundle:$GIT_SHA` (the tag will be updated every change)
+Pipelines and Tasks are delivered into App Studio via quay organization `redhat-appstudio-tekton-catalog`.
+Pipelines are bundled and pushed into repositories prefixed with `pipeline-` and tagged with `$GIT_SHA` (tag will be updated with every change).
+Tasks are bundled and pushed into repositories prefixed with `task-` and tagged with `$VERSION` where `VERSION` is the task version (tag is updated when the task file contains any change in the PR)
 
-Tasks are delivered into App Studio via `quay.io/redhat-appstudio/appstudio-tasks`. Where tasks are bundled and pushed into tag in format `${VERSION}-${PART}` where VERSION is the same as pipelines bundle version and PART is sequence number. Tasks are grouped by 10 tasks per bundle.
-
-Currently a set of utilities are bundled with App Studio in `quay.io/redhat-appstudio/appstudio-utils:$GIT_SHA` as a convenience but tasks may be run from different per-task containers in future.
+Currently a set of utilities are bundled with App Studio in `quay.io/redhat-appstudio/appstudio-utils:$GIT_SHA` as a convenience but tasks may be run from different per-task containers.
 
 ## Building
 
@@ -26,11 +26,10 @@ There is an option to push all bundles to a single quay.io repository (this meth
 
 ### Pipelines
 
-The pipelines can be found in the `pipelines` directories.
+The pipelines can be found in the `pipelines` directory.
 
-- `base`: creates build-templates-bundle
-- `hacbs`: extension of `base`, adds hacbs tests, creates hacbs-templates-bundle
-- `hacbs-core-service`: extension of `hacbs`, for core services of AppStudio/HACBS, allows to create MR in infra-deployments. Creates hacbs-core-service-templates-bundle.
+- `core-services`: contains pipeline for the CI of Stonesoup core services e.g. application-service and build-service.
+- `template-build`: contains common template used to generate `docker-build`, `fbc-builder`, `java-builder` and `nodejs-builder` pipelines  
 
 ### Tasks
 
@@ -43,7 +42,7 @@ Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
 ## Release
 
-Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
+Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio-tekton-catalog`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
 
 ### Versioning
 
@@ -55,8 +54,6 @@ Task version increase must be approved by Project Manager.
 
 ## Testing
 
-Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. Images are pushed into OpenShift image streams, by setting environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
-
-Running script `./hack/test-builds.sh hacbs` executes modified pipelines for HACBS.
+Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. By setting the environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
 
 Script `./hack/test-build.sh` provides way to test on custom git repository and pipeline. Usage example: `./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
