@@ -121,27 +121,45 @@ spec:
         # copy content of conffolder to confdir - will be used in next task - related image check
         cp -r .$conffolder/* $(workspaces.workspace.path)/hacbs/$(context.task.name)/confdir
 
-        # We have totally 4 checks here currently
-        check_num=4
+        EXTRACT_DIR="/extracted_base_img"
+        mkdir "${EXTRACT_DIR}"
+        if ! oc image extract ${BASE_IMAGE} --path /:"${EXTRACT_DIR}"; then
+          echo "Unable to extract opm binary"
+          note="Task $(context.task.name) failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          exit 0
+        fi
+
+        OPM_BINARIES="$(find "${EXTRACT_DIR}" -type f -name opm)"
+        BINARIES_COUNT=$(wc -l <<< "${OPM_BINARIES}")
+        if [[ $BINARIES_COUNT -ne "1" ]]; then
+            note="Task $(context.task.name) failed: Expected exactly one opm binary in base image.  For details, check Tekton task log"
+            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            echo "found $BINARIES_COUNT opm binaries:"
+            echo "${OPM_BINARIES}"
+            exit 0
+        fi
+        OPM_BINARY=$(echo "${OPM_BINARIES}" | head -n 1)
+        echo "OPM_BINARY: '${OPM_BINARY}'"
+        chmod 775 "$OPM_BINARY"
+
+        # We have totally 3 checks here currently
+        check_num=3
         failure_num=0
         TESTPASSED=true
 
-        if [[ ! $(find . -name "opm") ]]; then
-          echo "!FAILURE! - opm binary presence check failed."
-          failure_num=`expr $failure_num + 1`
-          TESTPASSED=false
-        fi
         if [[ ! $(find . -name "grpc_health_probe") ]]; then
           echo "!FAILURE! - grpc_health_probe binary presence check failed."
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if ! opm validate ."${conffolder}"; then
+        if ! ${OPM_BINARY} validate ."${conffolder}"; then
           echo "!FAILURE! - opm validate check failed."
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if ! opm render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) == 1'; then
+        if ! ${OPM_BINARY} render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) == 1'; then
           echo "!FAILURE! - More than one olm.packages is not permitted in a FBC fragment."
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
