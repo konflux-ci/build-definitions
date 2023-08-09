@@ -4,9 +4,8 @@ kind: PipelineRun
 metadata:
   name: build-definitions-bundle-push
   annotations:
-    pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-cel-expression: |
-            target_branch == "main" && (".tekton/***".pathChanged() || "appstudio-utils/***".pathChanged() || "hack/***".pathChanged() || "partners/***".pathChanged() || "pipelines/***".pathChanged() || "task/***".pathChanged())
+            event == "push" && target_branch == "main" && (".tekton/***".pathChanged() || "appstudio-utils/***".pathChanged() || "hack/***".pathChanged() || "partners/***".pathChanged() || "pipelines/***".pathChanged() || "task/***".pathChanged())
     pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
