@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: |
-            event == "pull_request" && target_branch == "main" && (".tekton/***".pathChanged() || "appstudio-utils/***".pathChanged() || "hack/***".pathChanged() || "partners/***".pathChanged() || "pipelines/***".pathChanged() || "task/***".pathChanged())
+            event == "pull_request" && target_branch == "main" && (".tekton/***".pathChanged() || "appstudio-utils/***".pathChanged() || "hack/***".pathChanged() || "partners/***".pathChanged() || "pipelines/***".pathChanged() || "task/***".pathChanged() || ".yamllint".pathChanged())
     pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
