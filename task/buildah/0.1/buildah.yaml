@@ -159,17 +159,22 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      echo "$(date) buildah build start"
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         $BUILDAH_ARGS \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
+        --log-level=debug \
         -f "$dockerfile_path" -t $IMAGE $CONTEXT
 
+      echo "$(date) buildah build complete"
+      echo "$(date) start buildah mount"
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
+      echo "$(date) end buildah mount"
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -n "${PREFETCH_INPUT}" ]; then
@@ -294,11 +299,13 @@ spec:
       for run in $(seq 1 $max_run); do
         status=0
         [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing sbom image to registry"
+        echo "$(date) Pushing sbom image to registry"
         buildah push \
           --tls-verify=$TLSVERIFY \
+          --log-level=debug \
           --digestfile $(workspaces.source.path)/image-digest $IMAGE \
           docker://$IMAGE && break || status=$?
+        echo "$(date) Pushed sbom image to registry"
       done
       if [ "$status" -ne 0 ]; then
           echo "Failed to push sbom image to registry after ${max_run} tries"
