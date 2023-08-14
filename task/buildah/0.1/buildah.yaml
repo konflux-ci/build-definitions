@@ -159,6 +159,7 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      echo "$(date) buildah build start"
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         $BUILDAH_ARGS \
@@ -167,9 +168,12 @@ spec:
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $IMAGE $CONTEXT
 
+      echo "$(date) buildah build complete"
+      echo "$(date) start buildah mount"
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
+      echo "$(date) end buildah mount"
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -n "${PREFETCH_INPUT}" ]; then
