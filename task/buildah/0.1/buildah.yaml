@@ -161,6 +161,7 @@ spec:
 
       echo "$(date) buildah build start"
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
+        -v /var/lib/containers:/var/lib/containers --security-opt label:disabled \
         $VOLUME_MOUNTS \
         $BUILDAH_ARGS \
         ${LABELS[@]} \
@@ -298,11 +299,13 @@ spec:
       for run in $(seq 1 $max_run); do
         status=0
         [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing sbom image to registry"
+        echo "$(date) Pushing sbom image to registry"
         buildah push \
+          -v /var/lib/containers:/var/lib/containers --security-opt label:disabled \
           --tls-verify=$TLSVERIFY \
           --digestfile $(workspaces.source.path)/image-digest $IMAGE \
           docker://$IMAGE && break || status=$?
+        echo "$(date) Pushed sbom image to registry"
       done
       if [ "$status" -ne 0 ]; then
           echo "Failed to push sbom image to registry after ${max_run} tries"
