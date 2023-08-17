@@ -176,7 +176,7 @@ spec:
         -f "$dockerfile_path" -t $IMAGE $CONTEXT
 
       echo "$( date --utc -Ins ) Start buildah from"
-      container=$(buildah from --pull-never $IMAGE)
+      container=$(buildah from --log-level=debug --pull-never $IMAGE)
       echo "$( date --utc -Ins ) Start buildah mount"
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
