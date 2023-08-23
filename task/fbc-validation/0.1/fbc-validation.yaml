@@ -84,8 +84,8 @@ spec:
 
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         if [ ! -s ../inspect-image/image_inspect.json ]; then
-          echo "File $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
-          note="Task $(context.task.name) failed: $(workspaces.source.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          echo "File $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
+          note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
