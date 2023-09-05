@@ -21,7 +21,7 @@ spec:
       $(all_tasks_dir all_tasks-ec)
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)"
-    image: quay.io/hacbs-contract/ec-cli:snapshot
+    image: quay.io/enterprise-contract/ec-cli:snapshot
     command: [ec]
     args:
       - validate
@@ -29,15 +29,15 @@ spec:
       - "--file"
       - "./all_tasks-ec"
       - "--policy"
-      - "git::https://github.com/hacbs-contract/ec-policies//policy/task"
+      - "git::https://github.com/enterprise-contract/ec-policies//policy/task"
       - "--policy"
-      - "git::https://github.com/hacbs-contract/ec-policies//policy/lib"
+      - "git::https://github.com/enterprise-contract/ec-policies//policy/lib"
       - "--data"
-      - "git::https://github.com/hacbs-contract/ec-policies//data"
+      - "git::https://github.com/enterprise-contract/ec-policies//data"
       - "--strict"
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)"
-    image: quay.io/hacbs-contract/ec-cli:snapshot
+    image: quay.io/enterprise-contract/ec-cli:snapshot
     command: [ec]
     args:
       - validate
@@ -45,11 +45,11 @@ spec:
       - "--file"
       - "./build_tasks-ec"
       - "--policy"
-      - "git::https://github.com/hacbs-contract/ec-policies//policy/build_task"
+      - "git::https://github.com/enterprise-contract/ec-policies//policy/build_task"
       - "--policy"
-      - "git::https://github.com/hacbs-contract/ec-policies//policy/lib"
+      - "git::https://github.com/enterprise-contract/ec-policies//policy/lib"
       - "--data"
-      - "git::https://github.com/hacbs-contract/ec-policies//data"
+      - "git::https://github.com/enterprise-contract/ec-policies//data"
       - "--strict"
   workspaces:
     - name: source
