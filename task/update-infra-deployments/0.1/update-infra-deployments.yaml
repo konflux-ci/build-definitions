@@ -107,6 +107,7 @@ spec:
       script: |
         #!/usr/bin/env python3
         import json
+        import logging
         import os
         import time
         import base64
@@ -114,9 +115,15 @@ spec:
         import requests
         from jwcrypto import jwk, jwt
 
+        logging.basicConfig(level=logging.DEBUG, format="%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+        logger = logging.getLogger("updater")
+
         EXPIRE_MINUTES_AS_SECONDS = int(os.environ.get('GITHUBAPP_TOKEN_EXPIRATION_MINUTES', 10)) * 60
         # TODO support github enteprise
-        GITHUB_API_URL = os.environ.get('GITHUB_API_URL')
+        GITHUB_API_URL = os.environ["GITHUB_API_URL"]
+
+        ORIGIN_REPO = os.environ["ORIGIN_REPO"]
+        TARGET_GH_REPO = os.environ["TARGET_GH_REPO"]
 
 
         class GitHub():
@@ -177,11 +184,11 @@ spec:
                                         data=json.dumps(data))
 
             def create_mr(self):
-                repo_name = os.environ.get('ORIGIN_REPO').split('/')[-1]
-                target_gh_repo = os.environ.get('TARGET_GH_REPO')
+                repo_name = ORIGIN_REPO.split('/')[-1]
+                logger.info("Create update pull request, head: %s, base: main", repo_name)
                 req = self._request(
                     "POST",
-                    f"/repos/{target_gh_repo}/pulls",
+                    f"/repos/{TARGET_GH_REPO}/pulls",
                     headers={
                         "Authorization": f"Bearer {self.token}",
                         "Accept": "application/vnd.github.v3+json"
@@ -197,44 +204,43 @@ spec:
                 return json_output
 
             def create_reset_branch(self):
-                branch = os.environ.get('ORIGIN_REPO').split('/')[-1]
-                target_gh_repo = os.environ.get('TARGET_GH_REPO')
-                target_branch = self._request("GET", f"/repos/{target_gh_repo}/git/refs/heads/{branch}").json()
-                main_branch_sha = self._request("GET", f"/repos/{target_gh_repo}/git/refs/heads/main").json()['object']['sha']
+                branch = ORIGIN_REPO.split('/')[-1]
+                target_branch = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}").json()
+                main_branch_sha = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/main").json()['object']['sha']
                 if "ref" in target_branch:
-                    # update branch
+                    logger.info("Update branch %s", branch)
                     self._request(
                         "PATCH",
-                        f"/repos/{target_gh_repo}/git/refs/heads/{branch}",
+                        f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "force": True}
                     )
                 else:
-                    # create branch
+                    logger.info("Create branch %s", branch)
                     self._request(
                         "POST",
-                        f"/repos/{target_gh_repo}/git/refs",
+                        f"/repos/{TARGET_GH_REPO}/git/refs",
                         data={"sha": main_branch_sha, "ref": f"refs/heads/{branch}"}
                     )
 
             def upload_content(self):
-                branch = os.environ.get('ORIGIN_REPO').split('/')[-1]
-                target_gh_repo = os.environ.get('TARGET_GH_REPO')
+                branch = ORIGIN_REPO.split('/')[-1]
                 for file in open('updated_files.txt').readlines():
                     file = file.strip()
                     with open(f"cloned/{file}", "rb") as fd:
                         encoded_string = base64.b64encode(fd.read()).decode("utf-8")
-                    old_sha = self._request("GET", f'/repos/{target_gh_repo}/contents/{file}').json().get("sha")
+                    old_sha = self._request("GET", f'/repos/{TARGET_GH_REPO}/contents/{file}').json().get("sha")
                     if old_sha is None:
-                        self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string})
+                        logger.info("Upload a new file %s", file)
+                        self._request("PUT", f'/repos/{TARGET_GH_REPO}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string})
                     else:
-                        self._request("PUT", f'/repos/{target_gh_repo}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string, "sha": old_sha})
+                        logger.info("Update file %s", file)
+                        self._request("PUT", f'/repos/{TARGET_GH_REPO}/contents/{file}', data={"message": f"update {file}", "branch": branch, "content": encoded_string, "sha": old_sha})
 
             def get_pr(self):
-                repo_name = os.environ.get('ORIGIN_REPO').split('/')[-1]
-                target_gh_repo = os.environ.get('TARGET_GH_REPO')
+                repo_name = ORIGIN_REPO.split('/')[-1]
                 req = self._request(
                     "GET",
-                    f"/repos/{target_gh_repo}/pulls",
+                    f"/repos/{TARGET_GH_REPO}/pulls",
                     headers={
                         "Accept": "application/vnd.github.v3+json"
                     })
@@ -280,18 +286,24 @@ spec:
                 app_id=app_id,
                 installation_id=os.environ.get('GITHUBAPP_INSTALLATION_ID'))
 
-
             github_app.create_reset_branch()
             github_app.upload_content()
             infra_pr = github_app.create_mr()
             if "url" not in infra_pr:
+                logger.info("No field 'url' is included in %r.", infra_pr)
+                logger.info("Try to find out the pull request in another way")
                 infra_pr = github_app.get_pr()
+            if not infra_pr:
+                logger.warning("No pull request is found to update the description.")
+                return
             description = infra_pr["body"]
             if description == None:
                 description = "Included PRs:"
             new_pr_link = github_app.get_pr_url_from_sha(os.environ["REVISION"])
             new_description = f"{description}\r\n- {new_pr_link}"
+            logger.info("Update description of pull request %s:\n%s", infra_pr["url"], new_description)
             github_app.update_mr_description(infra_pr["url"], new_description)
+
 
         if __name__ == '__main__':
             main()
