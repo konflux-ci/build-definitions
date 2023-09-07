@@ -134,6 +134,59 @@ spec:
         workspaces:
           - name: artifacts
             workspace: workspace
+      - name: build-acceptable-bundles
+        runAfter:
+          - build-bundles
+        workspaces:
+          - name: artifacts
+            workspace: workspace
+        taskSpec:
+          workspaces:
+            - name: artifacts
+              description: Workspace containing arbitrary artifacts used during the task run.
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
+          steps:
+            - name: build-bundles
+              image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              script: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+
+                # TODO: Eventually, the input for the ec-track-bundle command will be the OPA data
+                # bundle itself. Use the data from git instead until the OPA data bundle has been
+                # initially populated, see https://issues.redhat.com/browse/HACBS-2562.
+                BUNDLES_FILE=acceptable_tekton_bundles.yml
+                curl -L "https://raw.githubusercontent.com/enterprise-contract/ec-policies/main/data/${BUNDLES_FILE}" \
+                  -o "${BUNDLES_FILE}"
+
+                BUNDLES=(
+                  $(workspaces.artifacts.path)/task-bundle-list
+                  $(workspaces.artifacts.path)/pipeline-bundle-list
+                )
+                BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
+
+                # The OPA data bundle is tagged with the current timestamp. This has two main
+                # advantages. First, it prevents the image from accidentally not having any tags,
+                # and getting garbage collected. Second, it helps us create a timeline of the
+                # changes done to the data over time.
+                TAG="$(date '+%s')"
+                DATA_BUNDLE_REPO='quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles'
+
+                # Update the OPA data bundle.
+                ec track bundle \
+                  --input "${BUNDLES_FILE}" \
+                  --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
+                  ${BUNDLES_PARAM[@]}
+
+                # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
+                skopeo copy "docker://${DATA_BUNDLE_REPO}:${TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
     workspaces:
       - name: workspace
   workspaces:
