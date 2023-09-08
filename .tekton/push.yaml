@@ -155,6 +155,18 @@ spec:
                 #!/usr/bin/env bash
                 set -euo pipefail
 
+                BUNDLES=(
+                  $(workspaces.artifacts.path)/task-bundle-list
+                  $(workspaces.artifacts.path)/pipeline-bundle-list
+                )
+                touch ${BUNDLES[@]}
+                BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
+
+                if [[ -z "$BUNDLES_PARAM" ]]; then
+                  echo 'No changes, skipping bundle update'
+                  exit 0
+                fi
+
                 # TODO: Eventually, the input for the ec-track-bundle command will be the OPA data
                 # bundle itself. Use the data from git instead until the OPA data bundle has been
                 # initially populated, see https://issues.redhat.com/browse/HACBS-2562.
@@ -162,11 +174,6 @@ spec:
                 curl -L "https://raw.githubusercontent.com/enterprise-contract/ec-policies/main/data/${BUNDLES_FILE}" \
                   -o "${BUNDLES_FILE}"
 
-                BUNDLES=(
-                  $(workspaces.artifacts.path)/task-bundle-list
-                  $(workspaces.artifacts.path)/pipeline-bundle-list
-                )
-                BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
                 # The OPA data bundle is tagged with the current timestamp. This has two main
                 # advantages. First, it prevents the image from accidentally not having any tags,
