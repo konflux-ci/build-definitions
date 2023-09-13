@@ -18,7 +18,7 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: registry.access.redhat.com/ubi9/buildah:9.0.0-19@sha256:c8b1d312815452964885680fc5bc8d99b3bfe9b6961228c71a09c72ca8e915eb
+  - default: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
     type: string
@@ -87,7 +87,7 @@ spec:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
   steps:
-  - image: quay.io/redhat-appstudio/buildah:v1.28
+  - image: $(params.BUILDER_IMAGE)
     name: build
     resources:
       limits:
