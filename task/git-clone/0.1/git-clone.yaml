@@ -141,18 +141,8 @@ spec:
       fi
 
       if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ] ; then
-        if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" ]; then
-          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" "${PARAM_USER_HOME}/.git-credentials"
-          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" "${PARAM_USER_HOME}/.gitconfig"
-        # Compatibility with kubernetes.io/basic-auth secrets
-        elif [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password" ]; then
-          HOSTNAME=$(echo $PARAM_URL | awk -F/ '{print $3}')
-          echo "https://$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username):$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password)@$HOSTNAME" > "${PARAM_USER_HOME}/.git-credentials"
-          echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" > "${PARAM_USER_HOME}/.gitconfig"
-        else
-          echo "Unknown basic-auth workspace format"
-          exit 1
-        fi
+        cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" "${PARAM_USER_HOME}/.git-credentials"
+        cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" "${PARAM_USER_HOME}/.gitconfig"
         chmod 400 "${PARAM_USER_HOME}/.git-credentials"
         chmod 400 "${PARAM_USER_HOME}/.gitconfig"
       fi
@@ -250,8 +240,8 @@ spec:
     name: ssh-directory
     optional: true
   - description: |
-      A Workspace containing a .gitconfig and .git-credentials file or username and password.
-      These will be copied to the user's home before any git commands are run. Any
+      A Workspace containing a .gitconfig and .git-credentials file. These
+      will be copied to the user's home before any git commands are run. Any
       other files in this Workspace are ignored. It is strongly recommended
       to use ssh-directory over basic-auth whenever possible and to bind a
       Secret to this Workspace over other volume types.

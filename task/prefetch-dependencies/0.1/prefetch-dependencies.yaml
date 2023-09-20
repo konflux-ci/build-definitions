@@ -14,12 +14,18 @@ spec:
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
+  - default: ""
+    description: Subdirectory inside the Workspace pointing to the source code dir.
+    name: subdirectory
+    type: string
   steps:
   - image: quay.io/redhat-appstudio/cachi2:0.3.0@sha256:46097f22b57e4d48a3fce96d931e08ccfe3a3e6421362d5f9353961279078eef
     name: prefetch-dependencies
     env:
     - name: INPUT
       value: $(params.input)
+    - name: PARAM_SUBDIRECTORY
+      value: $(params.subdirectory)
     script: |
       if [ -z "${INPUT}" ]
       then
@@ -27,17 +33,19 @@ spec:
         exit 0
       fi
 
+      SOURCE_DIR="$(workspaces.source.path)/${PARAM_SUBDIRECTORY}"
+
       cachi2 fetch-deps \
-      --source=$(workspaces.source.path) \
-      --output=$(workspaces.source.path)/cachi2/output \
+      --source=${SOURCE_DIR} \
+      --output=${SOURCE_DIR}/cachi2/output \
       "${INPUT}"
 
-      cachi2 generate-env $(workspaces.source.path)/cachi2/output \
+      cachi2 generate-env ${SOURCE_DIR}/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
-      --output $(workspaces.source.path)/cachi2/cachi2.env
+      --output ${SOURCE_DIR}/cachi2/cachi2.env
 
-      cachi2 inject-files $(workspaces.source.path)/cachi2/output \
+      cachi2 inject-files ${SOURCE_DIR}/cachi2/output \
       --for-output-dir=/cachi2/output
   workspaces:
   - name: source

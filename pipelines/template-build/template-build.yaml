@@ -21,7 +21,7 @@ spec:
     - description: The path to your source code
       name: path-context
       type: string
-      default: .
+      default: source
     - description: Path to the Dockerfile
       name: dockerfile
       type: string
@@ -83,6 +83,8 @@ spec:
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
+        - name: subdirectory
+          value: "$(params.path-context)"
       taskRef:
         name: git-clone
         version: "0.1"
@@ -99,6 +101,8 @@ spec:
       params:
         - name: input
           value: $(params.prefetch-input)
+        - name: subdirectory
+          value: "$(params.path-context)"
       runAfter:
         - clone-repository
       taskRef:
