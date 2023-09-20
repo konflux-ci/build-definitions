@@ -42,15 +42,21 @@ spec:
       script: |
         #!/usr/bin/env bash
         . /utils.sh
-        SNYK_TOKEN="$(cat /etc/secrets/snyk_token)"
-        if [[ -z $SNYK_TOKEN ]]; then
+
+        SNYK_TOKEN_PATH="/etc/secrets/snyk_token"
+
+        if [ -f "${SNYK_TOKEN_PATH}" ] && [ -s "${SNYK_TOKEN_PATH}" ]; then
+          # SNYK token is provided
+          SNYK_TOKEN="$(cat ${SNYK_TOKEN_PATH})"
+          export SNYK_TOKEN
+        else
           echo 'If you wish to use the Snyk code SAST task, please create a secret named snyk-secret with the key "snyk_token" containing the Snyk token.' | tee stdout.txt
           note="Task $(context.task.name) skipped: SNYK_TOKEN is empty."
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
-        export SNYK_TOKEN
+
         SNYK_EXIT_CODE=0
         snyk code test $ARGS ../.. --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
         test_not_skipped=0
