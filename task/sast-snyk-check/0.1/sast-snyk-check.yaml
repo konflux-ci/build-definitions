@@ -47,6 +47,7 @@ spec:
           echo 'If you wish to use the Snyk code SAST task, please create a secret named snyk-secret with the key "snyk_token" containing the Snyk token.' | tee stdout.txt
           note="Task $(context.task.name) skipped: SNYK_TOKEN is empty."
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
         fi
         export SNYK_TOKEN
