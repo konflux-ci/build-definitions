@@ -58,16 +58,15 @@ spec:
         # deploy to the devel environment work, which is what users expect to be able to do.
         - name: STRICT
           value: "true"
-        # Public Key should come from the Policy Configuration
         - name: PUBLIC_KEY
-          value: ""
+          value: "k8s://openshift-pipelines/public-key"
         - name: IGNORE_REKOR
           value: "true"
       taskRef:
         resolver: bundles
         params:
         - name: bundle
-          value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:f451a155a0a348dcf0345bc21ee82c27367dceb609c2ee96a919819d5f662e72
+          value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:5d6570299b5d2f1168053196b13806e180a4882b28bf435b3232c8a98c45b739
         - name: name
           value: verify-enterprise-contract
         - name: kind
