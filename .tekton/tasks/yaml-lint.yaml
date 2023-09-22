@@ -24,7 +24,7 @@ spec:
   steps:
     - name: lint-yaml-files
       image: docker.io/cytopia/yamllint:1.26@sha256:1bf8270a671a2e5f2fea8ac2e80164d627e0c5fa083759862bbde80628f942b2  # tag: 1.23
-      workingDir: $(workspaces.shared-workspace.path)
+      workingDir: $(workspaces.shared-workspace.path)/source
       command:
         - yamllint
       args:
@@ -43,4 +43,4 @@ spec:
           echo $FAILED_TASKS | tr ' ' '\n' | sort
           exit 1
         fi
-      workingDir: $(workspaces.shared-workspace.path)
+      workingDir: $(workspaces.shared-workspace.path)/source
