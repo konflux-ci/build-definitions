@@ -48,6 +48,8 @@ spec:
           add:
             - SETFCAP
       script: |
+        #!/usr/bin/env bash
+        . /utils.sh
         if [ ! -s /tekton/home/clair-result.json ]; then
           echo "Previous step [get-vulnerabilities] failed: /tekton/home/clair-result.json is empty."
         else
@@ -55,11 +57,6 @@ spec:
           --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
           --output=json | tee /tekton/home/clair-vulnerabilities.json || true
         fi
-    - name: test-format-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.1@sha256:81acb2ba5e819b7d155ced648e48161e5f7e2bae5c0e4a0bab196651a9044afe
-      script: |
-        #!/usr/bin/env bash
-        . /utils.sh
 
         if [[ ! -f /tekton/home/clair-vulnerabilities.json ]]; then
           note="Task $(context.task.name) failed: /tekton/home/clair-vulnerabilities.json did not generate. For details, check Tekton task log."
