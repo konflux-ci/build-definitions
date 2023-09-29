@@ -162,19 +162,6 @@ spec:
                 touch ${BUNDLES[@]}
                 BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
-                if [[ -z "$BUNDLES_PARAM" ]]; then
-                  echo 'No changes, skipping bundle update'
-                  exit 0
-                fi
-
-                # TODO: Eventually, the input for the ec-track-bundle command will be the OPA data
-                # bundle itself. Use the data from git instead until the OPA data bundle has been
-                # initially populated, see https://issues.redhat.com/browse/HACBS-2562.
-                BUNDLES_FILE=acceptable_tekton_bundles.yml
-                curl -L "https://raw.githubusercontent.com/enterprise-contract/ec-policies/main/data/${BUNDLES_FILE}" \
-                  -o "${BUNDLES_FILE}"
-
-
                 # The OPA data bundle is tagged with the current timestamp. This has two main
                 # advantages. First, it prevents the image from accidentally not having any tags,
                 # and getting garbage collected. Second, it helps us create a timeline of the
@@ -184,8 +171,9 @@ spec:
 
                 # Update the OPA data bundle.
                 ec track bundle \
-                  --input "${BUNDLES_FILE}" \
+                  --input "oci:${DATA_BUNDLE_REPO}:latest" \
                   --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
+                  --freshen \
                   ${BUNDLES_PARAM[@]}
 
                 # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
