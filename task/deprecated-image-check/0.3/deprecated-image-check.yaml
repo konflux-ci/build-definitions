@@ -45,7 +45,7 @@ spec:
           export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
           mkdir -p ${IMAGE_REPO_PATH}
           echo "Querying Pyxis for $BASE_IMAGE."
-          http_code=$(curl -s -k -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY}/repository/${IMAGE_REPOSITORY}")
+          http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY}/repository/${IMAGE_REPOSITORY}")
           echo "Response code: $http_code."
           echo $http_code $IMAGE_REGISTRY $IMAGE_REPOSITORY>> $(results.PYXIS_HTTP_CODE.path)
         done
