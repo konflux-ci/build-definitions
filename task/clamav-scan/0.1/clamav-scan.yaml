@@ -63,7 +63,7 @@ spec:
           echo "Unable to extract image. Skipping ClamAV scan!"
           exit 0
         fi
-        echo Extraction done.
+        echo "Scanning image. This operation may take a while."
         clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
         echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
       volumeMounts:
