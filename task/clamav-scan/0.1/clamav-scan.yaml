@@ -24,7 +24,7 @@ spec:
 
   steps:
     - name: extract-and-scan-image
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.4@sha256:ad3039cbdea35364bd95b8c01dc1afbd6a5f11c2951ec8b79fa60e648c185630
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.5@sha256:8b3e395b66f07e65eaf65165a4ab097daf035d1a364244bce5d19aa812223f2f
       workingDir: /work
       # need to change user since 'oc image extract' requires more privileges when running as root
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
@@ -72,7 +72,7 @@ spec:
         - mountPath: /work
           name: work
     - name: modify-clam-output-to-json
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.4@sha256:ad3039cbdea35364bd95b8c01dc1afbd6a5f11c2951ec8b79fa60e648c185630
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.5@sha256:8b3e395b66f07e65eaf65165a4ab097daf035d1a364244bce5d19aa812223f2f
       script: |
         #!/usr/bin/env python3.9
         import json
@@ -121,7 +121,7 @@ spec:
         if __name__ == "__main__":
             main()
     - name: store-hacbs-test-output-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.4@sha256:ad3039cbdea35364bd95b8c01dc1afbd6a5f11c2951ec8b79fa60e648c185630
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.5@sha256:8b3e395b66f07e65eaf65165a4ab097daf035d1a364244bce5d19aa812223f2f
       script: |
         #!/usr/bin/env bash
         source /utils.sh
