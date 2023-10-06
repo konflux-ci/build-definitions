@@ -91,7 +91,7 @@ spec:
     name: build
     resources:
       limits:
-        memory: 4Gi
+        memory: 5Gi
         cpu: 2
       requests:
         memory: 512Mi
@@ -276,7 +276,13 @@ spec:
 
   - name: inject-sbom-and-push
     image: $(params.BUILDER_IMAGE)
-    resources: {}
+    resources:
+      limits:
+        memory: 5Gi
+        cpu: 2
+      requests:
+        memory: 512Mi
+        cpu: 250m
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
@@ -331,7 +337,8 @@ spec:
     workingDir: $(workspaces.source.path)
 
   volumes:
-  - emptyDir: {}
+  - emptyDir:
+      medium: Memory
     name: varlibcontainers
   workspaces:
   - name: source
