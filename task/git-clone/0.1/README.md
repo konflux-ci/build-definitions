@@ -21,7 +21,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |gitInitImage|The image providing the git-init binary that this Task runs.|registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8|false|
 |userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden the gitInitImage param with an image containing custom user configuration. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.|true|false|
-|fetchTags|Fetch all tags from the remote after git init.|false|false|
+|fetchTags|Fetch all tags for the repo.|false|false|
 
 ## Results
 |name|description|
