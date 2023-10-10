@@ -104,7 +104,7 @@ spec:
   - env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-user-workloads/rhtap-build-tenant/multi-arch-controller/hacktask-image-multi-platform-controller:build-6d7bd-1694570872@sha256:50b0745f503cb73f3441bddd74bc89d6cdd177fa8a376112065bef9f4cd15e79
+    image: quay.io/redhat-user-workloads/rhtap-build-tenant/multi-arch-controller/hacktask-image-multi-platform-controller:build-dfd73-1698382902@sha256:d733531a07ede2e73500c500a33cdaf78332db146ffdc23d3c1a71b253a734b6
     imagePullPolicy: Always
     name: build
     resources:
@@ -116,13 +116,17 @@ spec:
         memory: 512Mi
     script: |-
       set -o verbose
+      mkdir -p ~/.ssh
       if [ -e "/ssh/error" ]; then
         #no server could be provisioned
         cat /ssh/error
         exit 1
+      elif [ -e "/ssh/otp" ]; then
+       curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+       echo "" >> ~/.ssh/id_rsa
+      else
+        cp /ssh/id_rsa ~/.ssh
       fi
-      mkdir -p ~/.ssh
-      cp /ssh/id_rsa ~/.ssh
       chmod 0400 ~/.ssh/id_rsa
       export SSH_HOST=$(cat /ssh/host)
       export BUILD_DIR=$(cat /ssh/user-dir)
@@ -188,7 +192,7 @@ spec:
       fi
 
       if [ -n "${PREFETCH_INPUT}" ]; then
-        mv cachi2 /tmp/
+        cp -r cachi2 /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
