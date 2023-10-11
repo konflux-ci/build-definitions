@@ -57,7 +57,8 @@ spec:
         fi
 
         SNYK_EXIT_CODE=0
-        snyk code test $ARGS ../.. --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
+        SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
+        snyk code test $ARGS $SOURCE_CODE_DIR --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?

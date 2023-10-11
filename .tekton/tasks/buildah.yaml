@@ -64,14 +64,14 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
+    workingDir: $(workspaces.source.path)/source
   - image: $(params.BUILDER_IMAGE)
     name: push
     resources: {}
     script: |
       buildah --storage-driver=$(params.STORAGE_DRIVER) push \
         --tls-verify=$(params.TLSVERIFY) \
-        --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
+        --digestfile $(workspaces.source.path)/source/image-digest $(params.IMAGE) \
         docker://$(params.IMAGE)
     volumeMounts:
     - mountPath: /var/lib/containers
@@ -80,12 +80,12 @@ spec:
       capabilities:
         add:
           - SETFCAP
-    workingDir: $(workspaces.source.path)
+    workingDir: $(workspaces.source.path)/source
   - image: $(params.BUILDER_IMAGE)
     name: digest-to-results
     resources: {}
     script: |
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      cat "$(workspaces.source.path)"/source/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)
   volumes:
   - emptyDir: {}

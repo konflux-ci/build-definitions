@@ -14,13 +14,13 @@ spec:
   steps:
   - name: gather-tasks
     image: quay.io/redhat-appstudio/appstudio-utils:512cca38316355d6dbfc9c23ed3c5afabb943d24
-    workingDir: $(workspaces.source.path)
+    workingDir: $(workspaces.source.path)/source
     script: |
       source hack/ec-checks.sh
       $(build_tasks_dir build_tasks-ec)
       $(all_tasks_dir all_tasks-ec)
   - name: validate-all-tasks
-    workingDir: "$(workspaces.source.path)"
+    workingDir: "$(workspaces.source.path)/source"
     image: quay.io/enterprise-contract/ec-cli:snapshot
     command: [ec]
     args:
@@ -36,7 +36,7 @@ spec:
       - "git::https://github.com/enterprise-contract/ec-policies//data"
       - "--strict"
   - name: validate-build-tasks
-    workingDir: "$(workspaces.source.path)"
+    workingDir: "$(workspaces.source.path)/source"
     image: quay.io/enterprise-contract/ec-cli:snapshot
     command: [ec]
     args:
