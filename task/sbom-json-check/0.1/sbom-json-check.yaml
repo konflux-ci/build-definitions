@@ -34,7 +34,9 @@ spec:
         value: $(params.IMAGE_DIGEST)
     script: |
       #!/usr/bin/env bash
+      set -euo pipefail
       source /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
       mkdir /manifests/ && cd /manifests/
 

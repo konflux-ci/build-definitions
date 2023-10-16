@@ -45,6 +45,11 @@ spec:
           memory: 512Mi
           cpu: 10m
       script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        . /utils.sh
+        trap 'handle_error' EXIT
+
         imagewithouttag=$(echo $IMAGE_URL | sed "s/\(.*\):.*/\1/" | tr -d '\n')
 
         # strip new-line escape symbol from parameter and save it to variable
@@ -124,7 +129,9 @@ spec:
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       script: |
         #!/usr/bin/env bash
+        set -euo pipefail
         source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         if [ -f /tekton/home/clamscan-result.json ];
         then
