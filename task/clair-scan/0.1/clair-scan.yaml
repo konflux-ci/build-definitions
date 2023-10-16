@@ -49,7 +49,10 @@ spec:
             - SETFCAP
       script: |
         #!/usr/bin/env bash
+        set -euo pipefail
         . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
         if [ ! -s /tekton/home/clair-result.json ]; then
           echo "Previous step [get-vulnerabilities] failed: /tekton/home/clair-result.json is empty."
         else

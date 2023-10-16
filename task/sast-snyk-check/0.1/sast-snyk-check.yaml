@@ -41,7 +41,9 @@ spec:
           value: $(params.ARGS)
       script: |
         #!/usr/bin/env bash
+        set -euo pipefail
         . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         SNYK_TOKEN_PATH="/etc/secrets/snyk_token"
 
