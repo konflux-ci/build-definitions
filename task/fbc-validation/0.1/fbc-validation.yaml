@@ -49,8 +49,9 @@ spec:
           cpu: 10m
       script: |
         #!/usr/bin/env bash
-        set -o pipefail
+        set -euo pipefail
         source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         declare -a ALLOWED_BASE_IMAGES=("registry.redhat.io/openshift4/ose-operator-registry")
 
@@ -92,8 +93,9 @@ spec:
           exit 0
         fi
 
-        conffolder=$(cat ../inspect-image/image_inspect.json | jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"')
-        if [ $? -ne 0 ]; then
+        status=0
+        conffolder=$(jq -f ../inspect-image/image_inspect.json -r '.Labels ."operators.operatorframework.io.index.configs.v1"') || status=$?
+        if [ $status -ne 0 ]; then
           echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: operators.operatorframework.io.index.configs.v1."
           TEST_OUTPUT="$(make_result_json -r ERROR)"
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"

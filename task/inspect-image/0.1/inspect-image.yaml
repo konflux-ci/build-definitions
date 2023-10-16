@@ -48,7 +48,10 @@ spec:
 
     script: |
       #!/usr/bin/env bash
+      set -euo pipefail
       source /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
       IMAGE_INSPECT=image_inspect.json
       BASE_IMAGE_INSPECT=base_image_inspect.json
       RAW_IMAGE_INSPECT=raw_image_inspect.json
