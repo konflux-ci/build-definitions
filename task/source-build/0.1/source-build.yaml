@@ -238,7 +238,7 @@ spec:
             cmd = ["skopeo", "copy", f"docker://{source_image_name}", f"dir:{base_sources_extraction_dir}"]
             log.info("Copy source image %s into directory %s", source_image_name, str(base_sources_extraction_dir))
             try:
-                run(cmd, check=True, capture_output=True)
+                run(cmd, check=True)
             except CalledProcessError:
                 log.warning("Failed to copy source image to local %s", source_image_name)
                 return False
@@ -440,7 +440,7 @@ spec:
             except CalledProcessError as e:
                 logger.exception(f"Failed to build and push source image {dest_image}")
                 build_result["status"] = "failure"
-                build_result["message"] = e.output
+                build_result["message"] = f"Failed to build and push source image. {str(e)}"
 
             return build_result
 
