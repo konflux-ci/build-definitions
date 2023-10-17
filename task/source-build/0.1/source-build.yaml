@@ -261,7 +261,7 @@ spec:
 
                 blob_member = ""
                 symlink_member = ""
-                with tarfile.open(base_sources_extraction_dir / digest, "r:gz") as tar:
+                with tarfile.open(f"{base_sources_extraction_dir}/{digest}", "r:gz") as tar:
                     for member in tar:
                         if member.isfile():
                             blob_member = member.name
@@ -379,14 +379,16 @@ spec:
                     bsi_cmd.append(str(dir_path))
             bsi_cmd.append("-d")
             bsi_cmd.append(",".join(bsi_src_drivers))
+            if os.environ.get("BSI_DEBUG"):
+                bsi_cmd.append("-D")
 
             log.info("build source image %r", bsi_cmd)
-            run(bsi_cmd, check=True, text=True, capture_output=True)
+            run(bsi_cmd, check=True)
 
             # push to registry
             push_cmd = ["skopeo", "copy", f"oci://{image_output_dir}:latest-source", f"docker://{dest_image}"]
             log.debug("push source image %r", push_cmd)
-            run(push_cmd, check=True, text=True, capture_output=True)
+            run(push_cmd, check=True)
 
 
         def build(args) -> BuildResult:
