@@ -33,7 +33,7 @@ spec:
     - name: source
   steps:
   - name: inspect-image
-    image: quay.io/redhat-appstudio/hacbs-test:v1.1.5@sha256:8b3e395b66f07e65eaf65165a4ab097daf035d1a364244bce5d19aa812223f2f
+    image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
     workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
     securityContext:
       runAsUser: 0
@@ -48,7 +48,10 @@ spec:
 
     script: |
       #!/usr/bin/env bash
+      set -euo pipefail
       source /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
       IMAGE_INSPECT=image_inspect.json
       BASE_IMAGE_INSPECT=base_image_inspect.json
       RAW_IMAGE_INSPECT=raw_image_inspect.json

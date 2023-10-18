@@ -80,7 +80,7 @@ spec:
           steps:
             - name: check-task-structure
               image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
                 ./hack/check-partner-tasks.sh > partner-tasks.out
@@ -91,7 +91,7 @@ spec:
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               env:
                 - name: GITHUBAPP_KEY_PATH
                   value: /secrets/deploy-key/private-key
@@ -143,7 +143,7 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
                 MY_QUAY_USER=redhat-appstudio-tekton-catalog \
@@ -179,7 +179,7 @@ spec:
           steps:
             - name: fail-when-repo-is-missed
               image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
                 .tekton/scripts/check-task-pipeline-bundle-repos.sh
@@ -203,7 +203,7 @@ spec:
           steps:
             - name: check-task-migration-md
               image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
                 EXIT=0

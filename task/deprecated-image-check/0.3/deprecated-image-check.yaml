@@ -30,12 +30,16 @@ spec:
   steps:
     # Download Pyxis metadata about the image
     - name: query-pyxis
-      image: registry.access.redhat.com/ubi8/ubi-minimal:8.8-1072@sha256:ca2d09012e43e133f7703cbfc9ed9a6b5e5485ca7b3d52e9b3b287a0780b1bb3
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       env:
         - name: BASE_IMAGES_DIGESTS
           value: $(params.BASE_IMAGES_DIGESTS)
       script: |
-        #!/usr/bin/env bash
+        #!/usr/bin/env sh
+        set -euo pipefail
+        source /utils.sh
+        trap 'handle_error' EXIT
+
         readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
         for BASE_IMAGE in ${IMAGE_ARRAY[@]};
         do
@@ -52,7 +56,7 @@ spec:
 
     # Run the tests and save output
     - name: run-conftest
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.5@sha256:8b3e395b66f07e65eaf65165a4ab097daf035d1a364244bce5d19aa812223f2f
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       env:
         - name: POLICY_DIR
           value: $(params.POLICY_DIR)
@@ -60,7 +64,9 @@ spec:
           value: $(params.POLICY_NAMESPACE)
       script: |
         #!/usr/bin/env sh
+        set -euo pipefail
         source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         success_counter=0
         failure_counter=0

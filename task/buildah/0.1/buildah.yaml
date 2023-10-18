@@ -100,10 +100,11 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     script: |
-      if [ -e "$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$CONTEXT/$DOCKERFILE"
-      elif [ -e "$DOCKERFILE" ]; then
-        dockerfile_path="$DOCKERFILE"
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$SOURCE_CODE_DIR/$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -115,7 +116,7 @@ spec:
         http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
         if [ $http_code = 200 ]; then
           echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" $CONTEXT/.dockerignore
+          mv "$dockerfile_path.dockerignore.tmp" $SOURCE_CODE_DIR/$CONTEXT/.dockerignore
         fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
@@ -165,7 +166,7 @@ spec:
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $IMAGE $CONTEXT
+        -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
@@ -188,7 +189,7 @@ spec:
   - name: sbom-syft-generate
     image: quay.io/redhat-appstudio/syft:v0.85.0
     script: |
-      syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      syft dir:$(workspaces.source.path)/source --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
       find $(cat /workspace/container_path) -xtype l -delete
       syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
     volumeMounts:
@@ -210,7 +211,7 @@ spec:
       runAsUser: 0
 
   - name: merge-syft-sboms
-    image: registry.access.redhat.com/ubi9/python-39:1-143.1695131427
+    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     script: |
       #!/bin/python3
       import json
@@ -257,7 +258,7 @@ spec:
       runAsUser: 0
 
   - name: create-purl-sbom
-    image: registry.access.redhat.com/ubi9/python-39:1-143.1695131427
+    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     script: |
       #!/bin/python3
       import json

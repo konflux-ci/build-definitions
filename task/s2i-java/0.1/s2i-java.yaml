@@ -97,7 +97,7 @@ spec:
     image: registry.redhat.io/ocp-tools-4-tech-preview/source-to-image-rhel8@sha256:637c15600359cb45bc01445b5e811b6240ca239f0ebfe406b50146e34f68f631
     name: s2i-gen
     resources: {}
-    workingDir: $(workspaces.source.path)
+    workingDir: $(workspaces.source.path)/source
     securityContext:
       runAsUser: 0
     volumeMounts:
@@ -149,7 +149,7 @@ spec:
   - image: quay.io/redhat-appstudio/syft:v0.85.0
     name: sbom-syft-generate
     script: |
-      syft dir:$(workspaces.source.path) --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      syft dir:$(workspaces.source.path)/source --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
       find $(cat /workspace/container_path) -xtype l -delete
       syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
     volumeMounts:
@@ -169,7 +169,7 @@ spec:
       name: varlibcontainers
     securityContext:
       runAsUser: 0
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1695131427
+  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: merge-sboms
     script: |
       #!/bin/python3
