@@ -76,6 +76,17 @@ oc kustomize --output "$generated_pipelines_dir" pipelines/
 core_services_pipelines_dir=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XXXXXXXX)
 oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 
+
+if [ "$SOURCE_BUILD" != "" ]; then
+    echo Enabling source image build task
+    for filename in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
+    do
+        if [ "$SOURCE_BUILD" != "" ]; then
+            yq e '(.spec.params[] | select(.name == "build-source-image") | .default) = "true"' -i "$filename"
+        fi
+    done
+fi
+
 # Build tasks
 (
 cd "$SCRIPTDIR/.."
