@@ -63,6 +63,8 @@ spec:
         - "$(params.BASE_IMAGES)"
         - "--write-result-to"
         - "$(results.BUILD_RESULT.path)"
+        - "--cachi2-artifacts-dir"
+        - "$(workspaces.workspace.path)/cachi2"
       script: |
         #!/usr/bin/python3.11
 
@@ -186,8 +188,8 @@ spec:
             parser.add_argument(
                 "--cachi2-artifacts-dir",
                 metavar="PATH",
-                help="Path to Cachi2 directory which has the output directory populated by fetch-deps "
-                    "command and the generated environment file.",
+                help="Path to Cachi2 directory which is the output directory populated by fetch-deps "
+                     "command and the generated environment file.",
             )
             parser.add_argument(
                 "--write-result-to",
