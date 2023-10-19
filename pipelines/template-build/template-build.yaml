@@ -144,24 +144,6 @@ spec:
       workspaces:
         - name: workspace
           workspace: workspace
-    - name: inspect-image
-      when:
-      - input: $(params.skip-checks)
-        operator: in
-        values: ["false"]
-      runAfter:
-        - build-container
-      taskRef:
-        name: inspect-image
-        version: "0.1"
-      params:
-      - name: IMAGE_URL
-        value: $(tasks.build-container.results.IMAGE_URL)
-      - name: IMAGE_DIGEST
-        value: $(tasks.build-container.results.IMAGE_DIGEST)
-      workspaces:
-      - name: source
-        workspace: workspace
     - name: deprecated-base-image-check
       when:
       - input: $(params.skip-checks)
