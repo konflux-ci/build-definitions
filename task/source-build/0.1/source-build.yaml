@@ -257,6 +257,8 @@ spec:
             with open(f"{base_sources_extraction_dir}/manifest.json", "r") as f:
                 manifest_data = json.load(f)
 
+            gathered = False
+
             for layer in manifest_data["layers"]:
                 digest = layer["digest"].split(":")[-1]
                 log.debug("untar layer %s", digest)
@@ -279,6 +281,8 @@ spec:
                                         work_dir=base_sources_extraction_dir,
                                         log=log)
 
+                    gathered = True
+
                 elif symlink_member.startswith("./extra_src_dir/"):
                     extra_src_archive = os.path.basename(symlink_member)
                     log.debug("Prepare extra source %s", extra_src_archive)
@@ -291,6 +295,8 @@ spec:
                                         work_dir=base_sources_extraction_dir,
                                         log=log)
 
+                    gathered = True
+
                     # FIXME: perhaps the dependency archive (the Cachi2) might be handled differently
                     run(["tar", "xvf", extra_src_archive], check=True, cwd=dest_dir)
                     os.unlink(f"{dest_dir}/{extra_src_archive}")
@@ -298,7 +304,7 @@ spec:
                 else:
                     log.warning("No known operation happened on layer %s", digest)
 
-            return len(os.listdir(sib_dirs.rpm_dir)) > 0 or len(sib_dirs.extra_src_dirs) > 0
+            return gathered
 
 
         def gather_prefetched_sources(work_dir: str, cachi2_dir: str, sib_dirs: SourceImageBuildDirectories) -> bool:
