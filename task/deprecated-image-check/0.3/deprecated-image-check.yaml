@@ -28,17 +28,24 @@ spec:
       name: TEST_OUTPUT
 
   steps:
-    # Download Pyxis metadata about the image
-    - name: query-pyxis
+    - name: check-images
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       env:
+        - name: POLICY_DIR
+          value: $(params.POLICY_DIR)
+        - name: POLICY_NAMESPACE
+          value: $(params.POLICY_NAMESPACE)
         - name: BASE_IMAGES_DIGESTS
           value: $(params.BASE_IMAGES_DIGESTS)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
         source /utils.sh
-        trap 'handle_error' EXIT
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        success_counter=0
+        failure_counter=0
+        error_counter=0
 
         readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
         for BASE_IMAGE in ${IMAGE_ARRAY[@]};
@@ -49,38 +56,11 @@ spec:
           # PYXIS hack: registry.redhat.io must be queried as registry.access.redhat.com in pyxis
           IMAGE_REGISTRY_PYXIS=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')
 
-          export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
+          export IMAGE_REPO_PATH=/tmp/${IMAGE_REPOSITORY}
           mkdir -p ${IMAGE_REPO_PATH}
           echo "Querying Pyxis for $BASE_IMAGE."
           http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY_PYXIS}/repository/${IMAGE_REPOSITORY}")
-          echo "Response code: $http_code."
-          echo $http_code $IMAGE_REGISTRY $IMAGE_REPOSITORY>> $(results.PYXIS_HTTP_CODE.path)
-        done
 
-    # Run the tests and save output
-    - name: run-conftest
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
-      env:
-        - name: POLICY_DIR
-          value: $(params.POLICY_DIR)
-        - name: POLICY_NAMESPACE
-          value: $(params.POLICY_NAMESPACE)
-      script: |
-        #!/usr/bin/env sh
-        set -euo pipefail
-        source /utils.sh
-        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
-
-        success_counter=0
-        failure_counter=0
-        error_counter=0
-        if [ ! -f $(results.PYXIS_HTTP_CODE.path) ]; then
-          error_counter=$((error_counter++))
-        fi
-        while IFS= read -r line
-        do
-          IFS=:' ' read -r http_code IMAGE_REGISTRY IMAGE_REPOSITORY <<< $line; echo "[$http_code] [$IMAGE_REGISTRY] [$IMAGE_REPOSITORY]"
-          export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
           if [ "$http_code" == "200" ];
           then
             echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace."
@@ -98,7 +78,7 @@ spec:
             echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
             error_counter=$((error_counter++))
           fi
-        done < $(results.PYXIS_HTTP_CODE.path)
+        done
 
         note="Task $(context.task.name) failed: Command conftest failed. For details, check Tekton task log."
         ERROR_OUTPUT=$(make_result_json -r ERROR -n "$POLICY_NAMESPACE" -t "$note")
