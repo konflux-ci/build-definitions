@@ -47,7 +47,7 @@ spec:
           IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
 
           # PYXIS hack: registry.redhat.io must be queried as registry.access.redhat.com in pyxis
-          IMAGE_REGISTRY_PYXIS=${IMAGE_REGISTRY//registry.redhat.io/registry.access.redhat.com}
+          IMAGE_REGISTRY_PYXIS=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')
 
           export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
           mkdir -p ${IMAGE_REPO_PATH}
