@@ -84,16 +84,21 @@ spec:
 
         note="Task $(context.task.name) failed: Command conftest failed. For details, check Tekton task log."
         ERROR_OUTPUT=$(make_result_json -r ERROR -n "$POLICY_NAMESPACE" -t "$note")
-        if [[ "$error_counter" == 0 && "$success_counter" > 0 ]];
+
+        note="Task $(context.task.name) completed: Check result for task result."
+        if [[ "$error_counter" == 0 ]];
         then
           if [[ "${failure_counter}" -gt 0 ]]; then
             RES="FAILURE"
           elif [[ "${warnings_counter}" -gt 0 ]]; then
             RES="WARNING"
+          elif [[ "${success_counter}" -eq 0 ]]; then
+            # when all counters are 0, we haven't checked any base images
+            note="Task $(context.task.name) skipped: No base images found."
+            RES="SKIPPED"
           else
             RES="SUCCESS"
           fi
-          note="Task $(context.task.name) completed: Check result for task result."
           TEST_OUTPUT=$(make_result_json \
             -r "${RES}" -n "$POLICY_NAMESPACE" \
             -s "${success_counter}" -f "${failure_counter}" -t "$note")
