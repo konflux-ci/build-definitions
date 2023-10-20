@@ -9,3 +9,4 @@ RUN mkdir -p $bin_dir &&  \
     cd $bin_dir && \
     git apply --allow-empty BuildSourceImage.sh /tmp/$patch0 && rm /tmp/$patch0 && \
     mv BuildSourceImage.sh bsi
+ADD source_build.py /opt/source_build/source_build.py

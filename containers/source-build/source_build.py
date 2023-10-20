@@ -1,0 +1,452 @@
+#!/usr/bin/python3.11
+
+import argparse
+import functools
+import json
+import itertools
+import os
+import shutil
+import logging
+import stat
+import sys
+import tarfile
+import tempfile
+import urllib.parse
+from dataclasses import dataclass, field
+from subprocess import run, CalledProcessError
+from typing import TypedDict, NotRequired, Literal, Final
+
+"""
+Requires: git, skopeo, tar, BuildSourceImage
+"""
+
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+logger = logging.getLogger("source-build")
+
+BSI: Final = "/opt/BuildSourceImage/bsi"
+
+
+class BuildResult(TypedDict):
+    status: Literal["failure", "success"]
+    message: NotRequired[str]
+    dependencies_included: bool
+    base_image_source_included: bool
+    image_url: str
+
+
+@dataclass
+class SourceImageBuildDirectories:
+    rpm_dir: str = ""
+    extra_src_dirs: list[str] = field(default_factory=list)
+
+
+class RepoInfo(TypedDict):
+    name: str
+    last_commit_sha: str
+
+
+def arg_type_path(value):
+    if not os.path.exists(value):
+        raise argparse.ArgumentTypeError(f"No file or directory exists at specified path {value}")
+    return value
+
+
+def arg_type_bsi_script(value):
+    if not os.path.exists(value):
+        raise argparse.ArgumentTypeError(f"BuildSourceImage executable {value} does not exist")
+    fstat = os.stat(value)
+    if not stat.S_IXUSR & fstat.st_mode:
+        raise argparse.ArgumentTypeError(f"BuildSourceImage script {value} is not executable")
+    return value
+
+
+def arg_type_base_images(value):
+    return value.strip()
+
+
+def get_repo_info(repo_path: str) -> RepoInfo:
+    _run = functools.partial(run, check=True, text=True, capture_output=True, cwd=repo_path)
+    commit_sha = _run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    repo_url = _run(["git", "config", "--get", "remote.origin.url"]).stdout.strip()
+    # The url could look like https://github.com/namespace/app.git
+    # where, app is required.
+    repo_name, _ = os.path.splitext(repo_url.rsplit("/", maxsplit=1)[-1])
+    return {
+        "name": repo_name,
+        "last_commit_sha": commit_sha,
+    }
+
+
+def parse_cli_args():
+    parser = argparse.ArgumentParser(description="Source image build task")
+    parser.add_argument(
+        "-w",
+        "--workspace",
+        type=arg_type_path,
+        metavar="PATH",
+        dest="workspace_dir",
+        help="The workspace directory",
+    )
+    parser.add_argument(
+        "--bsi",
+        type=arg_type_bsi_script,
+        default=BSI,
+        help="Path to the BuildSourceImage executable. "
+        "Defaults to %(default)s that is installed in the execution container.",
+    )
+    parser.add_argument(
+        "-s",
+        "--source-dir",
+        required=True,
+        dest="source_dir",
+        metavar="PATH",
+        type=arg_type_path,
+        help="Path to the directory holding source code from which to build the binary image.",
+    )
+    parser.add_argument(
+        "--output-binary-image",
+        required=True,
+        metavar="IMAGE",
+        help="The output binary image used to generate source image.",
+    )
+    parser.add_argument(
+        "--base-images",
+        metavar="IMAGES",
+        type=arg_type_base_images,
+        default="",
+        help="Base images used to build the binary image, from which to get the sources. "
+        "Each image per line and only the last (bottom) one is handled, which is the "
+        "single image or the last image specified in a multistage Dockerfile. If omitted, "
+        "skip handling sources of base image.",
+    )
+    parser.add_argument(
+        "--cachi2-artifacts-dir",
+        metavar="PATH",
+        help="Path to Cachi2 directory which is the output directory populated by fetch-deps "
+        "command and the generated environment file.",
+    )
+    parser.add_argument(
+        "--write-result-to",
+        metavar="FILE",
+        dest="result_file",
+        help="Write execution result into this file.",
+    )
+    return parser.parse_args()
+
+
+def registry_has_image(image: str) -> bool:
+    cmd = ["skopeo", "inspect", f"docker://{image}"]
+    return run(cmd, capture_output=True).returncode == 0
+
+
+def create_dir(*components) -> str:
+    path = os.path.join(*components)
+    os.makedirs(path)
+    return path
+
+
+def extract_blob_member(
+    tar_archive: str, member: str, dest_dir: str, rename_to: str, work_dir: str, log: logging.Logger
+) -> None:
+    """Extract a blob member and rename it."""
+    # strip 3 components: ./blobs/sha256
+    tar_cmd = [
+        "tar",
+        "--extract",
+        "-C",
+        dest_dir,
+        "--strip-components",
+        "3",
+        "-f",
+        tar_archive,
+        member,
+    ]
+    log.debug("extract blob member %r", tar_cmd)
+    run(tar_cmd, check=True, cwd=work_dir)
+    shutil.move(f"{dest_dir}/{os.path.basename(member)}", f"{dest_dir}/{rename_to}")
+
+
+def prepare_base_image_sources(
+    image: str, work_dir: str, sib_dirs: SourceImageBuildDirectories
+) -> bool:
+    log = logging.getLogger("source-build.base-image-sources")
+    parts = urllib.parse.urlparse(f"docker://{image}")
+    if parts.netloc != "registry.access.redhat.com":
+        log.info(
+            "Image %s does not come from supported registry. Skip handling the sources from it.",
+            image,
+        )
+        return False
+
+    base_image_sources_dir = create_dir(work_dir, "base_image_sources")
+    base_sources_extraction_dir = create_dir(base_image_sources_dir, "extraction_dir")
+
+    source_image_name = image + "-source"
+
+    if not registry_has_image(source_image_name):
+        logger.warning(
+            "The registry does not have corresponding source image %s", source_image_name
+        )
+        return False
+
+    cmd = ["skopeo", "copy", f"docker://{source_image_name}", f"dir:{base_sources_extraction_dir}"]
+    log.info(
+        "Copy source image %s into directory %s",
+        source_image_name,
+        str(base_sources_extraction_dir),
+    )
+    try:
+        run(cmd, check=True)
+    except CalledProcessError:
+        log.warning("Failed to copy source image to local %s", source_image_name)
+        return False
+
+    # bsi reads source RPMs from this directory
+    bsi_rpms_dir = create_dir(base_image_sources_dir, "bsi_rpms_dir")
+    sib_dirs.rpm_dir = str(bsi_rpms_dir)  # save this directory for executing bsi
+
+    # bsi reads extra sources from this directory
+    # each source is in its own directory, for instance, subdir/source_a.tar.gz
+    extra_src_dir = create_dir(base_sources_extraction_dir, "extra_src_dir")
+
+    # extract layers, primarily they are RPMs
+    with open(f"{base_sources_extraction_dir}/manifest.json", "r") as f:
+        manifest_data = json.load(f)
+
+    gathered = False
+
+    for layer in manifest_data["layers"]:
+        digest = layer["digest"].split(":")[-1]
+        log.debug("untar layer %s", digest)
+
+        blob_member = ""
+        symlink_member = ""
+        with tarfile.open(f"{base_sources_extraction_dir}/{digest}", "r:gz") as tar:
+            for member in tar:
+                if member.isfile():
+                    blob_member = member.name
+                elif member.issym():
+                    symlink_member = member.name
+
+        if symlink_member.startswith("./rpm_dir/"):
+            dest_dir = sib_dirs.rpm_dir
+            log.debug("Prepare SRPM %s", symlink_member)
+
+            extract_blob_member(
+                digest,
+                blob_member,
+                dest_dir,
+                rename_to=os.path.basename(symlink_member),
+                work_dir=base_sources_extraction_dir,
+                log=log,
+            )
+
+            gathered = True
+
+        elif symlink_member.startswith("./extra_src_dir/"):
+            extra_src_archive = os.path.basename(symlink_member)
+            log.debug("Prepare extra source %s", extra_src_archive)
+            # one extra source archive per directory, no matter what the directory name is.
+            dest_dir = create_dir(extra_src_dir, extra_src_archive)
+            sib_dirs.extra_src_dirs.append(dest_dir)  # save this directory for bsi
+
+            extract_blob_member(
+                digest,
+                blob_member,
+                str(dest_dir),
+                rename_to=extra_src_archive,
+                work_dir=base_sources_extraction_dir,
+                log=log,
+            )
+
+            gathered = True
+
+            # FIXME: perhaps the dependency archive (the Cachi2) might be handled differently
+            run(["tar", "xvf", extra_src_archive], check=True, cwd=dest_dir)
+            os.unlink(f"{dest_dir}/{extra_src_archive}")
+
+        else:
+            log.warning("No known operation happened on layer %s", digest)
+
+    return gathered
+
+
+def gather_prefetched_sources(
+    work_dir: str, cachi2_dir: str, sib_dirs: SourceImageBuildDirectories
+) -> bool:
+    log = logging.getLogger("source-build.prefetched-sources")
+    gathered = False
+
+    # Guess if hermetic build is enabled
+    # NOTE: this guess does depend on how cachi2 runs inside prefetch-dependencies task.
+    cachi2_output_dir = f"{cachi2_dir}/output"
+
+    if not os.path.isdir(cachi2_output_dir):
+        log.info("Cannot find cachi2 output directory at %s", cachi2_output_dir)
+        return gathered
+
+    def _find_prefetch_source_archives():
+        for root, dirs, files in os.walk(cachi2_output_dir):
+            for filename in files:
+                is_ext = filename.endswith
+                # .zip for gomod, .tgz for pip, .tar.gz for npm
+                if is_ext(".zip") or is_ext(".tgz") or is_ext(".tar.gz"):
+                    yield root, filename
+
+    source_counter = itertools.count()
+    prepared_sources_dir = create_dir(work_dir, "prefetched_sources")
+    relative_to = os.path.relpath
+
+    for root, filename in _find_prefetch_source_archives():
+        src_dir = f"src-{next(source_counter)}"
+        copy_dest_dir = f"{prepared_sources_dir}/{src_dir}/{relative_to(root, cachi2_output_dir)}"
+        os.makedirs(copy_dest_dir)
+
+        src = f"{root}/{filename}"
+        dest = f"{copy_dest_dir}/{filename}"
+        log.debug("copy prefetched source %s to %s", src, dest)
+        shutil.copy(src, dest)
+        sib_dirs.extra_src_dirs.append(f"{prepared_sources_dir}/{src_dir}")
+
+    gathered = next(source_counter) > 0
+    if not gathered:
+        log.info("There is no prefetched source archive.")
+
+    cachi2_env = f"{cachi2_dir}/cachi2.env"
+    if os.path.exists(cachi2_env):
+        prepared_env_dir = create_dir(work_dir, "cachi2_env")
+        src = cachi2_env
+        dest = f"{prepared_env_dir}/cachi2.env"
+        log.debug("copy cachi2 env file %s to %s", src, dest)
+        shutil.copy(src, dest)
+        sib_dirs.extra_src_dirs.append(prepared_env_dir)
+
+    return gathered
+
+
+def make_source_archive(
+    work_dir: str, source_dir: str, sib_dirs: SourceImageBuildDirectories
+) -> None:
+    log = logging.getLogger("build-source.source-archive")
+    source_archive_dir = create_dir(work_dir, "source_archive")
+    repo_info = get_repo_info(source_dir)
+    name_sha = f"{repo_info['name']}-{repo_info['last_commit_sha']}"
+    output_archive = f"{source_archive_dir}/{name_sha}.tar.gz"
+    git_cmd = ["git", "archive", "--prefix", name_sha + "/", "--output", output_archive, "HEAD"]
+    run(git_cmd, check=True, capture_output=True, cwd=source_dir)
+    log.info("add source archive directory to sources for bsi: %s", source_archive_dir)
+    sib_dirs.extra_src_dirs.append(source_archive_dir)
+
+
+def build_and_push(
+    work_dir: str, sib_dirs: SourceImageBuildDirectories, bsi_script: str, dest_image: str
+) -> None:
+    log = logging.getLogger("source-build.build-and-push")
+    bsi_build_base_dir = create_dir(work_dir, "bsi_build")
+    image_output_dir = create_dir(work_dir, "bsi_output")
+
+    bsi_src_drivers = []
+    bsi_cmd = [bsi_script, "-b", str(bsi_build_base_dir), "-o", str(image_output_dir)]
+    if sib_dirs.rpm_dir:
+        bsi_src_drivers.append("sourcedriver_rpm_dir")
+        bsi_cmd.append("-s")
+        bsi_cmd.append(str(sib_dirs.rpm_dir))
+    if sib_dirs.extra_src_dirs:
+        bsi_src_drivers.append("sourcedriver_extra_src_dir")
+        for dir_path in sib_dirs.extra_src_dirs:
+            bsi_cmd.append("-e")
+            bsi_cmd.append(str(dir_path))
+    bsi_cmd.append("-d")
+    bsi_cmd.append(",".join(bsi_src_drivers))
+    if os.environ.get("BSI_DEBUG"):
+        bsi_cmd.append("-D")
+
+    log.info("build source image %r", bsi_cmd)
+    run(bsi_cmd, check=True)
+
+    # push to registry
+    push_cmd = [
+        "skopeo",
+        "copy",
+        f"oci://{image_output_dir}:latest-source",
+        f"docker://{dest_image}",
+    ]
+    log.debug("push source image %r", push_cmd)
+    run(push_cmd, check=True)
+
+
+def build(args) -> BuildResult:
+    build_result: BuildResult = {
+        "status": "success",
+        "dependencies_included": False,
+        "base_image_source_included": False,
+        "image_url": "",
+    }
+
+    workspace_dir = args.workspace_dir
+    if workspace_dir is None:
+        workspace_dir = tempfile.mkdtemp(suffix="-source-build-workspace")
+    logger.debug("workspace directory %s", workspace_dir)
+
+    work_dir = create_dir(workspace_dir, "source-build")
+    logger.debug("working directory %s", work_dir)
+
+    sib_dirs = SourceImageBuildDirectories()
+
+    make_source_archive(work_dir, args.source_dir, sib_dirs)
+
+    # Handle base image sources
+    if args.base_images:
+        base_images = args.base_images.splitlines()
+        if len(base_images) > 1:
+            logger.info(
+                "Multiple base images are specified: %s", ", ".join(args.base_images.splitlines())
+            )
+        base_image = base_images[-1]
+        if "@sha256:" in base_image:
+            # Remove the digest in case it is included in the image.
+            # e.g. build-container.results.BASE_IMAGES_DIGESTS include it.
+            base_image = base_image.split("@")[0]
+        prepared = prepare_base_image_sources(base_image, work_dir, sib_dirs)
+        build_result["base_image_source_included"] = prepared
+    else:
+        logger.info("No base image is specified. Skip handling sources of base image.")
+
+    if args.cachi2_artifacts_dir:
+        included = gather_prefetched_sources(work_dir, args.cachi2_artifacts_dir, sib_dirs)
+        build_result["dependencies_included"] = included
+    else:
+        logger.info(
+            "Cachi2 artifacts directory is not specified. Skip handling the prefetched sources."
+        )
+
+    dest_image = f"{args.output_binary_image}.src"
+    build_result["image_url"] = dest_image
+
+    try:
+        build_and_push(work_dir, sib_dirs, args.bsi, dest_image)
+    except CalledProcessError as e:
+        logger.exception(f"Failed to build and push source image {dest_image}")
+        build_result["status"] = "failure"
+        build_result["message"] = f"Failed to build and push source image. {str(e)}"
+
+    return build_result
+
+
+def main() -> int:
+    build_args = parse_cli_args()
+    build_result = build(build_args)
+    logger.info("build result %s", json.dumps(build_result))
+    if build_args.result_file:
+        logger.info("write build result into file %s", build_args.result_file)
+        with open(build_args.result_file, "w") as f:
+            json.dump(build_result, f)
+    else:
+        logger.info("no result file is specified. Skip writing build result into a file.")
+    if build_result["status"] == "success":
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
