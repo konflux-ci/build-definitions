@@ -90,11 +90,9 @@ spec:
 
           elif [ "$http_code" == "404" ];
           then
-            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis." >> /tekton/home/stderr.txt
-            cat /tekton/home/stderr.txt
+            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis."
           else
-            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}." >> /tekton/home/stderr.txt
-            cat /tekton/home/stderr.txt
+            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
             error_counter=$((error_counter++))
             exit 0
           fi
