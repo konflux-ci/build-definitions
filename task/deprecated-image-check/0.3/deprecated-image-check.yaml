@@ -46,6 +46,7 @@ spec:
         success_counter=0
         failure_counter=0
         error_counter=0
+        warnings_counter=0
 
         readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
         for BASE_IMAGE in ${IMAGE_ARRAY[@]};
@@ -73,7 +74,8 @@ spec:
 
           elif [ "$http_code" == "404" ];
           then
-            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis."
+            echo "[WARNING] Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis. Task cannot provide results if image is deprecated."
+            warnings_counter=$((warnings_counter++))
           else
             echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
             error_counter=$((error_counter++))
@@ -84,7 +86,13 @@ spec:
         ERROR_OUTPUT=$(make_result_json -r ERROR -n "$POLICY_NAMESPACE" -t "$note")
         if [[ "$error_counter" == 0 && "$success_counter" > 0 ]];
         then
-          if [[ "${failure_counter}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
+          if [[ "${failure_counter}" -gt 0 ]]; then
+            RES="FAILURE"
+          elif [[ "${warnings_counter}" -gt 0 ]]; then
+            RES="WARNING"
+          else
+            RES="SUCCESS"
+          fi
           note="Task $(context.task.name) completed: Check result for task result."
           TEST_OUTPUT=$(make_result_json \
             -r "${RES}" -n "$POLICY_NAMESPACE" \
