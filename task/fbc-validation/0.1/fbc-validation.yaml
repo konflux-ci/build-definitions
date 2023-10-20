@@ -94,7 +94,7 @@ spec:
         fi
 
         status=0
-        conffolder=$(jq -f ../inspect-image/image_inspect.json -r '.Labels ."operators.operatorframework.io.index.configs.v1"') || status=$?
+        conffolder=$(jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"' ../inspect-image/image_inspect.json) || status=$?
         if [ $status -ne 0 ]; then
           echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: operators.operatorframework.io.index.configs.v1."
           TEST_OUTPUT="$(make_result_json -r ERROR)"
