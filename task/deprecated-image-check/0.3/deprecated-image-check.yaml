@@ -54,13 +54,13 @@ spec:
           IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE; echo "[$IMAGE_REGISTRY] [$IMAGE_WITH_TAG]"
           IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
 
-          # PYXIS hack: registry.redhat.io must be queried as registry.access.redhat.com in pyxis
-          IMAGE_REGISTRY_PYXIS=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')
+          # Red Hat Catalog hack: registry.redhat.io must be queried as registry.access.redhat.com in Red Hat catalog
+          IMAGE_REGISTRY_CATALOG=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')
 
           export IMAGE_REPO_PATH=/tmp/${IMAGE_REPOSITORY}
           mkdir -p ${IMAGE_REPO_PATH}
-          echo "Querying Pyxis for $BASE_IMAGE."
-          http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY_PYXIS}/repository/${IMAGE_REPOSITORY}")
+          echo "Querying Red Hat Catalog for $BASE_IMAGE."
+          http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY_CATALOG}/repository/${IMAGE_REPOSITORY}")
 
           if [ "$http_code" == "200" ];
           then
@@ -74,7 +74,7 @@ spec:
 
           elif [ "$http_code" == "404" ];
           then
-            echo "[WARNING] Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis. Task cannot provide results if image is deprecated."
+            echo "[WARNING] Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Red Hat Catalog. Task cannot provide results if image is deprecated."
             warnings_counter=$((warnings_counter++))
           else
             echo "Unexpected error (HTTP code: ${http_code}) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
