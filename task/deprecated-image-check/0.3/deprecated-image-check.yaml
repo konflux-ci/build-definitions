@@ -86,7 +86,7 @@ spec:
             echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace."
             /usr/bin/conftest test --no-fail ${IMAGE_REPO_PATH}/repository_data.json \
             --policy $POLICY_DIR --namespace $POLICY_NAMESPACE \
-            --output=json 2> ${IMAGE_REPO_PATH}/stderr.txt | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
+            --output=json | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
 
             failure_counter=$((failure_counter+$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
             success_counter=$((success_counter+$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
