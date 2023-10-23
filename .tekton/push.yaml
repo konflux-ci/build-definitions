@@ -65,7 +65,7 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
-              workingDir: $(workspaces.source.path)
+              workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
                 - name: MY_QUAY_USER
@@ -99,41 +99,6 @@ spec:
               sed -i -E 's/[0-9a-f]{40}/$(params.revision)/g' components/build-service/base/build-pipeline-selectors/build-pipeline-selector.yaml
         taskRef:
           name: update-infra-deployments
-      - name: update-ec-policies
-        runAfter:
-          - build-bundles
-        taskRef:
-          name: update-infra-deployments
-        params:
-          - name: ORIGIN_REPO
-            value: $(params.git-url)
-          - name: REVISION
-            value: $(params.revision)
-          - name: TARGET_GH_REPO
-            value: enterprise-contract/ec-policies
-          - name: SCRIPT_IMAGE
-            value: "$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)"
-          - name: GITHUB_APP_INSTALLATION_ID
-            value: "35269653"
-          - name: SCRIPT
-            value: |
-              export BUNDLES_FILE=data/acceptable_tekton_bundles.yml
-
-              BUNDLES=(
-                $(workspaces.artifacts.path)/task-bundle-list
-                $(workspaces.artifacts.path)/pipeline-bundle-list
-              )
-              BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
-              ec track bundle \
-                --input "${BUNDLES_FILE}" \
-                --replace \
-                ${BUNDLES_PARAM[@]}
-
-              # Ensure no bundles were previously missed
-              ./hack/check-acceptable-tekton-bundles.sh "${BUNDLES_FILE}"
-        workspaces:
-          - name: artifacts
-            workspace: workspace
       - name: build-acceptable-bundles
         runAfter:
           - build-bundles
