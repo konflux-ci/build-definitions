@@ -69,15 +69,24 @@ spec:
             --policy $POLICY_DIR --namespace $POLICY_NAMESPACE \
             --output=json | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
 
-            failure_counter=$((failure_counter+$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
-            success_counter=$((success_counter+$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
+            failures_num=$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)
+            if [[ "${failures_num}" -gt 0 ]]; then
+              echo "[FAILURE] Image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} has been deprecated"
+            fi
+            failure_counter=$((failure_counter+failures_num))
+
+            successes_num=$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)
+            if [[ "${successes_num}" -gt 0 ]]; then
+              echo "[SUCCESS] Image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} is valid"
+            fi
+            success_counter=$((success_counter+successes_num))
 
           elif [ "$http_code" == "404" ];
           then
             echo "[WARNING] Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Red Hat Catalog. Task cannot provide results if image is deprecated."
             warnings_counter=$((warnings_counter++))
           else
-            echo "Unexpected error (HTTP code: ${http_code}) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
+            echo "[ERROR] Unexpected error (HTTP code: ${http_code}) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
             error_counter=$((error_counter++))
           fi
         done
