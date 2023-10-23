@@ -51,7 +51,7 @@ spec:
         readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
         for BASE_IMAGE in ${IMAGE_ARRAY[@]};
         do
-          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE; echo "[$IMAGE_REGISTRY] [$IMAGE_WITH_TAG]"
+          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE
           IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
 
           # Red Hat Catalog hack: registry.redhat.io must be queried as registry.access.redhat.com in Red Hat catalog
