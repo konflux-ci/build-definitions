@@ -148,6 +148,8 @@ spec:
       params:
       - name: BASE_IMAGES_DIGESTS
         value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
+      runAfter:
+        - build-container
     - name: clair-scan
       when:
       - input: $(params.skip-checks)
