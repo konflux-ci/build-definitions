@@ -89,6 +89,16 @@ spec:
     name: commit
   - description: The precise URL that was fetched by this Task.
     name: url
+  - name: source
+    type: object
+    description: The archive with the clone repo contents
+    properties:
+      path:
+        type: string
+      hash:
+        type: string
+      type:
+        type: string
   steps:
   - name: clone
     env:
@@ -251,6 +261,22 @@ spec:
         echo "Running symlink check"
         check_symlinks
       fi
+
+  - name: produce-archive
+    image: quay.io/lucarval/trusted-artifacts-demo@sha256:a14a655d2675754e2c92a8382f68acc622b5184ca2e4d8e1aef27b3aad52b333
+    command: ["produce-archive"]
+    args:
+      - $(workspaces.output.path)/$(params.subdirectory)
+      - source.tar.gz
+      - $(results.source.path)
+    workingDir: $(workspaces.output.path)
+
+  - name: delete-raw-source
+    image: registry.access.redhat.com/ubi9:latest
+    script: |
+      set -euo pipefail
+      rm -rvf $(workspaces.output.path)/source
+
   workspaces:
   - description: The git repo will be cloned onto the volume backing this Workspace.
     name: output

@@ -54,6 +54,15 @@ spec:
     description: The image is built from this commit.
     type: string
     default: ""
+  - name: SOURCE
+    type: object
+    properties:
+      path:
+        type: string
+      hash:
+        type: string
+      type:
+        type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -89,6 +98,32 @@ spec:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
   steps:
+  - name: get-source-archive
+    image: quay.io/lucarval/trusted-artifacts-demo@sha256:a14a655d2675754e2c92a8382f68acc622b5184ca2e4d8e1aef27b3aad52b333
+    command: ["consume-archive"]
+    args:
+      - $(workspaces.source.path)/$(params.SOURCE.path)
+      - $(params.SOURCE.hash)
+      - /var/run/safesource
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+    # This means this is the only step that has access to the workspace. At least that's how it's
+    # supposed to work. Not sure if it is.
+    # https://tekton.dev/docs/pipelines/workspaces/#isolating-workspaces-to-specific-steps-or-sidecars
+    workspaces:
+    - name: source
+
+  # TODO: This is meant for initial debugging. Remove this eventually.
+  - name: show-source-archive
+    image: registry.access.redhat.com/ubi9:latest
+    script: |
+      set -euo pipefail
+      find /var/run/safesource/
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+
   - image: $(params.BUILDER_IMAGE)
     name: build
     resources:
@@ -102,6 +137,9 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     script: |
+      echo "Anything in a workspace?"
+      find "$(workspaces.source.path)" || true
+
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -186,22 +224,28 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
+    - mountPath: /var/run/safesource
+      name: safesource
+    # TODO: Is there a variable like $(volumes.safesource.path) ?
+    workingDir: /var/run/safesource
 
   - name: sbom-syft-generate
     image: quay.io/redhat-appstudio/syft:v0.94.0
     script: |
-      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
+      syft dir:/var/run/safesource/source --output cyclonedx-json=/var/run/safesource/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
-      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
+      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=/var/run/safesource/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /var/run/safesource
+      name: safesource
+
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s /var/run/safesource/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
         touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
@@ -209,6 +253,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /var/run/safesource
+      name: safesource
     securityContext:
       runAsUser: 0
 
@@ -242,7 +288,10 @@ spec:
       # write the CycloneDX unified SBOM
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
-    workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+    workingDir: /var/run/safesource
     securityContext:
       runAsUser: 0
 
@@ -256,7 +305,10 @@ spec:
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
       fi
-    workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+    workingDir: /var/run/safesource
     securityContext:
       runAsUser: 0
 
@@ -274,7 +326,10 @@ spec:
 
       with open("sbom-purl.json", "w") as output_file:
         json.dump(purl_content, output_file, indent=4)
-    workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+    workingDir: /var/run/safesource
     securityContext:
       runAsUser: 0
 
@@ -301,7 +356,7 @@ spec:
         echo "Pushing sbom image to registry"
         buildah push \
           --tls-verify=$TLSVERIFY \
-          --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+          --digestfile /var/run/safesource/image-digest $IMAGE \
           docker://$IMAGE && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
@@ -309,7 +364,7 @@ spec:
           exit 1
       fi
 
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      cat /var/run/safesource/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
@@ -326,7 +381,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
+    - mountPath: /var/run/safesource
+      name: safesource
+    workingDir: /var/run/safesource
 
   - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1
@@ -338,11 +395,16 @@ spec:
       - --type
       - cyclonedx
       - $(params.IMAGE)
-    workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /var/run/safesource
+      name: safesource
+    workingDir: /var/run/safesource
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - emptyDir: {}
+    name: safesource
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
