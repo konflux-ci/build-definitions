@@ -6,6 +6,9 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 GITREPO=$1
 PIPELINE_NAME=$2
+shift 2
+# the rest of the params are passed to tkn
+TKN_PARAMS=("$@")
 
 if [ -z "$GITREPO" ]; then
   echo Missing parameter Git URL to Build
@@ -50,4 +53,10 @@ if [ "$SKIP_CHECKS" == "1" ]; then
   SKIP_CHECKS_PARAM="-p skip-checks=true"
 fi
 
-tkn pipeline start $PIPELINE_NAME -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml $SKIP_CHECKS_PARAM -p git-url=$GITREPO -p output-image=$IMG --use-param-defaults
+tkn pipeline start $PIPELINE_NAME \
+    -w name=workspace,volumeClaimTemplateFile=$SCRIPTDIR/test-build/workspace-template.yaml \
+    $SKIP_CHECKS_PARAM \
+    -p git-url=$GITREPO \
+    -p output-image=$IMG \
+    "${TKN_PARAMS[@]}" \
+    --use-param-defaults
