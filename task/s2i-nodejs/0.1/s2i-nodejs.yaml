@@ -68,6 +68,8 @@ spec:
     name: IMAGE_URL
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
+  - name: SBOM_BLOB_URL
+    description: Reference, including digest to the SBOM blob
   steps:
   - name: generate
     image: registry.redhat.io/ocp-tools-4-tech-preview/source-to-image-rhel8@sha256:e518e05a730ae066e371a4bd36a5af9cedc8686fd04bd59648d20ea0a486d7e5
@@ -197,6 +199,12 @@ spec:
         docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee $(results.SBOM_BLOB_URL.path)
 
     securityContext:
       runAsUser: 0
