@@ -231,7 +231,8 @@ spec:
 
       existing_components = [get_identifier(component) for component in image_sbom["components"]]
 
-      for component in source_sbom["components"]:
+      source_sbom_components = source_sbom.get("components", [])
+      for component in source_sbom_components:
         if get_identifier(component) not in existing_components:
           image_sbom["components"].append(component)
           existing_components.append(get_identifier(component))
