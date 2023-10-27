@@ -247,9 +247,9 @@ spec:
     name: sbom-syft-generate
     resources: {}
     script: |
-      syft dir:$(workspaces.source.path)/source --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
-      syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
+      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
