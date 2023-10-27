@@ -53,6 +53,10 @@ spec:
     - description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
       default: ""
+    - name: build-source-image
+      description: Build a source image.
+      type: string
+      default: "false"
   tasks:
     - name: init
       params:
@@ -118,6 +122,27 @@ spec:
         name: $REPLACE_ME
       workspaces:
         - name: source
+          workspace: workspace
+    - name: build-source-image
+      when:
+        - input: $(tasks.init.results.build)
+          operator: in
+          values: ["true"]
+        - input: $(params.build-source-image)
+          operator: in
+          values: ["true"]
+      runAfter:
+        - build-container
+      taskRef:
+        name: source-build
+        version: "0.1"
+      params:
+        - name: BINARY_IMAGE
+          value: "$(params.output-image)"
+        - name: BASE_IMAGES
+          value: "$(tasks.build-container.results.BASE_IMAGES_DIGESTS)"
+      workspaces:
+        - name: workspace
           workspace: workspace
     - name: inspect-image
       when:
