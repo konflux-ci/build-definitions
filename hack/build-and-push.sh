@@ -126,6 +126,13 @@ do
 done
 )
 
+# Used for build-definitions pull request CI only
+if [ -n "$ENABLE_SOURCE_BUILD" ]; then
+    for pipeline_yaml in "$generated_pipelines_dir"/*.yaml; do
+        yq e '(.spec.params[] | select(.name == "build-source-image") | .default) = "true"' -i "$pipeline_yaml"
+    done
+fi
+
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
 for pipeline_yaml in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
 do
