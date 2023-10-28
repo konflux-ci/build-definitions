@@ -28,42 +28,17 @@ spec:
       name: TEST_OUTPUT
 
   steps:
-    # Download Pyxis metadata about the image
-    - name: query-pyxis
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
-      env:
-        - name: BASE_IMAGES_DIGESTS
-          value: $(params.BASE_IMAGES_DIGESTS)
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-        source /utils.sh
-        trap 'handle_error' EXIT
-
-        readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
-        for BASE_IMAGE in ${IMAGE_ARRAY[@]};
-        do
-          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE; echo "[$IMAGE_REGISTRY] [$IMAGE_WITH_TAG]"
-          IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
-          IMAGE_REGISTRY=${IMAGE_REGISTRY//registry.redhat.io/registry.access.redhat.com}
-          export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
-          mkdir -p ${IMAGE_REPO_PATH}
-          echo "Querying Pyxis for $BASE_IMAGE."
-          http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY}/repository/${IMAGE_REPOSITORY}")
-          echo "Response code: $http_code."
-          echo $http_code $IMAGE_REGISTRY $IMAGE_REPOSITORY>> $(results.PYXIS_HTTP_CODE.path)
-        done
-
-    # Run the tests and save output
-    - name: run-conftest
+    - name: check-images
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       env:
         - name: POLICY_DIR
           value: $(params.POLICY_DIR)
         - name: POLICY_NAMESPACE
           value: $(params.POLICY_NAMESPACE)
+        - name: BASE_IMAGES_DIGESTS
+          value: $(params.BASE_IMAGES_DIGESTS)
       script: |
-        #!/usr/bin/env sh
+        #!/usr/bin/env bash
         set -euo pipefail
         source /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
@@ -71,41 +46,68 @@ spec:
         success_counter=0
         failure_counter=0
         error_counter=0
-        if [ ! -f $(results.PYXIS_HTTP_CODE.path) ]; then
-          error_counter=$((error_counter++))
-        fi
-        while IFS= read -r line
+        warnings_counter=0
+
+        readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
+        for BASE_IMAGE in ${IMAGE_ARRAY[@]};
         do
-          IFS=:' ' read -r http_code IMAGE_REGISTRY IMAGE_REPOSITORY <<< $line; echo "[$http_code] [$IMAGE_REGISTRY] [$IMAGE_REPOSITORY]"
-          export IMAGE_REPO_PATH=/tekton/home/${IMAGE_REPOSITORY}
+          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE
+          IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
+
+          # Red Hat Catalog hack: registry.redhat.io must be queried as registry.access.redhat.com in Red Hat catalog
+          IMAGE_REGISTRY_CATALOG=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')
+
+          export IMAGE_REPO_PATH=/tmp/${IMAGE_REPOSITORY}
+          mkdir -p ${IMAGE_REPO_PATH}
+          echo "Querying Red Hat Catalog for $BASE_IMAGE."
+          http_code=$(curl -s -o ${IMAGE_REPO_PATH}/repository_data.json -w '%{http_code}' "https://catalog.redhat.com/api/containers/v1/repositories/registry/${IMAGE_REGISTRY_CATALOG}/repository/${IMAGE_REPOSITORY}")
+
           if [ "$http_code" == "200" ];
           then
             echo "Running conftest using $POLICY_DIR policy, $POLICY_NAMESPACE namespace."
             /usr/bin/conftest test --no-fail ${IMAGE_REPO_PATH}/repository_data.json \
             --policy $POLICY_DIR --namespace $POLICY_NAMESPACE \
-            --output=json 2> ${IMAGE_REPO_PATH}/stderr.txt | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
+            --output=json | tee ${IMAGE_REPO_PATH}/deprecated_image_check_output.json
 
-            failure_counter=$((failure_counter+$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
-            success_counter=$((success_counter+$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)))
+            failures_num=$(jq -r '.[].failures|length' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)
+            if [[ "${failures_num}" -gt 0 ]]; then
+              echo "[FAILURE] Image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} has been deprecated"
+            fi
+            failure_counter=$((failure_counter+failures_num))
+
+            successes_num=$(jq -r '.[].successes' ${IMAGE_REPO_PATH}/deprecated_image_check_output.json)
+            if [[ "${successes_num}" -gt 0 ]]; then
+              echo "[SUCCESS] Image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} is valid"
+            fi
+            success_counter=$((success_counter+successes_num))
 
           elif [ "$http_code" == "404" ];
           then
-            echo "Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Pyxis." >> /tekton/home/stderr.txt
-            cat /tekton/home/stderr.txt
+            echo "[WARNING] Registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY} not found in Red Hat Catalog. Task cannot provide results if image is deprecated."
+            warnings_counter=$((warnings_counter+1))
           else
-            echo "Unexpected error HTTP code $http_code) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}." >> /tekton/home/stderr.txt
-            cat /tekton/home/stderr.txt
-            error_counter=$((error_counter++))
-            exit 0
+            echo "[ERROR] Unexpected error (HTTP code: ${http_code}) occurred for registry/image ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}."
+            error_counter=$((error_counter+1))
           fi
-        done < $(results.PYXIS_HTTP_CODE.path)
+        done
 
         note="Task $(context.task.name) failed: Command conftest failed. For details, check Tekton task log."
         ERROR_OUTPUT=$(make_result_json -r ERROR -n "$POLICY_NAMESPACE" -t "$note")
-        if [[ "$error_counter" == 0 && "$success_counter" > 0 ]];
+
+        note="Task $(context.task.name) completed: Check result for task result."
+        if [[ "$error_counter" == 0 ]];
         then
-          if [[ "${failure_counter}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
-          note="Task $(context.task.name) completed: Check result for task result."
+          if [[ "${failure_counter}" -gt 0 ]]; then
+            RES="FAILURE"
+          elif [[ "${warnings_counter}" -gt 0 ]]; then
+            RES="WARNING"
+          elif [[ "${success_counter}" -eq 0 ]]; then
+            # when all counters are 0, we haven't checked any base images
+            note="Task $(context.task.name) skipped: No base images found."
+            RES="SKIPPED"
+          else
+            RES="SUCCESS"
+          fi
           TEST_OUTPUT=$(make_result_json \
             -r "${RES}" -n "$POLICY_NAMESPACE" \
             -s "${success_counter}" -f "${failure_counter}" -t "$note")
