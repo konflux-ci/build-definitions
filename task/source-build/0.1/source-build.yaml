@@ -1,0 +1,85 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: source-build
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio"
+spec:
+  description: Source image build.
+  params:
+    - name: BINARY_IMAGE
+      description: Binary image name from which to generate the source image name.
+      type: string
+    - name: BASE_IMAGES
+      description: >-
+        Base images used to build the binary image. Each image per line in the same order of FROM
+        instructions specified in a multistage Dockerfile. Default to an empty string, which means
+        to skip handling a base image.
+      type: string
+      default: ""
+  results:
+    - name: BUILD_RESULT
+      description: Build result.
+    - name: SOURCE_IMAGE_URL
+      description: The source image url.
+    - name: SOURCE_IMAGE_DIGEST
+      description: The source image digest.
+  workspaces:
+    - name: workspace
+      description: The workspace where source code is included.
+  volumes:
+    - name: source-build-work-place
+      emptyDir: {}
+  steps:
+    - name: build
+      image: quay.io/redhat-appstudio/build-definitions-source-image-build-utils:latest
+      resources:
+        limits:
+          memory: 2Gi
+          cpu: 1
+        requests:
+          memory: 512Mi
+          cpu: 250m
+      workingDir: "/var/source-build"
+      securityContext:
+        runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
+      volumeMounts:
+        - name: source-build-work-place
+          mountPath: /var/source-build
+      env:
+        - name: BINARY_IMAGE
+          value: "$(params.BINARY_IMAGE)"
+        - name: SOURCE_DIR
+          value: "$(workspaces.workspace.path)/source"
+        - name: BASE_IMAGES
+          value: "$(params.BASE_IMAGES)"
+        - name: RESULT_FILE
+          value: "$(results.BUILD_RESULT.path)"
+        - name: CACHI2_ARTIFACTS_DIR
+          value: "$(workspaces.workspace.path)/cachi2"
+        - name: RESULT_SOURCE_IMAGE_URL
+          value: "$(results.SOURCE_IMAGE_URL.path)"
+        - name: RESULT_SOURCE_IMAGE_DIGEST
+          value: "$(results.SOURCE_IMAGE_DIGEST.path)"
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        app_dir=/opt/source_build
+        ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py \
+          --output-binary-image "$BINARY_IMAGE" \
+          --workspace /var/source-build \
+          --source-dir "$SOURCE_DIR" \
+          --base-images "$BASE_IMAGES" \
+          --write-result-to "$RESULT_FILE" \
+          --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR"
+
+        cat "$RESULT_FILE" | jq -r ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
+        cat "$RESULT_FILE" | jq -r ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"

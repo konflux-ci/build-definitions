@@ -68,6 +68,8 @@ spec:
     name: IMAGE_URL
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
+  - name: SBOM_BLOB_URL
+    description: Reference, including digest to the SBOM blob
   steps:
   - name: generate
     image: registry.redhat.io/ocp-tools-4-tech-preview/source-to-image-rhel8@sha256:e518e05a730ae066e371a4bd36a5af9cedc8686fd04bd59648d20ea0a486d7e5
@@ -127,16 +129,16 @@ spec:
       name: gen-source
     workingDir: /gen-source
 
-  - image: quay.io/redhat-appstudio/syft:v0.85.0
+  - image: quay.io/redhat-appstudio/syft:v0.94.0
     name: sbom-syft-generate
     script: |
-      syft dir:$(workspaces.source.path)/source --file=$(workspaces.source.path)/sbom-source.json --output=cyclonedx-json
+      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
-      syft dir:$(cat /workspace/container_path) --file=$(workspaces.source.path)/sbom-image.json --output=cyclonedx-json
+      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1695131427
+  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: merge-sboms
     script: |
       #!/bin/python3
@@ -156,7 +158,8 @@ spec:
 
       existing_components = [get_identifier(component) for component in image_sbom["components"]]
 
-      for component in source_sbom["components"]:
+      source_sbom_components = source_sbom.get("components", [])
+      for component in source_sbom_components:
         if get_identifier(component) not in existing_components:
           image_sbom["components"].append(component)
           existing_components.append(get_identifier(component))
@@ -197,6 +200,12 @@ spec:
         docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee $(results.SBOM_BLOB_URL.path)
 
     securityContext:
       runAsUser: 0

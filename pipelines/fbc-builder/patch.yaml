@@ -36,6 +36,8 @@
     - input: $(params.skip-checks)
       operator: in
       values: ["false"]
+    runAfter:
+      - inspect-image
     taskRef:
       name: fbc-validation
       version: "0.1"
@@ -64,7 +66,8 @@
       - name: workspace
         workspace: workspace
 - op: add
-  path: /spec/tasks/10/params/-
+  # sbom-json-check
+  path: /spec/tasks/11/params/-
   value:
     name: BASE_IMAGE
     value: $(tasks.inspect-image.results.BASE_IMAGE)
