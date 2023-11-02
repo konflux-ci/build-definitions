@@ -12,7 +12,7 @@ RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/snap
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \
     skopeo \
-    https://github.com/tektoncd/cli/releases/download/v0.22.0/tektoncd-cli-0.22.0_Linux-64bit.rpm \
+    https://github.com/tektoncd/cli/releases/download/v0.32.2/tektoncd-cli-0.32.2_Linux-64bit.rpm \
     && dnf clean all
 
 COPY util-scripts /appstudio-utils/util-scripts
