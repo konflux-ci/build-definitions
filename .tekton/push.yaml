@@ -121,10 +121,12 @@ spec:
                 set -euo pipefail
 
                 BUNDLES=(
-                  $(workspaces.artifacts.path)/task-bundle-list
-                  $(workspaces.artifacts.path)/pipeline-bundle-list
+                  $(workspaces.artifacts.path)/source/task-bundle-list
+                  $(workspaces.artifacts.path)/source/pipeline-bundle-list
                 )
                 touch ${BUNDLES[@]}
+                echo "Bundles to be added:"
+                cat ${BUNDLES[@]}
                 BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
                 # The OPA data bundle is tagged with the current timestamp. This has two main
@@ -135,7 +137,7 @@ spec:
                 DATA_BUNDLE_REPO='quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles'
 
                 # Update the OPA data bundle.
-                ec track bundle \
+                ec track bundle --debug \
                   --input "oci:${DATA_BUNDLE_REPO}:latest" \
                   --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
                   --freshen \
