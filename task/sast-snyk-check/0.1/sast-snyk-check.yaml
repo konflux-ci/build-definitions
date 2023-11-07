@@ -72,8 +72,8 @@ spec:
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
-          note="Task $(context.task.name) skipped: Snyk code test found zero supported files."
-          ERROR_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          note="Task $(context.task.name) success: Snyk code test found zero supported files."
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         else
           echo "sast-snyk-check test failed because of the following issues:"
           cat stdout.txt
