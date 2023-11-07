@@ -31,6 +31,27 @@
 - op: add
   path: /spec/tasks/-
   value:
+    name: inspect-image
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - build-container
+    taskRef:
+      name: inspect-image
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-container.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
+    workspaces:
+    - name: source
+      workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
     name: fbc-validate
     when:
     - input: $(params.skip-checks)
@@ -46,6 +67,8 @@
       value: $(tasks.build-container.results.IMAGE_URL)
     - name: IMAGE_DIGEST
       value: $(tasks.build-container.results.IMAGE_DIGEST)
+    - name: BASE_IMAGE
+      value: $(tasks.inspect-image.results.BASE_IMAGE)
     workspaces:
       - name: workspace
         workspace: workspace
@@ -65,9 +88,6 @@
     workspaces:
       - name: workspace
         workspace: workspace
-- op: add
-  # sbom-json-check
-  path: /spec/tasks/11/params/-
-  value:
-    name: BASE_IMAGE
-    value: $(tasks.inspect-image.results.BASE_IMAGE)
+# - op: remove
+#   # build-source-image as source images are not needed for FBC components
+#   path: /spec/tasks/4
