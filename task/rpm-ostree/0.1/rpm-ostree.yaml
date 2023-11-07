@@ -90,8 +90,12 @@ spec:
         #no server could be provisioned
         cat /ssh/error
         exit 1
+      elif [ -e "/ssh/otp" ]; then
+       curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+       echo "" >> ~/.ssh/id_rsa
+      else
+        cp /ssh/id_rsa ~/.ssh
       fi
-      cp /ssh/id_rsa ~/.ssh
       chmod 0400 ~/.ssh/id_rsa
       export SSH_HOST=$(cat /ssh/host)
       export BUILD_DIR=$(cat /ssh/user-dir)
