@@ -102,9 +102,9 @@ spec:
           elif [[ "${warnings_counter}" -gt 0 ]]; then
             RES="WARNING"
           elif [[ "${success_counter}" -eq 0 ]]; then
-            # when all counters are 0, we haven't checked any base images
-            note="Task $(context.task.name) skipped: No base images found."
-            RES="SKIPPED"
+            # when all counters are 0, there are no base images to check
+            note="Task $(context.task.name) success: No base images to check."
+            RES="SUCCESS"
           else
             RES="SUCCESS"
           fi
