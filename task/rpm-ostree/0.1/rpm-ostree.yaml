@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
@@ -65,8 +65,7 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
-    name: ""
-    resources: {}
+    computeResources: {}
   steps:
   - env:
     - name: COMMIT_SHA
@@ -74,7 +73,7 @@ spec:
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
     imagePullPolicy: Always
     name: build
-    resources:
+    computeResources:
       limits:
         cpu: "0.5"
         memory: 512Mi
@@ -133,7 +132,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/syft:v0.96.0
     name: sbom-syft-generate
-    resources:
+    computeResources:
       limits:
         memory: 6Gi
       requests:
@@ -145,7 +144,7 @@ spec:
         name: varlibcontainers
   - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: create-purl-sbom
-    resources: {}
+    computeResources: {}
     script: |
       #!/bin/python3
       import json
@@ -163,7 +162,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f
     name: inject-sbom-and-push
-    resources: {}
+    computeResources: {}
     script: |
       #!/bin/bash
       # Expose base image digests
@@ -213,7 +212,7 @@ spec:
     - $(params.IMAGE)
     image: quay.io/redhat-appstudio/cosign:v2.1.1
     name: upload-sbom
-    resources: {}
+    computeResources: {}
     workingDir: $(workspaces.source.path)
   volumes:
   - emptyDir: {}

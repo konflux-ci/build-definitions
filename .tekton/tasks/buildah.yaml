@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
@@ -45,7 +45,7 @@ spec:
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
-    resources:
+    computeResources:
       limits:
         memory: 2Gi
         cpu: 2
@@ -67,7 +67,7 @@ spec:
     workingDir: $(workspaces.source.path)/source
   - image: $(params.BUILDER_IMAGE)
     name: push
-    resources: {}
+    computeResources: {}
     script: |
       buildah --storage-driver=$(params.STORAGE_DRIVER) push \
         --tls-verify=$(params.TLSVERIFY) \
@@ -83,7 +83,7 @@ spec:
     workingDir: $(workspaces.source.path)/source
   - image: $(params.BUILDER_IMAGE)
     name: digest-to-results
-    resources: {}
+    computeResources: {}
     script: |
       cat "$(workspaces.source.path)"/source/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$(params.IMAGE)" | tee $(results.IMAGE_URL.path)

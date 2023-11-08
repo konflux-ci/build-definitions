@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
@@ -89,7 +89,7 @@ spec:
   steps:
   - image: $(params.BUILDER_IMAGE)
     name: build
-    resources:
+    computeResources:
       limits:
         memory: 4Gi
         cpu: 2
@@ -279,7 +279,7 @@ spec:
 
   - name: inject-sbom-and-push
     image: $(params.BUILDER_IMAGE)
-    resources: {}
+    computeResources: {}
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)

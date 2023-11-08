@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
@@ -98,8 +98,7 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
-    name: ""
-    resources: {}
+    computeResources: {}
   steps:
   - env:
     - name: COMMIT_SHA
@@ -107,7 +106,7 @@ spec:
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
     imagePullPolicy: Always
     name: build
-    resources:
+    computeResources:
       limits:
         cpu: "2"
         memory: 4Gi
@@ -249,7 +248,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/syft:v0.96.0
     name: sbom-syft-generate
-    resources: {}
+    computeResources: {}
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
@@ -259,7 +258,7 @@ spec:
       name: varlibcontainers
   - image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
     name: analyse-dependencies-java-sbom
-    resources: {}
+    computeResources: {}
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -274,7 +273,7 @@ spec:
       name: varlibcontainers
   - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: merge-syft-sboms
-    resources: {}
+    computeResources: {}
     script: |
       #!/bin/python3
       import json
@@ -309,7 +308,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/cachi2:0.3.0@sha256:46097f22b57e4d48a3fce96d931e08ccfe3a3e6421362d5f9353961279078eef
     name: merge-cachi2-sbom
-    resources: {}
+    computeResources: {}
     script: |
       if [ -n "${PREFETCH_INPUT}" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
@@ -323,7 +322,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: create-purl-sbom
-    resources: {}
+    computeResources: {}
     script: |
       #!/bin/python3
       import json
@@ -341,7 +340,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
-    resources: {}
+    computeResources: {}
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
@@ -391,7 +390,7 @@ spec:
     - $(params.IMAGE)
     image: quay.io/redhat-appstudio/cosign:v2.1.1
     name: upload-sbom
-    resources: {}
+    computeResources: {}
     workingDir: $(workspaces.source.path)
   volumes:
   - emptyDir: {}

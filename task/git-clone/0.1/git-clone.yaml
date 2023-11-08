@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
@@ -135,7 +135,7 @@ spec:
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
       value: $(workspaces.basic-auth.path)
     image: $(params.gitInitImage)
-    resources: {}
+    computeResources: {}
     securityContext:
       runAsUser: 0
     script: |
@@ -226,7 +226,7 @@ spec:
       value: $(params.subdirectory)
     - name: WORKSPACE_OUTPUT_PATH
       value: $(workspaces.output.path)
-    resources: {}
+    computeResources: {}
     script: |
       #!/usr/bin/env bash
       set -euo pipefail
