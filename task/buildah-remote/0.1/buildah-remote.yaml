@@ -8,7 +8,6 @@ metadata:
   labels:
     app.kubernetes.io/version: "0.1"
     build.appstudio.redhat.com/build_type: docker
-    build.appstudio.redhat.com/multi-platform-required: "true"
   name: buildah-remote
 spec:
   description: |-
@@ -77,6 +76,7 @@ spec:
       central.
     name: JAVA_COMMUNITY_DEPENDENCIES
   stepTemplate:
+    computeResources: {}
     env:
     - name: BUILDAH_FORMAT
       value: oci
@@ -98,21 +98,20 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
-    computeResources: {}
   steps:
-  - env:
-    - name: COMMIT_SHA
-      value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-    imagePullPolicy: Always
-    name: build
-    computeResources:
+  - computeResources:
       limits:
         cpu: "2"
         memory: 4Gi
       requests:
         cpu: 250m
         memory: 512Mi
+    env:
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
+    imagePullPolicy: Always
+    name: build
     script: |-
       set -o verbose
       mkdir -p ~/.ssh
@@ -246,9 +245,9 @@ spec:
       name: ssh
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: quay.io/redhat-appstudio/syft:v0.96.0
+  - computeResources: {}
+    image: quay.io/redhat-appstudio/syft:v0.95.0
     name: sbom-syft-generate
-    computeResources: {}
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
@@ -256,9 +255,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
+  - computeResources: {}
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
     name: analyse-dependencies-java-sbom
-    computeResources: {}
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -271,9 +270,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+  - computeResources: {}
+    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: merge-syft-sboms
-    computeResources: {}
     script: |
       #!/bin/python3
       import json
@@ -306,9 +305,9 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
-  - image: quay.io/redhat-appstudio/cachi2:0.3.0@sha256:46097f22b57e4d48a3fce96d931e08ccfe3a3e6421362d5f9353961279078eef
+  - computeResources: {}
+    image: quay.io/redhat-appstudio/cachi2:0.3.0@sha256:46097f22b57e4d48a3fce96d931e08ccfe3a3e6421362d5f9353961279078eef
     name: merge-cachi2-sbom
-    computeResources: {}
     script: |
       if [ -n "${PREFETCH_INPUT}" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
@@ -320,9 +319,9 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+  - computeResources: {}
+    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
     name: create-purl-sbom
-    computeResources: {}
     script: |
       #!/bin/python3
       import json
@@ -338,9 +337,9 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
-  - image: $(params.BUILDER_IMAGE)
+  - computeResources: {}
+    image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
-    computeResources: {}
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
@@ -388,9 +387,9 @@ spec:
     - --type
     - cyclonedx
     - $(params.IMAGE)
+    computeResources: {}
     image: quay.io/redhat-appstudio/cosign:v2.1.1
     name: upload-sbom
-    computeResources: {}
     workingDir: $(workspaces.source.path)
   volumes:
   - emptyDir: {}
