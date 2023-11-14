@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
@@ -81,7 +81,7 @@ spec:
     env:
     - name: HOME
       value: /tekton/home
-    resources: {}
+    computeResources: {}
     volumeMounts:
     - mountPath: /gen-source
       name: gen-source
@@ -109,7 +109,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    resources:
+    computeResources:
       limits:
         memory: 2Gi
         cpu: 2
@@ -182,7 +182,7 @@ spec:
 
   - image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
-    resources: {}
+    computeResources: {}
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)

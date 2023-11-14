@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
@@ -96,7 +96,7 @@ spec:
       value: /tekton/home
     image: registry.redhat.io/ocp-tools-4-tech-preview/source-to-image-rhel8@sha256:637c15600359cb45bc01445b5e811b6240ca239f0ebfe406b50146e34f68f631
     name: s2i-gen
-    resources: {}
+    computeResources: {}
     workingDir: $(workspaces.source.path)/source
     securityContext:
       runAsUser: 0
@@ -127,7 +127,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    resources:
+    computeResources:
       limits:
         memory: 4Gi
         cpu: 2
@@ -215,7 +215,7 @@ spec:
 
   - image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
-    resources: {}
+    computeResources: {}
     script: |
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)

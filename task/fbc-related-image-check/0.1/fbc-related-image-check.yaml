@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
@@ -19,7 +19,7 @@ spec:
     - name: check-related-images
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-      resources:
+      computeResources:
         limits:
           memory: 4Gi
           cpu: 2

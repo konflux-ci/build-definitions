@@ -23,7 +23,7 @@ Describe "tkn-bundle task"
     kubectl cluster-info 2>&1 || { echo 'ERROR: Failed to access the cluster'; return 1; }
 
     # Install Tekton Pipeline, proceed with the rest of the test of the setup
-    kubectl apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.42.0/release.yaml
+    kubectl apply -f https://storage.googleapis.com/tekton-releases/pipeline/previous/v0.50.3/release.yaml
 
     # Create the test namespace
     kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
@@ -104,8 +104,8 @@ spec:
     The output should include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:tag\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:tag\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
@@ -115,8 +115,8 @@ spec:
     The output should not include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/sub'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/sub:tag\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/sub:tag\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
@@ -126,8 +126,8 @@ spec:
     The output should not include 'Added Task: test3 to image'
     The output should include 'Added Task: test2 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/file'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/file:tag\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/file:tag\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
@@ -137,8 +137,8 @@ spec:
     The output should include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/mix'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/mix:tag\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/mix:tag\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
@@ -148,8 +148,8 @@ spec:
     The output should include 'Added Task: test1 to image'
     The output should include 'Added Task: test2 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/neg'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/neg:tag\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/neg:tag\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/home\\z")'
   End
 
@@ -159,8 +159,8 @@ spec:
     The output should include 'Added Task: test2 to image'
     The output should include 'Added Task: test3 to image'
     The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
-    The taskrun should jq '.status.taskResults[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:summer-home\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
+    The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:summer-home\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/summer-home\\z")'
   End
 End
