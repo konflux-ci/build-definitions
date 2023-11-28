@@ -85,13 +85,13 @@ do
     prepared_task_file="${WORKDIR}/$task_name-${task_version}.yaml"
     if [ -f $task_dir/$task_name.yaml ]; then
         cp $task_dir/$task_name.yaml $prepared_task_file
-	task_file_sha=$(git log -n 1 --pretty=format:%H -- $task_dir/$task_name.yaml)
+        task_file_sha=$(git log -n 1 --pretty=format:%H -- $task_dir/$task_name.yaml)
     elif [ -f $task_dir/kustomization.yaml ]; then
         oc kustomize $task_dir > $prepared_task_file
-	task_file_sha=$(sha256sum $prepared_task_file | awk '{print $1}')
+        task_file_sha=$(sha256sum $prepared_task_file | awk '{print $1}')
     else
         echo Unknown task in $task_dir
-	continue
+        continue
     fi
     repository=${TEST_REPO_NAME:-task-${task_name}}
     tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
@@ -111,12 +111,12 @@ do
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
     sub_expr_1="
-	(.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-	|= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" }, { \"name\": \"kind\", \"value\": \"task\" }] }
+        (.spec.tasks[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+        |= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" }, { \"name\": \"kind\", \"value\": \"task\" }] }
     "
     sub_expr_2="
-	(.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
-	|= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" },{ \"name\": \"kind\", \"value\": \"task\" }] }
+        (.spec.finally[].taskRef | select(.name == \"${real_task_name}\" and .version == \"${task_version}\" ))
+        |= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${real_task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" },{ \"name\": \"kind\", \"value\": \"task\" }] }
     "
     for filename in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
     do
