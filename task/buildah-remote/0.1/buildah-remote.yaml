@@ -245,7 +245,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/redhat-appstudio/syft:v0.98.0
+    image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
     name: sbom-syft-generate
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -270,7 +270,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-158
+    image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
     name: merge-syft-sboms
     script: |
       #!/bin/python3
@@ -319,7 +319,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-158
+    image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
     name: create-purl-sbom
     script: |
       #!/bin/python3
@@ -387,7 +387,7 @@ spec:
     - cyclonedx
     - $(params.IMAGE)
     computeResources: {}
-    image: quay.io/redhat-appstudio/cosign:v2.1.1
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
     name: upload-sbom
     workingDir: $(workspaces.source.path)
   volumes:
