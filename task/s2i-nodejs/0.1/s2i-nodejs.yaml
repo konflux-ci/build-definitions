@@ -14,7 +14,10 @@ spec:
     s2i-nodejs task builds source code into a container image and pushes the image into container registry using S2I and buildah tool.
     In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
   params:
-  - default: registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583
+  - default: registry.access.redhat.com/ubi9/nodejs-16:1-75.1669634583@sha256:c17111ec54c7f57f22d03f2abba206b0bdc54dcdfb02d6a8278ce088231eced1
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     description: NodeJS builder image
     name: BASE_IMAGE
     type: string
@@ -126,7 +129,10 @@ spec:
       name: gen-source
     workingDir: /gen-source
 
-  - image: quay.io/redhat-appstudio/syft:v0.98.0
+  - image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: sbom-syft-generate
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -135,7 +141,10 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - image: registry.access.redhat.com/ubi9/python-39:1-158
+  - image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: merge-sboms
     script: |
       #!/bin/python3
@@ -210,7 +219,10 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
-    image: quay.io/redhat-appstudio/cosign:v2.1.1
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     args:
       - attach
       - sbom

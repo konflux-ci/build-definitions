@@ -26,7 +26,7 @@ spec:
       description: Clair scan result.
   steps:
     - name: get-vulnerabilities
-      image: quay.io/redhat-appstudio/clair-in-ci:v1  # explicit floating tag, daily updates
+      image: quay.io/redhat-appstudio/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
       imagePullPolicy: Always
       env:
         - name: IMAGE_URL
@@ -43,6 +43,9 @@ spec:
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.7@sha256:e151fb5300b7196c798c691f0570ee4713dde0d4a9e6913e307e9954a44ca9b0
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       securityContext:
         capabilities:
           add:
