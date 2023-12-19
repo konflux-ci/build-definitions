@@ -109,7 +109,6 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-    imagePullPolicy: Always
     name: build
     script: |-
       set -o verbose
@@ -140,9 +139,11 @@ spec:
       fi
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
-      #!/bin/sh
+      #!/bin/bash
       set -o verbose
+      set -e
       cd $(workspaces.source.path)
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
@@ -225,7 +226,7 @@ spec:
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD -e BUILDAH_FORMAT="$BUILDAH_FORMAT" -e STORAGE_DRIVER="$STORAGE_DRIVER" -e HERMETIC="$HERMETIC" -e PREFETCH_INPUT="$PREFETCH_INPUT" -e CONTEXT="$CONTEXT" -e DOCKERFILE="$DOCKERFILE" -e IMAGE="$IMAGE" -e TLSVERIFY="$TLSVERIFY" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
+      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD -e BUILDAH_FORMAT="$BUILDAH_FORMAT" -e STORAGE_DRIVER="$STORAGE_DRIVER" -e HERMETIC="$HERMETIC" -e PREFETCH_INPUT="$PREFETCH_INPUT" -e CONTEXT="$CONTEXT" -e DOCKERFILE="$DOCKERFILE" -e IMAGE="$IMAGE" -e TLSVERIFY="$TLSVERIFY" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v "$BUILD_DIR/.docker/:/root/.docker:Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
       buildah pull oci:rhtap-final-image
       buildah images
