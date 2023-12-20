@@ -1,0 +1,133 @@
+---
+- op: replace
+  path: /metadata/name
+  value: docker-build-dance
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "generic"
+    "pipelines.openshift.io/strategy": "docker"
+- op: add
+  path: /spec/params/-
+  value:
+    name: stackrox-endpoint
+    type: string
+    default: "central.rhacs-operator.svc.cluster.local:443"
+- op: add
+  path: /spec/params/-
+  value:
+    name: stackrox-secret
+    type: string
+    default: "rox-api-token"
+- op: replace
+  path: /spec/tasks/3/taskRef
+  value:
+    name: buildah
+    version: "0.1"
+- op: add
+  path: /spec/tasks/3/params
+  value:
+  - name: IMAGE
+    value: $(params.output-image)
+  - name: DOCKERFILE
+    value: $(params.dockerfile)
+  - name: CONTEXT
+    value: $(params.path-context)
+  - name: HERMETIC
+    value: "$(params.hermetic)"
+  - name: PREFETCH_INPUT
+    value: "$(params.prefetch-input)"
+  - name: IMAGE_EXPIRES_AFTER
+    value: "$(params.image-expires-after)"
+  - name: COMMIT_SHA
+    value: "$(tasks.clone-repository.results.commit)"
+- op: add
+  path: /spec/results/-
+  value:
+    name: JAVA_COMMUNITY_DEPENDENCIES
+    value: $(tasks.build-container.results.JAVA_COMMUNITY_DEPENDENCIES)
+# Remove tasks
+# Example - yq .spec.tasks.[].name ../build-definitions/pipelines/template-build/template-build.yaml | nl -v 0
+# to compute offsets
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-source-image
+#      5  deprecated-base-image-check
+#      6  clair-scan
+#      7  sast-snyk-check
+#      8  clamav-scan
+#      9  sbom-json-check
+- op: replace
+  path: /spec/tasks/3/runAfter/0
+  value: clone-repository
+- op: remove
+  path: /spec/tasks/9  # sbom-json-check
+- op: remove
+  path: /spec/tasks/8  # clamav-scan
+- op: remove
+  path: /spec/tasks/7  # sast-snyk-check
+- op: remove
+  path: /spec/tasks/5  # deprecated-base-image-check
+- op: remove
+  path: /spec/tasks/2  # prefetch-dependencies
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: acs-image-check
+    params:
+    - name: rox_central_endpoint
+      value: $(params.stackrox-endpoint)
+    - name: rox_api_token
+      value: $(params.stackrox-secret)
+    - name: image
+      value: $(params.output-image)
+    - name: insecure-skip-tls-verify
+      value: "true"
+    - name: image_digest
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
+    runAfter:
+      - build-container
+    taskRef:
+      name: acs-image-check
+    workspaces:
+      - name: workspace
+        workspace: workspace
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: acs-image-scan
+    params:
+    - name: rox_central_endpoint
+      value: $(params.stackrox-endpoint)
+    - name: rox_api_token
+      value: $(params.stackrox-secret)
+    - name: image
+      value: $(params.output-image)
+    - name: insecure-skip-tls-verify
+      value: "true"
+    - name: image_digest
+      value: $(tasks.build-container.results.IMAGE_DIGEST)
+    runAfter:
+    - build-container
+    taskRef:
+      kind: Task
+      name: acs-image-scan
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: acs-deploy-check
+    params:
+    - name: rox_central_endpoint
+      value: $(params.stackrox-endpoint)
+    - name: rox_api_token
+      value: $(params.stackrox-secret)
+    - name: insecure-skip-tls-verify
+      value: "true"
+    runAfter:
+    - build-container
+    taskRef:
+      kind: Task
+      name: acs-deploy-check
