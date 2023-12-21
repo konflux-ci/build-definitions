@@ -47,6 +47,13 @@ spec:
   - description: The platform to build on
     name: PLATFORM
     type: string
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The source trusted artifact URI
+    default: ""
+  - name: CACHI2_ARTIFACT
+    type: string
+    description: The prefetched dependencies trusted artifact URI
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -70,6 +77,14 @@ spec:
       value: $(params.BUILDER_IMAGE)
     computeResources: {}
   steps:
+  - name: use-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    args:
+      - use
+      - --store
+      - $(workspaces.artifacts.path)
+      - $(params.SOURCE_ARTIFACT)=$(workspaces.source.path)/source
+      - $(params.CACHI2_ARTIFACT)=$(workspaces.source.path)/cachi2
   - env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -240,3 +255,5 @@ spec:
   workspaces:
   - description: Workspace containing the source code to build.
     name: source
+  - name: artifacts
+    description: The trusted artifact store

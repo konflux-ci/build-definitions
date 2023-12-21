@@ -21,18 +21,29 @@ spec:
       type: string
       description: Append arguments.
       default: "--all-projects --exclude=test*,vendor,deps"
+    - name: SOURCE_ARTIFACT
+      type: string
+      description: The source trusted artifact URI
+      default: ""
   volumes:
     - name: snyk-secret
       secret:
         secretName: $(params.SNYK_SECRET)
         optional: true
   steps:
+    - name: use-trusted-artifact
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+      args:
+        - use
+        - --store
+        - $(workspaces.artifacts.path)
+        - $(params.SOURCE_ARTIFACT)=$(workspaces.source.path)/source
     - name: sast-snyk-check
       image: quay.io/redhat-appstudio/hacbs-test:v1.1.9@sha256:866675ee3064cf4768691ecca478063ce12f0556fb9d4f24ca95c98664ffbd43
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
-      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
       volumeMounts:
         - name: snyk-secret
           mountPath: "/etc/secrets"
@@ -62,7 +73,7 @@ spec:
         fi
 
         SNYK_EXIT_CODE=0
-        SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
+        SOURCE_CODE_DIR=$(workspaces.source.path)/source
         snyk code test $ARGS $SOURCE_CODE_DIR --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
@@ -85,4 +96,6 @@ spec:
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
   workspaces:
-  - name: workspace
+  - name: source
+  - name: artifacts
+    description: The trusted artifact store

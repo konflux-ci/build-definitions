@@ -91,6 +91,9 @@ spec:
     name: commit
   - description: The precise URL that was fetched by this Task.
     name: url
+  - description: Produced trusted source artifact
+    name: SOURCE_ARTIFACT
+    type: string
   steps:
   - name: clone
     env:
@@ -127,7 +130,7 @@ spec:
     - name: PARAM_FETCH_TAGS
       value: $(params.fetchTags)
     - name: WORKSPACE_OUTPUT_PATH
-      value: $(workspaces.output.path)
+      value: $(workspaces.source.path)
     - name: WORKSPACE_SSH_DIRECTORY_BOUND
       value: $(workspaces.ssh-directory.bound)
     - name: WORKSPACE_SSH_DIRECTORY_PATH
@@ -230,7 +233,7 @@ spec:
     - name: PARAM_SUBDIRECTORY
       value: $(params.subdirectory)
     - name: WORKSPACE_OUTPUT_PATH
-      value: $(workspaces.output.path)
+      value: $(workspaces.source.path)
     computeResources: {}
     script: |
       #!/usr/bin/env bash
@@ -256,9 +259,17 @@ spec:
         echo "Running symlink check"
         check_symlinks
       fi
+
+  - name: create-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    args:
+      - create
+      - --store
+      - $(workspaces.source.path)
+      - $(results.SOURCE_ARTIFACT.path)=$(workspaces.source.path)/$(params.subdirectory)
   workspaces:
   - description: The git repo will be cloned onto the volume backing this Workspace.
-    name: output
+    name: source
   - description: |
       A .ssh directory with private key, known_hosts, config, etc. Copied to
       the user's home before git commands are executed. Used to authenticate

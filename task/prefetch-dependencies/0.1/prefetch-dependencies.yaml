@@ -14,7 +14,27 @@ spec:
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
+  - description: Execute the build with network isolation.
+    name: hermetic
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The source trusted artifact URI
+    default: ""
+  results:
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The produced source trusted artifact URI
+  - name: CACHI2_ARTIFACT
+    type: string
+    description: The produced prefetched dependencies trusted artifact URI
   steps:
+  - name: use-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    args:
+      - use
+      - --store
+      - $(workspaces.source.path)
+      - $(params.SOURCE_ARTIFACT)=$(workspaces.source.path)/source
   - image: quay.io/redhat-appstudio/cachi2:0.4.0@sha256:001acfbad47e132a90998d45076a0dbe0d8beacf0bec12b4d9a5aa796f4a9cad
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
@@ -23,9 +43,18 @@ spec:
     env:
     - name: INPUT
       value: $(params.input)
+    - name: HERMETIC
+      value: $(params.hermetic)
     script: |
+      if [ "${HERMETIC}" != "true" ]
+      then
+        mkdir -p $(workspaces.source.path)/cachi2
+        echo "The build is not configured to be run hermetically (hermetic: ${HERMETIC})."
+        exit 0
+      fi
       if [ -z "${INPUT}" ]
       then
+        mkdir -p $(workspaces.source.path)/cachi2
         echo "Build will be executed with network isolation, but no content was configured to be prefetched."
         exit 0
       fi
@@ -42,6 +71,15 @@ spec:
 
       cachi2 inject-files $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output
+
+  - name: create-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    args:
+      - create
+      - --store
+      - $(workspaces.source.path)
+      - $(results.SOURCE_ARTIFACT.path)=$(workspaces.source.path)/source
+      - $(results.CACHI2_ARTIFACT.path)=$(workspaces.source.path)/cachi2
   workspaces:
   - name: source
     description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well

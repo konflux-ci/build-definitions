@@ -34,7 +34,9 @@ spec:
         taskRef:
           name: git-clone
         workspaces:
-          - name: output
+          - name: source
+            workspace: workspace
+          - name: artifacts
             workspace: workspace
       - name: build-container
         params:
@@ -48,6 +50,8 @@ spec:
           name: buildah
         workspaces:
           - name: source
+            emptyDir: {}
+          - name: artifacts
             workspace: workspace
       - name: build-bundles
         params:

@@ -22,6 +22,10 @@ patches:
         value: $(params.output-image)
       - name: CONTEXT
         value: $(params.path-context)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+      - name: CACHI2_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
     # Remove tasks that assume a binary image
     - op: remove
       path: /spec/tasks/9  # sbom-json-check

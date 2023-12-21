@@ -28,6 +28,10 @@
     value: "$(params.image-expires-after)"
   - name: COMMIT_SHA
     value: "$(tasks.clone-repository.results.commit)"
+  - name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+  - name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: add
   path: /spec/tasks/-
   value:
@@ -70,7 +74,7 @@
     - name: BASE_IMAGE
       value: $(tasks.inspect-image.results.BASE_IMAGE)
     workspaces:
-      - name: workspace
+      - name: source
         workspace: workspace
 - op: add
   path: /spec/tasks/-
@@ -86,7 +90,7 @@
       name: fbc-related-image-check
       version: "0.1"
     workspaces:
-      - name: workspace
+      - name: source
         workspace: workspace
 # - op: remove
 #   # build-source-image as source images are not needed for FBC components

@@ -69,6 +69,14 @@ spec:
     description: Target path on the container in which yum repository files should
       be made available
     name: YUM_REPOS_D_TARGET
+  - default: ""
+    description: The source trusted artifact URI
+    name: SOURCE_ARTIFACT
+    type: string
+  - default: ""
+    description: The prefetched dependencies trusted artifact URI
+    name: CACHI2_ARTIFACT
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -115,6 +123,15 @@ spec:
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
   steps:
+  - args:
+    - use
+    - --store
+    - $(workspaces.artifacts.path)
+    - $(params.SOURCE_ARTIFACT)=$(workspaces.source.path)/source
+    - $(params.CACHI2_ARTIFACT)=$(workspaces.source.path)/cachi2
+    computeResources: {}
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    name: use-trusted-artifact
   - computeResources:
       limits:
         memory: 4Gi
@@ -155,6 +172,7 @@ spec:
       fi
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -ra $(workspaces.artifacts.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/artifacts/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
@@ -276,11 +294,13 @@ spec:
        -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
+       -v "$BUILD_DIR/workspaces/artifacts:$(workspaces.artifacts.path):Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
        -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
        -v $BUILD_DIR/scripts:/script:Z \
       --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
+      rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/artifacts/" "$(workspaces.artifacts.path)/"
       rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
       buildah pull oci:rhtap-final-image
       buildah images
@@ -452,3 +472,5 @@ spec:
   workspaces:
   - description: Workspace containing the source code to build.
     name: source
+  - description: The trusted artifact store
+    name: artifacts

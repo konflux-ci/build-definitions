@@ -81,18 +81,18 @@ spec:
         name: git-clone
         version: "0.1"
       workspaces:
-        - name: output
+        - name: source
           workspace: workspace
         - name: basic-auth
           workspace: git-auth
     - name: prefetch-dependencies
-      when:
-      - input: $(params.hermetic)
-        operator: in
-        values: ["true"]
       params:
         - name: input
           value: $(params.prefetch-input)
+        - name: hermetic
+          value: $(params.hermetic)
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
       runAfter:
         - clone-repository
       taskRef:
@@ -106,12 +106,17 @@ spec:
       - input: $(tasks.init.results.build)
         operator: in
         values: ["true"]
-      runAfter:
-        - prefetch-dependencies
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+        - name: CACHI2_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       taskRef:
         name: $REPLACE_ME
       workspaces:
         - name: source
+          emptyDir: {}
+        - name: artifacts
           workspace: workspace
     - name: build-source-image
       when:
@@ -131,8 +136,14 @@ spec:
           value: "$(params.output-image)"
         - name: BASE_IMAGES
           value: "$(tasks.build-container.results.BASE_IMAGES_DIGESTS)"
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+        - name: CACHI2_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       workspaces:
-        - name: workspace
+        - name: source
+          emptyDir: {}
+        - name: artifacts
           workspace: workspace
     - name: deprecated-base-image-check
       when:
@@ -167,13 +178,20 @@ spec:
       - input: $(params.skip-checks)
         operator: in
         values: ["false"]
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+        - name: CACHI2_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       runAfter:
         - clone-repository
       taskRef:
         name: sast-snyk-check
         version: "0.1"
       workspaces:
-      - name: workspace
+      - name: source
+        emptyDir: {}
+      - name: artifacts
         workspace: workspace
     - name: clamav-scan
       when:

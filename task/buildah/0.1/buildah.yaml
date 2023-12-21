@@ -66,6 +66,14 @@ spec:
   - name: YUM_REPOS_D_TARGET
     description: Target path on the container in which yum repository files should be made available
     default: /etc/yum.repos.d
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The source trusted artifact URI
+    default: ""
+  - name: CACHI2_ARTIFACT
+    type: string
+    description: The prefetched dependencies trusted artifact URI
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -105,6 +113,14 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
   steps:
+  - name: use-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:dbcf0102d0e9f21c2bcb06dcaa9af680cb9151f1984f5cec1fb397e1356ae771
+    args:
+      - use
+      - --store
+      - $(workspaces.artifacts.path)
+      - $(params.SOURCE_ARTIFACT)=$(workspaces.source.path)/source
+      - $(params.CACHI2_ARTIFACT)=$(workspaces.source.path)/cachi2
   - image: $(params.BUILDER_IMAGE)
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent; our default param above specifies a digest
@@ -392,3 +408,5 @@ spec:
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
+  - name: artifacts
+    description: The trusted artifact store
