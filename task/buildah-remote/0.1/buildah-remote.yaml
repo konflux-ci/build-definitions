@@ -140,6 +140,7 @@ spec:
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+      rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
       #!/bin/bash
       set -o verbose
@@ -222,12 +223,31 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
+      # Expose base image digests
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+
       buildah push "$IMAGE" oci:rhtap-final-image
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD -e BUILDAH_FORMAT="$BUILDAH_FORMAT" -e STORAGE_DRIVER="$STORAGE_DRIVER" -e HERMETIC="$HERMETIC" -e PREFETCH_INPUT="$PREFETCH_INPUT" -e CONTEXT="$CONTEXT" -e DOCKERFILE="$DOCKERFILE" -e IMAGE="$IMAGE" -e TLSVERIFY="$TLSVERIFY" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v "$BUILD_DIR/.docker/:/root/.docker:Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
+      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
+       -e STORAGE_DRIVER="$STORAGE_DRIVER" \
+       -e HERMETIC="$HERMETIC" \
+       -e PREFETCH_INPUT="$PREFETCH_INPUT" \
+       -e CONTEXT="$CONTEXT" \
+       -e DOCKERFILE="$DOCKERFILE" \
+       -e IMAGE="$IMAGE" \
+       -e TLSVERIFY="$TLSVERIFY" \
+       -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+       -e COMMIT_SHA="$COMMIT_SHA" \
+       -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
+       -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+       -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
+       -v $BUILD_DIR/scripts:/script:Z \
+      --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
+      rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
       buildah pull oci:rhtap-final-image
       buildah images
       buildah tag localhost/rhtap-final-image "$IMAGE"
@@ -341,9 +361,6 @@ spec:
     image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
     script: |
-      # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
-
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
