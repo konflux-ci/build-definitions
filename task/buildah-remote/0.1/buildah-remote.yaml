@@ -59,6 +59,16 @@ spec:
     description: The image is built from this commit.
     name: COMMIT_SHA
     type: string
+  - default: repos.d
+    description: Path in the git repository in which yum repository files are stored
+    name: YUM_REPOS_D_SRC
+  - default: fetched.repos.d
+    description: Path in source workspace where dynamically-fetched repos are present
+    name: YUM_REPOS_D_FETCHED
+  - default: /etc/yum.repos.d
+    description: Target path on the container in which yum repository files should
+      be made available
+    name: YUM_REPOS_D_TARGET
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -96,6 +106,12 @@ spec:
       value: $(params.TLSVERIFY)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: YUM_REPOS_D_SRC
+      value: $(params.YUM_REPOS_D_SRC)
+    - name: YUM_REPOS_D_FETCHED
+      value: $(params.YUM_REPOS_D_FETCHED)
+    - name: YUM_REPOS_D_TARGET
+      value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
   steps:
@@ -200,6 +216,19 @@ spec:
         echo "Prefetched content will be made available"
       fi
 
+      # if yum repofiles stored in git, copy them to mount point outside the source dir
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        mkdir -p ${YUM_REPOS_D_FETCHED}
+        cp -r ${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}/* ${YUM_REPOS_D_FETCHED}
+      fi
+
+      # if anything in the repofiles mount point (either fetched or from git), mount it
+      if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
+        chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
+        mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
+      fi
+
       LABELS=(
         "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
         "--label" "architecture=$(uname -m)"
@@ -242,6 +271,9 @@ spec:
        -e IMAGE="$IMAGE" \
        -e TLSVERIFY="$TLSVERIFY" \
        -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+       -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
+       -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
+       -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
