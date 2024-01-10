@@ -1,0 +1,46 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-signed-rpms
+spec:
+  params:
+    - name: IMAGE
+      type: string
+      description: The image to use for this task
+      default: ""
+    - name: INPUT
+      type: string
+      description: "AppStudio snapshot or a reference to a container image"
+    - name: FAIL_UNSIGNED
+      type: string
+      description: "[true | false] If true fail if unsigned RPMs were found"
+      default: ""
+    - name: WORKDIR
+      type: string
+      default: /tmp
+      description: |
+        Directory that will be used for storing temporary
+        files produced by this task.
+  results:
+    - name: verification-output
+      description: script output
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  steps:
+    - name: verify-signed-rpms
+      image: "$(params.IMAGE)"
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.WORKDIR)"
+      script: |
+        #!/bin/bash
+        set -ex
+        set -o pipefail
+
+        rpm_verifier \
+          --input '$(params.INPUT)' \
+          --fail-unsigned "$(params.FAIL_UNSIGNED)" \
+          --workdir "$(params.WORKDIR)" 2>&1 \
+          | tee $(results.verification-output.path)
