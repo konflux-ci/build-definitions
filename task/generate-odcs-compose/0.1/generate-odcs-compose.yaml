@@ -1,0 +1,58 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: generate-odcs-compose
+spec:
+  params:
+    - name: IMAGE
+      type: string
+      description: The image to use for this task
+    - name: KT_PATH
+      type: string
+      description: path to mount keytab
+      default: /tmp/kt
+    - name: KRB_CACHE_PATH
+      description: path to krb cache
+      default: /tmp/krb5ccname
+    - name: COMPOSE_INPUTS
+      description: relative path from workdir workspace to the compose inputs file
+      default: compose_inputs.yaml
+    - name: COMPOSE_OUTPUTS
+      description: relative path from workdir workspace to store compose output files
+      default: repos
+  workspaces:
+    - name: workdir
+      description: |
+        Working directory that will be used for reading configuration files
+        and writing the output
+    - name: keytab-secret
+      description: for storing keytab secret
+      mountPath: "$(params.KT_PATH)"
+    - name: krb-cache
+      description: location of krb cache
+      mountPath: "$(params.KRB_CACHE_PATH)"
+  results:
+    - name: repodir_path
+      description: Directory to write the result .repo files.
+  steps:
+    - name: generate-odcs-compose
+      image: "$(params.IMAGE)"
+      env:
+        - name: KRB5CCNAME
+          value: "$(params.KRB_CACHE_PATH)/krb5ccname"
+        - name: KRB5_CLIENT_KTNAME
+          value: "$(params.KT_PATH)/keytab"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        repodir_path="$(workspaces.workdir.path)/$(params.COMPOSE_OUTPUTS)"
+
+        cd "$(workspaces.workdir.path)"
+
+        odcs_compose_generator \
+          --compose-input-yaml-path $(params.COMPOSE_INPUTS) \
+          --compose-dir-path "${repodir_path}"
+
+        echo "$repodir_path" > $(results.repodir_path.path)
