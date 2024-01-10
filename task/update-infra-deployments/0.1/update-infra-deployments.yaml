@@ -87,6 +87,14 @@ spec:
       script: |
         cd cloned
         git status -s --porcelain | cut -c4- > ../updated_files.txt
+        # Check if ../updated_files.txt is empty or not
+        if [ -s ../updated_files.txt ]; then
+          echo -e "Script has modified files:\n$(cat ../updated_files.txt)"
+        else
+          echo "No modified files after running the script, exiting..."
+          exit 1
+        fi
+
     # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
