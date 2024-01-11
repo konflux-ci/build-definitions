@@ -23,9 +23,9 @@ spec:
     - name: GIT_IMAGE
       description: Image reference containing the git command
       default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-     # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     - name: SCRIPT_IMAGE
       description: Image reference for SCRIPT execution
       # this image is built using https://github.com/redhat-appstudio/build-tasks-dockerfiles/blob/main/update-infra-deployments-task-scripts-image/Dockerfile
@@ -95,7 +95,7 @@ spec:
           exit 1
         fi
 
-    # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
+      # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
