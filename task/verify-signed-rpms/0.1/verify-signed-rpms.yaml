@@ -1,0 +1,70 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-signed-rpms
+spec:
+  params:
+    - name: IMAGE
+      type: string
+      description: The image to use for this task
+      default: ""
+    - name: INPUT
+      type: string
+      description: "AppStudio snapshot or a reference to a container image"
+    - name: FAIL_UNSIGNED
+      type: string
+      description: "[true | false] If true fail if unsigned RPMs were found"
+      default: ""
+    - name: WORKDIR
+      type: string
+      default: /tmp
+      description: |
+        Directory that will be used for storing temporary
+        files produced by this task.
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  steps:
+    - name: verify-signed-rpms
+      image: "$(params.IMAGE)"
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.WORKDIR)"
+      env:
+        - name: INPUT
+          value: "$(params.INPUT)"
+        - name: FAIL_UNSIGNED
+          value: "$(params.FAIL_UNSIGNED)"
+        - name: WORKDIR
+          value: "$(params.WORKDIR)"
+      script: |
+        #!/bin/bash
+        set -ex
+        set -o pipefail
+
+        rpm_verifier \
+          --input '${INPUT}' \
+          --fail-unsigned "${FAIL_UNSIGNED}" \
+          --workdir "${WORKDIR}" \
+          --status-path "${WORKDIR}"/status
+    - name: output-results
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.WORKDIR)"
+      env:
+        - name: WORKDIR
+          value: "$(params.WORKDIR)"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        source /utils.sh
+        note="Task $(context.task.name) completed: Refer to Tekton task output for unsigned rpms"
+        status=`cat "${WORKDIR}"/status`
+        TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
+        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
