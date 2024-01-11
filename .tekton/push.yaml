@@ -65,6 +65,9 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
@@ -116,6 +119,9 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               script: |-
                 #!/usr/bin/env bash
                 set -euo pipefail

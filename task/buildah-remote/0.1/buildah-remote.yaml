@@ -59,6 +59,16 @@ spec:
     description: The image is built from this commit.
     name: COMMIT_SHA
     type: string
+  - default: repos.d
+    description: Path in the git repository in which yum repository files are stored
+    name: YUM_REPOS_D_SRC
+  - default: fetched.repos.d
+    description: Path in source workspace where dynamically-fetched repos are present
+    name: YUM_REPOS_D_FETCHED
+  - default: /etc/yum.repos.d
+    description: Target path on the container in which yum repository files should
+      be made available
+    name: YUM_REPOS_D_TARGET
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -96,12 +106,17 @@ spec:
       value: $(params.TLSVERIFY)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: YUM_REPOS_D_SRC
+      value: $(params.YUM_REPOS_D_SRC)
+    - name: YUM_REPOS_D_FETCHED
+      value: $(params.YUM_REPOS_D_FETCHED)
+    - name: YUM_REPOS_D_TARGET
+      value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
   steps:
   - computeResources:
       limits:
-        cpu: "2"
         memory: 4Gi
       requests:
         cpu: 250m
@@ -110,7 +125,6 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-    imagePullPolicy: Always
     name: build
     script: |-
       set -o verbose
@@ -141,9 +155,12 @@ spec:
       fi
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+      rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
-      #!/bin/sh
+      #!/bin/bash
       set -o verbose
+      set -e
       cd $(workspaces.source.path)
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
@@ -168,7 +185,7 @@ spec:
         exit 1
       fi
       if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_path"; then
-        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\(.*\)\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml|g" "$dockerfile_path"
+        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\)\(.*\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml \3|g" "$dockerfile_path"
         touch /var/lib/containers/java
       fi
 
@@ -184,7 +201,9 @@ spec:
         BUILDAH_ARGS="--pull=never"
         UNSHARE_ARGS="--net"
         for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+          if [ "${image}" != "scratch" ]; then
+            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+          fi
         done
         echo "Build will be executed with network isolation"
       fi
@@ -195,6 +214,19 @@ spec:
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
+      fi
+
+      # if yum repofiles stored in git, copy them to mount point outside the source dir
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        mkdir -p ${YUM_REPOS_D_FETCHED}
+        cp -r ${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}/* ${YUM_REPOS_D_FETCHED}
+      fi
+
+      # if anything in the repofiles mount point (either fetched or from git), mount it
+      if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
+        chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
+        mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
       fi
 
       LABELS=(
@@ -222,12 +254,34 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
+      # Expose base image digests
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+
       buildah push "$IMAGE" oci:rhtap-final-image
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD -e BUILDAH_FORMAT="$BUILDAH_FORMAT" -e STORAGE_DRIVER="$STORAGE_DRIVER" -e HERMETIC="$HERMETIC" -e PREFETCH_INPUT="$PREFETCH_INPUT" -e CONTEXT="$CONTEXT" -e DOCKERFILE="$DOCKERFILE" -e IMAGE="$IMAGE" -e TLSVERIFY="$TLSVERIFY" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
+      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
+       -e STORAGE_DRIVER="$STORAGE_DRIVER" \
+       -e HERMETIC="$HERMETIC" \
+       -e PREFETCH_INPUT="$PREFETCH_INPUT" \
+       -e CONTEXT="$CONTEXT" \
+       -e DOCKERFILE="$DOCKERFILE" \
+       -e IMAGE="$IMAGE" \
+       -e TLSVERIFY="$TLSVERIFY" \
+       -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+       -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
+       -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
+       -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
+       -e COMMIT_SHA="$COMMIT_SHA" \
+       -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
+       -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+       -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
+       -v $BUILD_DIR/scripts:/script:Z \
+      --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
+      rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
       buildah pull oci:rhtap-final-image
       buildah images
       buildah tag localhost/rhtap-final-image "$IMAGE"
@@ -246,7 +300,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/redhat-appstudio/syft:v0.96.0
+    image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
     name: sbom-syft-generate
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -256,7 +310,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - computeResources: {}
-    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
     name: analyse-dependencies-java-sbom
     script: |
       if [ -f /var/lib/containers/java ]; then
@@ -271,7 +325,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+    image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
     name: merge-syft-sboms
     script: |
       #!/bin/python3
@@ -320,7 +374,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+    image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
     name: create-purl-sbom
     script: |
       #!/bin/python3
@@ -341,9 +395,6 @@ spec:
     image: $(params.BUILDER_IMAGE)
     name: inject-sbom-and-push
     script: |
-      # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
-
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
@@ -388,7 +439,7 @@ spec:
     - cyclonedx
     - $(params.IMAGE)
     computeResources: {}
-    image: quay.io/redhat-appstudio/cosign:v2.1.1
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
     name: upload-sbom
     workingDir: $(workspaces.source.path)
   volumes:

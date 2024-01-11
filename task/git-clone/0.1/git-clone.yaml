@@ -66,6 +66,8 @@ spec:
     name: verbose
     type: string
   - default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
     description: The image providing the git-init binary that this Task runs.
     name: gitInitImage
     type: string
@@ -218,7 +220,10 @@ spec:
       fi
 
   - name: symlink-check
-    image: registry.redhat.io/ubi9:9.2-696
+    image: registry.redhat.io/ubi9:9.2-696@sha256:089bd3b82a78ac45c0eed231bb58bfb43bfcd0560d9bba240fc6355502c92976
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     env:
     - name: PARAM_ENABLE_SYMLINK_CHECK
       value: $(params.enableSymlinkCheck)

@@ -32,6 +32,9 @@ spec:
     name: IMAGE
     type: string
   - default: registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     description: The location of the buildah builder image.
     name: BUILDER_IMAGE
     type: string
@@ -130,7 +133,6 @@ spec:
     computeResources:
       limits:
         memory: 4Gi
-        cpu: 2
       requests:
         memory: 512Mi
         cpu: 10m
@@ -146,7 +148,10 @@ spec:
       name: gen-source
     workingDir: /gen-source
 
-  - image: quay.io/redhat-appstudio/syft:v0.96.0
+  - image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: sbom-syft-generate
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -156,7 +161,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
   - name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:1d417e6f1f3e68c6c537333b5759796eddae0afc
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -169,7 +174,10 @@ spec:
       name: varlibcontainers
     securityContext:
       runAsUser: 0
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+  - image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: merge-sboms
     script: |
       #!/bin/python3
@@ -214,6 +222,7 @@ spec:
       runAsUser: 0
 
   - image: $(params.BUILDER_IMAGE)
+    # default above is image digest specific
     name: inject-sbom-and-push
     computeResources: {}
     script: |
@@ -245,7 +254,10 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
-    image: quay.io/redhat-appstudio/cosign:v2.1.1
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     args:
       - attach
       - sbom

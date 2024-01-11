@@ -24,7 +24,10 @@ spec:
 
   steps:
     - name: extract-and-scan-image
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       workingDir: /work
       # need to change user since 'oc image extract' requires more privileges when running as root
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
@@ -40,7 +43,6 @@ spec:
       computeResources:
         limits:
           memory: 4Gi
-          cpu: 2
         requests:
           memory: 512Mi
           cpu: 10m
@@ -68,8 +70,16 @@ spec:
           echo "Unable to extract image. Skipping ClamAV scan!"
           exit 0
         fi
+
         echo "Scanning image. This operation may take a while."
-        clamscan -ri --max-scansize=250M | tee /tekton/home/clamscan-result.log
+        clamscan -ri --max-scansize=4095M --max-filesize=4095M \
+          --max-scantime=0 --max-files=0 --max-recursion=1000 --max-dir-recursion=20000 --max-embeddedpe=4095M \
+          --max-htmlnormalize=4095M --max-htmlnotags=4095M --max-scriptnormalize=4095M --max-ziptypercg=4095M \
+          --max-partitions=50000 --max-iconspe=100000 --max-rechwp3=20000 --pcre-match-limit=100000000 --pcre-recmatch-limit=2000000 \
+          --pcre-max-filesize=4095M --alert-broken=yes --alert-exceeds-max=yes --alert-broken-media=yes \
+          --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
+          --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
+          | tee /tekton/home/clamscan-result.log || true
         echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result.log
       volumeMounts:
         - mountPath: /var/lib/clamav
@@ -77,7 +87,10 @@ spec:
         - mountPath: /work
           name: work
     - name: modify-clam-output-to-json
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       script: |
         #!/usr/bin/env python3.9
         import json
@@ -126,7 +139,10 @@ spec:
         if __name__ == "__main__":
             main()
     - name: store-hacbs-test-output-result
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.6@sha256:ce0ae008d221b80c7c41cf9cc5e5c43458b98d7196edd477064cad7a0c73304e
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -137,13 +153,20 @@ spec:
         then
           cat /tekton/home/clamscan-result.json
           INFECTED_FILES=$(jq -r '.infected_files' /tekton/home/clamscan-result.json || true )
+          WARNING_FILES=$(jq -r '.hits|length' /tekton/home/clamscan-result.json || true )
           if [ -z "${INFECTED_FILES}" ]; then
             echo "Failed to get number of infected files."
             note="Task $(context.task.name) failed: Unable to get number of infected files from /tekton/home/clamscan-result.json. For details, check Tekton task log."
           else
-            if [[ "${INFECTED_FILES}" -gt 0 ]]; then RES="FAILURE"; else RES="SUCCESS"; fi
+            if [[ "${INFECTED_FILES}" -gt 0 ]]; then
+             RES="FAILURE";
+            elif [[ "${WARNING_FILES}" -gt 0 ]]; then
+              RES="WARNING";
+            else
+              RES="SUCCESS";
+            fi
             note="Task $(context.task.name) completed: Check result for antivirus scan result."
-            TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}" -t "$note")
+            TEST_OUTPUT=$(make_result_json -r "${RES}" -s 1 -f "${INFECTED_FILES}" -w "${WARNING_FILES}" -t "$note")
           fi
         else
           note="Task $(context.task.name) failed: /tekton/home/clamscan-result.json doesn't exist. For details, check Tekton task log."
@@ -155,7 +178,7 @@ spec:
   # provides latest virus database for clamscan only
   # does not execute anything
   sidecars:
-    - image: quay.io/redhat-appstudio/clamav-db:v1  # explicit floating tag, daily updates
+    - image: quay.io/redhat-appstudio/clamav-db:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
       imagePullPolicy: Always
       name: database
       script: |

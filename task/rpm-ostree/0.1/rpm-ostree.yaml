@@ -16,6 +16,9 @@ spec:
     name: IMAGE
     type: string
   - default: quay.io/redhat-user-workloads/project-sagano-tenant/ostree-builder/ostree-builder-fedora-38:d124414a81d17f31b1d734236f55272a241703d7
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     description: The location of the rpm-ostree builder image.
     name: BUILDER_IMAGE
     type: string
@@ -71,11 +74,12 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-    imagePullPolicy: Always
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: build
     computeResources:
       limits:
-        cpu: "0.5"
         memory: 512Mi
       requests:
         cpu: 250m
@@ -130,7 +134,10 @@ spec:
       name: ssh
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: quay.io/redhat-appstudio/syft:v0.96.0
+  - image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: sbom-syft-generate
     computeResources:
       limits:
@@ -142,7 +149,10 @@ spec:
     volumeMounts:
       - mountPath: /var/lib/containers
         name: varlibcontainers
-  - image: registry.access.redhat.com/ubi9/python-39:1-143.1696863474
+  - image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: create-purl-sbom
     computeResources: {}
     script: |
@@ -161,6 +171,9 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: inject-sbom-and-push
     computeResources: {}
     script: |
@@ -210,7 +223,10 @@ spec:
     - --type
     - cyclonedx
     - $(params.IMAGE)
-    image: quay.io/redhat-appstudio/cosign:v2.1.1
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: upload-sbom
     computeResources: {}
     workingDir: $(workspaces.source.path)

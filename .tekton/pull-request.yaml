@@ -48,7 +48,7 @@ spec:
             workspace: workspace
         params:
         - name: args
-          value: ["."]
+          value: [".", "-c", "/workspace/shared-workspace/source/.yamllint"]
       - name: sast-snyk-check
         params:
           - name: SNYK_SECRET
@@ -80,6 +80,9 @@ spec:
           steps:
             - name: check-task-structure
               image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -88,6 +91,9 @@ spec:
                 cat partner-tasks.out
             - name: create-comment
               image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
@@ -143,6 +149,9 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -179,7 +188,10 @@ spec:
         taskSpec:
           steps:
             - name: fail-when-repo-is-missed
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:2098dc35cf999984ffb2a0aebd4f8bb1b52f1e2c308efef90831a3660c75c358
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -203,7 +215,10 @@ spec:
         taskSpec:
           steps:
             - name: check-task-migration-md
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:9deda623e4768ecbaa6f1c6204077d9a151d55f9569bfe414e793fcb36cc391e
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -235,7 +250,10 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:9f0cdc00b1b1a3c17411e50653253b9f6bb5329ea4fb82ad983790a6dbf2d9ad
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service

@@ -23,9 +23,16 @@ spec:
     - name: GIT_IMAGE
       description: Image reference containing the git command
       default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     - name: SCRIPT_IMAGE
       description: Image reference for SCRIPT execution
-      default: quay.io/mkovarik/ose-cli-git:4.11
+      # this image is built using https://github.com/redhat-appstudio/build-tasks-dockerfiles/blob/main/update-infra-deployments-task-scripts-image/Dockerfile
+      default: quay.io/redhat-appstudio/update-infra-deployments-task-script-image@sha256:2748f1a4f1af4e35214745aed4e56a9d06f6bdbd30572e7ade13729e67f23cc9
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     - name: shared-secret
       default: infra-deployments-pr-creator
       description: secret in the namespace which contains private key for the GitHub App
@@ -80,9 +87,20 @@ spec:
       script: |
         cd cloned
         git status -s --porcelain | cut -c4- > ../updated_files.txt
-    # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
+        # Check if ../updated_files.txt is empty or not
+        if [ -s ../updated_files.txt ]; then
+          echo -e "Script has modified files:\n$(cat ../updated_files.txt)"
+        else
+          echo "No modified files after running the script, exiting..."
+          exit 1
+        fi
+
+      # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
       image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       volumeMounts:
         - name: infra-deployments-pr-creator
           mountPath: /secrets/deploy-key

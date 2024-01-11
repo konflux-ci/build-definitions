@@ -36,8 +36,14 @@ spec:
         - name: prefetch-input
           value: "gomod"
       pipelineRef:
-        name: docker-build
-        bundle: ${DOCKER_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: docker-build
+        - name: bundle
+          value: ${DOCKER_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         dockerfile: true
         language: Go
@@ -49,34 +55,64 @@ spec:
         - name: prefetch-input
           value: "pip"
       pipelineRef:
-        name: docker-build
-        bundle: ${DOCKER_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: docker-build
+        - name: bundle
+          value: ${DOCKER_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         dockerfile: true
         language: Python
         projectType: test-hermetic-build
     - name: FBC build
       pipelineRef:
-        name: fbc-builder
-        bundle: ${FBC_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: fbc-builder
+        - name: bundle
+          value: ${FBC_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         language: fbc
     - name: S2I - NodeJS
       pipelineRef:
-        name: nodejs-builder
-        bundle: ${NODEJS_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: nodejs-builder
+        - name: bundle
+          value: ${NODEJS_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         language: nodejs
     - name: S2I - Java
       pipelineRef:
-        name: java-builder
-        bundle: ${JAVA_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: java-builder
+        - name: bundle
+          value: ${JAVA_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         language: java
     - name: Docker build
       pipelineRef:
-        name: docker-build
-        bundle: ${DOCKER_BUNDLE}
+        resolver: bundles
+        params:
+        - name: name
+          value: docker-build
+        - name: bundle
+          value: ${DOCKER_BUNDLE}
+        - name: kind
+          value: pipeline
       when:
         dockerfile: true
 EOF

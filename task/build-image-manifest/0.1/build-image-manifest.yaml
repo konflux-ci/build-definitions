@@ -47,11 +47,13 @@ spec:
       value: $(params.TLSVERIFY)
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: build
     computeResources:
       limits:
         memory: 4Gi
-        cpu: 2
       requests:
         memory: 512Mi
         cpu: 250m

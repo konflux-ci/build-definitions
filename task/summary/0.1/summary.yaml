@@ -23,7 +23,10 @@ spec:
       default: Succeeded
   steps:
     - name: appstudio-summary
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.2-750.1696515534@sha256:93d357bf8fae4a4965515898504d3c45b7421a56fc45fdd52651535a25af1023
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.3-1361.1699548032@sha256:3e313209ac617a92b50350286752311d99ea2dafc429ef0e5311889294b0bc21
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
       env:
         - name: GIT_URL
           value: $(params.git-url)
