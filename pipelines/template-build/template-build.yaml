@@ -34,10 +34,6 @@ spec:
       name: skip-checks
       type: string
       default: "false"
-    - description: Skip optional checks, set false if you want to run optional checks
-      name: skip-optional
-      type: string
-      default: "true"
     - description: Execute the build with network isolation
       name: hermetic
       type: string
@@ -66,15 +62,9 @@ spec:
           value: "$(params.rebuild)"
         - name: skip-checks
           value: "$(params.skip-checks)"
-        - name: skip-optional
-          value: "$(params.skip-optional)"
-        - name: pipelinerun-name
-          value: "$(context.pipelineRun.name)"
-        - name: pipelinerun-uid
-          value: "$(context.pipelineRun.uid)"
       taskRef:
         name: init
-        version: "0.1"
+        version: "0.2"
     - name: clone-repository
       when:
       - input: $(tasks.init.results.build)
