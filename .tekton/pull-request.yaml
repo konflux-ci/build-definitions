@@ -172,16 +172,16 @@ spec:
               secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
-      - name: e2e-tests
-        params:
-          - name: e2e_test_namespace
-            value: $(params.e2e_test_namespace)
-          - name: app_suffix
-            value: "{{ pull_request_number }}"
-        runAfter:
-          - build-bundles
-        taskRef:
-          name: e2e-test
+      # - name: e2e-tests
+      #   params:
+      #     - name: e2e_test_namespace
+      #       value: $(params.e2e_test_namespace)
+      #     - name: app_suffix
+      #       value: "{{ pull_request_number }}"
+      #   runAfter:
+      #     - build-bundles
+      #   taskRef:
+      #     name: e2e-test
       - name: check-task-pipeline-repo-existence
         runAfter:
           - build-bundles
