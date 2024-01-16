@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.2"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: init
+spec:
+  description: >-
+    Initialize Pipeline Task, include flags for rebuild and auth. Generates image repository secret used by the PipelineRun.
+  params:
+    - name: image-url
+      description: Image URL for build by PipelineRun
+    - name: rebuild
+      description: Rebuild the image if exists
+      default: "false"
+    - name: skip-checks
+      description: Skip checks against built image
+      default: "false"
+  results:
+    - name: build
+      description: Defines if the image in param image-url should be built
+
+  steps:
+    - name: init
+      image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: REBUILD
+          value: $(params.rebuild)
+        - name: SKIP_CHECKS
+          value: $(params.skip-checks)
+      script: |
+        #!/bin/bash
+        echo "Build Initialize: $IMAGE_URL"
+        echo
+
+        echo "Determine if Image Already Exists"
+        # Build the image when image does not exists or rebuild is set to true
+        if ! oc image info $IMAGE_URL &>/dev/null || [ "$REBUILD" == "true" ] || [ "$SKIP_CHECKS" == "false" ]; then
+          echo -n "true" > $(results.build.path)
+        else
+          echo -n "false" > $(results.build.path)
+        fi
