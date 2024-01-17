@@ -43,6 +43,8 @@ spec:
         source /utils.sh
         trap 'handle_error' EXIT
 
+        echo "[WARNING] This task version is deprecated, please use the latest version. (Deprecation date: 2024-04-30)"
+
         readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
         for BASE_IMAGE in ${IMAGE_ARRAY[@]};
         do

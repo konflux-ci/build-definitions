@@ -1,10 +1,15 @@
 # deprecated-image-check task
 
+## Deprecation notice
+
+This task version is deprecated, please use the latest version.
+Deprecation date: 2024-04-30
+
 ## Description:
 The deprecated-image-check checks for deprecated images that are no longer maintained and prone to security issues.
 It accomplishes this by verifying the data using Pyxis to query container image data and running Conftest using the
 supplied conftest policy. Conftest is an open-source tool that provides a way to enforce policies written
-in a high-level declarative language called Rego. 
+in a high-level declarative language called Rego.
 
 ## Params:
 
