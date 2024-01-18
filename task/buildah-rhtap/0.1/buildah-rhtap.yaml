@@ -66,8 +66,7 @@ spec:
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
 
-      container=$(buildah from --pull-never $IMAGE)
-      buildah mount $container | tee /workspace/container_path
+      buildah push "$IMAGE" oci:/tmp/files/image
     securityContext:
       capabilities:
         add:
@@ -76,16 +75,15 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /tmp/files
+      name: tmpfiles
     workingDir: $(workspaces.source.path)
 
   - name: generate-sboms
     image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=/tmp/files/sbom-source.json
-
-      find $(cat /workspace/container_path) -xtype l -delete
-
-      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=/tmp/files/sbom-image.json
+      syft oci-dir:/tmp/files/image --output cyclonedx-json=/tmp/files/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
