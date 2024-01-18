@@ -54,7 +54,7 @@ spec:
 ' | kubectl apply -f -
 
     # Image to run the setup pod with, taken from the Task definition
-    IMAGE="$(kubectl get task tkn-bundle -o=jsonpath='{.spec.steps[0].image}')"
+    IMAGE="$(kubectl get task tkn-bundle -o=jsonpath='{.spec.steps[1].image}')"
     # Semi-random name for the setup Pod
     SETUP_POD="setup-$(date +%s)"
     # Run the pod with the volume mounted at /source, the container is blocking
