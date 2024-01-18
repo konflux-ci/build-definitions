@@ -51,6 +51,7 @@ spec:
   - name: build
     image: registry.access.redhat.com/ubi9/buildah@sha256:04fde77ea72c25b56efb3f71db809c5d7b09938130df2da9175a3c888b94043d
     script: |
+      # Check if the Dockerfile exists
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -61,11 +62,25 @@ spec:
         exit 1
       fi
 
+      # Build the image
       buildah build \
         --tls-verify=$TLSVERIFY \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
 
+      # Push the image
+      buildah push \
+        --tls-verify=$TLSVERIFY \
+        --retry=5 \
+        --digestfile ./image-digest $IMAGE \
+        docker://$IMAGE
+
+      # Set task results
+      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+
+      # Save the image so it can be used in the generate-sbom step
       buildah push "$IMAGE" oci:/tmp/files/image
     securityContext:
       capabilities:
@@ -125,40 +140,6 @@ spec:
     - mountPath: /tmp/files
       name: tmpfiles
     workingDir: /tmp/files
-
-  - name: push-image
-    image: registry.access.redhat.com/ubi9/buildah@sha256:04fde77ea72c25b56efb3f71db809c5d7b09938130df2da9175a3c888b94043d
-    script: |
-      # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
-
-      status=-1
-      max_run=5
-      sleep_sec=10
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing image to registry"
-        buildah push \
-          --tls-verify=$TLSVERIFY \
-          --digestfile $(workspaces.source.path)/image-digest $IMAGE \
-          docker://$IMAGE && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push image to registry after ${max_run} tries"
-          exit 1
-      fi
-
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
-    securityContext:
-      capabilities:
-        add:
-          - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
