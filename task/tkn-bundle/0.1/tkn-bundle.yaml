@@ -23,6 +23,10 @@ spec:
     type: string
     description: Value for the HOME environment variable.
     default: /tekton/home
+  - name: STEPS_IMAGE
+    type: string
+    description: An optional image to configure task steps with in the bundle
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -32,17 +36,16 @@ spec:
     env:
     - name: HOME
       value: "$(params.HOME)"
+    - name: TASK_FILE
+      value: tekton_task_files
   steps:
-  - image: quay.io/openshift-pipeline/openshift-pipelines-cli-tkn:5.0
-    name: build
+  - image: registry.access.redhat.com/ubi9/toolbox@sha256:7391628396216c011ed3a310f1fa54c6a9221e36f7fa59c94ae7796de51e7a25
+    name: modify-task-files
     env:
     - name: CONTEXT
       value: $(params.CONTEXT)
-    - name: IMAGE
-      value: $(params.IMAGE)
     script: |
       #!/bin/env bash
-
       set -o errexit
       set -o pipefail
       set -o nounset
@@ -96,15 +99,43 @@ spec:
           done
         fi
       done
+
+      if [[ -n "$(params.STEPS_IMAGE)" ]]; then
+        for f in "${FILES[@]}"; do
+          yq e '(.spec.steps[] | select(has("image")).image) = "$(params.STEPS_IMAGE)"' -i $f
+        done
+      fi
+
+      printf "%s\n" "${FILES[@]}" > "${TASK_FILE}"
+    workingDir: $(workspaces.source.path)
+  - image: quay.io/openshift-pipeline/openshift-pipelines-cli-tkn:5.0
+    name: build
+    env:
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    script: |
+      #!/bin/env bash
+
+      set -o errexit
+      set -o pipefail
+      set -o nounset
+
+      mapfile -t FILES < "${TASK_FILE}"
       [[ ${#FILES[@]} -eq 0 ]] \
         && echo "No YAML files matched by \"$CONTEXT\" in \"$(workspaces.source.path)\", aborting the build" \
         && exit 1
       exec 3>&1;
+
       OUT="$(tkn bundle push "$IMAGE" \
         $(printf ' -f %s' "${FILES[@]}") \
         |tee /proc/self/fd/3)"
       echo -n "$IMAGE" > $(results.IMAGE_URL.path)
       echo -n "${OUT#*Pushed Tekton Bundle to *@}" > $(results.IMAGE_DIGEST.path)
+
+      # cleanup task file
+      [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
     workingDir: $(workspaces.source.path)
   workspaces:
   - name: source
