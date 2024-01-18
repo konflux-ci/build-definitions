@@ -72,12 +72,12 @@ spec:
       buildah push \
         --tls-verify=$TLSVERIFY \
         --retry=5 \
-        --digestfile ./image-digest $IMAGE \
+        --digestfile /tmp/files/image-digest $IMAGE \
         docker://$IMAGE
 
       # Set task results
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      cat /tmp/files/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
       # Save the image so it can be used in the generate-sbom step
