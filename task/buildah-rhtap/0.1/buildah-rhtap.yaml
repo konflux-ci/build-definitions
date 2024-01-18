@@ -61,9 +61,6 @@ spec:
         exit 1
       fi
 
-      # Fixing group permission on /var/lib/containers
-      chown root:root /var/lib/containers
-
       buildah build \
         --tls-verify=$TLSVERIFY \
         --ulimit nofile=4096:4096 \
@@ -71,10 +68,10 @@ spec:
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
-      echo $container > /workspace/container_name
     securityContext:
       capabilities:
         add:
+          # this is needed so that buildah can write to the mounted /var/lib/containers directory
           - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
@@ -84,12 +81,16 @@ spec:
   - name: generate-sboms
     image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
     script: |
-      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
+      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=/tmp/files/sbom-source.json
+
       find $(cat /workspace/container_path) -xtype l -delete
-      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
+
+      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=/tmp/files/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /tmp/files
+      name: tmpfiles
 
   - name: merge-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-158@sha256:967000729b17efdea309e297f4b1961c38b902a1ef18f6d886b8086c2a12f01f
@@ -122,9 +123,10 @@ spec:
       # write the CycloneDX unified SBOM
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
-    workingDir: $(workspaces.source.path)
-    securityContext:
-      runAsUser: 0
+    volumeMounts:
+    - mountPath: /tmp/files
+      name: tmpfiles
+    workingDir: /tmp/files
 
   - name: push-image
     image: registry.access.redhat.com/ubi9/buildah@sha256:04fde77ea72c25b56efb3f71db809c5d7b09938130df2da9175a3c888b94043d
@@ -152,7 +154,6 @@ spec:
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
     securityContext:
-      runAsUser: 0
       capabilities:
         add:
           - SETFCAP
@@ -171,11 +172,16 @@ spec:
       - --type
       - cyclonedx
       - $(params.IMAGE)
-    workingDir: $(workspaces.source.path)
+    volumeMounts:
+    - mountPath: /tmp/files
+      name: tmpfiles
+    workingDir: /tmp/files
 
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - emptyDir: {}
+    name: tmpfiles
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
