@@ -35,6 +35,8 @@ spec:
     name: IMAGE_URL
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
+  - description: Link to the SBOM layer pushed to the registry as part of an OCI artifact.
+    name: SBOM_BLOB_URL
   stepTemplate:
     env:
     - name: STORAGE_DRIVER
@@ -106,10 +108,15 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
+    image: registry.access.redhat.com/ubi8/python-311@sha256:8ded4b6d8087706b6819ddda5d31f22b80e5aa4efa772e94d750699ccfbf98eb
+    env:
+      - name: RESULT_PATH
+        value: $(results.SBOM_BLOB_URL.path)
     script: |
       #!/bin/python3
+      import hashlib
       import json
+      import os
 
       ### load SBOMs ###
 
@@ -144,6 +151,21 @@ spec:
 
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
+
+
+      ### write the SBOM blob URL result ###
+
+      with open("./sbom-cyclonedx.json", "rb") as f:
+        sbom_digest = hashlib.file_digest(f, "sha256").hexdigest()
+
+      image_name_parts = os.getenv("IMAGE").split(":")
+      # discard only the last part since the image can have a port number
+      # (i.e. registry:443/image/path:tag)
+      image_name_without_tag = ":".join(image_name_parts[0:-1])
+      sbom_blob_url = f"{image_name_without_tag}@sha256:{sbom_digest}"
+
+      with open(os.getenv("RESULT_PATH"), "w") as f:
+        f.write(sbom_blob_url)
     volumeMounts:
     - mountPath: /tmp/files
       name: tmpfiles
