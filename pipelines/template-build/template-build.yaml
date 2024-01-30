@@ -42,10 +42,6 @@ spec:
       name: prefetch-input
       type: string
       default: ""
-    - description: Java build
-      name: java
-      type: string
-      default: "false"
     - description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
       default: ""
@@ -79,7 +75,7 @@ spec:
           value: "$(params.revision)"
       taskRef:
         name: git-clone
-        version: "0.1"
+        version: "0.2"
       workspaces:
         - name: output
           workspace: workspace
@@ -141,7 +137,7 @@ spec:
         values: ["false"]
       taskRef:
         name: deprecated-image-check
-        version: "0.3"
+        version: "0.4"
       params:
       - name: BASE_IMAGES_DIGESTS
         value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
@@ -156,7 +152,7 @@ spec:
         - build-container
       taskRef:
         name: clair-scan
-        version: "0.1"
+        version: "0.2"
       params:
       - name: image-digest
         value: $(tasks.build-container.results.IMAGE_DIGEST)
@@ -184,7 +180,7 @@ spec:
         - build-container
       taskRef:
         name: clamav-scan
-        version: "0.1"
+        version: "0.2"
       params:
       - name: image-digest
         value: $(tasks.build-container.results.IMAGE_DIGEST)
@@ -217,10 +213,8 @@ spec:
     - name: show-summary
       taskRef:
         name: summary
-        version: "0.1"
+        version: "0.2"
       params:
-      - name: pipelinerun-name
-        value: "$(context.pipelineRun.name)"
       - name: git-url
         value: "$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)"
       - name: image-url
