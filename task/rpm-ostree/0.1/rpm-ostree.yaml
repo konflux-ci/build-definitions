@@ -47,6 +47,11 @@ spec:
   - description: The platform to build on
     name: PLATFORM
     type: string
+  - description: The relative path of the file used to configure the rpm-ostree tool found in source control.
+      See https://github.com/coreos/rpm-ostree/blob/main/docs/container.md#adding-container-image-configuration
+    name: CONFIG_FILE
+    type: string
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -68,6 +73,8 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
+    - name: CONFIG_FILE
+      value: $(params.CONFIG_FILE)
     computeResources: {}
   steps:
   - env:
@@ -112,12 +119,17 @@ spec:
       #!/bin/sh
       set -o verbose
       cd $(workspaces.source.path)
-      rpm-ostree compose image --initialize --format oci "source/$IMAGE_FILE" rhtap-final-image
+      if [ -z "$CONFIG_FILE" ] ; then
+        CONFIG_FILE_ARG=""
+      else
+        CONFIG_FILE_ARG="  --image-config=source/$CONFIG_FILE "
+      fi
+      rpm-ostree compose image --initialize --format oci $CONFIG_FILE_ARG "source/$IMAGE_FILE" rhtap-final-image
 
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" podman run --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared --privileged -e CONTEXT="$CONTEXT" -e IMAGE_FILE="$IMAGE_FILE" -e IMAGE="$IMAGE" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
+      ssh $SSH_ARGS "$SSH_HOST" podman run --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared --privileged -e CONTEXT="$CONTEXT" -e IMAGE_FILE="$IMAGE_FILE" -e CONFIG_FILE="$CONFIG_FILE" -e IMAGE="$IMAGE" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
       cp -r rhtap-final-image /var/lib/containers/rhtap-final-image
       buildah pull oci:rhtap-final-image
