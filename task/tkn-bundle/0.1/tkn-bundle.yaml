@@ -44,6 +44,8 @@ spec:
     env:
     - name: CONTEXT
       value: $(params.CONTEXT)
+    - name: STEPS_IMAGE
+      value: $(params.STEPS_IMAGE)
     script: |
       #!/bin/env bash
       set -o errexit
@@ -100,9 +102,9 @@ spec:
         fi
       done
 
-      if [[ -n "$(params.STEPS_IMAGE)" ]]; then
+      if [[ -n "${STEPS_IMAGE}" ]]; then
         for f in "${FILES[@]}"; do
-          yq e '(.spec.steps[] | select(has("image")).image) = "$(params.STEPS_IMAGE)"' -i $f
+          yq e '(.spec.steps[] | select(has("image")).image) = "env(STEPS_IMAGE)"' -i $f
         done
       fi
 
