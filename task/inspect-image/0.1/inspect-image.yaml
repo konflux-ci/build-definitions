@@ -86,12 +86,36 @@ spec:
       echo "Image ${IMAGE_URL} metadata:"
       cat "$IMAGE_INSPECT"
 
-      for run in $(seq 1 $max_run); do
+      run=1
+      while [ "$run" -le "$max_run" ]; do
         status=0
         [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
         echo "Inspecting raw image manifest ${IMAGE_URL} (try $run/$max_run)."
-        skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT && break || status=$?
+        skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT || status=$?
+
+        if [ "$status" -eq 0 ] && [ "$(jq 'has("manifests")' ${RAW_IMAGE_INSPECT})" = "true" ]; then
+            echo "Found an index image, lookup for amd64 manifest"
+            INDEX_IMAGE_MANIFESTS=$(jq ' .manifests | map ( {(.platform.architecture|tostring|ascii_downcase):  .digest} ) | add'  "${RAW_IMAGE_INSPECT}" || true)
+
+            AMD64_MANIFEST_DIGEST=$(jq -r '.amd64' <<< "${INDEX_IMAGE_MANIFESTS}" || true )
+            if [ -z "$AMD64_MANIFEST_DIGEST" ]; then
+              # we didn't find amd64 platform, fail horribly as it's the required platform currently for all checks
+              echo "[ERROR] Could not find amd64 image manifest for image $IMAGE_URL"
+              note="Task $(context.task.name) failed: Couldn't find amd64 image manifest"
+              TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+              echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+              exit 0
+            fi
+
+            # Replace image URL with new digest
+            IMAGE_URL="${IMAGE_URL/[@:]*/@$AMD64_MANIFEST_DIGEST}"
+            echo "Setting AMD64 specific image: $IMAGE_URL"
+            run=1  # reset runs, we are looking another image; new image, new life
+        else
+            break
+        fi
       done
+
       if [ "$status" -ne 0 ]; then
           echo "Failed to get raw metadata of image ${IMAGE_URL}"
           note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
@@ -99,6 +123,7 @@ spec:
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
       fi
+
       echo "Image ${IMAGE_URL} raw metadata:"
       cat "$RAW_IMAGE_INSPECT" | jq  # jq for readable formatting
 
