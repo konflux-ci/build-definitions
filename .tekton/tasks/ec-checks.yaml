@@ -25,34 +25,30 @@ spec:
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)/source"
     image: quay.io/enterprise-contract/ec-cli:snapshot
-    command: [ec]
-    args:
-      - validate
-      - definition
-      - "--file"
-      - "./all_tasks-ec"
-      - "--policy"
-      - "git::https://github.com/enterprise-contract/ec-policies//policy/task"
-      - "--policy"
-      - "git::https://github.com/enterprise-contract/ec-policies//policy/lib"
-      - "--data"
-      - "git::https://github.com/release-engineering/rhtap-ec-policy//data"
-      - "--strict"
+    script: |
+      set -euo pipefail
+
+      # Generate list of file parameters, e.g. --file foo.yaml --file bar.yaml
+      files=(all_tasks-ec/*.yaml)
+      args=${files[*]/#/--file }
+      echo "[DEBUG] Files parameter: ${args[*]}"
+
+      policy='enterprise-contract-service/redhat-trusted-tasks'
+
+      ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)/source"
     image: quay.io/enterprise-contract/ec-cli:snapshot
-    command: [ec]
-    args:
-      - validate
-      - definition
-      - "--file"
-      - "./build_tasks-ec"
-      - "--policy"
-      - "git::https://github.com/enterprise-contract/ec-policies//policy/build_task"
-      - "--policy"
-      - "git::https://github.com/enterprise-contract/ec-policies//policy/lib"
-      - "--data"
-      - "git::https://github.com/release-engineering/rhtap-ec-policy//data"
-      - "--strict"
+    script: |
+      set -euo pipefail
+
+      # Generate list of file parameters, e.g. --file foo.yaml --file bar.yaml
+      files=(build_tasks-ec/*.yaml)
+      args=${files[*]/#/--file }
+      echo "[DEBUG] Files parameter: ${args[*]}"
+
+      policy='./policies/build-tasks.yaml'
+
+      ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   workspaces:
     - name: source

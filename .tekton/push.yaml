@@ -36,6 +36,14 @@ spec:
         workspaces:
           - name: output
             workspace: workspace
+      - name: ec-task-checks
+        runAfter:
+          - clone-repository
+        taskRef:
+          name: ec-checks
+        workspaces:
+          - name: source
+            workspace: workspace
       - name: build-container
         params:
           - name: IMAGE
