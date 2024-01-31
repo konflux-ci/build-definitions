@@ -19,7 +19,30 @@ Describe "tkn-bundle task"
       curl https://i.jpillora.com/kubernetes-sigs/kind | bash
       mv kind "$HOME/.local/bin"
     fi
-    kind get clusters -q | grep -q "${CLUSTER_NAME}" || kind create cluster -q --name="${CLUSTER_NAME}" || { echo 'ERROR: Unable to create a kind cluster'; return 1; }
+    kind get clusters -q | grep -q "${CLUSTER_NAME}" || {
+      cat <<EOF | kind create cluster -q --name="${CLUSTER_NAME}" --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        "service-node-port-range": "1-65535"
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 5000
+    hostPort: 5000
+    listenAddress: 127.0.0.1
+    protocol: TCP
+EOF
+} || { echo 'ERROR: Unable to create a kind cluster'; return 1; }
     kubectl cluster-info 2>&1 || { echo 'ERROR: Failed to access the cluster'; return 1; }
 
     # Install Tekton Pipeline, proceed with the rest of the test of the setup
@@ -90,7 +113,7 @@ spec:
 
     # Deploy an image registry and expose it via a Service
     kubectl create deployment registry --image=docker.io/registry:2.8.1 --port=5000 --dry-run=client -o yaml | kubectl apply -f -
-    kubectl create service clusterip registry --tcp=5000:5000 --dry-run=client -o yaml | kubectl apply -f -
+    kubectl create service nodeport registry --tcp=5000:5000 --dry-run=client -o yaml | kubectl patch -f - --type json --dry-run=client -o yaml -p '[{"op": "add", "path": "/spec/ports/0/nodePort", "value":5000}]' | kubectl apply -f -
     kubectl wait deployment registry --for=condition=Available --timeout=3m
 
     # Finally wait for Tekton Pipeline to be available
@@ -162,5 +185,23 @@ spec:
     The taskrun should jq '.status.results[] | select(.name=="IMAGE_DIGEST").value | test("\\Asha256:[a-z0-9]+\\z")'
     The taskrun should jq '.status.results[] | select(.name=="IMAGE_URL").value | test("\\Aregistry:5000/bundle:summer-home\\z")'
     The taskrun should jq '.status.taskSpec.stepTemplate.env[] | select(.name == "HOME").value | test("\\A/tekton/summer-home\\z")'
+  End
+
+  It 'allows overriding the bundle step image'
+    build_and_inspect() {
+      tkn task start tkn-bundle -p IMAGE=registry:5000/bundle:replaced-image -p STEPS_IMAGE=registry.io/repository/replaced:latest --use-param-defaults --timeout 1m --showlog -w name=source,claimName=source-pvc
+      tkn bundle list -o=go-template --template '{{range .spec.steps}}{{printf "%s\n" .image}}{{end}}' localhost:5000/bundle:replaced-image
+    }
+
+    When call build_and_inspect
+    The output should include 'Added Task: test1 to image'
+    The output should include 'Added Task: test2 to image'
+    The output should include 'Added Task: test3 to image'
+    The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
+    The output should include 'registry.io/repository/replaced:latest
+registry.io/repository/replaced:latest
+registry.io/repository/replaced:latest'
+    The output should not include 'ubuntu'
+    The stderr should include "*Warning*: This is an experimental command, it's usage and behavior can change in the next release(s)"
   End
 End
