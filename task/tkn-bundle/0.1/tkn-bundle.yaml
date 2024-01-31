@@ -39,7 +39,7 @@ spec:
     - name: TASK_FILE
       value: tekton_task_files
   steps:
-  - image: registry.access.redhat.com/ubi9/toolbox@sha256:7391628396216c011ed3a310f1fa54c6a9221e36f7fa59c94ae7796de51e7a25
+  - image: quay.io/redhat-appstudio/hacbs-test:latest@sha256:866675ee3064cf4768691ecca478063ce12f0556fb9d4f24ca95c98664ffbd43
     name: modify-task-files
     env:
     - name: CONTEXT
@@ -104,7 +104,7 @@ spec:
 
       if [[ -n "${STEPS_IMAGE}" ]]; then
         for f in "${FILES[@]}"; do
-          yq e '(.spec.steps[] | select(has("image")).image) = "env(STEPS_IMAGE)"' -i $f
+          yq --in-place --yml-output '(.spec.steps[] | select(has("image")).image) = env.STEPS_IMAGE' "$f"
         done
       fi
 
