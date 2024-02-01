@@ -134,10 +134,17 @@ spec:
                 #!/usr/bin/env bash
                 set -euo pipefail
 
+                # Quick fix for timeout causing the acceptable bundles push to
+                # fail, see https://issues.redhat.com/browse/EC-351
+                # and https://issues.redhat.com/browse/EC-236
+                #BUNDLES=(
+                #  $(workspaces.artifacts.path)/source/task-bundle-list
+                #  $(workspaces.artifacts.path)/source/pipeline-bundle-list
+                #)
                 BUNDLES=(
                   $(workspaces.artifacts.path)/source/task-bundle-list
-                  $(workspaces.artifacts.path)/source/pipeline-bundle-list
                 )
+
                 touch ${BUNDLES[@]}
                 echo "Bundles to be added:"
                 cat ${BUNDLES[@]}
