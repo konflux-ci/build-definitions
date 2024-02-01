@@ -86,18 +86,16 @@ spec:
         - name: basic-auth
           workspace: git-auth
     - name: prefetch-dependencies
-      when:
-      - input: $(params.hermetic)
-        operator: in
-        values: ["true"]
       params:
         - name: input
           value: $(params.prefetch-input)
+        - name: hermetic
+          value: $(params.hermetic)
       runAfter:
         - clone-repository
       taskRef:
         name: prefetch-dependencies
-        version: "0.1"
+        version: "0.2"
       workspaces:
         - name: source
           workspace: workspace
