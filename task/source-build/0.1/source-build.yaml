@@ -74,12 +74,21 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
+        # buildah task output tag from pulled images directly even if
+        # latest is specified or tag is not specified in FROM instruction.
+        parent_images=$(
+          echo "$BASE_IMAGES" | \
+            sed \
+              -e "s/^\(.\+\):latest\(@sha256:[0-9a-f]\+\)$/\1\2/" \
+              -e "s/^\(.\+\):<none>\(@sha256:[0-9a-f]\+\)$/\1\2/"
+        )
+
         app_dir=/opt/source_build
         ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py \
           --output-binary-image "$BINARY_IMAGE" \
           --workspace /var/source-build \
           --source-dir "$SOURCE_DIR" \
-          --base-images "$BASE_IMAGES" \
+          --base-images "$parent_images" \
           --write-result-to "$RESULT_FILE" \
           --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR"
 
