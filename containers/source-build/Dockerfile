@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi:9.3-1361.1699548029
+FROM registry.access.redhat.com/ubi9/ubi:9.3-1552
 ARG bsi_source=https://github.com/containers/BuildSourceImage/archive/refs/tags/v0.2.0.tar.gz
 ARG bin_dir=/opt/BuildSourceImage
 ARG patch0=0001-cleanup-directory-with-all-rpms-which-isn-t-used-any.patch
