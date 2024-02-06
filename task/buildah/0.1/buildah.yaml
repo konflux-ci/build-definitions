@@ -155,8 +155,10 @@ spec:
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
+      BUILDAH_ARGS=()
+
       if [ "${HERMETIC}" == "true" ]; then
-        BUILDAH_ARGS="--pull=never"
+        BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
         for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
           if [ "${image}" != "scratch" ]; then
@@ -197,7 +199,7 @@ spec:
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
-        $BUILDAH_ARGS \
+        ${BUILDAH_ARGS[@]} \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
