@@ -111,6 +111,44 @@ spec:
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
   steps:
+  - name: remove-labels-from-parent-image
+    image: quay.io/redhat-appstudio/hacbs-test:v1.2.0@sha256:73ff1801ceb0bb4c09f182f73d721e8f4aca31644c35e1f75c91550009ee5cf8
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add:
+          - SETFCAP
+    workingDir: $(workspaces.unset_labels_options.path)
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ $http_code != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      UNSET_LABELS_OPTIONS_FILE="$(workspaces.unset_labels_options.path)/unset_labels_options"
+      LAST_PARENT=$(grep -i '^\s*FROM' "$dockerfile_path" | tail -n 1 | sed 's/--platform=\S*//' | awk '{print $2}')
+      if [ "${LAST_PARENT}" != "scratch" ]; then
+        for I in $(skopeo inspect --no-tags docker://"${LAST_PARENT}" |jq -e ".Labels"|grep ':'|sed -e "s/^\s*\"\([^:]*\)\":.*$/\1/"); do
+          echo -n " --unsetlabel \"$I\"" >> $UNSET_LABELS_OPTIONS_FILE
+        done
+      fi
+
   - image: $(params.BUILDER_IMAGE)
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent; our default param above specifies a digest
@@ -176,6 +214,12 @@ spec:
 
       if [ -n "${TARGET_STAGE}" ]; then
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+      fi
+
+      UNSET_LABELS_OPTIONS_FILE="$(workspaces.unset_labels_options.path)/unset_labels_options"
+      if [ -f "${UNSET_LABELS_OPTIONS_FILE}" ]; then
+        UNSET_LABELS_OPTIONS=$(cat "${UNSET_LABELS_OPTIONS_FILE}")
+        BUILDAH_ARGS+=("${UNSET_LABELS_OPTIONS}")
       fi
 
       if [ -n "${PREFETCH_INPUT}" ]; then
@@ -404,3 +448,5 @@ spec:
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
+  - name: unset_labels_options
+    description: Workspace containing file with unset label options.
