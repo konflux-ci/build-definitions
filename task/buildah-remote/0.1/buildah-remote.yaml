@@ -69,6 +69,11 @@ spec:
     description: Target path on the container in which yum repository files should
       be made available
     name: YUM_REPOS_D_TARGET
+  - default: ""
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile
+      is processed entirely to (and including) its last stage.
+    name: TARGET_STAGE
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -112,6 +117,8 @@ spec:
       value: $(params.YUM_REPOS_D_FETCHED)
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
+    - name: TARGET_STAGE
+      value: $(params.TARGET_STAGE)
     - name: BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
   steps:
@@ -197,8 +204,10 @@ spec:
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
+      BUILDAH_ARGS=()
+
       if [ "${HERMETIC}" == "true" ]; then
-        BUILDAH_ARGS="--pull=never"
+        BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
         for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
           if [ "${image}" != "scratch" ]; then
@@ -206,6 +215,10 @@ spec:
           fi
         done
         echo "Build will be executed with network isolation"
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
       fi
 
       if [ -n "${PREFETCH_INPUT}" ]; then
@@ -239,7 +252,7 @@ spec:
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
-        $BUILDAH_ARGS \
+        ${BUILDAH_ARGS[@]} \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
@@ -274,6 +287,7 @@ spec:
        -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
        -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
        -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
+       -e TARGET_STAGE="$TARGET_STAGE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \

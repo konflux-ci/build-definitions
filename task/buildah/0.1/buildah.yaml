@@ -66,6 +66,10 @@ spec:
   - name: YUM_REPOS_D_TARGET
     description: Target path on the container in which yum repository files should be made available
     default: /etc/yum.repos.d
+  - name: TARGET_STAGE
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
+    type: string
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -104,6 +108,8 @@ spec:
       value: $(params.YUM_REPOS_D_FETCHED)
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
+    - name: TARGET_STAGE
+      value: $(params.TARGET_STAGE)
   steps:
   - image: $(params.BUILDER_IMAGE)
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -155,8 +161,10 @@ spec:
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
+      BUILDAH_ARGS=()
+
       if [ "${HERMETIC}" == "true" ]; then
-        BUILDAH_ARGS="--pull=never"
+        BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
         for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
           if [ "${image}" != "scratch" ]; then
@@ -164,6 +172,10 @@ spec:
           fi
         done
         echo "Build will be executed with network isolation"
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
       fi
 
       if [ -n "${PREFETCH_INPUT}" ]; then
@@ -197,7 +209,7 @@ spec:
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
-        $BUILDAH_ARGS \
+        ${BUILDAH_ARGS[@]} \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
