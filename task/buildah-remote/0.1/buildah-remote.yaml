@@ -19,8 +19,8 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
-    description: The location of the buildah builder image.
+  - default: ""
+    description: Deprecated. Has no effect. Will be removed in the future.
     name: BUILDER_IMAGE
     type: string
   - default: ./Dockerfile
@@ -120,7 +120,7 @@ spec:
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
     - name: BUILDER_IMAGE
-      value: $(params.BUILDER_IMAGE)
+      value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
   steps:
   - computeResources:
       limits:
@@ -169,6 +169,10 @@ spec:
       set -o verbose
       set -e
       cd $(workspaces.source.path)
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -406,9 +410,13 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: $(params.BUILDER_IMAGE)
+    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     name: inject-sbom-and-push
     script: |
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
