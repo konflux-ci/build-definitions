@@ -18,11 +18,8 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
-    description: The location of the buildah builder image.
+  - default: ""
+    description: Deprecated. Has no effect. Will be removed in the future.
     name: BUILDER_IMAGE
     type: string
   - default: ./Dockerfile
@@ -111,10 +108,7 @@ spec:
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
   steps:
-  - image: $(params.BUILDER_IMAGE)
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent; our default param above specifies a digest
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+  - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     name: build
     computeResources:
       limits:
@@ -126,6 +120,10 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     script: |
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -343,9 +341,13 @@ spec:
       runAsUser: 0
 
   - name: inject-sbom-and-push
-    image: $(params.BUILDER_IMAGE)
+    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     computeResources: {}
     script: |
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)

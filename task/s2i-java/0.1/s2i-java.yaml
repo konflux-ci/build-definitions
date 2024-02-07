@@ -31,11 +31,8 @@ spec:
   - description: Location of the repo where image has to be pushed
     name: IMAGE
     type: string
-  - default: registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
-    description: The location of the buildah builder image.
+  - default: ""
+    description: Deprecated. Has no effect. Will be removed in the future.
     name: BUILDER_IMAGE
     type: string
   - default: ""
@@ -107,6 +104,10 @@ spec:
     - mountPath: /gen-source
       name: gen-source
   - script: |
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
 
@@ -125,7 +126,7 @@ spec:
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
-    image: $(params.BUILDER_IMAGE)
+    image: registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af
     name: build
     env:
     - name: COMMIT_SHA
@@ -221,11 +222,15 @@ spec:
     securityContext:
       runAsUser: 0
 
-  - image: $(params.BUILDER_IMAGE)
+  - image: registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af
     # default above is image digest specific
     name: inject-sbom-and-push
     computeResources: {}
     script: |
+      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
       # Expose base image digests
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
 
