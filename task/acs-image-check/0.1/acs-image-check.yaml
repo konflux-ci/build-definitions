@@ -1,0 +1,140 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: acs-image-check
+spec:
+  description: Policy check an image with StackRox/RHACS This tasks allows you to
+    check an image against build-time policies and apply enforcement to fail builds.
+    It's a companion to the stackrox-image-scan task, which returns full vulnerability
+    scan results for an image.
+  params:
+  - name: rox-central-endpoint
+    type: string
+    default: rox.stackrox.io:443
+    description: |
+      The address:port tuple for StackRox Central.
+      For example: rox.stackrox.io:443
+  - name: rox-api-token-secret-name
+    type: string
+    description: |
+      Secret containing the StackRox API token with CI permissions under rox-api-token key
+  - name: image
+    type: string
+    description: |
+      Full name of image to scan (example -- gcr.io/rox/sample:5.0-rc1)
+  - name: insecure-skip-tls-verify
+    type: string
+    default: "false"
+    description: |
+      When set to `"true"`, skip verifying the TLS certs of the Central
+      endpoint.  Defaults to `"false"`.
+  - name: image-digest
+    type: string
+    description: |
+      Digest of the image
+  results:
+    - name: SCAN_OUTPUT
+      description: Summary of the roxctl scan
+    - name: TEST_OUTPUT
+      description: Result of the `roxctl image check` check
+  volumes:
+    - name: rox-secret
+      secret:
+        secretName: $(params.rox-api-token-secret-name)
+        optional: true
+  steps:
+  - name: rox-image-check
+    image: registry.access.redhat.com/ubi8-minimal@sha256:d8b81a38b5ad9694742ea03159d3217cd2dde3997b1ee53bbb53c33dd67be7b7
+    volumeMounts:
+      - name: rox-secret
+        mountPath: /rox-secret
+    script: |
+      #!/usr/bin/env bash
+      set +x
+
+      function set_test_output_result() {
+        local date=$(date +%s)
+        local result=${1:-ERROR}
+        local note=$2
+        local successes=${3:-0}
+        local failures=${4:-0}
+        local warnings=${5:-0}
+        echo "{\"result\":\"${result}\",\"timestamp\":\"${date}\",\"note\":\"${note}\",\"namespace\":\"default\",\"successes\":\"${successes}\",\"failures\":\"${failures}\",\"warnings\":\"${warnings}\"}" \
+          | tee $(results.TEST_OUTPUT.path)
+      }
+
+      # Check if rox API enpoint is configured
+      if [ "$(params.rox-central-endpoint)" = 'rox.stackrox.io:443' ]; then
+        echo "rox API endpoint is not set, demo will exit with success"
+        echo "TODO: configure the pipeline with your ACS server domain"
+        set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API enpoint not specified"
+        exit 0
+      fi
+
+      # Check if rox API token is configured
+      if test -f /rox-secret/rox-api-token ; then
+        export ROX_API_TOKEN=$(</rox-secret/rox-api-token)
+      else
+        echo "rox API token is not set, demo will exit with success"
+        echo "TODO: configure the pipeline to have access to ROXCTL"
+        set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API token not provided"
+        exit 0
+      fi
+
+      echo "Using rox central endpoint $(params.rox-central-endpoint)"
+
+      echo "Download roxctl cli"
+      if [ "$(params.insecure-skip-tls-verify)" = "true" ]; then
+        curl_insecure='--insecure'
+      fi
+      curl $curl_insecure -s -L -H "Authorization: Bearer $ROX_API_TOKEN" \
+        "https://$(params.rox-central-endpoint)/api/cli/download/roxctl-linux" \
+        --output ./roxctl \
+        > /dev/null
+      if [ $? -ne 0 ]; then
+        note='Failed to download roxctl'
+        echo $note
+        set_test_output_result ERROR "$note"
+        exit 1
+      fi
+      received_filesize=$(stat -c%s ./roxctl)
+      if (( $received_filesize < 10000 )); then
+        # Responce from ACS server is not a binary but error message
+        cat ./roxctl
+        note='Failed to download roxctl'
+        set_test_output_result ERROR "$note"
+        exit 2
+      fi
+      chmod +x ./roxctl  > /dev/null
+
+      echo "roxctl image check"
+      IMAGE=$(params.image)@$(params.image-digest)
+      ./roxctl image check \
+        $( [ "$(params.insecure-skip-tls-verify)" = "true" ] && \
+        echo -n "--insecure-skip-tls-verify") \
+        -e "$(params.rox-central-endpoint)" --image "$IMAGE" --force \
+        > roxctl_image_check_output.txt
+      cat roxctl_image_check_output.txt
+
+      # Set SCAN_OUTPUT result
+      summary_line_pattern="^\(TOTAL: [0-9]+, LOW: [0-9]+, MEDIUM: [0-9]+, HIGH: [0-9]+, CRITICAL: [0-9]+\)$"
+      summary_line=$(grep -E "$summary_line_pattern" roxctl_image_check_output.txt)
+      if [[ -n "$summary_line" ]]; then
+        critical=$(echo $summary_line | grep -oP '(?<=CRITICAL: )\d+')
+        high=$(echo $summary_line | grep -oP '(?<=HIGH: )\d+')
+        medium=$(echo $summary_line | grep -oP '(?<=MEDIUM: )\d+')
+        low=$(echo $summary_line | grep -oP '(?<=LOW: )\d+')
+        echo "{\"vulnerabilities\":{\"critical\":${critical},\"high\":${high},\"medium\":${medium},\"low\":${low}}}" | tee $(results.SCAN_OUTPUT.path)
+      else
+        echo 'Failed to parse scan summary'
+        set_test_output_result ERROR "Task $(context.task.name) failed to parse scan summary"
+        exit 3
+      fi
+
+      # Set TEST_OUTPUT result
+      if [[ -n "$critical" && "$critical" -eq 0 && "$high" -eq 0 && "$medium" -eq 0 && "$low" -eq 0 ]]; then
+        note="Task $(context.task.name) completed. No vulnerabilities found."
+      else
+        note="Task $(context.task.name) completed: Refer to Tekton task result SCAN_OUTPUT for found vulnerabilities."
+      fi
+      set_test_output_result SUCCESS "$note"
