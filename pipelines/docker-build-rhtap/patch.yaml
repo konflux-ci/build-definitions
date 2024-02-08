@@ -1,7 +1,7 @@
 ---
 - op: replace
   path: /metadata/name
-  value: docker-build-dance
+  value: docker-build-rhtap
 - op: replace
   path: /metadata/labels
   value:
@@ -13,7 +13,7 @@
   value:
     name: stackrox-endpoint
     type: string
-    default: "central.rhacs-operator.svc.cluster.local:443"
+    default: "rox.stackrox.io:443"
 - op: add
   path: /spec/params/-
   value:
@@ -69,37 +69,34 @@
   value:
     name: acs-image-check
     params:
-    - name: rox_central_endpoint
+    - name: rox-central-endpoint
       value: $(params.stackrox-endpoint)
-    - name: rox_api_token
+    - name: rox-api-token-secret-name
       value: $(params.stackrox-secret)
     - name: image
       value: $(params.output-image)
     - name: insecure-skip-tls-verify
       value: "true"
-    - name: image_digest
+    - name: image-digest
       value: $(tasks.build-container.results.IMAGE_DIGEST)
     runAfter:
       - build-container
     taskRef:
       name: acs-image-check
-    workspaces:
-      - name: workspace
-        workspace: workspace
 - op: add
   path: /spec/tasks/-
   value:
     name: acs-image-scan
     params:
-    - name: rox_central_endpoint
+    - name: rox-central-endpoint
       value: $(params.stackrox-endpoint)
-    - name: rox_api_token
+    - name: rox-api-token-secret-name
       value: $(params.stackrox-secret)
     - name: image
       value: $(params.output-image)
     - name: insecure-skip-tls-verify
       value: "true"
-    - name: image_digest
+    - name: image-digest
       value: $(tasks.build-container.results.IMAGE_DIGEST)
     runAfter:
     - build-container
@@ -111,9 +108,9 @@
   value:
     name: acs-deploy-check
     params:
-    - name: rox_central_endpoint
+    - name: rox-central-endpoint
       value: $(params.stackrox-endpoint)
-    - name: rox_api_token
+    - name: rox-api-token-secret-name
       value: $(params.stackrox-secret)
     - name: insecure-skip-tls-verify
       value: "true"
