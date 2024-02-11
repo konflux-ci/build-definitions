@@ -5,10 +5,6 @@ metadata:
   name: verify-signed-rpms
 spec:
   params:
-    - name: IMAGE
-      type: string
-      description: The image to use for this task
-      default: ""
     - name: INPUT
       type: string
       description: "AppStudio snapshot or a reference to a container image"
@@ -30,7 +26,7 @@ spec:
       emptyDir: {}
   steps:
     - name: verify-signed-rpms
-      image: "$(params.IMAGE)"
+      image: quay.io/redhat-user-workloads/rhtap-o11y-tenant/tools/tools:b95417fbab81a012881b79fee82f187074248b84
       volumeMounts:
         - name: workdir
           mountPath: "$(params.WORKDIR)"
@@ -52,7 +48,7 @@ spec:
           --workdir "${WORKDIR}" \
           --status-path "${WORKDIR}"/status
     - name: output-results
-      image: quay.io/redhat-appstudio/hacbs-test:v1.2.0@sha256:73ff1801ceb0bb4c09f182f73d721e8f4aca31644c35e1f75c91550009ee5cf8
+      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
       volumeMounts:
         - name: workdir
           mountPath: "$(params.WORKDIR)"
@@ -64,7 +60,12 @@ spec:
         set -ex
 
         source /utils.sh
-        note="Task $(context.task.name) completed: Refer to Tekton task output for unsigned rpms"
         status=`cat "${WORKDIR}"/status`
+        if [ "$status" == "ERROR" ]; then
+          note="Task $(context.task.name) completed: Not all RPMs were confirmed to be signed. Refer to Tekton task output for details"
+        else
+          note="Task $(context.task.name) completed: No unsigned RPMs"
+        fi
+
         TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
         echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
