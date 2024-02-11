@@ -5,9 +5,6 @@ metadata:
   name: generate-odcs-compose
 spec:
   params:
-    - name: IMAGE
-      type: string
-      description: The image to use for this task
     - name: KT_PATH
       type: string
       description: path to mount keytab
@@ -37,7 +34,7 @@ spec:
       description: Directory to write the result .repo files.
   steps:
     - name: generate-odcs-compose
-      image: "$(params.IMAGE)"
+      image: quay.io/redhat-user-workloads/rhtap-o11y-tenant/tools/tools:b95417fbab81a012881b79fee82f187074248b84
       env:
         - name: KRB5CCNAME
           value: "$(params.KRB_CACHE_PATH)/krb5ccname"
