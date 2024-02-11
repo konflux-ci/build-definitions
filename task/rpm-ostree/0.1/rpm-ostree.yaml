@@ -129,7 +129,7 @@ spec:
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" podman run --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared --privileged -e CONTEXT="$CONTEXT" -e IMAGE_FILE="$IMAGE_FILE" -e CONFIG_FILE="$CONFIG_FILE" -e IMAGE="$IMAGE" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0  "$BUILDER_IMAGE" /script/script-build.sh
+      ssh $SSH_ARGS "$SSH_HOST" podman run --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared --privileged -e CONTEXT="$CONTEXT" -e IMAGE_FILE="$IMAGE_FILE" -e CONFIG_FILE="$CONFIG_FILE" -e IMAGE="$IMAGE" -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" -e COMMIT_SHA="$COMMIT_SHA"  --rm  -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z"  -v $BUILD_DIR/scripts:/script:Z --user=0 --entrypoint bash "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
       cp -r rhtap-final-image /var/lib/containers/rhtap-final-image
       buildah pull oci:rhtap-final-image
