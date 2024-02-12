@@ -121,12 +121,16 @@ spec:
         - build-container
       taskRef:
         name: source-build
-        version: "0.1"
+        version: "0.2"
       params:
         - name: BINARY_IMAGE
           value: "$(params.output-image)"
         - name: BASE_IMAGES
           value: "$(tasks.build-container.results.BASE_IMAGES_DIGESTS)"
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+        - name: CACHI2_ARTIFACT
+          value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       workspaces:
         - name: workspace
           workspace: workspace
