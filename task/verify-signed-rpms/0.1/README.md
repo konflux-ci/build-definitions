@@ -13,15 +13,15 @@ failing (the latter is useful when running inside a build pipeline which tests t
 |-----------------|-------------------------------------------------------------------|
 | IMAGE           | Image used for running the tasks's script                         |
 | INPUT           | AppStudio snapshot or a reference to a container image            |
-| FAIL_UNSIGNED   | [true \| false] If true fail if unsigned RPMs were found           |
+| FAIL_UNSIGNED   | [true \| false] If true fail if unsigned RPMs were found          |
 | WORKDIR         | directory for storing temporary files                             |
 
 
 ## Results:
 
 | name              | description                               |
-|-------------------|-------------------------------------------|
-| repodir_path      | Directory to write the resulting .repo files |
+|-------------------|--------------------------|
+| TEST_OUTPUT       | Tekton task test output. |
 
 ## Source repository for image:
 https://github.com/redhat-appstudio/tools
