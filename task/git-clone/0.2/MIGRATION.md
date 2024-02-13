@@ -29,7 +29,7 @@ params:
 
 steps:
   - name: use-trusted-artifact
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:96eb85645cc62e7041fbeb36fc71ed313a45c239903f52542bfed2ceeaf58e4a
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
     args:
       - use
       - --store
