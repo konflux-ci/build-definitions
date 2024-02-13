@@ -180,7 +180,10 @@ spec:
         - clone-repository
       taskRef:
         name: sast-snyk-check
-        version: "0.1"
+        version: "0.2"
+      params:
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
       workspaces:
       - name: workspace
         workspace: workspace
