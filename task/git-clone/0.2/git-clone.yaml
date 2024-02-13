@@ -191,6 +191,9 @@ spec:
         echo "Fetching tags"
         git fetch --tags
       fi
+    workspaces:
+      - name: ssh-directory
+      - name: basic-auth
 
   - name: symlink-check
     image: registry.redhat.io/ubi9:9.2-696@sha256:089bd3b82a78ac45c0eed231bb58bfb43bfcd0560d9bba240fc6355502c92976
@@ -232,6 +235,8 @@ spec:
       - --store
       - $(workspaces.output.path)
       - $(results.SOURCE_ARTIFACT.path)=/var/source
+    workspaces:
+      - name: output
   volumes:
   - name: source
     emptyDir: {}
