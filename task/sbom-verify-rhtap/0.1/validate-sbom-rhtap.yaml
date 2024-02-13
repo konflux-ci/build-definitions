@@ -1,0 +1,68 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: validate-sbom-check
+spec:
+  description: >-
+    Verifies the integrity and security of the Software Bill of Materials (SBOM) file in JSON format using CyloneDX tool.
+  params:
+    - description: Reference of the image buildah will produce.
+      name: IMAGE
+      type: string
+  results:
+    - name: validation-result
+      description: Detailed validation result or error message.
+  stepTemplate:
+    env:
+    - name: IMAGE
+      value: $(params.IMAGE)
+  steps:
+  - name: download-sbom
+    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
+    args:
+      - download
+      - sbom
+      - $(params.IMAGE)
+      - --output-file
+      - /tmp/files/sbom-cyclonedx.json
+    volumeMounts:
+    - mountPath: /tmp/files
+      name: tmpfiles
+    workingDir: /tmp/files
+
+  - name: validate-sboms
+    image: quay.io/redhat-appstudio/test-image@sha256:a93cf4d0ce4ec82859a0836629dbc3fd3bf3589eb0cb7e64e8721740ec8d3773
+    script: |
+      set -e
+      if [ ! -f "/tmp/files/sbom-cyclonedx.json" ]; then
+        echo "Error: Cannot access /tmp/files/sbom-cyclonedx.json - No such file or directory exists." > $(results.validation-result.path)
+        exit 1
+      fi
+
+      result=$(echo -n $(sbom-utility validate --input-file /tmp/files/sbom-cyclonedx.json))
+      if [[ ! $result =~ "SBOM valid against JSON schema: `true`" ]]
+      then
+        echo "Failure: SBOM Validation Failed" > $(results.validation-result.path)
+        echo "$result"
+        exit 1
+      else
+        echo "$result"
+        echo "Success: SBOM Validation Succeeded > $(results.validation-result.path)
+      fi
+
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /tmp/files
+      name: tmpfiles
+
+  volumes:
+  - emptyDir: {}
+    name: varlibcontainers
+  - emptyDir: {}
+    name: tmpfiles
+  workspaces:
+  - name: source
+    description: Workspace containing the source code to build.
+
