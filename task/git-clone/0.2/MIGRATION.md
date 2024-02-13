@@ -1,19 +1,22 @@
 # Migration from 0.1 to 0.2
 
-- The parameter `deleteExisting` used by `git-clone` task was removed. As the
+- **NOTE:** The `output` workspace will not contain any source files, only the
+  trusted artifact containing the source files, to access the source files use
+  the trusted artifacts[^1]
+- The parameter `deleteExisting`,  used by `git-clone` task was removed. The
   source is no longer maintained in the workspace, all executions of the
   `git-clone` Task will be clean fetches.
-- The parameter `subdirectory` used by `git-clone` task was removed.
-- The `output` workspace will not contain any source files, only the trusted
-  artifact containing the source files, to access the source files use the
-  trusted artifacts[^1]
+- The parameters `subdirectory` used by `git-clone` task was removed. This
+  parameter had a purpose when source was maintained in the workspace allowing
+  for multiple `git-clone` Tasks to fetch to different directories.
+- The parameter `gitInitImage` used by `git-clone` task was removed.
 
 ## Action from users
 
 Update files in pull request created by RHTAP bot:
 - Search for the task named `git-clone`
-- Remove the `deleteExisting` and `subdirectory` parameters from the `params`
-  section
+- Remove the `deleteExisting`, `subdirectory` and `gitInitImage` parameters from
+  the `params` section
 
 Any Tasks that require the source code now need be provided with the trusted
 artifact URI from the result of the `git-clone` Task and include a step similar

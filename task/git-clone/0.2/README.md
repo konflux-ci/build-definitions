@@ -18,7 +18,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
 |verbose|Log the commands that are executed during `git-clone`'s operation.|true|false|
-|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
+|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden the gitInitImage param with an image containing custom user configuration. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.|true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
 
