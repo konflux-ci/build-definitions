@@ -21,18 +21,11 @@ spec:
       description: GitHub repository of the infra-deployments code
       default: redhat-appstudio/infra-deployments
     - name: GIT_IMAGE
-      description: Image reference containing the git command
-      default: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
-      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-      # the cluster will set imagePullPolicy to IfNotPresent
-      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+      description: Deprecated. Has no effect. Will be removed in the future.
+      default: ""
     - name: SCRIPT_IMAGE
-      description: Image reference for SCRIPT execution
-      # this image is built using https://github.com/redhat-appstudio/build-tasks-dockerfiles/blob/main/update-infra-deployments-task-scripts-image/Dockerfile
-      default: quay.io/redhat-appstudio/update-infra-deployments-task-script-image@sha256:2748f1a4f1af4e35214745aed4e56a9d06f6bdbd30572e7ade13729e67f23cc9
-      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-      # the cluster will set imagePullPolicy to IfNotPresent
-      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+      description: Deprecated. Has no effect. Will be removed in the future.
+      default: ""
     - name: shared-secret
       default: infra-deployments-pr-creator
       description: secret in the namespace which contains private key for the GitHub App
@@ -52,7 +45,7 @@ spec:
 
   steps:
     - name: git-clone-infra-deployments
-      image: $(params.GIT_IMAGE)
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
       volumeMounts:
         - name: shared-dir
           mountPath: /shared
@@ -63,11 +56,15 @@ spec:
         - name: ORIGIN_REPO
           value: $(params.ORIGIN_REPO)
       script: |
+        if [ -n "$(params.GIT_IMAGE)" ]; then
+          echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
+        fi
+
         REPO_NAME=$(echo $ORIGIN_REPO | cut -f5 -d/)
 
         git clone "https://github.com/${TARGET_GH_REPO}.git" cloned
     - name: run-update-script
-      image: $(params.SCRIPT_IMAGE)
+      image: quay.io/redhat-appstudio/update-infra-deployments-task-script-image@sha256:2748f1a4f1af4e35214745aed4e56a9d06f6bdbd30572e7ade13729e67f23cc9
       volumeMounts:
         - name: shared-dir
           mountPath: /shared
@@ -76,15 +73,23 @@ spec:
         - name: SCRIPT
           value: $(params.SCRIPT)
       script: |
+        if [ -n "$(params.SCRIPT_IMAGE)" ]; then
+          echo "WARNING: provided deprecated SCRIPT_IMAGE parameter has no effect."
+        fi
+
         cd cloned
         echo "$SCRIPT" | sh
     - name: get-diff-files
-      image: $(params.GIT_IMAGE)
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
       volumeMounts:
         - name: shared-dir
           mountPath: /shared
       workingDir: /shared
       script: |
+        if [ -n "$(params.GIT_IMAGE)" ]; then
+          echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
+        fi
+
         cd cloned
         git status -s --porcelain | cut -c4- > ../updated_files.txt
         # Check if ../updated_files.txt is empty or not
