@@ -91,8 +91,8 @@ spec:
           value: $(params.prefetch-input)
         - name: hermetic
           value: $(params.hermetic)
-      runAfter:
-        - clone-repository
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
       taskRef:
         name: prefetch-dependencies
         version: "0.2"

@@ -17,8 +17,29 @@ spec:
   - description: Execute the build with network isolation.
     name: hermetic
     default: false
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The source trusted artifact URI
+  results:
+  - name: SOURCE_ARTIFACT
+    type: string
+    description: The produced source trusted artifact URI
+  - name: CACHI2_ARTIFACT
+    type: string
+    description: The produced prefetched dependencies trusted artifact URI
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
   steps:
-  - image: quay.io/redhat-appstudio/cachi2:0.4.0@sha256:001acfbad47e132a90998d45076a0dbe0d8beacf0bec12b4d9a5aa796f4a9cad
+  - name: use-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:96eb85645cc62e7041fbeb36fc71ed313a45c239903f52542bfed2ceeaf58e4a
+    args:
+      - use
+      - --store
+      - $(workspaces.source.path)
+      - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+  - image: quay.io/redhat-appstudio/cachi2:0.5.0@sha256:d4707478075bc1e746dacc640138b60f776e2d8f9d5b7f2433340decfa32611b
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -41,17 +62,28 @@ spec:
       fi
 
       cachi2 fetch-deps \
-      --source=$(workspaces.source.path)/source \
-      --output=$(workspaces.source.path)/cachi2/output \
+      --source=/var/workdir/source \
+      --output=/var/workdir/cachi2/output \
       "${INPUT}"
 
-      cachi2 generate-env $(workspaces.source.path)/cachi2/output \
+      cachi2 generate-env /var/workdir/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
-      --output $(workspaces.source.path)/cachi2/cachi2.env
+      --output /var/workdir/cachi2/cachi2.env
 
-      cachi2 inject-files $(workspaces.source.path)/cachi2/output \
+      cachi2 inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
+  - name: create-trusted-artifact
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:96eb85645cc62e7041fbeb36fc71ed313a45c239903f52542bfed2ceeaf58e4a
+    args:
+      - create
+      - --store
+      - $(workspaces.source.path)
+      - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      - $(results.CACHI2_ARTIFACT.path)=/var/workdir/cachi2
+  volumes:
+  - name: workdir
+    emptyDir: {}
   workspaces:
   - name: source
-    description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well
+    description: Workspace with the trusted artifacts
