@@ -55,8 +55,10 @@ spec:
           value: "$(params.TARGET_GH_REPO)"
         - name: ORIGIN_REPO
           value: $(params.ORIGIN_REPO)
+        - name: GIT_IMAGE
+          value: $(params.GIT_IMAGE)
       script: |
-        if [ -n "$(params.GIT_IMAGE)" ]; then
+        if [ -n "${GIT_IMAGE}" ]; then
           echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
         fi
 
@@ -72,8 +74,10 @@ spec:
       env:
         - name: SCRIPT
           value: $(params.SCRIPT)
+        - name: SCRIPT_IMAGE
+          value: $(params.SCRIPT_IMAGE)
       script: |
-        if [ -n "$(params.SCRIPT_IMAGE)" ]; then
+        if [ -n "${SCRIPT_IMAGE}" ]; then
           echo "WARNING: provided deprecated SCRIPT_IMAGE parameter has no effect."
         fi
 
@@ -85,8 +89,11 @@ spec:
         - name: shared-dir
           mountPath: /shared
       workingDir: /shared
+      env:
+        - name: GIT_IMAGE
+          value: $(params.GIT_IMAGE)
       script: |
-        if [ -n "$(params.GIT_IMAGE)" ]; then
+        if [ -n "${GIT_IMAGE}" ]; then
           echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
         fi
 

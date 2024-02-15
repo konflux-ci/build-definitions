@@ -119,6 +119,8 @@ spec:
       value: $(params.YUM_REPOS_D_TARGET)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
+    - name: PARAM_BUILDER_IMAGE
+      value: $(params.BUILDER_IMAGE)
     - name: BUILDER_IMAGE
       value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
   steps:
@@ -169,7 +171,7 @@ spec:
       set -o verbose
       set -e
       cd $(workspaces.source.path)
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
@@ -292,6 +294,7 @@ spec:
        -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
        -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
        -e TARGET_STAGE="$TARGET_STAGE" \
+       -e PARAM_BUILDER_IMAGE="$PARAM_BUILDER_IMAGE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
@@ -413,7 +416,7 @@ spec:
     image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     name: inject-sbom-and-push
     script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
