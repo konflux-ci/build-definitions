@@ -48,6 +48,15 @@ spec:
     volumeMounts:
       - name: rox-secret
         mountPath: /rox-secret
+    env:
+      - name: PARAM_ROX_CENTRAL_ENDPOINT
+        value: $(params.rox-central-endpoint)
+      - name: PARAM_INSECURE_SKIP_TLS_VERIFY
+        value: $(params.insecure-skip-tls-verify)
+      - name: PARAM_IMAGE
+        value: $(params.image)
+      - name: PARAM_IMAGE_DIGEST
+        value: $(params.image-digest)
     script: |
       #!/usr/bin/env bash
       set +x
@@ -64,7 +73,7 @@ spec:
       }
 
       # Check if rox API enpoint is configured
-      if [ "$(params.rox-central-endpoint)" = 'rox.stackrox.io:443' ]; then
+      if [ "${PARAM_ROX_CENTRAL_ENDPOINT}" = 'rox.stackrox.io:443' ]; then
         echo "rox API endpoint is not set, demo will exit with success"
         echo "TODO: configure the pipeline with your ACS server domain"
         set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API enpoint not specified"
@@ -80,14 +89,14 @@ spec:
         exit 0
       fi
 
-      echo "Using rox central endpoint $(params.rox-central-endpoint)"
+      echo "Using rox central endpoint ${PARAM_ROX_CENTRAL_ENDPOINT}"
 
       echo "Download roxctl cli"
-      if [ "$(params.insecure-skip-tls-verify)" = "true" ] ; then
+      if [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] ; then
         curl_insecure='--insecure'
       fi
       curl $curl_insecure -s -L -H "Authorization: Bearer $ROX_API_TOKEN" \
-        "https://$(params.rox-central-endpoint)/api/cli/download/roxctl-linux" \
+        "https://${PARAM_ROX_CENTRAL_ENDPOINT}/api/cli/download/roxctl-linux" \
         --output ./roxctl  \
         > /dev/null
       if [ $? -ne 0 ]; then
@@ -100,11 +109,11 @@ spec:
 
       echo "roxctl image scan"
 
-      IMAGE=$(params.image)@$(params.image-digest)
+      IMAGE=${PARAM_IMAGE}@${PARAM_IMAGE_DIGEST}
       ./roxctl image scan \
-        $( [ "$(params.insecure-skip-tls-verify)" = "true" ] && \
+        $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
         echo -n "--insecure-skip-tls-verify") \
-        -e "$(params.rox-central-endpoint)" --image "$IMAGE" -o json --force \
+        -e "${PARAM_ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" -o json --force \
         > roxctl_image_scan_output.json
       cat roxctl_image_scan_output.json
 

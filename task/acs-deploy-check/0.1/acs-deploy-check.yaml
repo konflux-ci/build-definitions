@@ -49,6 +49,11 @@ spec:
         - name: rox-secret
           mountPath: /rox-secret
       workingDir: /workspace/repository
+      env:
+        - name: PARAM_ROX_CENTRAL_ENDPOINT
+          value: $(params.rox-central-endpoint)
+        - name: PARAM_INSECURE_SKIP_TLS_VERIFY
+          value: $(params.insecure-skip-tls-verify)
       script: |
         #!/usr/bin/env bash
         set +x
@@ -65,7 +70,7 @@ spec:
         }
 
         # Check if rox API enpoint is configured
-        if [ "$(params.rox-central-endpoint)" = 'rox.stackrox.io:443' ]; then
+        if [ "${PARAM_ROX_CENTRAL_ENDPOINT}" = 'rox.stackrox.io:443' ]; then
           echo "rox API endpoint is not set, demo will exit with success"
           echo "TODO: configure the pipeline with your ACS server domain"
           set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API enpoint not specified"
@@ -81,17 +86,17 @@ spec:
           exit 0
         fi
 
-        echo "Using rox central endpoint $(params.rox-central-endpoint)"
+        echo "Using rox central endpoint ${PARAM_ROX_CENTRAL_ENDPOINT}"
 
         echo "Configuration"
         echo "Directory = $(pwd)"
         ls -al
 
-        if [ "$(params.insecure-skip-tls-verify)" = "true" ] ; then
+        if [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] ; then
           curl_insecure='--insecure'
         fi
         curl $curl_insecure -s -L -H "Authorization: Bearer $ROX_API_TOKEN" \
-          "https://$(params.rox-central-endpoint)/api/cli/download/roxctl-linux" \
+          "https://${PARAM_ROX_CENTRAL_ENDPOINT}/api/cli/download/roxctl-linux" \
           --output ./roxctl  \
           > /dev/null
         if [ $? -ne 0 ]; then
@@ -107,9 +112,9 @@ spec:
           if [ -f $component/base/deployment.yaml ]; then
             echo "ROXCTL on $component/base/deployment.yaml"
             ./roxctl deployment check \
-              $( [ "$(params.insecure-skip-tls-verify)" = "true" ] && \
+              $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
               echo -n "--insecure-skip-tls-verify") \
-              -e "$(params.rox-central-endpoint)" --file "$component/base/deployment.yaml"
+              -e "${PARAM_ROX_CENTRAL_ENDPOINT}" --file "$component/base/deployment.yaml"
           fi
         done
 
