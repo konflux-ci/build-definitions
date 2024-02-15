@@ -11,26 +11,28 @@ artifact created by the prefetch-dependencies task version 0.2 or newer.
 
 Update files in Pull-Request created by RHTAP bot:
 - Search for the task named `build-source-image`
-- provide the `SOURCE_ARTIFACT` parameter with the value from the result of the
-  `git-clone` Task. For example:
+- if your pipeline includes a `prefetch-dependencies` task, as per default, add
+  the `SOURCE_ARTIFACT` and `CACHI2_ARTIFACT` from the results of the
+  `prefetch-dependencies` Task
 
 ```diff
- - name: build-source-image
-   params:
-+  - name: SOURCE_ARTIFACT
-+    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT) # clone-repository is the name of the git-clone Task in the Pipeline
-```
-
-- if maintaining a hermetic build add the `SOURCE_ARTIFACT` and
-  `CACHI2_ARTIFACT` from the results of the `prefetch-dependencies` Task
-
-```diff
- - name: build-source-image
+ - name: build-container
    params:
 +  - name: SOURCE_ARTIFACT
 +    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 +  - name: CACHI2_ARTIFACT
 +    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+```
+
+- if your pipeline doesn't include the `prefetch-dependencies` task, provide the
+  `SOURCE_ARTIFACT` parameter value from the result of the  `git-clone` Task.
+  For example:
+
+```diff
+ - name: build-container
+   params:
++  - name: SOURCE_ARTIFACT
++    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT) # clone-repository is the name of the git-clone Task in the Pipeline
 ```
 
 [^1]: https://github.com/redhat-appstudio/build-trusted-artifacts

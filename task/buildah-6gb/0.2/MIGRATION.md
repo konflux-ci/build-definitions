@@ -11,9 +11,9 @@ artifact created by the prefetch-dependencies task version 0.2 or newer.
 
 Update files in Pull-Request created by RHTAP bot:
 - Search for the task named `build-container`
-- if your pipeline includes a `prefetch-dependencies` task, as per default,
-  maintaining the hermetic build add the `SOURCE_ARTIFACT` and `CACHI2_ARTIFACT`
-  from the results of the `prefetch-dependencies` Task
+- if your pipeline includes a `prefetch-dependencies` task, as per default, add
+  the `SOURCE_ARTIFACT` and `CACHI2_ARTIFACT` from the results of the
+  `prefetch-dependencies` Task
 
 ```diff
  - name: build-container
