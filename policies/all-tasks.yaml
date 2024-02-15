@@ -1,0 +1,19 @@
+---
+# These policies are meant to be applied to all of the Tasks in this repo.
+sources:
+  - policy:
+      - oci::quay.io/enterprise-contract/ec-task-policy:latest
+    data:
+      - oci::quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles:latest
+      - github.com/release-engineering/rhtap-ec-policy//data
+    config:
+      include:
+        - kind
+        - step_image_registries
+      exclude:
+        # https://issues.redhat.com/browse/KFLUXBUGS-1111
+        - step_image_registries.step_images_permitted:generate-odcs-compose/noversion
+        # https://issues.redhat.com/browse/EC-425
+        - step_image_registries.step_images_permitted:tkn-bundle/0.1
+        # https://issues.redhat.com/browse/KFLUXBUGS-1110
+        - step_image_registries.step_images_permitted:verify-signed-rpms/noversion
