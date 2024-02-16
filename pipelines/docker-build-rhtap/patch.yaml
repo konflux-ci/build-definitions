@@ -119,3 +119,20 @@
     taskRef:
       kind: Task
       name: acs-deploy-check
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: update-deployment
+    params:
+      - name: gitops-repo-url
+        value: $(params.git-url)-gitops
+      - name: image
+        value: $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
+    runAfter:
+      - build-container
+    taskRef:
+      kind: Task
+      name: update-deployment
+    workspaces:
+      - name: basic-auth
+        workspace: git-auth

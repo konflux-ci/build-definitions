@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-deployment
+spec:
+  description: Task to update deployment with newly built image in gitops repository.
+  params:
+    - name: gitops-repo-url
+      type: string
+      description: URL of gitops repository to update with the newly built image
+    - name: image
+      type: string
+      description: reference of the newly built image to use
+  workspaces:
+    - name: basic-auth
+      optional: true
+  steps:
+  - name: patch-gitops
+    image: quay.io/redhat-appstudio/task-toolset@sha256:931a9f7886586391ccb38d33fd15a47eb03568f9b19512b0a57a56384fa52a3c
+    env:
+      - name: WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND
+        value: $(workspaces.basic-auth.bound)
+      - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
+        value: $(workspaces.basic-auth.path)
+    script: |
+      if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ] ; then
+        if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" ]; then
+          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" "${HOME}/.git-credentials"
+          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" "${HOME}/.gitconfig"
+        # Compatibility with kubernetes.io/basic-auth secrets
+        elif [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password" ]; then
+          HOSTNAME=$(echo $PARAM_URL | awk -F/ '{print $3}')
+          echo "https://$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username):$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password)@$HOSTNAME" > "${PARAM_USER_HOME}/.git-credentials"
+          echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" > "${PARAM_USER_HOME}/.gitconfig"
+        else
+          echo "Unknown basic-auth workspace format"
+          exit 1
+        fi
+        chmod 400 "${HOME}/.git-credentials"
+        chmod 400 "${HOME}/.gitconfig"
+      fi
+
+      # https://github.com/user-org/test-component-gitops => test-component
+      gitops_repo_name=$(basename $(params.gitops-repo-url))
+      component_id=${gitops_repo_name%'-gitops'}
+      deployment_patch_filepath="components/${component_id}/overlays/development/deployment-patch.yaml"
+
+      git config --global user.email "rhtap@noreplay.com"
+      git config --global user.name "gitops-update"
+
+      git clone $(params.gitops-repo-url)
+      cd ${gitops_repo_name}
+
+      sed -i 's| image: .*| image: $(params.image)|' $deployment_patch_filepath
+
+      git add .
+      git commit -m "Update '${component_id}' component image to: $(params.image)"
+      git push
