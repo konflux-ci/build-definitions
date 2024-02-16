@@ -75,6 +75,8 @@ spec:
       value: $(params.IMAGE)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: BUILDER_IMAGE
+      value: $(params.BUILDER_IMAGE)
   steps:
   - args:
     - |-
@@ -104,7 +106,7 @@ spec:
     - mountPath: /gen-source
       name: gen-source
   - script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
@@ -227,7 +229,7 @@ spec:
     name: inject-sbom-and-push
     computeResources: {}
     script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
