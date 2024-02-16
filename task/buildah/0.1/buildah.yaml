@@ -107,6 +107,8 @@ spec:
       value: $(params.YUM_REPOS_D_TARGET)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
+    - name: PARAM_BUILDER_IMAGE
+      value: $(params.BUILDER_IMAGE)
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     name: build
@@ -120,7 +122,7 @@ spec:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
@@ -344,7 +346,7 @@ spec:
     image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     computeResources: {}
     script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
