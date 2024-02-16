@@ -1,0 +1,67 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: update-deployment
+spec:
+  description: Task to update deployment with newly built image in gitops repository.
+  params:
+    - name: gitops-repo-url
+      type: string
+      description: URL of gitops repository to update with the newly built image.
+    - name: image
+      type: string
+      description: Reference of the newly built image to use.
+    - name: gitops-auth-secret-name
+      type: string
+      default: gitops-auth-secret
+      description: |
+        Secret of basic-auth type containing credentials to commit into gitops repository.
+  volumes:
+    - name: gitops-auth-secret
+      secret:
+        secretName: $(params.gitops-auth-secret-name)
+        optional: true
+  steps:
+  - name: patch-gitops
+    image: quay.io/redhat-appstudio/task-toolset@sha256:931a9f7886586391ccb38d33fd15a47eb03568f9b19512b0a57a56384fa52a3c
+    volumeMounts:
+      - name: gitops-auth-secret
+        mountPath: /gitops-auth-secret
+    script: |
+      if test -f /gitops-auth-secret/password ; then
+        gitops_repo_url=$(params.gitops-repo-url)
+        remote_without_protocol=${gitops_repo_url#'https://'}
+
+        password=$(cat /gitops-auth-secret/password)
+        if test -f /gitops-auth-secret/username ; then
+          username=$(cat /gitops-auth-secret/username)
+          echo "https://${username}:${password})@${hostname}" > "${HOME}/.git-credentials"
+          origin_with_auth=https://${username}:${password}@${remote_without_protocol}.git
+        else
+          origin_with_auth=https://${password}@${remote_without_protocol}.git
+        fi
+      else
+        echo "git credentials to push into gitops repository $(params.gitops-repo-url) is not configured."
+        echo "gitops repository is not updated automatically.
+        echo "You can update gitops repository with the new image: $(params.image) manually"
+        echo "TODO: configure git credentials to update gitops repository."
+        exit 0
+      fi
+
+      # https://github.com/user-org/test-component-gitops => test-component
+      gitops_repo_name=$(basename $(params.gitops-repo-url))
+      component_id=${gitops_repo_name%'-gitops'}
+      deployment_patch_filepath="components/${component_id}/overlays/development/deployment-patch.yaml"
+
+      git config --global user.email "rhtap@noreplay.com"
+      git config --global user.name "gitops-update"
+
+      git clone $(params.gitops-repo-url)
+      cd ${gitops_repo_name}
+
+      sed -i 's| image: .*| image: $(params.image)|' $deployment_patch_filepath
+
+      git add .
+      git commit -m "Update '${component_id}' component image to: $(params.image)"
+      git remote set-url origin $origin_with_auth
+      git push
