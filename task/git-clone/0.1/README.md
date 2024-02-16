@@ -18,7 +18,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
 |verbose|Log the commands that are executed during `git-clone`'s operation.|true|false|
-|gitInitImage|The image providing the git-init binary that this Task runs.|registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8|false|
+|gitInitImage|Deprecated. Has no effect. Will be removed in the future.|""|false|
 |userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden the gitInitImage param with an image containing custom user configuration. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.|true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
