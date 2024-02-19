@@ -30,7 +30,7 @@ There is an option to push all bundles to a single quay.io repository (this meth
 The pipelines can be found in the `pipelines` directory.
 
 - `core-services`: contains pipeline for the CI of Stonesoup core services e.g. application-service and build-service.
-- `template-build`: contains common template used to generate `docker-build`, `fbc-builder`, `java-builder` and `nodejs-builder` pipelines  
+- `template-build`: contains common template used to generate `docker-build`, `fbc-builder`, `java-builder` and `nodejs-builder` pipelines
 
 ### Tasks
 
@@ -58,3 +58,11 @@ Task version increase must be approved by Project Manager.
 Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. By setting the environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
 
 Script `./hack/test-build.sh` provides way to test on custom git repository and pipeline. Usage example: `./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
+
+### Compliance
+
+Task definitions must comply to [Enterprise Contract](https://enterprisecontract.dev/) policies.
+Currently, there are two policy configurations. The [all-tasks](./policies/all-tasks.yaml) policy
+configuration applies to all Task definitions, while the [build-tasks](./policies/build-tasks.yaml)
+policy configuration applies only to build Task definitions. A build Task, i.e. one that produces a
+container image, must abide to both policy configurations.
