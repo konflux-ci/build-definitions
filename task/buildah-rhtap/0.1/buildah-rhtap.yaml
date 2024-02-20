@@ -35,6 +35,8 @@ spec:
     name: IMAGE_URL
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
+  - description: Link to the SBOM layer pushed to the registry as part of an OCI artifact.
+    name: SBOM_BLOB_URL
   stepTemplate:
     env:
     - name: STORAGE_DRIVER
@@ -95,7 +97,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: generate-sboms
-    image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+    image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json@1.5=/tmp/files/sbom-source.json
       syft oci-dir:/tmp/files/image --output cyclonedx-json@1.5=/tmp/files/sbom-image.json
@@ -106,10 +108,15 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
+    image: registry.access.redhat.com/ubi8/python-311@sha256:8ded4b6d8087706b6819ddda5d31f22b80e5aa4efa772e94d750699ccfbf98eb
+    env:
+      - name: RESULT_PATH
+        value: $(results.SBOM_BLOB_URL.path)
     script: |
       #!/bin/python3
+      import hashlib
       import json
+      import os
 
       ### load SBOMs ###
 
@@ -144,6 +151,21 @@ spec:
 
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
+
+
+      ### write the SBOM blob URL result ###
+
+      with open("./sbom-cyclonedx.json", "rb") as f:
+        sbom_digest = hashlib.file_digest(f, "sha256").hexdigest()
+
+      image_name_parts = os.getenv("IMAGE").split(":")
+      # discard only the last part since the image can have a port number
+      # (i.e. registry:443/image/path:tag)
+      image_name_without_tag = ":".join(image_name_parts[0:-1])
+      sbom_blob_url = f"{image_name_without_tag}@sha256:{sbom_digest}"
+
+      with open(os.getenv("RESULT_PATH"), "w") as f:
+        f.write(sbom_blob_url)
     volumeMounts:
     - mountPath: /tmp/files
       name: tmpfiles
