@@ -74,6 +74,10 @@ spec:
       is processed entirely to (and including) its last stage.
     name: TARGET_STAGE
     type: string
+  - default: etc-pki-entitlement
+    description: Name of secret which contains the entitlement certificates
+    name: ENTITLEMENT_SECRET
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -121,6 +125,8 @@ spec:
       value: $(params.TARGET_STAGE)
     - name: PARAM_BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
     - name: BUILDER_IMAGE
       value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
   steps:
@@ -256,6 +262,13 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      ENTITLEMENT_PATH="/entitlement"
+      if [ -d "$ENTITLEMENT_PATH" ]; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+        echo "Adding the entitlement to the build"
+      fi
+
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
@@ -295,6 +308,7 @@ spec:
        -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
        -e TARGET_STAGE="$TARGET_STAGE" \
        -e PARAM_BUILDER_IMAGE="$PARAM_BUILDER_IMAGE" \
+       -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
@@ -316,6 +330,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /entitlement
+      name: etc-pki-entitlement
     - mountPath: /ssh
       name: ssh
       readOnly: true
@@ -470,6 +486,10 @@ spec:
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - name: etc-pki-entitlement
+    secret:
+      optional: true
+      secretName: $(params.ENTITLEMENT_SECRET)
   - name: ssh
     secret:
       optional: false

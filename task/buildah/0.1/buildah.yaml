@@ -67,6 +67,10 @@ spec:
     description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
     type: string
     default: ""
+  - name: ENTITLEMENT_SECRET
+    description: Name of secret which contains the entitlement certificates
+    type: string
+    default: "etc-pki-entitlement"
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -109,6 +113,8 @@ spec:
       value: $(params.TARGET_STAGE)
     - name: PARAM_BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     name: build
@@ -207,6 +213,13 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      ENTITLEMENT_PATH="/entitlement"
+      if [ -d "$ENTITLEMENT_PATH" ]; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+        echo "Adding the entitlement to the build"
+      fi
+
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
@@ -234,6 +247,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: "/entitlement"
+      name: etc-pki-entitlement
     workingDir: $(workspaces.source.path)
 
   - name: sbom-syft-generate
@@ -403,8 +418,12 @@ spec:
     workingDir: $(workspaces.source.path)
 
   volumes:
-  - emptyDir: {}
-    name: varlibcontainers
+  - name: varlibcontainers
+    emptyDir: {}
+  - name: etc-pki-entitlement
+    secret:
+      secretName: $(params.ENTITLEMENT_SECRET)
+      optional: true
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
