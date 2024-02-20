@@ -27,9 +27,14 @@ spec:
     volumeMounts:
       - name: gitops-auth-secret
         mountPath: /gitops-auth-secret
+    env:
+      - name: PARAM_GITOPS_REPO_URL
+        value: $(params.gitops-repo-url)
+      - name: PARAM_IMAGE
+        value: $(params.image)
     script: |
       if test -f /gitops-auth-secret/password ; then
-        gitops_repo_url=$(params.gitops-repo-url)
+        gitops_repo_url=${PARAM_GITOPS_REPO_URL}
         remote_without_protocol=${gitops_repo_url#'https://'}
 
         password=$(cat /gitops-auth-secret/password)
@@ -41,27 +46,27 @@ spec:
           origin_with_auth=https://${password}@${remote_without_protocol}.git
         fi
       else
-        echo "git credentials to push into gitops repository $(params.gitops-repo-url) is not configured."
+        echo "git credentials to push into gitops repository ${PARAM_GITOPS_REPO_URL} is not configured."
         echo "gitops repository is not updated automatically."
-        echo "You can update gitops repository with the new image: $(params.image) manually"
+        echo "You can update gitops repository with the new image: ${PARAM_IMAGE} manually"
         echo "TODO: configure git credentials to update gitops repository."
         exit 0
       fi
 
       # https://github.com/user-org/test-component-gitops => test-component
-      gitops_repo_name=$(basename $(params.gitops-repo-url))
+      gitops_repo_name=$(basename ${PARAM_GITOPS_REPO_URL})
       component_id=${gitops_repo_name%'-gitops'}
       deployment_patch_filepath="components/${component_id}/overlays/development/deployment-patch.yaml"
 
       git config --global user.email "rhtap@noreplay.com"
       git config --global user.name "gitops-update"
 
-      git clone $(params.gitops-repo-url)
+      git clone ${PARAM_GITOPS_REPO_URL}
       cd ${gitops_repo_name}
 
-      sed -i 's| image: .*| image: $(params.image)|' $deployment_patch_filepath
+      sed -i "s| image: .*| image: ${PARAM_IMAGE}|" $deployment_patch_filepath
 
       git add .
-      git commit -m "Update '${component_id}' component image to: $(params.image)"
+      git commit -m "Update '${component_id}' component image to: ${PARAM_IMAGE}"
       git remote set-url origin $origin_with_auth
       git push
