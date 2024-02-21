@@ -16,7 +16,7 @@ Update files in Pull-Request created by RHTAP bot:
   `prefetch-dependencies` Task
 
 ```diff
- - name: build-container
+ - name: build-source-image
    params:
 +  - name: SOURCE_ARTIFACT
 +    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
@@ -29,7 +29,7 @@ Update files in Pull-Request created by RHTAP bot:
   For example:
 
 ```diff
- - name: build-container
+ - name: build-source-image
    params:
 +  - name: SOURCE_ARTIFACT
 +    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT) # clone-repository is the name of the git-clone Task in the Pipeline
