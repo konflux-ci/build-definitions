@@ -258,9 +258,6 @@ spec:
 
   - name: sbom-syft-generate
     image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
@@ -270,9 +267,6 @@ spec:
       name: varlibcontainers
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -288,9 +282,6 @@ spec:
 
   - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       #!/bin/python3
       import json
@@ -326,9 +317,6 @@ spec:
 
   - name: merge-cachi2-sbom
     image: quay.io/redhat-appstudio/cachi2:0.6.0@sha256:15d0513ed891b1d34fc46e56fdc9f6b457c90fbfd34f6a8c8fce6d3400ddc4a7
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       if [ -n "${PREFETCH_INPUT}" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
@@ -343,9 +331,6 @@ spec:
 
   - name: create-purl-sbom
     image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       #!/bin/python3
       import json
@@ -409,9 +394,6 @@ spec:
 
   - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     args:
       - attach
       - sbom
