@@ -7,21 +7,8 @@ artifact, e.g. using the git-clone Task version 0.3 or newer.
 ## Action from users
 
 Update files in Pull-Request created by RHTAP bot:
-- if your pipeline includes a `prefetch-dependencies` task, as per default, add
-  the `SOURCE_ARTIFACT` and `CACHI2_ARTIFACT` from the results of the
-  `prefetch-dependencies` Task
-
-```diff
- - name: rpm-ostree
-   params:
-+  - name: SOURCE_ARTIFACT
-+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-+  - name: CACHI2_ARTIFACT
-+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-```
-
-- if your pipeline doesn't include the `prefetch-dependencies` task, provide the
-  `SOURCE_ARTIFACT` parameter value from the result of the  `git-clone` Task.
+- provide the `SOURCE_ARTIFACT` parameter value from the result of the
+  `git-clone` Task.
   For example:
 
 ```diff
