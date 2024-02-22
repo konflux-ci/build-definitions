@@ -15,6 +15,10 @@ Snyk's SAST tool uses a combination of static analysis and machine learning tech
 | SNYK_SECRET | Name of secret which contains Snyk token. |
 | ARGS        | Append arguments.                         |
 
+## How to obtain a snyk-token and enable snyk task on the pipeline:
+
+Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)
+
 ## Results:
 
 | name                  | description              |
