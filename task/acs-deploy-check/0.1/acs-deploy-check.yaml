@@ -9,16 +9,14 @@ spec:
     builds. It's a companion to the stackrox-image-scan task, which returns full
     vulnerability scan results for an image.
   params:
-    - name: rox-central-endpoint
-      type: string
-      default: rox.stackrox.io:443
-      description: |
-        The address:port tuple for StackRox Central.
-        For example: rox.stackrox.io:443
-    - name: rox-api-token-secret-name
+    - name: rox-secret-name
       type: string
       description: |
-        Secret containing the StackRox API token with CI permissions under rox-api-token key
+        Secret containing the StackRox server endpoint and API token with CI permissions under rox-api-endpoint and rox-api-token keys.
+        For example: rox-api-endpoint: rox.stackrox.io:443 ; rox-api-token: eyJhbGciOiJS...
+    - name: gitops-repo-url
+      type: string
+      description: URL of gitops repository to check.
     - name: verbose
       type: string
       default: 'true'
@@ -38,11 +36,11 @@ spec:
       emptyDir: {}
     - name: rox-secret
       secret:
-        secretName: $(params.rox-api-token-secret-name)
+        secretName: $(params.rox-secret-name)
         optional: true
   steps:
     - name: rox-deploy-scan
-      image: registry.access.redhat.com/ubi8-minimal@sha256:d8b81a38b5ad9694742ea03159d3217cd2dde3997b1ee53bbb53c33dd67be7b7
+      image: quay.io/redhat-appstudio/task-toolset@sha256:931a9f7886586391ccb38d33fd15a47eb03568f9b19512b0a57a56384fa52a3c
       volumeMounts:
         - name: repository
           mountPath: /workspace/repository
@@ -50,8 +48,6 @@ spec:
           mountPath: /rox-secret
       workingDir: /workspace/repository
       env:
-        - name: PARAM_ROX_CENTRAL_ENDPOINT
-          value: $(params.rox-central-endpoint)
         - name: PARAM_INSECURE_SKIP_TLS_VERIFY
           value: $(params.insecure-skip-tls-verify)
       script: |
@@ -70,9 +66,11 @@ spec:
         }
 
         # Check if rox API enpoint is configured
-        if [ "${PARAM_ROX_CENTRAL_ENDPOINT}" = 'rox.stackrox.io:443' ]; then
+        if test -f /rox-secret/rox-api-endpoint ; then
+          export ROX_CENTRAL_ENDPOINT=$(</rox-secret/rox-api-endpoint)
+        else
           echo "rox API endpoint is not set, demo will exit with success"
-          echo "TODO: configure the pipeline with your ACS server domain"
+          echo "TODO: configure the pipeline with your ACS server domain. Set your ACS endpoint under 'rox-api-endpoint' key in the secret specified in rox-secret-name parameter. For example: 'rox.stackrox.io:443'"
           set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API enpoint not specified"
           exit 0
         fi
@@ -82,11 +80,16 @@ spec:
           export ROX_API_TOKEN=$(</rox-secret/rox-api-token)
         else
           echo "rox API token is not set, demo will exit with success"
-          echo "TODO: configure the pipeline to have access to ROXCTL"
+          echo "TODO: configure the pipeline to have access to ROXCTL. Set you ACS token under 'rox-api-token' key in the secret specified in rox-secret-name parameter."
+          set_test_output_result SKIPPED "Task $(context.task.name) skipped: ACS API token not provided"
           exit 0
         fi
 
-        echo "Using rox central endpoint ${PARAM_ROX_CENTRAL_ENDPOINT}"
+        echo "Using rox central endpoint ${ROX_CENTRAL_ENDPOINT}"
+
+        # Clone gitops repository
+        git clone $(params.gitops-repo-url) --single-branch --depth 1 gitops
+        cd gitops
 
         echo "Configuration"
         echo "Directory = $(pwd)"
@@ -96,7 +99,7 @@ spec:
           curl_insecure='--insecure'
         fi
         curl $curl_insecure -s -L -H "Authorization: Bearer $ROX_API_TOKEN" \
-          "https://${PARAM_ROX_CENTRAL_ENDPOINT}/api/cli/download/roxctl-linux" \
+          "https://${ROX_CENTRAL_ENDPOINT}/api/cli/download/roxctl-linux" \
           --output ./roxctl  \
           > /dev/null
         if [ $? -ne 0 ]; then
@@ -107,17 +110,49 @@ spec:
         fi
         chmod +x ./roxctl  > /dev/null
 
-        for component in argocd/components/*; do
+        critical_total=0
+        high_total=0
+        medium_total=0
+        low_total=0
+        for component in components/*; do
           echo $component
           if [ -f $component/base/deployment.yaml ]; then
             echo "ROXCTL on $component/base/deployment.yaml"
             ./roxctl deployment check \
               $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
               echo -n "--insecure-skip-tls-verify") \
-              -e "${PARAM_ROX_CENTRAL_ENDPOINT}" --file "$component/base/deployment.yaml"
+              -e "${ROX_CENTRAL_ENDPOINT}" --file "$component/base/deployment.yaml" \
+              > /tmp/roxctl_deployment_check_output.txt
+            cat /tmp/roxctl_deployment_check_output.txt
+
+            summary_line_pattern="^\(TOTAL: [0-9]+, LOW: [0-9]+, MEDIUM: [0-9]+, HIGH: [0-9]+, CRITICAL: [0-9]+\)$"
+            summary_line=$(grep -E "$summary_line_pattern" /tmp/roxctl_deployment_check_output.txt)
+            if [[ -n "$summary_line" ]]; then
+              critical=$(echo $summary_line | grep -oP '(?<=CRITICAL: )\d+')
+              high=$(echo $summary_line | grep -oP '(?<=HIGH: )\d+')
+              medium=$(echo $summary_line | grep -oP '(?<=MEDIUM: )\d+')
+              low=$(echo $summary_line | grep -oP '(?<=LOW: )\d+')
+              echo "{\"vulnerabilities\":{\"critical\":${critical},\"high\":${high},\"medium\":${medium},\"low\":${low}}}"
+              ((critical_total += critical))
+              ((high_total += high))
+              ((medium_total += medium))
+              ((low_total += low))
+            else
+              note="Task $(context.task.name) failed to parse scan summary for component $component"
+              set_test_output_result ERROR "${note}"
+              exit 2
+            fi
           fi
         done
 
+        # Set SCAN_OUTPUT result
+        echo "Total:"
+        echo "{\"vulnerabilities\":{\"critical\":${critical_total},\"high\":${high_total},\"medium\":${medium_total},\"low\":${low_total}}}" | tee $(results.SCAN_OUTPUT.path)
+
         # Set TEST_OUTPUT result
-        note="Task $(context.task.name) completed: Refer to Tekton task result SCAN_OUTPUT for found vulnerabilities."
+        if [[ -n "$critical_total" && "$critical_total" -eq 0 && "$high_total" -eq 0 && "$medium_total" -eq 0 && "$low_total" -eq 0 ]]; then
+          note="Task $(context.task.name) completed. No vulnerabilities found."
+        else
+          note="Task $(context.task.name) completed: Refer to Tekton task result SCAN_OUTPUT for found vulnerabilities."
+        fi
         set_test_output_result SUCCESS "$note"

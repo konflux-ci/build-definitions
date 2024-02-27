@@ -11,12 +11,6 @@
 - op: add
   path: /spec/params/-
   value:
-    name: stackrox-endpoint
-    type: string
-    default: "rox.stackrox.io:443"
-- op: add
-  path: /spec/params/-
-  value:
     name: stackrox-secret
     type: string
     default: "rox-api-token"
@@ -69,9 +63,7 @@
   value:
     name: acs-image-check
     params:
-    - name: rox-central-endpoint
-      value: $(params.stackrox-endpoint)
-    - name: rox-api-token-secret-name
+    - name: rox-secret-name
       value: $(params.stackrox-secret)
     - name: image
       value: $(params.output-image)
@@ -88,9 +80,7 @@
   value:
     name: acs-image-scan
     params:
-    - name: rox-central-endpoint
-      value: $(params.stackrox-endpoint)
-    - name: rox-api-token-secret-name
+    - name: rox-secret-name
       value: $(params.stackrox-secret)
     - name: image
       value: $(params.output-image)
@@ -108,14 +98,14 @@
   value:
     name: acs-deploy-check
     params:
-    - name: rox-central-endpoint
-      value: $(params.stackrox-endpoint)
-    - name: rox-api-token-secret-name
+    - name: rox-secret-name
       value: $(params.stackrox-secret)
+    - name: gitops-repo-url
+      value: $(params.git-url)-gitops
     - name: insecure-skip-tls-verify
       value: "true"
     runAfter:
-    - build-container
+    - update-deployment
     taskRef:
       kind: Task
       name: acs-deploy-check
