@@ -117,6 +117,7 @@ spec:
       import hashlib
       import json
       import os
+      import re
 
       ### load SBOMs ###
 
@@ -158,11 +159,14 @@ spec:
       with open("./sbom-cyclonedx.json", "rb") as f:
         sbom_digest = hashlib.file_digest(f, "sha256").hexdigest()
 
-      image_name_parts = os.getenv("IMAGE").split(":")
-      # discard only the last part since the image can have a port number
-      # (i.e. registry:443/image/path:tag)
-      image_name_without_tag = ":".join(image_name_parts[0:-1])
-      sbom_blob_url = f"{image_name_without_tag}@sha256:{sbom_digest}"
+      # https://github.com/opencontainers/distribution-spec/blob/main/spec.md?plain=1#L160
+      tag_regex = "[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}"
+
+      # the tag must be after a colon, but always at the end of the string
+      # this avoids conflict with port numbers
+      image_without_tag = re.sub(f":{tag_regex}$", "", os.getenv("IMAGE"))
+
+      sbom_blob_url = f"{image_without_tag}@sha256:{sbom_digest}"
 
       with open(os.getenv("RESULT_PATH"), "w") as f:
         f.write(sbom_blob_url)
