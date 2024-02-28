@@ -55,7 +55,10 @@ spec:
         source /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
-        declare -a ALLOWED_BASE_IMAGES=("registry.redhat.io/openshift4/ose-operator-registry")
+        declare -a ALLOWED_BASE_IMAGES=(
+          "registry.redhat.io/openshift4/ose-operator-registry"
+          "registry.redhat.io/openshift4/ose-operator-registry-rhel9"
+        )
 
         ### FBC base image check
         if [ -z "${BASE_IMAGE}" ]; then
