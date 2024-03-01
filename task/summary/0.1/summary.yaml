@@ -21,9 +21,6 @@ spec:
       description: State of build task in pipelineRun
       # Default Succeeded for backward compatibility
       default: Succeeded
-    - name: source-image-url
-      description: Source image URL.
-      default: ""
   steps:
     - name: appstudio-summary
       image: registry.access.redhat.com/ubi9/ubi-minimal:9.3-1552@sha256:06d06f15f7b641a78f2512c8817cbecaa1bf549488e273f5ac27ff1654ed33f0
@@ -39,8 +36,6 @@ spec:
           value: $(params.pipelinerun-name)
         - name: BUILD_TASK_STATUS
           value: $(params.build-task-status)
-        - name: SOURCE_IMAGE_URL
-          value: $(params.source-image-url)
       script: |
         #!/usr/bin/env bash
         echo
@@ -49,9 +44,6 @@ spec:
         echo "Build repository: $GIT_URL"
         if [ "$BUILD_TASK_STATUS" == "Succeeded" ]; then
           echo "Generated Image is in : $IMAGE_URL"
-        fi
-        if [ -n "$SOURCE_IMAGE_URL" ]; then
-          echo "Generated source image is in : $SOURCE_IMAGE_URL"
         fi
         echo
         echo End Summary
