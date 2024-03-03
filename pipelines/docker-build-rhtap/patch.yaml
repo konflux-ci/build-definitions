@@ -14,6 +14,11 @@
     name: stackrox-secret
     type: string
     default: "rox-api-token"
+- op: add
+  path: /spec/results/-
+  value:
+    name: ACS_SCAN_OUTPUT
+    value: $(tasks.acs-image-scan.results.SCAN_OUTPUT)
 - op: replace
   path: /spec/tasks/3/taskRef
   value:
