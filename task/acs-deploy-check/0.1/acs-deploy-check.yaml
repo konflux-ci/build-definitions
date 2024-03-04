@@ -50,6 +50,8 @@ spec:
       env:
         - name: PARAM_INSECURE_SKIP_TLS_VERIFY
           value: $(params.insecure-skip-tls-verify)
+        - name: PARAM_GITOPS_REPO_URL
+          value: $(params.gitops-repo-url)
       script: |
         #!/usr/bin/env bash
         set +x
@@ -88,7 +90,7 @@ spec:
         echo "Using rox central endpoint ${ROX_CENTRAL_ENDPOINT}"
 
         # Clone gitops repository
-        git clone $(params.gitops-repo-url) --single-branch --depth 1 gitops
+        git clone "${PARAM_GITOPS_REPO_URL}" --single-branch --depth 1 gitops
         cd gitops
 
         echo "Configuration"

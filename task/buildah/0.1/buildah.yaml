@@ -169,10 +169,11 @@ spec:
 
       BUILDAH_ARGS=()
 
+      BASE_IMAGES=$(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}')
       if [ "${HERMETIC}" == "true" ]; then
         BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
-        for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
+        for image in $BASE_IMAGES; do
           if [ "${image}" != "scratch" ]; then
             unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
           fi
@@ -238,7 +239,11 @@ spec:
       fi
 
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+      for image in $BASE_IMAGES; do
+        if [ "${image}" != "scratch" ]; then
+          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> $(results.BASE_IMAGES_DIGESTS.path)
+        fi
+      done
 
     securityContext:
       capabilities:
