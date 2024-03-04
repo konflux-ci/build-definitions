@@ -70,6 +70,8 @@ spec:
           value: "$(results.SOURCE_IMAGE_URL.path)"
         - name: RESULT_SOURCE_IMAGE_DIGEST
           value: "$(results.SOURCE_IMAGE_DIGEST.path)"
+        - name: WS_BUILD_RESULT_FILE
+          value: "$(workspaces.workspace.path)/source_build_result.json"
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -91,3 +93,5 @@ spec:
 
         cat "$RESULT_FILE" | jq -r ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
         cat "$RESULT_FILE" | jq -r ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"
+
+        cp "$RESULT_FILE" "$WS_BUILD_RESULT_FILE"
