@@ -1,0 +1,57 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: summary
+spec:
+  description: >-
+    Summary Pipeline Task. Prints PipelineRun information, removes image repository secret used by the PipelineRun.
+  params:
+    - name: pipelinerun-name
+      description: pipeline-run to annotate
+    - name: git-url
+      description: Git URL
+    - name: image-url
+      description: Image URL
+    - name: build-task-status
+      description: State of build task in pipelineRun
+      # Default Succeeded for backward compatibility
+      default: Succeeded
+    - name: source-image-url
+      description: Source image URL.
+      default: ""
+  steps:
+    - name: appstudio-summary
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.3-1552@sha256:06d06f15f7b641a78f2512c8817cbecaa1bf549488e273f5ac27ff1654ed33f0
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+      env:
+        - name: GIT_URL
+          value: $(params.git-url)
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: PIPELINERUN_NAME
+          value: $(params.pipelinerun-name)
+        - name: BUILD_TASK_STATUS
+          value: $(params.build-task-status)
+        - name: SOURCE_IMAGE_URL
+          value: $(params.source-image-url)
+      script: |
+        #!/usr/bin/env bash
+        echo
+        echo "Build Summary:"
+        echo
+        echo "Build repository: $GIT_URL"
+        if [ "$BUILD_TASK_STATUS" == "Succeeded" ]; then
+          echo "Generated Image is in : $IMAGE_URL"
+        fi
+        if [ -n "$SOURCE_IMAGE_URL" ]; then
+          echo "Generated source image is in : $SOURCE_IMAGE_URL"
+        fi
+        echo
+        echo End Summary

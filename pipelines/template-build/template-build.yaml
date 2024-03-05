@@ -118,9 +118,6 @@ spec:
         - input: $(tasks.init.results.build)
           operator: in
           values: ["true"]
-        - input: $(params.build-source-image)
-          operator: in
-          values: ["true"]
       runAfter:
         - build-container
       taskRef:
@@ -131,6 +128,8 @@ spec:
           value: "$(params.output-image)"
         - name: BASE_IMAGES
           value: "$(tasks.build-container.results.BASE_IMAGES_DIGESTS)"
+        - name: BUILD_SOURCE_IMAGE
+          value: "$(params.build-source-image)"
       workspaces:
         - name: workspace
           workspace: workspace
@@ -240,6 +239,8 @@ spec:
         value: $(params.output-image)
       - name: build-task-status
         value: $(tasks.build-container.status)
+      - name: source-image-url
+        value: "$(tasks.build-source-image.results.SOURCE_IMAGE_URL)"
   results:
     - name: IMAGE_URL
       value: "$(tasks.build-container.results.IMAGE_URL)"
