@@ -2,8 +2,8 @@
 
 Make sure you have shellspec installed[1]. The test setup script will bring up a
 kind[2] cluster and installs Tekton Pipeline. The source is provided via the
-`workspace-pvc` PersistantVolumeClaim and prepopulated with the test?.y*ml files
-in order to not necesate the need for source checkout.
+`source-pvc` PersistantVolumeClaim and prepopulated with the test?.y*ml files in
+order to not necesate the need for source checkout.
 
 For second and subsequent invocations the setup is quicker as it only applies
 any changes to already started and setup cluster. To delete the cluster and

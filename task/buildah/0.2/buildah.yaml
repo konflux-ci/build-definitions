@@ -67,6 +67,10 @@ spec:
     description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
     type: string
     default: ""
+  - name: ENTITLEMENT_SECRET
+    description: Name of secret which contains the entitlement certificates
+    type: string
+    default: "etc-pki-entitlement"
   - name: SOURCE_ARTIFACT
     type: string
     description: The produced source trusted artifact URI
@@ -116,6 +120,8 @@ spec:
       value: $(params.TARGET_STAGE)
     - name: PARAM_BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -183,10 +189,11 @@ spec:
 
       BUILDAH_ARGS=()
 
+      BASE_IMAGES=$(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}')
       if [ "${HERMETIC}" == "true" ]; then
         BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
-        for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
+        for image in $BASE_IMAGES; do
           if [ "${image}" != "scratch" ]; then
             unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
           fi
@@ -227,6 +234,13 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      ENTITLEMENT_PATH="/entitlement"
+      if [ -d "$ENTITLEMENT_PATH" ]; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+        echo "Adding the entitlement to the build"
+      fi
+
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
@@ -245,7 +259,11 @@ spec:
       fi
 
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+      for image in $BASE_IMAGES; do
+        if [ "${image}" != "scratch" ]; then
+          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> $(results.BASE_IMAGES_DIGESTS.path)
+        fi
+      done
 
     securityContext:
       capabilities:
@@ -254,13 +272,15 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: "/entitlement"
+      name: etc-pki-entitlement
     workingDir: /var/workdir
 
   - name: sbom-syft-generate
-    image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+    image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: /var/workdir/source
     script: |
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
       find $(cat /var/workdir/container_path) -xtype l -delete
@@ -270,9 +290,6 @@ spec:
       name: varlibcontainers
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /var/workdir/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -288,9 +305,6 @@ spec:
 
   - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       #!/bin/python3
       import json
@@ -325,10 +339,7 @@ spec:
       runAsUser: 0
 
   - name: merge-cachi2-sbom
-    image: quay.io/redhat-appstudio/cachi2:0.5.0@sha256:d4707478075bc1e746dacc640138b60f776e2d8f9d5b7f2433340decfa32611b
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+    image: quay.io/redhat-appstudio/cachi2:0.6.0@sha256:15d0513ed891b1d34fc46e56fdc9f6b457c90fbfd34f6a8c8fce6d3400ddc4a7
     script: |
       if [ -n "${PREFETCH_INPUT}" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
@@ -343,9 +354,6 @@ spec:
 
   - name: create-purl-sbom
     image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     script: |
       #!/bin/python3
       import json
@@ -409,9 +417,6 @@ spec:
 
   - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     args:
       - attach
       - sbom
@@ -423,8 +428,12 @@ spec:
     workingDir: /var/workdir
 
   volumes:
-  - emptyDir: {}
-    name: varlibcontainers
+  - name: varlibcontainers
+    emptyDir: {}
+  - name: etc-pki-entitlement
+    secret:
+      secretName: $(params.ENTITLEMENT_SECRET)
+      optional: true
   - name: workdir
     emptyDir: {}
   workspaces:

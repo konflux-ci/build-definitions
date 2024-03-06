@@ -71,6 +71,14 @@ spec:
     description: Fetch all tags for the repo.
     name: fetchTags
     type: string
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
   results:
   - description: The precise commit SHA that was fetched by this Task.
     name: commit
@@ -126,6 +134,10 @@ spec:
     computeResources: {}
     securityContext:
       runAsUser: 0
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
+        readOnly: true
     script: |
       #!/usr/bin/env sh
       set -eu
@@ -149,6 +161,13 @@ spec:
         fi
         chmod 400 "${PARAM_USER_HOME}/.git-credentials"
         chmod 400 "${PARAM_USER_HOME}/.gitconfig"
+      fi
+
+      # Should be called after the gitconfig is copied from the repository secret
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        git config --global http.sslCAInfo "$ca_bundle"
       fi
 
       if [ "${WORKSPACE_SSH_DIRECTORY_BOUND}" = "true" ] ; then
@@ -185,9 +204,6 @@ spec:
         echo "Fetching tags"
         git fetch --tags
       fi
-    workspaces:
-      - name: ssh-directory
-      - name: basic-auth
 
   - name: symlink-check
     image: registry.redhat.io/ubi9:9.2-696@sha256:089bd3b82a78ac45c0eed231bb58bfb43bfcd0560d9bba240fc6355502c92976
@@ -231,9 +247,6 @@ spec:
       - $(results.SOURCE_ARTIFACT.path)=/var/source
     workspaces:
       - name: output
-  volumes:
-  - name: source
-    emptyDir: {}
   workspaces:
   - description: The trusted archive containing the source will be placed here
     name: output
@@ -252,3 +265,13 @@ spec:
       Secret to this Workspace over other volume types.
     name: basic-auth
     optional: true
+  volumes:
+  - name: source
+    emptyDir: {}
+  - name: trusted-ca
+    configMap:
+      name: $(params.caTrustConfigMapName)
+      items:
+        - key: $(params.caTrustConfigMapKey)
+          path: ca-bundle.crt
+      optional: true

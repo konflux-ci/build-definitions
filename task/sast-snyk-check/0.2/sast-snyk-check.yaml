@@ -46,7 +46,7 @@ spec:
       workspaces:
         - name: workspace
     - name: sast-snyk-check
-      image: quay.io/redhat-appstudio/hacbs-test:v1.2.0@sha256:73ff1801ceb0bb4c09f182f73d721e8f4aca31644c35e1f75c91550009ee5cf8
+      image: quay.io/redhat-appstudio/hacbs-test:v1.3.0@sha256:cd4601a7d71ebd908046db7a9b7010611b8b372fe941664d5163c81250a1a1fc
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -73,7 +73,8 @@ spec:
           SNYK_TOKEN="$(cat ${SNYK_TOKEN_PATH})"
           export SNYK_TOKEN
         else
-          note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret named snyk-secret with the key "snyk_token" containing the Snyk token."
+          to_enable_snyk='[here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)'
+          note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key "snyk_token" containing the Snyk token by following the steps given ${to_enable_snyk}"
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0

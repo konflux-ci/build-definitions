@@ -161,7 +161,7 @@ spec:
       name: ssh
       readOnly: true
     workingDir: /var/workdir/source
-  - image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+  - image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -171,6 +171,9 @@ spec:
         memory: 6Gi
       requests:
         memory: 6Gi
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: $/var/workdir/source
     script: |
       syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=/var/workdir/sbom-cyclonedx.json
     volumeMounts:
