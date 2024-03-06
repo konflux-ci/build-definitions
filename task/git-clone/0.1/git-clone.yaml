@@ -83,6 +83,14 @@ spec:
     description: Fetch all tags for the repo.
     name: fetchTags
     type: string
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
   results:
   - description: The precise commit SHA that was fetched by this Task.
     name: commit
@@ -139,9 +147,19 @@ spec:
     computeResources: {}
     securityContext:
       runAsUser: 0
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
+        readOnly: true
     script: |
       #!/usr/bin/env sh
       set -eu
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        git config --global http.sslCAInfo "$ca_bundle"
+      fi
 
       if [ "${PARAM_VERBOSE}" = "true" ] ; then
         set -x
@@ -277,3 +295,11 @@ spec:
       Secret to this Workspace over other volume types.
     name: basic-auth
     optional: true
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
