@@ -74,6 +74,10 @@ spec:
       is processed entirely to (and including) its last stage.
     name: TARGET_STAGE
     type: string
+  - default: etc-pki-entitlement
+    description: Name of secret which contains the entitlement certificates
+    name: ENTITLEMENT_SECRET
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -128,6 +132,8 @@ spec:
       value: $(params.TARGET_STAGE)
     - name: PARAM_BUILDER_IMAGE
       value: $(params.BUILDER_IMAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
     - name: BUILDER_IMAGE
       value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     volumeMounts:
@@ -232,10 +238,11 @@ spec:
 
       BUILDAH_ARGS=()
 
+      BASE_IMAGES=$(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}')
       if [ "${HERMETIC}" == "true" ]; then
         BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS="--net"
-        for image in $(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}'); do
+        for image in $BASE_IMAGES; do
           if [ "${image}" != "scratch" ]; then
             unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
           fi
@@ -276,6 +283,13 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      ENTITLEMENT_PATH="/entitlement"
+      if [ -d "$ENTITLEMENT_PATH" ]; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+        echo "Adding the entitlement to the build"
+      fi
+
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
@@ -294,7 +308,11 @@ spec:
       fi
 
       # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
+      for image in $BASE_IMAGES; do
+        if [ "${image}" != "scratch" ]; then
+          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> $(results.BASE_IMAGES_DIGESTS.path)
+        fi
+      done
 
       buildah push "$IMAGE" oci:rhtap-final-image
       REMOTESSHEOF
@@ -315,6 +333,7 @@ spec:
        -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
        -e TARGET_STAGE="$TARGET_STAGE" \
        -e PARAM_BUILDER_IMAGE="$PARAM_BUILDER_IMAGE" \
+       -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:/var/workdir:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
@@ -336,12 +355,14 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /entitlement
+      name: etc-pki-entitlement
     - mountPath: /ssh
       name: ssh
       readOnly: true
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+    image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
     name: sbom-syft-generate
     script: |
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
@@ -401,7 +422,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/redhat-appstudio/cachi2:0.5.0@sha256:d4707478075bc1e746dacc640138b60f776e2d8f9d5b7f2433340decfa32611b
+    image: quay.io/redhat-appstudio/cachi2:0.6.0@sha256:15d0513ed891b1d34fc46e56fdc9f6b457c90fbfd34f6a8c8fce6d3400ddc4a7
     name: merge-cachi2-sbom
     script: |
       if [ -n "${PREFETCH_INPUT}" ]; then
@@ -490,6 +511,10 @@ spec:
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - name: etc-pki-entitlement
+    secret:
+      optional: true
+      secretName: $(params.ENTITLEMENT_SECRET)
   - name: ssh
     secret:
       optional: false

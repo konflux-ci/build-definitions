@@ -82,6 +82,8 @@ spec:
       value: $(params.IMAGE)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: BUILDER_IMAGE
+      value: $(params.BUILDER_IMAGE)
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -123,7 +125,7 @@ spec:
     - mountPath: /gen-source
       name: gen-source
   - script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 
@@ -168,7 +170,7 @@ spec:
       name: gen-source
     workingDir: /gen-source
 
-  - image: quay.io/redhat-appstudio/syft:v0.98.0@sha256:4d3856e6a2622700b9a9d5d74d9aaf5d8a55671653f80bf6c636677658680ede
+  - image: quay.io/redhat-appstudio/syft:v0.105.0@sha256:32a9d2007f2b042ceec4ef32fa1d90b8d28141822e7d9748f240da9d55c56601
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -246,7 +248,7 @@ spec:
     name: inject-sbom-and-push
     computeResources: {}
     script: |
-      if [ -n "$(params.BUILDER_IMAGE)" ]; then
+      if [ -n "${BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
 

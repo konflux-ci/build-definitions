@@ -54,7 +54,7 @@ spec:
       - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     workspaces:
       - name: source
-  - image: quay.io/redhat-appstudio/hacbs-test:v1.2.0@sha256:73ff1801ceb0bb4c09f182f73d721e8f4aca31644c35e1f75c91550009ee5cf8
+  - image: quay.io/redhat-appstudio/hacbs-test:latest@sha256:cd4601a7d71ebd908046db7a9b7010611b8b372fe941664d5163c81250a1a1fc
     name: modify-task-files
     env:
     - name: CONTEXT
@@ -153,6 +153,8 @@ spec:
 
       # cleanup task file
       [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
+    securityContext:
+      runAsUser: 0
     workingDir: /var/workdir/source
   volumes:
   - name: workdir
