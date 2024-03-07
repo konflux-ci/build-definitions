@@ -140,6 +140,9 @@ spec:
     # the cluster will set imagePullPolicy to IfNotPresent
     # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: sbom-syft-generate
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: $(workspaces.source.path)/source
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
       find $(cat /workspace/container_path) -xtype l -delete
