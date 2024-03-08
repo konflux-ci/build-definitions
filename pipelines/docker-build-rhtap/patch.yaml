@@ -47,18 +47,21 @@
 #      4  build-source-image
 #      5  deprecated-base-image-check
 #      6  clair-scan
-#      7  sast-snyk-check
-#      8  clamav-scan
-#      9  sbom-json-check
+#      7  ecosystem-cert-preflight-checks
+#      8  sast-snyk-check
+#      9  clamav-scan
+#      10 sbom-json-check
 - op: replace
   path: /spec/tasks/3/runAfter/0
   value: clone-repository
 - op: remove
-  path: /spec/tasks/9  # sbom-json-check
+  path: /spec/tasks/10  # sbom-json-check
 - op: remove
-  path: /spec/tasks/8  # clamav-scan
+  path: /spec/tasks/9  # clamav-scan
 - op: remove
-  path: /spec/tasks/7  # sast-snyk-check
+  path: /spec/tasks/8  # sast-snyk-check
+- op: remove
+  path: /spec/tasks/7  # ecosystem-cert-preflight-checks
 - op: remove
   path: /spec/tasks/5  # deprecated-base-image-check
 - op: remove
