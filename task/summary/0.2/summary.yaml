@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.2"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "appstudio, hacbs"
@@ -21,9 +21,13 @@ spec:
       description: State of build task in pipelineRun
       # Default Succeeded for backward compatibility
       default: Succeeded
+  workspaces:
+    - name: workspace
+      description: The workspace where source code is included.
+      optional: true
   steps:
     - name: appstudio-summary
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.3-1552@sha256:06d06f15f7b641a78f2512c8817cbecaa1bf549488e273f5ac27ff1654ed33f0
+      image: quay.io/redhat-appstudio/task-toolset@sha256:931a9f7886586391ccb38d33fd15a47eb03568f9b19512b0a57a56384fa52a3c
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -36,6 +40,8 @@ spec:
           value: $(params.pipelinerun-name)
         - name: BUILD_TASK_STATUS
           value: $(params.build-task-status)
+        - name: SOURCE_BUILD_RESULT_FILE
+          value: "$(workspaces.workspace.path)/source_build_result.json"
       script: |
         #!/usr/bin/env bash
         echo
@@ -44,6 +50,10 @@ spec:
         echo "Build repository: $GIT_URL"
         if [ "$BUILD_TASK_STATUS" == "Succeeded" ]; then
           echo "Generated Image is in : $IMAGE_URL"
+        fi
+        if [ -e "$SOURCE_BUILD_RESULT_FILE" ]; then
+          url=$(jq -r ".image_url" <"$SOURCE_BUILD_RESULT_FILE")
+          echo "Generated Source Image is in : $url"
         fi
         echo
         echo End Summary
