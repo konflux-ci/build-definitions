@@ -15,6 +15,9 @@ spec:
     - name: IMAGE_URL
       description: Fully qualified image name to show SBOM for.
       type: string
+    - name: PLATFORM
+      description: Specific architecture to display the SBOM for.
+      type: string
   steps:
   - name: show-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
@@ -24,6 +27,8 @@ spec:
     env:
     - name: IMAGE_URL
       value: $(params.IMAGE_URL)
+    - name: PLATFORM
+      value: $(params.PLATFORM)
     script: |
       #!/busybox/sh
       status=-1
@@ -31,7 +36,12 @@ spec:
       wait_sec=2
       for run in $(seq 1 $max_try); do
         status=0
-        cosign download sbom $IMAGE_URL 2>>err
+        if [ -z "${PLATFORM}" ]; then
+          cosign download sbom $IMAGE_URL 2>>err
+        else
+          cosign download sbom --platform $PLATFORM $IMAGE_URL 2>>err
+        fi
+
         status=$?
         if [ "$status" -eq 0 ]; then
           break
