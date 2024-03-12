@@ -31,8 +31,30 @@ spec:
       wait_sec=2
       for run in $(seq 1 $max_try); do
         status=0
-        cosign download sbom $IMAGE_URL 2>>err
-        status=$?
+
+        mediatype=$(skopeo inspect --raw docker://$IMAGE_URL | jq -r .mediaType)
+        echo "Image is of mediatype ${mediatype}"
+
+        if [ "${mediatype}" -eq "application/vnd.oci.image.index.v1+json" ] ; then
+          platforms=$(
+            skopeo inspect --raw docker://$IMAGE_URL |
+            jq '.manifests[].platform' |
+            jq -r '(.os + "/" + .architecture)'
+          )
+          status=$?
+          for platform in $platforms; do
+            echo "Inspecting sbom ${platform}"
+            cosign download sbom --platform $platform $IMAGE_URL 2>>err
+            status=$?
+          done
+        elif [ "${mediatype}" -eq "application/vnd.oci.image.manifest.v1+json" ] ; then
+          cosign download sbom $IMAGE_URL 2>>err
+          status=$?
+        else
+          echo "Mediatype ${mediatype} is not supported."
+          status=1
+        fi
+
         if [ "$status" -eq 0 ]; then
           break
         fi
