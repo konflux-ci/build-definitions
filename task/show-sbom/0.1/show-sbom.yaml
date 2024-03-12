@@ -15,15 +15,20 @@ spec:
     - name: IMAGE_URL
       description: Fully qualified image name to show SBOM for.
       type: string
+    - name: PLATFORM
+      description: Architecture to display for the sbom
+      type: linux/amd64
   steps:
   - name: show-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1
     env:
     - name: IMAGE_URL
       value: $(params.IMAGE_URL)
+    - name: PLATFORM
+      value: $(params.PLATFORM)
     script: |
        #!/busybox/sh
-       cosign download sbom $IMAGE_URL 2>err
+       cosign download sbom --platform $PLATFORM $IMAGE_URL 2>err
        RET=$?
        if [ $RET -ne 0 ]; then
          echo Failed to get SBOM >&2
