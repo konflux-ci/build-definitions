@@ -1,0 +1,59 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.2"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: summary
+spec:
+  description: >-
+    Summary Pipeline Task. Prints PipelineRun information, removes image repository secret used by the PipelineRun.
+  params:
+    - name: pipelinerun-name
+      description: pipeline-run to annotate
+    - name: git-url
+      description: Git URL
+    - name: image-url
+      description: Image URL
+    - name: build-task-status
+      description: State of build task in pipelineRun
+      # Default Succeeded for backward compatibility
+      default: Succeeded
+  workspaces:
+    - name: workspace
+      description: The workspace where source code is included.
+      optional: true
+  steps:
+    - name: appstudio-summary
+      image: quay.io/redhat-appstudio/task-toolset@sha256:931a9f7886586391ccb38d33fd15a47eb03568f9b19512b0a57a56384fa52a3c
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+      env:
+        - name: GIT_URL
+          value: $(params.git-url)
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: PIPELINERUN_NAME
+          value: $(params.pipelinerun-name)
+        - name: BUILD_TASK_STATUS
+          value: $(params.build-task-status)
+        - name: SOURCE_BUILD_RESULT_FILE
+          value: "$(workspaces.workspace.path)/source_build_result.json"
+      script: |
+        #!/usr/bin/env bash
+        echo
+        echo "Build Summary:"
+        echo
+        echo "Build repository: $GIT_URL"
+        if [ "$BUILD_TASK_STATUS" == "Succeeded" ]; then
+          echo "Generated Image is in : $IMAGE_URL"
+        fi
+        if [ -e "$SOURCE_BUILD_RESULT_FILE" ]; then
+          url=$(jq -r ".image_url" <"$SOURCE_BUILD_RESULT_FILE")
+          echo "Generated Source Image is in : $url"
+        fi
+        echo
+        echo End Summary
