@@ -156,6 +156,9 @@ spec:
         memory: 6Gi
       requests:
         memory: 6Gi
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: $(workspaces.source.path)/source
     script: |
       syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=$(workspaces.source.path)/sbom-cyclonedx.json
     volumeMounts:
