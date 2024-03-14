@@ -20,6 +20,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |YUM_REPOS_D_SRC|Path in the git repository in which yum repository files are stored|repos.d|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
+|ENTITLEMENT_SECRET|Name of the entitlement secret in the namespace. If present, it enables subscription in the build|etc-pki-entitlement|false|
 
 ## Results
 |name|description|
