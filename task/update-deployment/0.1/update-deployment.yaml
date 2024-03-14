@@ -69,4 +69,9 @@ spec:
       git add .
       git commit -m "Update '${component_id}' component image to: ${PARAM_IMAGE}"
       git remote set-url origin $origin_with_auth
-      git push
+      git push 2> /dev/null || \
+      {
+        echo "Failed to push update to gitops repository: ${PARAM_GITOPS_REPO_URL}"
+        echo 'Do you have correct git credentials configured?'
+        exit 1
+      }
