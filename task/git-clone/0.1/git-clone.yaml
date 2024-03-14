@@ -155,12 +155,6 @@ spec:
       #!/usr/bin/env sh
       set -eu
 
-      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
-      if [ -f "$ca_bundle" ]; then
-        echo "INFO: Using mounted CA bundle: $ca_bundle"
-        git config --global http.sslCAInfo "$ca_bundle"
-      fi
-
       if [ "${PARAM_VERBOSE}" = "true" ] ; then
         set -x
       fi
@@ -184,6 +178,13 @@ spec:
         fi
         chmod 400 "${PARAM_USER_HOME}/.git-credentials"
         chmod 400 "${PARAM_USER_HOME}/.gitconfig"
+      fi
+
+      # Should be called after the gitconfig is copied from the repository secret
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        git config --global http.sslCAInfo "$ca_bundle"
       fi
 
       if [ "${WORKSPACE_SSH_DIRECTORY_BOUND}" = "true" ] ; then
