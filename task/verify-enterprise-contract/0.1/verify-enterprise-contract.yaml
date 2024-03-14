@@ -1,0 +1,201 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-enterprise-contract
+  annotations:
+    tekton.dev/displayName: Verify Enterprise Contract
+    tekton.dev/pipelines.minVersion: "0.19"
+    tekton.dev/tags: ec, chains, signature, conftest
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: Verify the enterprise contract is met
+  params:
+    - name: IMAGES
+      type: string
+      description: |
+        Spec section of an ApplicationSnapshot resource. Not all fields of the
+        resource are required. A minimal example:
+          {
+            "components": [
+              {
+                "containerImage": "quay.io/example/repo:latest"
+              }
+            ]
+          }
+        Each "containerImage" in the "components" array is validated.
+    - name: POLICY_CONFIGURATION
+      type: string
+      description: |
+        Name of the policy configuration (EnterpriseContractPolicy
+        resource) to use. `namespace/name` or `name` syntax supported. If
+        namespace is omitted the namespace where the task runs is used.
+      default: "enterprise-contract-service/default"
+
+    - name: PUBLIC_KEY
+      type: string
+      description: >-
+        Public key used to verify signatures. Must be a valid k8s cosign
+        reference, e.g. k8s://my-space/my-secret where my-secret contains
+        the expected cosign.pub attribute.
+      default: ""
+
+    - name: REKOR_HOST
+      type: string
+      description: Rekor host for transparency log lookups
+      default: ""
+
+    - name: IGNORE_REKOR
+      type: string
+      description: >-
+        Skip Rekor transparency log checks during validation.
+      default: "false"
+
+    - name: TUF_MIRROR
+      type: string
+      description: TUF mirror URL. Provide a value when NOT using public sigstore deployment.
+      default: ""
+
+    - name: SSL_CERT_DIR
+      type: string
+      description: |
+        Path to a directory containing SSL certs to be used when communicating
+        with external services. This is useful when using the integrated registry
+        and a local instance of Rekor on a development cluster which may use
+        certificates issued by a not-commonly trusted root CA. In such cases,
+        "/var/run/secrets/kubernetes.io/serviceaccount" is a good value. Multiple
+        paths can be provided by using the ":" separator.
+      default: ""
+
+    - name: INFO
+      type: string
+      description: Include rule titles and descriptions in the output. Set to "false" to disable it.
+      default: "true"
+
+    - name: STRICT
+      type: string
+      description: Fail the task if policy fails. Set to "false" to disable it.
+      default: "true"
+
+    - name: HOMEDIR
+      type: string
+      description: Value for the HOME environment variable.
+      default: /tekton/home
+
+    - name: EFFECTIVE_TIME
+      type: string
+      description: Run policy checks with the provided time.
+      default: "now"
+
+  workspaces:
+    - name: data
+      description: The workspace where the snapshot spec json file resides
+      optional: true
+
+  results:
+    - name: TEST_OUTPUT
+      description: Short summary of the policy evaluation for each image
+
+  stepTemplate:
+    env:
+      - name: HOME
+        value: "$(params.HOMEDIR)"
+
+  steps:
+    - name: version
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [ec]
+      args:
+        - version
+    - name: initialize-tuf
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      script: |-
+        set -euo pipefail
+
+        if [[ -z "${TUF_MIRROR:-}" ]]; then
+            echo 'TUF_MIRROR not set. Skipping TUF root initialization.'
+            exit
+        fi
+
+        echo 'Initializing TUF root...'
+        cosign initialize --mirror "${TUF_MIRROR}" --root "${TUF_MIRROR}/root.json"
+        echo 'Done!'
+      env:
+        - name: TUF_MIRROR
+          value: "$(params.TUF_MIRROR)"
+    - name: validate
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [ec]
+      args:
+        - validate
+        - image
+        - "--verbose"
+        - "--images"
+        - "$(params.IMAGES)"
+        - "--policy"
+        - "$(params.POLICY_CONFIGURATION)"
+        - "--public-key"
+        - "$(params.PUBLIC_KEY)"
+        - "--rekor-url"
+        - "$(params.REKOR_HOST)"
+        - "--ignore-rekor=$(params.IGNORE_REKOR)"
+        # NOTE: The syntax below is required to negate boolean parameters
+        - "--info=$(params.INFO)"
+        - "--strict=false"
+        - "--show-successes"
+        - "--effective-time=$(params.EFFECTIVE_TIME)"
+        - "--output"
+        - "yaml=$(params.HOMEDIR)/report.yaml"
+        - "--output"
+        - "appstudio=$(results.TEST_OUTPUT.path)"
+        - "--output"
+        - "json=$(params.HOMEDIR)/report-json.json"
+      env:
+        - name: SSL_CERT_DIR
+          # The Tekton Operator automatically sets the SSL_CERT_DIR env to the value below but,
+          # of course, without the $(param.SSL_CERT_DIR) bit. When a Task Step sets it to a
+          # value, the Tekton Operator does not do any processing of the value. However, Tekton
+          # Pipelines will fail to execute because some of these values are required for its
+          # execution. As a workaround, append the SSL_CERT_DIR value from params to the default
+          # value expected by Tekton Pipelines. NOTE: If params.SSL_CERT_DIR is empty, the value
+          # will contain a trailing ":" - this is ok.
+          value: "/tekton-custom-certs:/etc/ssl/certs:/etc/pki/tls/certs:/system/etc/security/cacerts:$(params.SSL_CERT_DIR)"
+        # The EC cache is used to avoid fetching the same image layers from the registry more than
+        # once. However, this is not thread safe. This results in inconsistencies when extracting
+        # files from an image, see https://github.com/enterprise-contract/ec-cli/issues/1109
+        - name: EC_CACHE
+          value: "false"
+      computeResources:
+        requests:
+          cpu: 250m
+          memory: 2Gi
+        limits:
+          memory: 2Gi
+    - name: report
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [cat]
+      args:
+        - "$(params.HOMEDIR)/report.yaml"
+    - name: report-json
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [cat]
+      args:
+        - "$(params.HOMEDIR)/report-json.json"
+    - name: summary
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [jq]
+      args:
+        - "."
+        - "$(results.TEST_OUTPUT.path)"
+    - name: assert
+      image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
+      command: [jq]
+      args:
+        - "--argjson"
+        - "strict"
+        - "$(params.STRICT)"
+        - "-e"
+        - >
+          .result == "SUCCESS" or .result == "WARNING" or ($strict | not)
+        - "$(results.TEST_OUTPUT.path)"
