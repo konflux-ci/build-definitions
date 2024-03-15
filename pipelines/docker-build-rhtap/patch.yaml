@@ -15,6 +15,13 @@
     type: string
     default: "rox-api-token"
 - op: add
+  path: /spec/params/-
+  value:
+    name: event-type
+    type: string
+    default: "push"
+    description: "Event that triggered the pipeline run, e.g. push, pull_request"
+- op: add
   path: /spec/results/-
   value:
     name: ACS_SCAN_OUTPUT
@@ -27,16 +34,16 @@
 - op: add
   path: /spec/tasks/3/params
   value:
-  - name: IMAGE
-    value: $(params.output-image)
-  - name: DOCKERFILE
-    value: $(params.dockerfile)
-  - name: CONTEXT
-    value: $(params.path-context)
-  - name: IMAGE_EXPIRES_AFTER
-    value: "$(params.image-expires-after)"
-  - name: COMMIT_SHA
-    value: "$(tasks.clone-repository.results.commit)"
+    - name: IMAGE
+      value: $(params.output-image)
+    - name: DOCKERFILE
+      value: $(params.dockerfile)
+    - name: CONTEXT
+      value: $(params.path-context)
+    - name: IMAGE_EXPIRES_AFTER
+      value: "$(params.image-expires-after)"
+    - name: COMMIT_SHA
+      value: "$(tasks.clone-repository.results.commit)"
 # Remove tasks
 # Example - yq .spec.tasks.[].name ../build-definitions/pipelines/template-build/template-build.yaml | nl -v 0
 # to compute offsets
@@ -75,14 +82,14 @@
   value:
     name: acs-image-check
     params:
-    - name: rox-secret-name
-      value: $(params.stackrox-secret)
-    - name: image
-      value: $(params.output-image)
-    - name: insecure-skip-tls-verify
-      value: "true"
-    - name: image-digest
-      value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: rox-secret-name
+        value: $(params.stackrox-secret)
+      - name: image
+        value: $(params.output-image)
+      - name: insecure-skip-tls-verify
+        value: "true"
+      - name: image-digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
     runAfter:
       - build-container
     taskRef:
@@ -92,16 +99,16 @@
   value:
     name: acs-image-scan
     params:
-    - name: rox-secret-name
-      value: $(params.stackrox-secret)
-    - name: image
-      value: $(params.output-image)
-    - name: insecure-skip-tls-verify
-      value: "true"
-    - name: image-digest
-      value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: rox-secret-name
+        value: $(params.stackrox-secret)
+      - name: image
+        value: $(params.output-image)
+      - name: insecure-skip-tls-verify
+        value: "true"
+      - name: image-digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
     runAfter:
-    - build-container
+      - build-container
     taskRef:
       kind: Task
       name: acs-image-scan
@@ -110,14 +117,18 @@
   value:
     name: acs-deploy-check
     params:
-    - name: rox-secret-name
-      value: $(params.stackrox-secret)
-    - name: gitops-repo-url
-      value: $(params.git-url)-gitops
-    - name: insecure-skip-tls-verify
-      value: "true"
+      - name: rox-secret-name
+        value: $(params.stackrox-secret)
+      - name: gitops-repo-url
+        value: $(params.git-url)-gitops
+      - name: insecure-skip-tls-verify
+        value: "true"
     runAfter:
-    - update-deployment
+      - update-deployment
+    when:
+      - input: "pull_request"
+        operator: notin
+        values: ["$(params.event-type)"]
     taskRef:
       kind: Task
       name: acs-deploy-check
@@ -132,6 +143,10 @@
         value: $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
     runAfter:
       - build-container
+    when:
+      - input: "pull_request"
+        operator: notin
+        values: ["$(params.event-type)"]
     taskRef:
       kind: Task
       name: update-deployment
