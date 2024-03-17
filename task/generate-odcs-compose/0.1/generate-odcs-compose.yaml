@@ -5,13 +5,6 @@ metadata:
   name: generate-odcs-compose
 spec:
   params:
-    - name: KT_PATH
-      type: string
-      description: path to mount keytab
-      default: /tmp/kt
-    - name: KRB_CACHE_PATH
-      description: path to krb cache
-      default: /tmp/krb5ccname
     - name: COMPOSE_INPUTS
       description: relative path from workdir workspace to the compose inputs file
       default: compose_inputs.yaml
@@ -23,23 +16,23 @@ spec:
       description: |
         Working directory that will be used for reading configuration files
         and writing the output
-    - name: keytab-secret
-      description: for storing keytab secret
-      mountPath: "$(params.KT_PATH)"
-    - name: krb-cache
-      description: location of krb cache
-      mountPath: "$(params.KRB_CACHE_PATH)"
   results:
     - name: repodir_path
       description: Directory to write the result .repo files.
   steps:
     - name: generate-odcs-compose
-      image: quay.io/redhat-user-workloads/rhtap-o11y-tenant/tools/tools:b95417fbab81a012881b79fee82f187074248b84
+      image: quay.io/redhat-user-workloads/rhtap-o11y-tenant/tools/tools:20de0e480e7dd1b734775f33b46170e25ec18197
       env:
-        - name: KRB5CCNAME
-          value: "$(params.KRB_CACHE_PATH)/krb5ccname"
-        - name: KRB5_CLIENT_KTNAME
-          value: "$(params.KT_PATH)/keytab"
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: odcs-service-account
+              key: client-id
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: odcs-service-account
+              key: client-secret
         - name: COMPOSE_INPUTS
           value: "$(params.COMPOSE_INPUTS)"
         - name: COMPOSE_OUTPUTS
