@@ -21,9 +21,8 @@ spec:
       default: "true"
     - description: The public key that EC should use to verify signatures
       name: ec-public-key
-      type: string
-      # TODO: what's a reasonable default?
-      #   probably not k8s://rhtap-app-development/cosign-pub
+      type: string      
+      default: "k8s://$(context.pipelineRun.namespace)/cosign-pub" 
     - description: The Rekor host that EC should use to look up transparency logs
       name: ec-rekor-host
       type: string
