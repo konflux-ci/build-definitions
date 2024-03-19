@@ -21,8 +21,8 @@ spec:
       default: "true"
     - description: The public key that EC should use to verify signatures
       name: ec-public-key
-      type: string      
-      default: "k8s://$(context.pipelineRun.namespace)/cosign-pub" 
+      type: string
+      default: "k8s://$(context.pipelineRun.namespace)/cosign-pub"
     - description: The Rekor host that EC should use to look up transparency logs
       name: ec-rekor-host
       type: string
@@ -47,15 +47,6 @@ spec:
         - name: basic-auth
           workspace: git-auth
     - name: gather-deploy-images
-      params:
-        - name: gitops-repo-url
-          value: $(params.git-url)
-        - name: revision
-          value: $(params.revision)
-        - name: target-branch
-          value: $(params.target-branch)
-        - name: commit-message
-          value: $(params.commit-message)
       runAfter:
         - clone-repository
       taskRef:
