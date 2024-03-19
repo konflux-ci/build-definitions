@@ -10,7 +10,7 @@ Extract images from deployment YAML to pass to EC for validation
 ## Results
 |name|description|
 |---|---|
-|IMAGES_TO_VERIFY|The images to be verified, in a format compatible with https://github.com/redhat-appstudio/build-definitions/tree/main/task/verify-enterprise-contract/0.1|
+|IMAGES_TO_VERIFY|The images to be verified, in a format compatible with https://github.com/redhat-appstudio/build-definitions/tree/main/task/verify-enterprise-contract/0.1. When there are no images to verify, this is an empty string. |
 
 ## Workspaces
 |name|description|optional|

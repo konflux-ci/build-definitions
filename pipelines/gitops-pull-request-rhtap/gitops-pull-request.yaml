@@ -82,6 +82,10 @@ spec:
           value: $(params.ec-tuf-mirror)
       runAfter:
         - gather-deploy-images
+      when:
+        - input: $(tasks.gather-deploy-images.results.IMAGES_TO_VERIFY)
+          operator: notin
+          values: [""]
       taskRef:
         name: verify-enterprise-contract
         version: "0.1"
