@@ -22,7 +22,7 @@ spec:
 
       for env in development stage prod; do
         yq '.spec.template.spec.containers[0].image' "components/${component_name}/overlays/${env}/deployment-patch.yaml"
-      done > /tmp/all-images.txt
+      done | sort -u > /tmp/all-images.txt
 
       # TODO: each component needs a {"source": {"git": {"url": "...", "revision": "..."}}}
       #       will that be too large for Tekton results?
