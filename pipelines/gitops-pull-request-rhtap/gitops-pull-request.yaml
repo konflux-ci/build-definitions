@@ -1,0 +1,76 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: gitops-pull-request
+spec:
+  params:
+    - description: Gitops repo url
+      name: git-url
+      type: string
+    - description: Gitops repo revision
+      name: revision
+      type: string
+      default: ""
+    - description: Enterprise Contract policy to validate against
+      name: ec-policy-configuration
+      type: string
+      default: github.com/enterprise-contract/config//default
+    - description: Should EC violations cause the pipeline to fail?
+      name: ec-strict
+      type: string
+      default: "true"
+    - description: The public key that EC should use to verify signatures
+      name: ec-public-key
+      type: string
+      default: "k8s://$(context.pipelineRun.namespace)/cosign-pub"
+    - description: The Rekor host that EC should use to look up transparency logs
+      name: ec-rekor-host
+      type: string
+      default: http://rekor-server.rhtap.svc
+    - description: The TUF mirror that EC should use
+      name: ec-tuf-mirror
+      type: string
+      default: http://tuf.rhtap.svc
+  tasks:
+    - name: clone-repository
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.revision)
+      taskRef:
+        name: git-clone
+        version: "0.1"
+      workspaces:
+        - name: output
+          workspace: workspace
+        - name: basic-auth
+          workspace: git-auth
+    - name: gather-deploy-images
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: gather-deploy-images
+        version: "0.1"
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: verify-enteprise-contract
+      params:
+        - name: IMAGES
+          value: $(tasks.gather-deploy-images.results.IMAGES_TO_VERIFY)
+        - name: STRICT
+          value: $(params.ec-strict)
+        - name: POLICY_CONFIGURATION
+          value: $(params.ec-policy-configuration)
+        - name: PUBLIC_KEY
+          value: $(params.ec-public-key)
+        - name: REKOR_HOST
+          value: $(params.ec-rekor-host)
+        - name: TUF_MIRROR
+          value: $(params.ec-tuf-mirror)
+      runAfter:
+        - gather-deploy-images
+      taskRef:
+        name: verify-enterprise-contract
+        version: "0.1"

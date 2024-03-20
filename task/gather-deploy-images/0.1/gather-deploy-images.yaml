@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: gather-deploy-images
+spec:
+  description: Extract images from deployment YAML to pass to EC for validation
+  workspaces:
+    - description: Should contain a cloned gitops repo at the ./source subpath
+      name: source
+  results:
+    - name: IMAGES_TO_VERIFY
+      description: The images to be verified, in a format compatible with https://github.com/redhat-appstudio/build-definitions/tree/main/task/verify-enterprise-contract/0.1
+  steps:
+  - name: get-images-per-env
+    image: quay.io/redhat-appstudio/appstudio-utils:5bd7d6cb0b17f9f2eab043a8ad16ba3d90551bc2@sha256:8c7fcf86af40c71aeb58e4279625c8308af5144e2f6b8e28b0ec7e795260e5f7
+    workingDir: $(workspaces.source.path)/source
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      component_name=$(yq .metadata.name application.yaml)
+
+      for env in development stage prod; do
+        yq '.spec.template.spec.containers[0].image' "components/${component_name}/overlays/${env}/deployment-patch.yaml"
+      done | sort -u > /tmp/all-images.txt
+
+      # TODO: each component needs a {"source": {"git": {"url": "...", "revision": "..."}}}
+      #       will that be too large for Tekton results?
+
+      jq --compact-output --raw-input --slurp < /tmp/all-images.txt '
+        # split input file
+        split("\n") |
+        # drop empty lines
+        map(select(length > 0)) |
+        # convert into EC-compatible format
+        {
+          "components": map({"containerImage": .})
+        }
+      ' | tee $(results.IMAGES_TO_VERIFY.path)
