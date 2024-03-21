@@ -7,6 +7,10 @@ metadata:
     tekton.dev/displayName: Verify Enterprise Contract
     tekton.dev/pipelines.minVersion: "0.19"
     tekton.dev/tags: ec, chains, signature, conftest
+    task.results.format: application/json
+    task.results.type: ec
+    task.output.location: logs
+    task.results.container: step-report-json
   labels:
     app.kubernetes.io/version: "0.1"
 spec:
@@ -103,6 +107,15 @@ spec:
         value: "$(params.HOMEDIR)"
 
   steps:
+    - name: annotate-task
+      image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
+      script: |
+        #!/usr/bin/env bash
+        echo "verify-enterprise-contract $(context.taskRun.name)"
+        oc annotate taskrun $(context.taskRun.name) task.results.format=application/json
+        oc annotate taskrun $(context.taskRun.name) task.results.type=ec
+        oc annotate taskrun $(context.taskRun.name) task.results.container=step-report-json
+        oc annotate taskrun $(context.taskRun.name) task.output.location=logs
     - name: version
       image: registry.redhat.io/rhtas-tech-preview/ec-rhel9:1.0.alpha
       command: [ec]
