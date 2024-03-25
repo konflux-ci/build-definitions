@@ -23,8 +23,3 @@ In addition it generates a SBOM file, injects the SBOM file into final container
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
-
-## Workspaces
-|name|description|optional|
-|---|---|---|
-|source|Workspace containing the source code to build.|false|

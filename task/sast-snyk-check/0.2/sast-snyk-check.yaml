@@ -37,14 +37,10 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
+      image: quay.io/lucarval/build-trusted-artifacts:latest@sha256:8f65579cdc92e0d68f261997d8c61040fe3313d0493da4c0fe64ba4252d582ae
       args:
         - use
-        - --store
-        - $(workspaces.workspace.path)
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-      workspaces:
-        - name: workspace
     - name: sast-snyk-check
       image: quay.io/redhat-appstudio/hacbs-test:v1.3.0@sha256:cd4601a7d71ebd908046db7a9b7010611b8b372fe941664d5163c81250a1a1fc
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -103,6 +99,3 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
-  workspaces:
-  - name: workspace
-    description: Workspace with the trusted artifacts

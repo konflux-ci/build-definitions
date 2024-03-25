@@ -25,8 +25,3 @@ When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|
-
-## Workspaces
-|name|description|optional|
-|---|---|---|
-|source|Workspace containing the source code to build.|false|

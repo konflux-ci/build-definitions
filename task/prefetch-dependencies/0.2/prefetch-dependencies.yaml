@@ -20,6 +20,15 @@ spec:
   - name: SOURCE_ARTIFACT
     type: string
     description: The source trusted artifact URI
+  - name: OCI_STORAGE
+    type: string
+    description: >-
+      The OCI repository where the modified cloned repository and prefetch depedencies will be
+      stored.
+  - name: IMAGE_EXPIRES_AFTER
+    type: string
+    descripton: Expiration date for the artifacts created in the OCI repository.
+    default: ""
   results:
   - name: SOURCE_ARTIFACT
     type: string
@@ -33,14 +42,10 @@ spec:
         name: workdir
   steps:
   - name: use-trusted-artifact
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
+    image: quay.io/lucarval/build-trusted-artifacts:latest@sha256:8f65579cdc92e0d68f261997d8c61040fe3313d0493da4c0fe64ba4252d582ae
     args:
       - use
-      - --store
-      - $(workspaces.source.path)
       - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    workspaces:
-      - name: source
   - image: quay.io/redhat-appstudio/cachi2:0.6.0@sha256:15d0513ed891b1d34fc46e56fdc9f6b457c90fbfd34f6a8c8fce6d3400ddc4a7
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
@@ -76,18 +81,16 @@ spec:
       cachi2 inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
   - name: create-trusted-artifact
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
+    image: quay.io/lucarval/build-trusted-artifacts:latest@sha256:8f65579cdc92e0d68f261997d8c61040fe3313d0493da4c0fe64ba4252d582ae
+    env:
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.IMAGE_EXPIRES_AFTER)
     args:
       - create
       - --store
-      - $(workspaces.source.path)
+      - $(params.OCI_STORAGE)
       - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
       - $(results.CACHI2_ARTIFACT.path)=/var/workdir/cachi2
-    workspaces:
-      - name: source
   volumes:
   - name: workdir
     emptyDir: {}
-  workspaces:
-  - name: source
-    description: Workspace with the trusted artifacts

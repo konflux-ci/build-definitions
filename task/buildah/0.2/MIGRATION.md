@@ -7,6 +7,8 @@ artifact, e.g. using the git-clone Task version 0.3 or newer.
 Similarly the `CACHI2_ARTIFACT` can be provided containing the URI of the
 artifact created by the prefetch-dependencies task version 0.2 or newer.
 
+As a consequence of using trusted artifacts, it no longer uses workspaces.
+
 ## Action from users
 
 Update files in Pull-Request created by RHTAP bot:
@@ -35,6 +37,12 @@ Update files in Pull-Request created by RHTAP bot:
 +    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT) # clone-repository is the name of the git-clone Task in the Pipeline
 ```
 
+Remove the `source` workspace:
 
+```diff
+-      workspaces:
+-        - name: source
+-          workspace: workspace
+```
 
 [^1]: https://github.com/redhat-appstudio/build-trusted-artifacts

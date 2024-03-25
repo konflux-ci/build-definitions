@@ -77,12 +77,14 @@ spec:
           value: $(params.git-url)
         - name: revision
           value: "$(params.revision)"
+        - name: ociStorage
+          value: "$(params.output-image)-clone"
+        - name: imageExpiresAfter
+          value: "$(params.image-expires-after)"
       taskRef:
         name: git-clone
         version: "0.2"
       workspaces:
-        - name: output
-          workspace: workspace
         - name: basic-auth
           workspace: git-auth
     - name: prefetch-dependencies
@@ -93,12 +95,13 @@ spec:
           value: $(params.hermetic)
         - name: SOURCE_ARTIFACT
           value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+        - name: OCI_STORAGE
+          value: $(params.output-image)-prefetch
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.image-expires-after)
       taskRef:
         name: prefetch-dependencies
         version: "0.2"
-      workspaces:
-        - name: source
-          workspace: workspace
     - name: build-container
       when:
       - input: $(tasks.init.results.build)
@@ -106,9 +109,6 @@ spec:
         values: ["true"]
       taskRef:
         name: $REPLACE_ME
-      workspaces:
-        - name: source
-          workspace: workspace
     - name: build-source-image
       when:
         - input: $(tasks.init.results.build)
@@ -131,9 +131,6 @@ spec:
           value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
         - name: CACHI2_ARTIFACT
           value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-      workspaces:
-        - name: workspace
-          workspace: workspace
     - name: deprecated-base-image-check
       when:
       - input: $(params.skip-checks)
@@ -188,9 +185,6 @@ spec:
       params:
       - name: SOURCE_ARTIFACT
         value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
-      workspaces:
-      - name: workspace
-        workspace: workspace
     - name: clamav-scan
       when:
       - input: $(params.skip-checks)
@@ -253,6 +247,5 @@ spec:
     - name: CHAINS-GIT_COMMIT
       value: "$(tasks.clone-repository.results.commit)"
   workspaces:
-    - name: workspace
     - name: git-auth
       optional: true

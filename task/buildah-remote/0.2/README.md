@@ -32,8 +32,3 @@ This task has an additional `PLATFORM` param that is used by the Multi Arch Cont
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|
-
-## Workspaces
-|name|description|optional|
-|---|---|---|
-|source|Workspace containing the source code to build.|false|

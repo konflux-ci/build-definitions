@@ -79,6 +79,13 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: ociStorage
+    type: string
+    description: The OCI repository where the clone repository will be stored.
+  - name: imageExpiresAfter
+    type: string
+    descripton: Expiration date for the artifacts created in the OCI repository.
+    default: ""
   results:
   - description: The precise commit SHA that was fetched by this Task.
     name: commit
@@ -238,17 +245,16 @@ spec:
         check_symlinks
       fi
   - name: create-trusted-artifact
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
+    image: quay.io/lucarval/build-trusted-artifacts:latest@sha256:8f65579cdc92e0d68f261997d8c61040fe3313d0493da4c0fe64ba4252d582ae
+    env:
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.imageExpiresAfter)
     args:
       - create
       - --store
-      - $(workspaces.output.path)
+      - $(params.ociStorage)
       - $(results.SOURCE_ARTIFACT.path)=/var/source
-    workspaces:
-      - name: output
   workspaces:
-  - description: The trusted archive containing the source will be placed here
-    name: output
   - description: |
       A .ssh directory with private key, known_hosts, config, etc. Copied to
       the user's home before git commands are executed. Used to authenticate

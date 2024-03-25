@@ -85,15 +85,11 @@ spec:
     name: BASE_IMAGES_DIGESTS
   steps:
   - name: use-trusted-artifact
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:2741aaaf0c06ab784dcab99545be615696d05a578bd4ae5a1b2d6e17e5c569c4
+    image: quay.io/lucarval/build-trusted-artifacts:latest@sha256:8f65579cdc92e0d68f261997d8c61040fe3313d0493da4c0fe64ba4252d582ae
     args:
       - use
-      - --store
-      - $(workspaces.source.path)
       - $(params.SOURCE_ARTIFACT)=/var/workdir/source
       - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
-    workspaces:
-      - name: source
   - name: generate
     image: registry.redhat.io/ocp-tools-4-tech-preview/source-to-image-rhel8@sha256:e518e05a730ae066e371a4bd36a5af9cedc8686fd04bd59648d20ea0a486d7e5
     command:
@@ -270,6 +266,3 @@ spec:
     name: gen-source
   - name: workdir
     emptyDir: {}
-  workspaces:
-  - name: source
-    description: Workspace with the trusted artifacts

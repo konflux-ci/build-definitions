@@ -20,7 +20,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |YUM_REPOS_D_SRC|Path in the git repository in which yum repository files are stored|repos.d|false|
-|YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
+|YUM_REPOS_D_FETCHED|Path in cloned source where dynamically-fetched repos are present|fetched.repos.d|false|
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 
 ## Results
@@ -31,8 +31,3 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|
-
-## Workspaces
-|name|description|optional|
-|---|---|---|
-|source|Workspace containing the source code to build.|false|
