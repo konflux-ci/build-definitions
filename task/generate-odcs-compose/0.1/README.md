@@ -14,6 +14,11 @@ The input is provided inside a YAML file with its root containing a single eleme
 named `composes`. This element is a list in which each entry is to be converted
 into inputs for a single call to ODCS.
 
+The task requires a secret to reside on the namespace where the task is running.
+The secret should be named `odcs-service-account` and it should include two fields:
+`client-id` - containing an OIDC client ID and `client-secret` containing the client's
+secret for generating OIDC token.
+
 Element fields:
 
 * kind: Corresponds to sub-types of [`ComposeSourceGeneric`][input structure].
@@ -39,8 +44,6 @@ composes:
 | IMAGE           | Image used for running the tasks's script                         |
 | COMPOSE_INPUTS  | relative path from workdir workspace to the compose inputs file   |
 | COMPOSE_OUTPUTS | relative path from workdir workspace to store compose output files|
-| KT_PATH         | Path to mount keytab to be used for authentication with ODCS      |
-| KRB_CACHE_PATH  | Path to store Kerberos cache                                      |
 
 
 ## Results:
