@@ -172,6 +172,46 @@ spec:
               secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
+      - name: build-acceptable-bundles
+        runAfter:
+          - build-bundles
+        workspaces:
+          - name: artifacts
+            workspace: workspace
+        taskSpec:
+          workspaces:
+            - name: artifacts
+              description: Workspace containing arbitrary artifacts used during the task run.
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
+          steps:
+            - name: build-bundles
+              image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.artifacts.path)/source
+              env:
+              - name: REVISION
+                value: "$(params.revision)"
+              - name: GIT_URL
+                value: "$(params.git-url)"
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+              script: |-
+                #!/usr/bin/env bash
+
+                export BUNDLES=(
+                  $(workspaces.artifacts.path)/source/task-bundle-list
+                  $(workspaces.artifacts.path)/source/pipeline-bundle-list
+                )
+
+                .tekton/scripts/build-acceptable-bundles.sh
+
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
       - name: e2e-tests
         params:
           - name: e2e_test_namespace

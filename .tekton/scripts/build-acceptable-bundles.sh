@@ -43,13 +43,15 @@ fi
 BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
 PARAMS=("${TASK_PARAM[@]}" "${BUNDLES_PARAM[@]}")
-ec track bundle --debug \
-    --input "oci:${DATA_BUNDLE_REPO}:latest" \
-    --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
-    --timeout "15m0s" \
-    --freshen \
-    --prune \
-    ${PARAMS[@]}
 
-# To facilitate usage in some contexts, tag the image with the floating "latest" tag.
-skopeo copy "docker://${DATA_BUNDLE_REPO}:${TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
+echo ${PARAMS[@]}
+# ec track bundle --debug \
+#     --input "oci:${DATA_BUNDLE_REPO}:latest" \
+#     --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
+#     --timeout "15m0s" \
+#     --freshen \
+#     --prune \
+#     ${PARAMS[@]}
+
+# # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
+# skopeo copy "docker://${DATA_BUNDLE_REPO}:${TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
