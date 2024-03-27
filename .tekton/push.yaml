@@ -34,10 +34,8 @@ spec:
             value: $(params.git-url)
           - name: revision
             value: "$(params.revision)"
-          # the task "build-acceptable-bundles" uses git diff-tree which needs history to compare the current
-          # revision to, so this must be set to 0 or > 1 for the task to work
           - name: depth
-            value: "2"
+            value: "0"
         taskRef:
           name: git-clone
         workspaces:
@@ -134,24 +132,40 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
-              env:
-              - name: REVISION
-                value: "$(params.revision)"
-              - name: GIT_URL
-                value: "$(params.git-url)"
               # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
               # the cluster will set imagePullPolicy to IfNotPresent
               # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               script: |-
                 #!/usr/bin/env bash
+                set -euo pipefail
 
-                export BUNDLES=(
+                BUNDLES=(
                   $(workspaces.artifacts.path)/source/task-bundle-list
                   $(workspaces.artifacts.path)/source/pipeline-bundle-list
                 )
+                touch ${BUNDLES[@]}
+                echo "Bundles to be added:"
+                cat ${BUNDLES[@]}
+                BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
-                .tekton/scripts/build-acceptable-bundles.sh
+                # The OPA data bundle is tagged with the current timestamp. This has two main
+                # advantages. First, it prevents the image from accidentally not having any tags,
+                # and getting garbage collected. Second, it helps us create a timeline of the
+                # changes done to the data over time.
+                TAG="$(date '+%s')"
+                DATA_BUNDLE_REPO='quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles'
 
+                # Update the OPA data bundle.
+                ec track bundle --debug \
+                  --input "oci:${DATA_BUNDLE_REPO}:latest" \
+                  --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
+                  --timeout "15m0s" \
+                  --freshen \
+                  --prune \
+                  ${BUNDLES_PARAM[@]}
+
+                # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
+                skopeo copy "docker://${DATA_BUNDLE_REPO}:${TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
               volumeMounts:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
