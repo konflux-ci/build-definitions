@@ -18,7 +18,7 @@ spec:
       type: string
   steps:
     - name: e2e-test
-      image: quay.io/redhat-appstudio/e2e-tests:b5c5f1cf9bf9f641859aadb8f80eded96c70785c
+      image: quay.io/redhat-appstudio/e2e-tests:4f0eeef4edf4559f11d576783aa6cc5101e44323
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
       args: [
@@ -27,7 +27,9 @@ spec:
         "--ginkgo.timeout=2h"
       ]
       securityContext:
-        runAsUser: 1000
+        capabilities:
+          add:
+          - SETFCAP
       env:
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
