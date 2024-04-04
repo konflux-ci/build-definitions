@@ -246,7 +246,7 @@ spec:
       done
 
       # Needed to generate base images SBOM
-      echo "$BASE_IMAGES" > /workspace/base_images_from_dockerfile
+      echo "$BASE_IMAGES" > $(workspaces.source.path)/base_images_from_dockerfile
 
     securityContext:
       capabilities:
@@ -359,7 +359,7 @@ spec:
     - name: BASE_IMAGES_DIGESTS_PATH
       value: $(results.BASE_IMAGES_DIGESTS.path)
     script: |
-      python3 /app/base_images_sbom_script.py --sbom=sbom-cyclonedx.json --base-images-from-dockerfile=/workspace/base_images_from_dockerfile --base-images-digests=$BASE_IMAGES_DIGESTS_PATH
+      python3 /app/base_images_sbom_script.py --sbom=sbom-cyclonedx.json --base-images-from-dockerfile=base_images_from_dockerfile --base-images-digests=$BASE_IMAGES_DIGESTS_PATH
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
