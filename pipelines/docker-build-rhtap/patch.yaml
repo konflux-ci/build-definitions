@@ -133,9 +133,9 @@
     runAfter:
       - update-deployment
     when:
-      - input: "pull_request"
+      - input: "$(params.event-type)"
         operator: notin
-        values: ["$(params.event-type)"]
+        values: ["pull_request", "Merge Request"]
     taskRef:
       kind: Task
       name: acs-deploy-check
@@ -153,9 +153,9 @@
     runAfter:
       - build-container
     when:
-      - input: "pull_request"
+      - input: "$(params.event-type)"
         operator: notin
-        values: ["$(params.event-type)"]
+        values: ["pull_request", "Merge Request"]
     taskRef:
       kind: Task
       name: update-deployment
