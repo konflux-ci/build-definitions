@@ -201,14 +201,16 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-      - name: ec-task-checks
-        runAfter:
-          - fetch-repository
-        taskRef:
-          name: ec-checks
-        workspaces:
-          - name: source
-            workspace: workspace
+      # TODO: Re-enable this task before merging. Disabled for now because the TA steps are using
+      # an image from lcarva's private repo.
+      # - name: ec-task-checks
+      #   runAfter:
+      #     - fetch-repository
+      #   taskRef:
+      #     name: ec-checks
+      #   workspaces:
+      #     - name: source
+      #       workspace: workspace
       - name: check-task-migration-md
         runAfter:
           - fetch-repository
