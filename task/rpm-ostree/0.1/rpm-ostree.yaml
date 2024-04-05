@@ -126,6 +126,25 @@ spec:
       else
         CONFIG_FILE_ARG="  --image-config=source/$CONFIG_FILE "
       fi
+
+      prefetched_rpms_for_my_arch="./cachi2/output/deps/rpm/$(uname -m)"
+      if [ -d "$prefetched_rpms_for_my_arch" ]; then
+        # move all repo files out of the source repository to avoid conflicts with the cachi2.repo
+        mkdir /tmp/original-repos
+        find ./source -maxdepth 1 -name '*.repo' -exec mv {} /tmp/original-repos \;
+
+        # copy the platform-specific cachi2.repo into the source repository
+        cp "$prefetched_rpms_for_my_arch/repos.d/cachi2.repo" ./source
+
+        # set up cleanup handler
+        trap 'rm ./source/cachi2.repo; cp -r /tmp/original-repos/. ./source' EXIT
+
+        # link the cachi2 output dir to the expected location
+        #   (the prefetch task expects the output to be at /cachi2/output during the build)
+        mkdir /cachi2
+        ln -s "$(realpath ./cachi2/output)" /cachi2/output
+      fi
+
       rpm-ostree compose image --initialize --format oci $CONFIG_FILE_ARG "source/$IMAGE_FILE" rhtap-final-image
 
       REMOTESSHEOF
