@@ -8,20 +8,21 @@ BUNDLES=${BUNDLES:-()}
 # store a list of changed task files
 task_records=()
 # loop over all changed files
-for path in $(git diff-tree -c --name-only --no-commit-id -r ${REVISION}); do
+for path in $(git log -m -1 --name-only --pretty="format:" ${REVISION}); do
     # check that the file modified is the task file
     if [[ "${path}" == task/*/*/*.yaml ]]; then
-    IFS='/' read -r -a path_array <<< "${path}"
-    dir_name_after_task="${path_array[1]}"
-    file_name=$(basename "${path_array[-1]}" ".yaml")
+        IFS='/' read -r -a path_array <<< "${path}"
+        dir_name_after_task="${path_array[1]}"
+        file_name=$(basename "${path_array[-1]}" ".yaml")
 
-    if [[ "${dir_name_after_task}" == "${file_name}" ]]; then
-        # GIT_URL is the repo_url from PAC (https://hostname/org/repo)
-        task_records+=("git+${GIT_URL}.git//${path}@${REVISION}")
-    fi
+        if [[ "${dir_name_after_task}" == "${file_name}" ]]; then
+            # GIT_URL is the repo_url from PAC (https://hostname/org/repo)
+            task_records+=("git+${GIT_URL}.git//${path}@${REVISION}")
+        fi
     fi
 done
 
+echo "Tasks to be added"
 echo "${task_records[@]}"
 
 touch ${BUNDLES[@]}
@@ -43,6 +44,7 @@ fi
 BUNDLES_PARAM=($(cat ${BUNDLES[@]} | awk '{ print "--bundle=" $0 }'))
 
 PARAMS=("${TASK_PARAM[@]}" "${BUNDLES_PARAM[@]}")
+
 ec track bundle --debug \
     --input "oci:${DATA_BUNDLE_REPO}:latest" \
     --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
