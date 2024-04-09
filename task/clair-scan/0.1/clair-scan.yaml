@@ -42,7 +42,7 @@ spec:
 
         clair-action report --image-ref=$imageanddigest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result.json || true
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:v1.3.0@sha256:cd4601a7d71ebd908046db7a9b7010611b8b372fe941664d5163c81250a1a1fc
+      image: quay.io/redhat-appstudio/hacbs-test:v1.3.5@sha256:975c09b7a97a57563695cf0d51b3f2af0fcc91c468e11f06586c70f85401723f
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
@@ -79,7 +79,15 @@ spec:
               medium: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
               low: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
               unknown: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unknown_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
-            }}' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
+            },
+          unpatched_vulnerabilities:{
+              critical: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              high: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              medium: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              low: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+              unknown: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_unknown_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
+            }
+          }' /tekton/home/clair-vulnerabilities.json | tee $(results.CLAIR_SCAN_RESULT.path)
 
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
         TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
