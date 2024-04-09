@@ -7,6 +7,7 @@ See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
 |name|description|default value|required|
 |---|---|---|---|
 |input|Configures project packages that will have their dependencies prefetched.||true|
+|dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
 
 ## Workspaces
 |name|description|optional|
