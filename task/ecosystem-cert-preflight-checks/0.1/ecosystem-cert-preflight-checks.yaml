@@ -15,6 +15,9 @@ spec:
     - name: check-container
       image: quay.io/opdev/preflight:stable@sha256:add15669e17a86d807be05671f3c9834161d7af6f41bf4a50969be2da0487fbc
       args: ["check", "container", "$(params.image-url)"]
+      env:
+        - name: PFLT_DOCKERCONFIG
+          value: /root/.docker/config.json
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
