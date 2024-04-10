@@ -14,6 +14,11 @@ spec:
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
+  - description: >
+      Enable in-development package managers. WARNING: the behavior may change at any time without
+      notice. Use at your own risk.
+    name: dev-package-managers
+    default: "false"
   steps:
   - image: quay.io/redhat-appstudio/cachi2:0.6.0@sha256:15d0513ed891b1d34fc46e56fdc9f6b457c90fbfd34f6a8c8fce6d3400ddc4a7
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -23,6 +28,8 @@ spec:
     env:
     - name: INPUT
       value: $(params.input)
+    - name: DEV_PACKAGE_MANAGERS
+      value: $(params.dev-package-managers)
     script: |
       if [ -z "${INPUT}" ]
       then
@@ -30,7 +37,14 @@ spec:
         exit 0
       fi
 
+      if [ "$DEV_PACKAGE_MANAGERS" = "true" ]; then
+        dev_pacman_flag=--dev-package-managers
+      else
+        dev_pacman_flag=""
+      fi
+
       cachi2 fetch-deps \
+      $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
       --output=$(workspaces.source.path)/cachi2/output \
       "${INPUT}"
