@@ -214,27 +214,6 @@ spec:
     volumeMounts:
       - mountPath: /var/lib/containers
         name: varlibcontainers
-  - image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
-    name: create-purl-sbom
-    computeResources: {}
-    script: |
-      #!/bin/python3
-      import json
-
-      with open("./sbom-cyclonedx.json") as f:
-        cyclonedx_sbom = json.load(f)
-
-      purls = [{"purl": component["purl"]} for component in cyclonedx_sbom.get("components", []) if "purl" in component]
-      purl_content = {"image_contents": {"dependencies": purls}}
-
-      with open("sbom-purl.json", "w") as output_file:
-        json.dump(purl_content, output_file, indent=4)
-    securityContext:
-      runAsUser: 0
-    workingDir: $(workspaces.source.path)
   - image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
