@@ -176,7 +176,11 @@ spec:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
           - name: app_suffix
-            value: "{{ pull_request_number }}"
+            value: "ref-{{ revision }}"
+          - name: ec_pipelines_repo_url
+            value: "{{ source_url }}"
+          - name: ec_pipelines_repo_revision
+            value: "{{ revision }}"
         runAfter:
           - build-bundles
         taskRef:

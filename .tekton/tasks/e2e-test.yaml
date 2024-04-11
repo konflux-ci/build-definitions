@@ -16,6 +16,10 @@ spec:
       type: string
     - name: app_suffix
       type: string
+    - name: ec_pipelines_repo_url
+      type: string
+    - name: ec_pipelines_repo_revision
+      type: string
   steps:
     - name: e2e-test
       image: quay.io/redhat-appstudio/e2e-tests:aee2181831ab240041e83f1c9036532415f45ccf
@@ -46,3 +50,7 @@ spec:
             key: token
       - name: MY_GITHUB_ORG
         value: redhat-appstudio-appdata
+      - name: EC_PIPELINES_REPO_URL
+        value: $(params.ec_pipelines_repo_url)
+      - name: EC_PIPELINES_REPO_REVISION
+        value: $(params.ec_pipelines_repo_revision)
