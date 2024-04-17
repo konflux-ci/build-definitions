@@ -4,12 +4,14 @@ Task that uses Cachi2 to prefetch build dependencies.
 See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
 
 ## Parameters
-|name|description|default value|required|
-|---|---|---|---|
-|input|Configures project packages that will have their dependencies prefetched.||true|
-|dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
+|name| description                                                                                                                                         |default value|required|
+|---|-----------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
+|input| Configures project packages that will have their dependencies prefetched.                                                                           ||true|
+|dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk.                          |false|false|
+|enable-debug-logging| Enable debug logging with cachi2 |false|false|
 
 ## Workspaces
 |name|description|optional|
 |---|---|---|
 |source|Workspace with the source code, cachi2 artifacts will be stored on the workspace as well|false|
+|basic-auth|A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. |true|
