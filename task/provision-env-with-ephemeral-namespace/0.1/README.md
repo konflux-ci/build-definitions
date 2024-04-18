@@ -8,17 +8,14 @@ an ephemeral environment that will be completely clean of previous artifacts.
 
 ## Params:
 
-| name               | description                                                       |
-|--------------------|-------------------------------------------------------------------|
-| KONFLUXNAMESPACE   | The namespace to create the spaceRequest from                     |
-| SPACEREQUEST_NAME  | The name for the newly created space request                      |
+The task takes no parameters.
 
 
 ## Results:
 
-| name              | description                                                                                      |
-|-------------------|--------------------------------------------------------------------------------------------------|
-| secretRef         | The name of the secret with a SA token that had admin permissions in the newly created namespace |
+| name       | description                                                             |
+|-------------------|------------------------------------------------------------------|
+| secretRef  | The name of the secret with a SA token that had admin permissions in the newly created namespace |
 
 
 ## Source repository for task:
