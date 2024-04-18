@@ -28,7 +28,7 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-image-manifests
-      image: quay.io/redhat-appstudio/hacbs-test:v1.3.4@sha256:b909fe6111e04169742e23a5e515aa549aa8c09ce0348f4560ae83d3c174a15a
+      image: quay.io/redhat-appstudio/hacbs-test:v1.4.0@sha256:54d49b37c9a2e280d42961a57e4f7a16c171d6b065559f1329b548db85300bea
       # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
       env:
         - name: IMAGE_URL
@@ -91,7 +91,7 @@ spec:
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
         echo "$images_processed" > /tekton/home/images-processed.json
     - name: conftest-vulnerabilities
-      image: quay.io/redhat-appstudio/hacbs-test:v1.3.5@sha256:975c09b7a97a57563695cf0d51b3f2af0fcc91c468e11f06586c70f85401723f
+      image: quay.io/redhat-appstudio/hacbs-test:v1.4.0@sha256:54d49b37c9a2e280d42961a57e4f7a16c171d6b065559f1329b548db85300bea
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
