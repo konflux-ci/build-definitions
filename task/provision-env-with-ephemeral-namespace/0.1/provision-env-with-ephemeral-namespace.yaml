@@ -44,7 +44,7 @@ spec:
 
         if oc wait spacerequests $SPACEREQUEST_NAME --for=condition=Ready --timeout=5m -n $KONFLUXNAMESPACE; then
           secretRef=$(oc get spacerequests $SPACEREQUEST_NAME -o=jsonpath='{.status.namespaceAccess[0].secretRef}')
-          echo $secretRef > tee "$(results.secretRef.path)"
+          echo -n $secretRef | tee $(results.secretRef.path)
         else
           exit 1
         fi
