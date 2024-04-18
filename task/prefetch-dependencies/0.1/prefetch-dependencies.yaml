@@ -20,9 +20,9 @@ spec:
     name: dev-package-managers
     default: "false"
   - description: >
-      Enable cachi2 debug logging
-    name: enable-debug-logging
-    default: "false"
+      Set cachi2 log level
+    name: log-level
+    default: "info"
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -47,8 +47,8 @@ spec:
       value: $(params.input)
     - name: DEV_PACKAGE_MANAGERS
       value: $(params.dev-package-managers)
-    - name: ENABLE_DEBUG
-      value: $(params.enable-debug-logging)
+    - name: LOG_LEVEL
+      value: $(params.log-level)
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND
       value: $(workspaces.basic-auth.bound)
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
@@ -70,12 +70,6 @@ spec:
         dev_pacman_flag=--dev-package-managers
       else
         dev_pacman_flag=""
-      fi
-
-      if [ "$ENABLE_DEBUG" = "true" ]; then
-        debug_log_flag="--log-level=debug"
-      else
-        debug_log_flag=""
       fi
 
       if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ] ; then
@@ -104,8 +98,10 @@ spec:
         update-ca-trust
       fi
 
+      log_level_flag="--log-level=${LOG_LEVEL}"
+
       cachi2 \
-      $debug_log_flag \
+      $log_level_flag \
       fetch-deps \
       $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
@@ -113,7 +109,7 @@ spec:
       "${INPUT}"
 
       cachi2 \
-      $debug_log_flag \
+      $log_level_flag \
       generate-env \
       $(workspaces.source.path)/cachi2/output \
       --format env \
@@ -121,7 +117,7 @@ spec:
       --output $(workspaces.source.path)/cachi2/cachi2.env
 
       cachi2 \
-      $debug_log_flag \
+      $log_level_flag \
       inject-files \
       $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output

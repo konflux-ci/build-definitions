@@ -8,7 +8,7 @@ See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
 |---|-----------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
 |input| Configures project packages that will have their dependencies prefetched.                                                                           ||true|
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk.                          |false|false|
-|enable-debug-logging| Enable debug logging with cachi2 |false|false|
+|log-level| Set cachi2 log level |info|false|
 
 ## Workspaces
 |name|description|optional|
