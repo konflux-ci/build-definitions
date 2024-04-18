@@ -76,19 +76,25 @@ spec:
         if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" ]; then
           cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" "${PARAM_USER_HOME}/.git-credentials"
           cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" "${PARAM_USER_HOME}/.gitconfig"
+          #
+          # needed or else you'll see "could not read Username for 'https://gitlab.com':"
+          # See https://wahlnetwork.com/2020/08/11/using-private-git-repositories-as-terraform-modules/
+          #   (1) add path to creds in gitconfig file
+          sed -i "s#store#store --file ${PARAM_USER_HOME}/.git-credentials#g" "${PARAM_USER_HOME}/.gitconfig"
+          #   (2) add this snippet to the cloned repo's config
+          cat "${PARAM_USER_HOME}/.gitconfig" >> $(workspaces.source.path)/source/.git/config
+          #
         # Compatibility with kubernetes.io/basic-auth secrets
         elif [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password" ]; then
           HOSTNAME=$(echo $PARAM_URL | awk -F/ '{print $3}')
           echo "https://$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username):$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password)@$HOSTNAME" > "${PARAM_USER_HOME}/.git-credentials"
-          echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" > "${PARAM_USER_HOME}/.gitconfig"
+          echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store --file ${PARAM_USER_HOME}/.git-credentials" > "${PARAM_USER_HOME}/.gitconfig"
         else
           echo "Unknown basic-auth workspace format"
           exit 1
         fi
         chmod 400 "${PARAM_USER_HOME}/.git-credentials"
         chmod 400 "${PARAM_USER_HOME}/.gitconfig"
-        # needed or else you'll see "could not read Username for 'https://gitlab.com':"
-        cd $(workspaces.source.path)/source && git config remote.origin.url $(cat "${PARAM_USER_HOME}/.git-credentials")
       fi
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
