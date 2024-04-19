@@ -19,6 +19,9 @@ spec:
       notice. Use at your own risk.
     name: dev-package-managers
     default: "false"
+  - description: Set cachi2 log level (debug, info, warning, error)
+    name: log-level
+    default: "info"
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -38,6 +41,8 @@ spec:
       value: $(params.input)
     - name: DEV_PACKAGE_MANAGERS
       value: $(params.dev-package-managers)
+    - name: LOG_LEVEL
+      value: $(params.log-level)
     - name: WORKSPACE_GIT_AUTH_BOUND
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
@@ -84,18 +89,18 @@ spec:
         update-ca-trust
       fi
 
-      cachi2 fetch-deps \
+      cachi2 --log-level="$LOG_LEVEL" fetch-deps \
       $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
       --output=$(workspaces.source.path)/cachi2/output \
       "${INPUT}"
 
-      cachi2 generate-env $(workspaces.source.path)/cachi2/output \
+      cachi2 --log-level="$LOG_LEVEL" generate-env $(workspaces.source.path)/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
       --output $(workspaces.source.path)/cachi2/cachi2.env
 
-      cachi2 inject-files $(workspaces.source.path)/cachi2/output \
+      cachi2 --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output
   workspaces:
   - name: source
