@@ -108,8 +108,6 @@ spec:
       value: vfs
     - name: HERMETIC
       value: $(params.HERMETIC)
-    - name: PREFETCH_INPUT
-      value: $(params.PREFETCH_INPUT)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE
@@ -245,8 +243,8 @@ spec:
         BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
-      if [ -n "${PREFETCH_INPUT}" ]; then
-        cp -r cachi2 /tmp/
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+        cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
@@ -301,7 +299,7 @@ spec:
       echo $container > /workspace/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-      if [ -n "${PREFETCH_INPUT}" ]; then
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
@@ -323,7 +321,6 @@ spec:
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
        -e STORAGE_DRIVER="$STORAGE_DRIVER" \
        -e HERMETIC="$HERMETIC" \
-       -e PREFETCH_INPUT="$PREFETCH_INPUT" \
        -e CONTEXT="$CONTEXT" \
        -e DOCKERFILE="$DOCKERFILE" \
        -e IMAGE="$IMAGE" \
@@ -428,7 +425,7 @@ spec:
     image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     name: merge-cachi2-sbom
     script: |
-      if [ -n "${PREFETCH_INPUT}" ]; then
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
         /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
