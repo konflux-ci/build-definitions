@@ -29,6 +29,13 @@
     default: "push"
     description: "Event that triggered the pipeline run, e.g. push, pull_request"
 - op: add
+  path: /spec/params/-
+  value:
+    name: build-args-file
+    description: Path to a file with build arguments which will be passed to podman during build
+    type: string
+    default: ""
+- op: add
   path: /spec/results/-
   value:
     name: ACS_SCAN_OUTPUT
@@ -51,6 +58,8 @@
       value: "$(params.image-expires-after)"
     - name: COMMIT_SHA
       value: "$(tasks.clone-repository.results.commit)"
+    - name: BUILD_ARGS_FILE
+      value: "$(params.build-args-file)"
 # Remove tasks
 # Example - yq .spec.tasks.[].name ../build-definitions/pipelines/template-build/template-build.yaml | nl -v 0
 # to compute offsets

@@ -19,6 +19,14 @@ spec:
       notice. Use at your own risk.
     name: dev-package-managers
     default: "false"
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
   steps:
   - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -30,6 +38,10 @@ spec:
       value: $(params.input)
     - name: DEV_PACKAGE_MANAGERS
       value: $(params.dev-package-managers)
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
+        readOnly: true
     script: |
       if [ -z "${INPUT}" ]
       then
@@ -41,6 +53,13 @@ spec:
         dev_pacman_flag=--dev-package-managers
       else
         dev_pacman_flag=""
+      fi
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
       fi
 
       cachi2 fetch-deps \
@@ -59,3 +78,11 @@ spec:
   workspaces:
   - name: source
     description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
