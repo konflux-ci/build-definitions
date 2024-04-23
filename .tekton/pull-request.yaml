@@ -24,6 +24,24 @@ spec:
     workspaces:
       - name: workspace
     tasks:
+      - name: e2e-ultimate-cleanup
+        params:
+          - name: e2e_test_namespace
+            value: $(params.e2e_test_namespace)
+        taskSpec:
+          params:
+            - name: e2e_test_namespace
+              type: string
+          steps:
+            - name: e2e-cleanup
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
+              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+              # the cluster will set imagePullPolicy to IfNotPresent
+              # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
+              script: |
+                #!/usr/bin/env bash
+                # Perform cleanup of applications
+                oc delete --ignore-not-found application --all -n $(params.e2e_test_namespace)
       - name: fetch-repository
         taskRef:
           name: git-clone
