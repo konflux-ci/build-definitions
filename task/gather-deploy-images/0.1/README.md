@@ -6,6 +6,7 @@ Extract images from deployment YAML to pass to EC for validation
 |name|description|default value|required|
 |---|---|---|---|
 |TARGET_BRANCH|If specified, will gather only the images that changed between the current revision and the target branch. Useful for pull requests. Note that the repository cloned on the source workspace must already contain the origin/$TARGET_BRANCH reference. |""|false|
+|ENVIRONMENTS|Gather images from the manifest files for the specified environments|["development","stage","prod"]|false|
 
 ## Results
 |name|description|
