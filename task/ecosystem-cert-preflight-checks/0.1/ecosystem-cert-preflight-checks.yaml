@@ -27,34 +27,36 @@ spec:
         - name: pfltoutputdir
           mountPath: /artifacts
       script: |
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
         # Declare Supported architectures
-        declare -a SUPPORTED_ARCHES=("amd64", "arm64", "ppc64le", "s390x")
+        declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
 
         # Initialize result vars
         PFLT_PASS_COUNT=0
         PFLT_FAIL_COUNT=0
         PFLT_ERROR_COUNT=0
-        PFLT_RESULT="FAILURE"
-        PFLT_NOTE="Task prelifght is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
+        PFLT_RESULT="SUCCESS"
 
         # Loop over SUPPORTED_ARCHES and process results
         for ARCH in "${SUPPORTED_ARCHES[@]}"
         do
             # Check if results directory exits
             RESULT_JSON_PATH=artifacts/${ARCH}/results.json
-            if ! [ -f $RESULT_JSON_PATH ]; then
+            if ! [ -f "${RESULT_JSON_PATH}" ]; then
                 continue
             fi
             # Process results
-            PFLT_PASSED=$(cat $RESULT_JSON_PATH |jq .passed)
-            if [ $PFLT_PASSED = true ]; then PFLT_RESULT="SUCCESS" ; fi
-            PFLT_NOTE="Task prelifght is a ${PFLT_RESULT} : Refer to Tekton task logs for more information"
-            PFLT_PASS_COUNT=`expr $PFLT_PASS_COUNT + $(cat $RESULT_JSON_PATH | jq '.results.passed | length')`
-            PFLT_FAIL_COUNT=`expr $PFLT_FAIL_COUNT + $(cat $RESULT_JSON_PATH | jq '.results.failed | length')`
-            PFLT_ERROR_COUNT=`expr $PFLT_ERROR_COUNT + $(cat $RESULT_JSON_PATH | jq '.results.errors | length')`
+            if jq -e '.passed == false' "${RESULT_JSON_PATH}" > /dev/null; then PFLT_RESULT="FAILURE"; fi
+            PFLT_PASS_COUNT=$((PFLT_PASS_COUNT+$(jq -r '.results.passed | length' "${RESULT_JSON_PATH}")))
+            PFLT_FAIL_COUNT=$((PFLT_FAIL_COUNT+$(jq -r '.results.failed | length' "${RESULT_JSON_PATH}")))
+            PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
         done
 
-        if [[ $PFLT_ERROR_COUNT > 0 ]]; then PFLT_RESULT="ERROR" ; fi
+        if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
+        PFLT_NOTE="Task prelifght is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
 
         # Generate TEST_OUTPUT
         TEST_OUTPUT=$(jq -rce \
@@ -72,7 +74,7 @@ spec:
             failures: $failures|tonumber,
             warnings: $warnings|tonumber
         }')
-        echo $TEST_OUTPUT | tee $(results.TEST_OUTPUT.path)
+        echo -n "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
   volumes:
     - name: pfltoutputdir
       emptyDir: {}
