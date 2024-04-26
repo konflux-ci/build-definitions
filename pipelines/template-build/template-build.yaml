@@ -87,9 +87,9 @@ spec:
           workspace: git-auth
     - name: prefetch-dependencies
       when:
-      - input: $(params.hermetic)
-        operator: in
-        values: ["true"]
+      - input: $(params.prefetch-input)
+        operator: notin
+        values: [""]
       params:
         - name: input
           value: $(params.prefetch-input)
