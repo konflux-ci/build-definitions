@@ -92,6 +92,10 @@ spec:
                   value: "1"
                 - name: SKIP_INSTALL
                   value: "1"
+                - name: OUTPUT_TASK_BUNDLE_LIST
+                  value: $(workspaces.source.path)/task-bundle-list
+                - name: OUTPUT_PIPELINE_BUNDLE_LIST
+                  value: $(workspaces.source.path)/pipeline-bundle-list
               volumeMounts:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
@@ -145,8 +149,8 @@ spec:
                 #!/usr/bin/env bash
 
                 export BUNDLES=(
-                  $(workspaces.artifacts.path)/source/task-bundle-list
-                  $(workspaces.artifacts.path)/source/pipeline-bundle-list
+                  $(workspaces.artifacts.path)/task-bundle-list
+                  $(workspaces.artifacts.path)/pipeline-bundle-list
                 )
 
                 .tekton/scripts/build-acceptable-bundles.sh
