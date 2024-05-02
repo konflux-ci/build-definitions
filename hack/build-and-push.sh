@@ -13,11 +13,8 @@ tkn_bundle_push() {
     local -r interval=${RETRY_INTERVAL:-5}
     local -r max_retries=5
     while true; do
-        tkn bundle push "$@"
+        tkn bundle push "$@" && break
         status=$?
-        if [ $status == 0 ]; then
-            break
-        fi
         ((retry+=1))
         if [ $retry -gt $max_retries ]; then
             return $status
