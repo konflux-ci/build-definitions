@@ -50,12 +50,6 @@ function save_ref() {
     echo "${tagRef}@${digest}"
 }
 
-if [[ $(uname) = Darwin ]]; then
-    CSPLIT_CMD="gcsplit"
-else
-    CSPLIT_CMD="csplit"
-fi
-
 if [ -z "$MY_QUAY_USER" ]; then
     echo "MY_QUAY_USER is not set, skip this build."
     exit 0
