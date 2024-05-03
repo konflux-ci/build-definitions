@@ -22,7 +22,7 @@ base image must come from a trusted source.  Trusted sources are declared in `AL
 | TEST_OUTPUT  | Tekton task test output.  |
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 https://olm.operatorframework.io/docs/reference/file-based-catalogs/

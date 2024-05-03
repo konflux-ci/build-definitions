@@ -21,7 +21,7 @@ The syntax of the sbom-cyclonedx.json file (found in the `/root/buildinfo/conten
 
 ## Source repository for image:
 
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 

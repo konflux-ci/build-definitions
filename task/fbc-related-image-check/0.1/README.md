@@ -11,7 +11,7 @@ Skopeo to inspect manifest content.
 | TEST_OUTPUT | Tekton task test output.  |
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 https://www.redhat.com/en/topics/containers/what-is-skopeo
