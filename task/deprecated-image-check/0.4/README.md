@@ -26,7 +26,7 @@ in a high-level declarative language called Rego.
 
 ## Source repository for image
 
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links
 

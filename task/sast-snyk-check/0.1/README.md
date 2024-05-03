@@ -27,7 +27,7 @@ Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.
 
 ## Source repository for image:
 
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 

@@ -27,7 +27,7 @@ in a high-level declarative language called Rego.
 | TEST_OUTPUT | Tekton task test output.                  |
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 https://catalog.redhat.com/api/containers/docs/
