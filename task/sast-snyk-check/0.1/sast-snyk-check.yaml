@@ -13,6 +13,8 @@ spec:
   results:
     - description: Tekton task test output.
       name: TEST_OUTPUT
+    - description: OCI pullspec where the full SARIF result can be found.
+      name: RESULT_URI
   params:
     - name: SNYK_SECRET
       description: Name of secret which contains Snyk token.
@@ -21,6 +23,16 @@ spec:
       type: string
       description: Append arguments.
       default: "--all-projects --exclude=test*,vendor,deps"
+    - description: Image URL.
+      name: image-url
+      type: string
+      # In a future 0.2 version of the task, drop the default to make this required
+      default: ""
+    - description: Image digest to report findings for.
+      name: image-digest
+      type: string
+      # In a future 0.2 version of the task, drop the default to make this required
+      default: ""
   volumes:
     - name: snyk-secret
       secret:
@@ -84,5 +96,33 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:55cf304549225435958798c3be0377faf0a3ff89f3fbe03e45c3bb656ecaf02f
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      script: |
+        #!/usr/bin/env bash
+
+        if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}"  ]; then
+          echo 'No image-url or image-digest param provided. Skipping upload.'
+          exit 0;
+        fi
+
+        UPLOAD_FILE=sast_snyk_check_out.json
+
+        SUFFIX=sarif
+        MEDIA_TYPE=application/sarif+json
+
+        IFS=':' read -ra REPO <<< "$IMAGE_URL"
+        REPO="${REPO[0]}"
+        DIGEST=$(echo "${IMAGE_DIGEST}" | tr : -)
+        RESULT_URI="${REPO}:${DIGEST}.${SUFFIX}"
+
+        retry oras push --no-tty --registry-config "$HOME/.docker/config.json" "${RESULT_URI}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        echo "${RESULT_URI}" > $(results.RESULT_URI.path)
   workspaces:
   - name: workspace
