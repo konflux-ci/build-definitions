@@ -15,6 +15,8 @@ spec:
       description: Tekton task test output.
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
+    - name: RESULT_URI
+      description: OCI pullspec where the full clamav output can be found.
   params:
     - name: image-digest
       description: Image digest to scan.
@@ -67,6 +69,7 @@ spec:
 
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
         digests_processed=()
+        mkdir logs
         mkdir content
         cd content
         echo "Extracting image(s)."
@@ -94,30 +97,30 @@ spec:
               --pcre-max-filesize=4095M --alert-exceeds-max=yes \
               --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
               --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
-              | tee /tekton/home/clamscan-result-$arch.log || true
-            echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /tekton/home/clamscan-result-$arch.log
+              | tee /work/logs/clamscan-result-$arch.log || true
+            echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /work/logs/clamscan-result-$arch.log
 
             digests_processed+=("\"$arch_sha\"")
 
-            if [[ -e "/tekton/home/clamscan-result-$arch.log" ]]; then
+            if [[ -e "/work/logs/clamscan-result-$arch.log" ]]; then
               # file_suffix=$(basename "$file" | sed 's/clamscan-result-//;s/.log//')
               # OPA/EC requires structured data input, add clamAV log into json
-              jq -Rs '{ output: . }' /tekton/home/clamscan-result-$arch.log > /tekton/home/clamscan-result-log-$arch.json
+              jq -Rs '{ output: . }' /work/logs/clamscan-result-$arch.log > /work/logs/clamscan-result-log-$arch.json
 
               EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
                 -o json \
-                /tekton/home/clamscan-result-log-$arch.json || true
+                /work/logs/clamscan-result-log-$arch.json || true
 
               # workaround: due to a bug in ec-cli, we cannot generate json and appstudio output at the same time, running it again
               EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
                 -o appstudio \
-                /tekton/home/clamscan-result-log-$arch.json | tee /tekton/home/clamscan-ec-test-$arch.json || true
+                /work/logs/clamscan-result-log-$arch.json | tee /work/logs/clamscan-ec-test-$arch.json || true
 
-              cat /tekton/home/clamscan-ec-test-$arch.json
+              cat /work/logs/clamscan-ec-test-$arch.json
             fi
           done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
         fi
@@ -132,13 +135,45 @@ spec:
             "warnings" : (.warnings + $item.warnings),
             "result" : (if .result == "" or ($item.result == "SKIPPED" and .result == "SUCCESS") or ($item.result == "WARNING" and (.result == "SUCCESS" or .result == "SKIPPED")) or ($item.result == "FAILURE" and .result != "ERROR") or $item.result == "ERROR" then $item.result else .result end),
             "note" : (if .result == "" or ($item.result == "SKIPPED" and .result == "SUCCESS") or ($item.result == "WARNING" and (.result == "SUCCESS" or .result == "SKIPPED")) or ($item.result == "FAILURE" and .result != "ERROR") or $item.result == "ERROR" then $item.note else .note end)
-            })' /tekton/home/clamscan-ec-test-*.json | tee $(results.TEST_OUTPUT.path)
+            })' /work/logs/clamscan-ec-test-*.json | tee $(results.TEST_OUTPUT.path)
 
         digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee $(results.IMAGES_PROCESSED.path)
       volumeMounts:
         - mountPath: /var/lib/clamav
           name: dbfolder
+        - mountPath: /work
+          name: work
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:55cf304549225435958798c3be0377faf0a3ff89f3fbe03e45c3bb656ecaf02f
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      workingDir: /work
+      script: |
+        #!/usr/bin/env bash
+
+        IFS=':' read -ra REPO <<< "$IMAGE_URL"
+        REPO="${REPO[0]}"
+        DIGEST=$(echo "${IMAGE_DIGEST}" | tr : -)
+        SUFFIX=clamav
+        RESULT_URI="${REPO}:${DIGEST}.${SUFFIX}"
+
+        cd logs
+
+        for UPLOAD_FILE in $(find . -name "clamscan-result*.log"); do
+          MEDIA_TYPE=text/vnd.clamav
+          args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
+        done
+        for UPLOAD_FILE in $(find . -name "clamscan-ec-test*.json"); do
+          MEDIA_TYPE=application/vnd.konflux.test_output+json
+          args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
+        done
+        retry oras push --no-tty --registry-config "$HOME/.docker/config.json" "${RESULT_URI}" "${args[@]}"
+        echo "${RESULT_URI}" > $(results.RESULT_URI.path)
+      volumeMounts:
         - mountPath: /work
           name: work
   # sidecar is rebuilt daily(is meant to be updated daily), hence the usage of the tag instead of digest
