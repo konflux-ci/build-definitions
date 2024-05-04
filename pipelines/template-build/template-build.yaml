@@ -187,13 +187,18 @@ spec:
         operator: in
         values: ["false"]
       runAfter:
-        - clone-repository
+        - build-container
       taskRef:
         name: sast-snyk-check
         version: "0.1"
       workspaces:
       - name: workspace
         workspace: workspace
+      params:
+      - name: image-digest
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: image-url
+        value: $(tasks.build-container.results.IMAGE_URL)
     - name: clamav-scan
       when:
       - input: $(params.skip-checks)
