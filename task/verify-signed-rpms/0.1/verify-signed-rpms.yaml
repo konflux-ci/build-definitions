@@ -26,7 +26,7 @@ spec:
       emptyDir: {}
   steps:
     - name: verify-signed-rpms
-      image: quay.io/redhat-user-workloads/rhtap-o11y-tenant/tools/tools:20de0e480e7dd1b734775f33b46170e25ec18197
+      image: quay.io/redhat-appstudio/tools:39497ad4e7761c90fdde580cbb5bce9cb9491427
       volumeMounts:
         - name: workdir
           mountPath: "$(params.WORKDIR)"
@@ -48,7 +48,7 @@ spec:
           --workdir "${WORKDIR}" \
           --status-path "${WORKDIR}"/status
     - name: output-results
-      image: quay.io/redhat-appstudio/hacbs-test:v1.1.8@sha256:8de0ec0875c7c6a41e0208b0030090992169f501166154edaded8a4f6121b164
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.0@sha256:54d49b37c9a2e280d42961a57e4f7a16c171d6b065559f1329b548db85300bea
       volumeMounts:
         - name: workdir
           mountPath: "$(params.WORKDIR)"

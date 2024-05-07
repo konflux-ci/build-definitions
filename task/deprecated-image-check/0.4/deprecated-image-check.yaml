@@ -1,3 +1,4 @@
+---
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -20,10 +21,12 @@ spec:
       default: "required_checks"
     - name: BASE_IMAGES_DIGESTS
       description: Digests of base build images.
-
+      default: ""
+    - name: IMAGE_URL
+      description: Fully qualified image name.
+    - name: IMAGE_DIGEST
+      description: Image digest.
   results:
-    - name: PYXIS_HTTP_CODE
-      description: HTTP code returned by Pyxis API endpoint.
     - description: Tekton task test output.
       name: TEST_OUTPUT
 
@@ -40,22 +43,52 @@ spec:
           value: $(params.POLICY_NAMESPACE)
         - name: BASE_IMAGES_DIGESTS
           value: $(params.BASE_IMAGES_DIGESTS)
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
         source /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
+        IMAGES_TO_BE_PROCESSED_PATH="/tmp/images_to_be_processed.txt"
+        SBOM_FILE_PATH="/tmp/sbom.json"
+
         success_counter=0
         failure_counter=0
         error_counter=0
         warnings_counter=0
 
-        readarray -t IMAGE_ARRAY < <(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g')
-        for BASE_IMAGE in ${IMAGE_ARRAY[@]};
+        # Get base images from SBOM
+        cosign download sbom "${IMAGE_URL}@${IMAGE_DIGEST}" > ${SBOM_FILE_PATH}
+
+        cat ${SBOM_FILE_PATH} | jq -r '.formulation? // empty | .[] | .components? // empty | .[] | select(any((.properties // empty)[]; .name | test("^konflux:container:is_(base|builder)_image"))) | .name' > ${IMAGES_TO_BE_PROCESSED_PATH}
+        echo "Detected base images from SBOM:"
+        cat "${IMAGES_TO_BE_PROCESSED_PATH}"
+        echo ""
+
+        if [ -n "${BASE_IMAGES_DIGESTS}" ];
+        then
+          echo "Base images passed by param BASE_IMAGES_DIGESTS: $BASE_IMAGES_DIGESTS"
+          # Get images from the parameter
+          for IMAGE_WITH_TAG in $(echo -n "$BASE_IMAGES_DIGESTS" | sed 's/\\n/\'$'\n''/g' );
+          do
+            echo $IMAGE_WITH_TAG | cut -d ":" -f1 >> ${IMAGES_TO_BE_PROCESSED_PATH}
+          done
+        fi
+
+        # we want to remove duplicated entries
+        BASE_IMAGES=$(sort -u "${IMAGES_TO_BE_PROCESSED_PATH}")
+
+        echo "Images to be checked:"
+        echo "$BASE_IMAGES"
+        echo ""
+
+        for BASE_IMAGE in ${BASE_IMAGES};
         do
-          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_WITH_TAG <<< $BASE_IMAGE
-          IMAGE_REPOSITORY=`echo $IMAGE_WITH_TAG | cut -d ":" -f1`
+          IFS=:'/' read -r IMAGE_REGISTRY IMAGE_REPOSITORY<<< $BASE_IMAGE
 
           # Red Hat Catalog hack: registry.redhat.io must be queried as registry.access.redhat.com in Red Hat catalog
           IMAGE_REGISTRY_CATALOG=$(echo "${IMAGE_REGISTRY}" | sed 's/^registry.redhat.io$/registry.access.redhat.com/')

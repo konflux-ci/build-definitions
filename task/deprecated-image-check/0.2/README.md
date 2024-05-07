@@ -3,7 +3,7 @@
 ## Deprecation notice
 
 This task version is deprecated, please use the latest version.
-Deprecation date: 2024-04-30
+Deprecation date: 2024-06-01
 
 ## Description:
 The deprecated-image-check checks for deprecated images that are no longer maintained and prone to security issues.
@@ -27,7 +27,7 @@ in a high-level declarative language called Rego.
 | TEST_OUTPUT | Tekton task test output.                  |
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/hacbs-test
+https://github.com/konflux-ci/konflux-test
 
 ## Additional links:
 https://catalog.redhat.com/api/containers/docs/

@@ -28,6 +28,10 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
+  - name: BUILD_ARGS_FILE
+    description: Path to a file with build arguments which will be passed to podman during build
+    type: string
+    default: ""
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -49,9 +53,11 @@ spec:
       value: $(params.IMAGE)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
+    - name: BUILD_ARGS_FILE
+      value: $(params.BUILD_ARGS_FILE)
   steps:
   - name: build
-    image: registry.access.redhat.com/ubi9/buildah@sha256:d28590e6ff9933a50be664e95a99ed9c85e0d50101ddc7f8f7cfc9ceea57fe30
+    image: registry.access.redhat.com/ubi9/buildah@sha256:3b11aae36f6c762e01731952ee6fb8e89c41660ce410e4c30d0bfc6496bca93c
     script: |
       # Check if the Dockerfile exists
       SOURCE_CODE_DIR=source
@@ -64,8 +70,14 @@ spec:
         exit 1
       fi
 
+      BUILDAH_ARGS=()
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
+      fi
+
       # Build the image
       buildah build \
+        ${BUILDAH_ARGS[@]} \
         --tls-verify=$TLSVERIFY \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
@@ -111,7 +123,7 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi8/python-311@sha256:8ded4b6d8087706b6819ddda5d31f22b80e5aa4efa772e94d750699ccfbf98eb
+    image: registry.access.redhat.com/ubi8/python-311@sha256:634918e88adb803029a99cb1a5a6bb42834c2560ee098e87677efdaf7309380d
     env:
       - name: RESULT_PATH
         value: $(results.SBOM_BLOB_URL.path)

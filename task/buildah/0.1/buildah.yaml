@@ -96,8 +96,6 @@ spec:
       value: vfs
     - name: HERMETIC
       value: $(params.HERMETIC)
-    - name: PREFETCH_INPUT
-      value: $(params.PREFETCH_INPUT)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE
@@ -197,8 +195,8 @@ spec:
         BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
-      if [ -n "${PREFETCH_INPUT}" ]; then
-        cp -r cachi2 /tmp/
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+        cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
@@ -253,7 +251,7 @@ spec:
       echo $container > /workspace/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-      if [ -n "${PREFETCH_INPUT}" ]; then
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
@@ -306,7 +304,7 @@ spec:
       runAsUser: 0
 
   - name: merge-syft-sboms
-    image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
+    image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
     script: |
       #!/bin/python3
       import json
@@ -343,7 +341,7 @@ spec:
   - name: merge-cachi2-sbom
     image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     script: |
-      if [ -n "${PREFETCH_INPUT}" ]; then
+      if [ -d "$(workspaces.source.path)/cachi2" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
         /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
@@ -355,7 +353,7 @@ spec:
       runAsUser: 0
 
   - name: create-purl-sbom
-    image: registry.access.redhat.com/ubi9/python-39:1-165@sha256:4da8ddb12096a31d8d50e58ea479ba2fe2f252f215fbaf5bf90923a1827463ba
+    image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
     script: |
       #!/bin/python3
       import json

@@ -92,6 +92,10 @@ spec:
                   value: "1"
                 - name: SKIP_INSTALL
                   value: "1"
+                - name: OUTPUT_TASK_BUNDLE_LIST
+                  value: $(workspaces.source.path)/task-bundle-list
+                - name: OUTPUT_PIPELINE_BUNDLE_LIST
+                  value: $(workspaces.source.path)/pipeline-bundle-list
               volumeMounts:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
@@ -138,19 +142,20 @@ spec:
                 value: "$(params.revision)"
               - name: GIT_URL
                 value: "$(params.git-url)"
+              - name: TASK_BUNDLE_LIST
+                value: $(workspaces.artifacts.path)/task-bundle-list
+              - name: PIPELINE_BUNDLE_LIST
+                value: $(workspaces.artifacts.path)/pipeline-bundle-list
               # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
               # the cluster will set imagePullPolicy to IfNotPresent
               # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
               script: |-
                 #!/usr/bin/env bash
+                set -o errexit
+                set -o nounset
+                set -o pipefail
 
-                export BUNDLES=(
-                  $(workspaces.artifacts.path)/source/task-bundle-list
-                  $(workspaces.artifacts.path)/source/pipeline-bundle-list
-                )
-
-                .tekton/scripts/build-acceptable-bundles.sh
-
+                .tekton/scripts/build-acceptable-bundles.sh "${TASK_BUNDLE_LIST}"  "${PIPELINE_BUNDLE_LIST}"
               volumeMounts:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson

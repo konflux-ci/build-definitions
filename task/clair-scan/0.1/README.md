@@ -24,7 +24,7 @@ analyzing the components of a container image and comparing them against Clair's
 https://github.com/quay/clair-action
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/hacbs-test/tree/main/clair-in-ci
+https://github.com/konflux-ci/konflux-test/tree/main/clair-in-ci
 
 ## Additional links:
 https://quay.github.io/clair/whatis.html
