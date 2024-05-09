@@ -22,7 +22,7 @@ spec:
       type: string
   steps:
     - name: e2e-test
-      image: quay.io/redhat-appstudio/e2e-tests:27b9e94fee065d8de74a82f5ca726df6c40fd64a
+      image: quay.io/redhat-appstudio/e2e-tests:3f116f60c57ac8e9a4e4978628a77fbab6a55133
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
       args: [
@@ -41,6 +41,11 @@ spec:
         value: "https://github.com/redhat-appstudio-qe/devfile-sample-python-basic,https://github.com/redhat-appstudio-qe/retrodep,https://github.com/cachito-testing/pip-e2e-test,https://github.com/redhat-appstudio-qe/fbc-sample-repo,https://github.com/redhat-appstudio-qe/nodejs-no-dockerfile,https://github.com/redhat-appstudio-qe/maven-hello-world,https://github.com/redhat-appstudio-qe/source-build-parent-image-with-digest-only,https://github.com/redhat-appstudio-qe/source-build-parent-image-with-both-tag-digest,https://github.com/redhat-appstudio-qe/source-build-use-latest-parent-image,https://github.com/redhat-appstudio-qe/source-build-parent-image-from-registry-rh-io"
       - name: QUAY_E2E_ORGANIZATION
         value: redhat-appstudio
+      - name: QUAY_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: quay-push-secret
+            key: .dockerconfigjson
       - name: E2E_APPLICATIONS_NAMESPACE
         value: "$(params.e2e_test_namespace)"
       - name: GITHUB_TOKEN
