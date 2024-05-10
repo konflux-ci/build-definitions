@@ -15,8 +15,6 @@ spec:
       description: Tekton task test output.
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
-    - name: RESULT_URI
-      description: OCI pullspec where the full clamav output can be found.
   params:
     - name: image-digest
       description: Image digest to scan.
@@ -145,7 +143,7 @@ spec:
         - mountPath: /work
           name: work
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:55cf304549225435958798c3be0377faf0a3ff89f3fbe03e45c3bb656ecaf02f
+      image: quay.io/konflux-ci/oras:latest@sha256:04cbd5efbcf1a38944b050e3adbc3071218643f6aa92e95d5d25b173574bca5e
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -154,12 +152,6 @@ spec:
       workingDir: /work
       script: |
         #!/usr/bin/env bash
-
-        IFS=':' read -ra REPO <<< "$IMAGE_URL"
-        REPO="${REPO[0]}"
-        DIGEST=$(echo "${IMAGE_DIGEST}" | tr : -)
-        SUFFIX=clamav
-        RESULT_URI="${REPO}:${DIGEST}.${SUFFIX}"
 
         cd logs
 
@@ -171,8 +163,13 @@ spec:
           MEDIA_TYPE=application/vnd.konflux.test_output+json
           args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
         done
-        retry oras push --no-tty --registry-config "$HOME/.docker/config.json" "${RESULT_URI}" "${args[@]}"
-        echo "${RESULT_URI}" > $(results.RESULT_URI.path)
+
+        echo "Selecting auth"
+        select-oci-auth $IMAGE_URL > $HOME/auth.json
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-api --artifact-type application/vnd.clamav "${IMAGE_URL}" "${args[@]}"
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers Tag"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-tag --artifact-type application/vnd.clamav "${IMAGE_URL}" "${args[@]}"
       volumeMounts:
         - mountPath: /work
           name: work
