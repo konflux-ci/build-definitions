@@ -13,8 +13,6 @@ spec:
   results:
     - description: Tekton task test output.
       name: TEST_OUTPUT
-    - description: OCI pullspec where the full SARIF result can be found.
-      name: RESULT_URI
   params:
     - name: SNYK_SECRET
       description: Name of secret which contains Snyk token.
@@ -97,7 +95,7 @@ spec:
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:55cf304549225435958798c3be0377faf0a3ff89f3fbe03e45c3bb656ecaf02f
+      image: quay.io/konflux-ci/oras:latest@sha256:04cbd5efbcf1a38944b050e3adbc3071218643f6aa92e95d5d25b173574bca5e
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       env:
         - name: IMAGE_URL
@@ -113,16 +111,13 @@ spec:
         fi
 
         UPLOAD_FILE=sast_snyk_check_out.json
-
-        SUFFIX=sarif
         MEDIA_TYPE=application/sarif+json
 
-        IFS=':' read -ra REPO <<< "$IMAGE_URL"
-        REPO="${REPO[0]}"
-        DIGEST=$(echo "${IMAGE_DIGEST}" | tr : -)
-        RESULT_URI="${REPO}:${DIGEST}.${SUFFIX}"
-
-        retry oras push --no-tty --registry-config "$HOME/.docker/config.json" "${RESULT_URI}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
-        echo "${RESULT_URI}" > $(results.RESULT_URI.path)
+        echo "Selecting auth"
+        select-oci-auth $IMAGE_URL > $HOME/auth.json
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-api --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers Tag"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-tag --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
   workspaces:
   - name: workspace
