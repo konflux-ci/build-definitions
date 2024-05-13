@@ -1,3 +1,4 @@
+---
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -6,14 +7,30 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "image-build, hacbs"
-  name: prefetch-dependencies
+  name: prefetch-dependencies-oci-ta
 spec:
   description: |-
-    Task that uses Cachi2 to prefetch build dependencies.
-    See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
+    Task that uses Cachi2 to prefetch build dependencies. The fetched dependencies and the
+    application source code are stored as a trusted artifact in the provided OCI repository.
+    For additional info on Cachi2, see docs at
+    https://github.com/containerbuildsystem/cachi2#basic-usage.
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
+  - description: The trusted artifact URI containing the application source code.
+    name: source-artifact
+    type: string
+  - description: >-
+      The OCI repository where the trusted artifacts with the modified cloned repository and
+      the prefetched depedencies will be stored.
+    name: oci-storage
+    type: string
+  - description: >-
+      Expiration date for the trusted artifacts created in the OCI repository. An empty string means
+      the artifacts do not expire.
+    name: oci-artifact-expires-after
+    type: string
+    default: ""
   - description: >
       Enable in-development package managers. WARNING: the behavior may change at any time without
       notice. Use at your own risk.
@@ -30,11 +47,23 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  results:
+    - description: The trusted artifact URI containing the modified application source.
+      name: source-artifact
+      type: string
+    - description: The trusted artifact URI containing the fetched dependencies.
+      name: cachi2-artifact
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
   steps:
+  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
+    name: use-trusted-artifact
+    args:
+      - use
+      - $(params.source-artifact)=/var/workdir/source
   - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: prefetch-dependencies
     env:
     - name: INPUT
@@ -72,7 +101,7 @@ spec:
           cp "${WORKSPACE_GIT_AUTH_PATH}/.gitconfig" "${HOME}/.gitconfig"
         # Compatibility with kubernetes.io/basic-auth secrets
         elif [ -f "${WORKSPACE_GIT_AUTH_PATH}/username" ] && [ -f "${WORKSPACE_GIT_AUTH_PATH}/password" ]; then
-          HOSTNAME=$(cd "$(workspaces.source.path)/source" && git remote get-url origin | awk -F/ '{print $3}')
+          HOSTNAME=$(cd /var/workdir/source && git remote get-url origin | awk -F/ '{print $3}')
           echo "https://$(cat ${WORKSPACE_GIT_AUTH_PATH}/username):$(cat ${WORKSPACE_GIT_AUTH_PATH}/password)@$HOSTNAME" > "${HOME}/.git-credentials"
           echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" > "${HOME}/.gitconfig"
         else
@@ -92,20 +121,29 @@ spec:
 
       cachi2 --log-level="$LOG_LEVEL" fetch-deps \
       $dev_pacman_flag \
-      --source=$(workspaces.source.path)/source \
-      --output=$(workspaces.source.path)/cachi2/output \
+      --source=/var/workdir/source \
+      --output=/var/workdir/cachi2/output \
       "${INPUT}"
 
-      cachi2 --log-level="$LOG_LEVEL" generate-env $(workspaces.source.path)/cachi2/output \
+      cachi2 --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
-      --output $(workspaces.source.path)/cachi2/cachi2.env
+      --output /var/workdir/cachi2/cachi2.env
 
-      cachi2 --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
+      cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
+  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
+    name: create-trusted-artifact
+    env:
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.oci-artifact-expires-after)
+    args:
+      - create
+      - --store
+      - $(params.oci-storage)
+      - $(results.source-artifact.path)=/var/workdir/source
+      - $(results.cachi2-artifact.path)=/var/workdir/cachi2
   workspaces:
-  - name: source
-    description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well
   - name: git-basic-auth
     description: |
       A Workspace containing a .gitconfig and .git-credentials file or username and password.
@@ -114,6 +152,8 @@ spec:
       to bind a Secret to this Workspace over other volume types.
     optional: true
   volumes:
+    - name: workdir
+      emptyDir: {}
     - name: trusted-ca
       configMap:
         name: $(params.caTrustConfigMapName)
