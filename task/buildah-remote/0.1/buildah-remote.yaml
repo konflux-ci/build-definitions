@@ -188,9 +188,9 @@ spec:
 
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-        dockerfile_path="$SOURCE_CODE_DIR/$DOCKERFILE"
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -240,7 +240,7 @@ spec:
       fi
 
       if [ -n "${BUILD_ARGS_FILE}" ]; then
-        BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
+        BUILDAH_ARGS+=("--build-arg-file=$(pwd)/$SOURCE_CODE_DIR/${BUILD_ARGS_FILE}")
       fi
 
       if [ -d "$(workspaces.source.path)/cachi2" ]; then
@@ -286,13 +286,13 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
-      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
+      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
+        -f "$dockerfile_path" -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /workspace/container_path
