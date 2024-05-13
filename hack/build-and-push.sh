@@ -13,11 +13,8 @@ tkn_bundle_push() {
     local -r interval=${RETRY_INTERVAL:-5}
     local -r max_retries=5
     while true; do
-        tkn bundle push "$@"
+        tkn bundle push "$@" && break
         status=$?
-        if [ $status == 0 ]; then
-            break
-        fi
         ((retry+=1))
         if [ $retry -gt $max_retries ]; then
             return $status
@@ -49,12 +46,6 @@ function save_ref() {
     echo "Created:"
     echo "${tagRef}@${digest}"
 }
-
-if [[ $(uname) = Darwin ]]; then
-    CSPLIT_CMD="gcsplit"
-else
-    CSPLIT_CMD="csplit"
-fi
 
 if [ -z "$MY_QUAY_USER" ]; then
     echo "MY_QUAY_USER is not set, skip this build."
@@ -103,14 +94,14 @@ find task/*/*/ -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_dir task_name task_version
 do
     prepared_task_file="${WORKDIR}/$task_name-${task_version}.yaml"
-    if [ -f $task_dir/$task_name.yaml ]; then
-        cp $task_dir/$task_name.yaml $prepared_task_file
-        task_file_sha=$(git log -n 1 --pretty=format:%H -- $task_dir/$task_name.yaml)
-    elif [ -f $task_dir/kustomization.yaml ]; then
-        oc kustomize $task_dir > $prepared_task_file
-        task_file_sha=$(sha256sum $prepared_task_file | awk '{print $1}')
+    if [ -f "$task_dir/$task_name.yaml" ]; then
+        cp "$task_dir/$task_name.yaml" "$prepared_task_file"
+        task_file_sha=$(git log -n 1 --pretty=format:%H -- "$task_dir/$task_name.yaml")
+    elif [ -f "$task_dir/kustomization.yaml" ]; then
+        oc kustomize "$task_dir" > "$prepared_task_file"
+        task_file_sha=$(sha256sum "$prepared_task_file" | awk '{print $1}')
     else
-        echo Unknown task in $task_dir
+        echo Unknown task in "$task_dir"
         continue
     fi
     repository=${TEST_REPO_NAME:-task-${task_name}}
