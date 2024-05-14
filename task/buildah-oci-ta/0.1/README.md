@@ -1,4 +1,4 @@
-# buildah task
+# buildah-oci-ta task
 
 Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
 In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
@@ -9,7 +9,8 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |name|description|default value|required|
 |---|---|---|---|
 |IMAGE|Reference of the image buildah will produce.||true|
-|BUILDER_IMAGE|The location of the buildah builder image.|registry.access.redhat.com/ubi9/buildah:9.0.0-19@sha256:c8b1d312815452964885680fc5bc8d99b3bfe9b6961228c71a09c72ca8e915eb|false|
+|SOURCE_ARTIFACT|The trusted artifact URI containing the application source code.||true|
+|CACHI2_ARTIFACT|The trusted artifact URI containing the prefetched dependencies.|""|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
@@ -17,10 +18,13 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
+|COMMIT_SHA|The image is built from this commit.|""|false|
 |YUM_REPOS_D_SRC|Path in the git repository in which yum repository files are stored|repos.d|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
-|ENTITLEMENT_SECRET|Name of the entitlement secret in the namespace. If present, it enables subscription in the build|etc-pki-entitlement|false|
+|TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
+|ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
+|BUILD_ARGS_FILE|Path to a file with build arguments which will be passed to podman during build|""|false|
 
 ## Results
 |name|description|
@@ -31,7 +35,3 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|
 
-## Workspaces
-|name|description|optional|
-|---|---|---|
-|source|Workspace containing the source code to build.|false|
