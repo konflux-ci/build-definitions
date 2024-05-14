@@ -1,35 +1,22 @@
-# sast-snyk-check task
+# sast-snyk-check-oci-ta task
 
-## Description:
+Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
 
-The sast-snyk-check task uses Snyk Code tool to perform Static Application Security Testing (SAST) for Snyk, a popular cloud-native application security platform.
+Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
-Snyk's SAST tool uses a combination of static analysis and machine learning techniques to scan an application's source code for potential security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks.
+The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
 
-> NOTE: This task is executed only if the user provides a Snyk token stored in a secret in their namespace. The name of the secret then needs to be supplied in the `snyk-secret` pipeline parameter.
+See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information about the snyk tool.
 
-## Params:
+## Parameters
+|name|description|default value|required|
+|---|---|---|---|
+|SOURCE_ARTIFACT|The trusted artifact URI containing the application source code.||true|
+|SNYK_SECRET|Name of secret which contains Snyk token.|snyk-secret|false|
+|ARGS|Append arguments.|--all-projects --exclude=test*,vendor,deps|false|
 
-| name        | description                               |
-|-------------|-------------------------------------------|
-| SNYK_SECRET | Name of secret which contains Snyk token. |
-| ARGS        | Append arguments.                         |
+## Results
+|name|description|
+|---|---|
+|TEST_OUTPUT|Tekton task test output.|
 
-## How to obtain a snyk-token and enable snyk task on the pipeline:
-
-Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)
-
-## Results:
-
-| name                  | description              |
-|-----------------------|--------------------------|
-| TEST_OUTPUT     | Tekton task test output. |
-
-## Source repository for image:
-
-https://github.com/konflux-ci/konflux-test
-
-## Additional links:
-
-* https://snyk.io/product/snyk-code/
-* https://snyk.io/
