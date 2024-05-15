@@ -224,6 +224,15 @@ spec:
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-container.results.IMAGE_DIGEST)
+    - name: apply-tags
+      runAfter:
+        - build-container
+      taskRef:
+        name: apply-tags
+        version: "0.1"
+      params:
+      - name: IMAGE
+        value: $(tasks.build-container.results.IMAGE_URL)
 
   finally:
     - name: show-sbom

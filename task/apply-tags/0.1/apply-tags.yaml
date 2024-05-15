@@ -1,0 +1,63 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "appstudio, hacbs"
+  name: apply-tags
+spec:
+  description: >-
+    Applies additional tags to the built image.
+  params:
+  - name: IMAGE
+    description: Reference of image that was pushed to registry in the buildah task.
+    type: string
+  - name: ADDITIONAL_TAGS
+    description: Additional tags that will be applied to the image in the registry.
+    type: array
+    default: []
+  steps:
+    - name: apply-additional-tags-from-parameter
+      image: registry.access.redhat.com/ubi9/skopeo:9.4-6@sha256:c4d70dec3eb0a0c831490192145ea25431fe04d1cf307f8d61e2d87adb41e7e3
+      args:
+        - $(params.ADDITIONAL_TAGS[*])
+      env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+      script: |
+        #!/bin/bash
+
+        if [ "$#" -ne 0 ]; then
+          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
+          for tag in "$@"; do
+            echo "Applying tag $tag"
+            skopeo copy docker://$IMAGE docker://$IMAGE_WITHOUT_TAG:$tag
+          done
+        else
+          echo "No additional tags parameter specified"
+        fi
+
+    - name: apply-additional-tags-from-image-label
+      image: registry.access.redhat.com/ubi9/skopeo:9.4-6@sha256:c4d70dec3eb0a0c831490192145ea25431fe04d1cf307f8d61e2d87adb41e7e3
+      env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+      script: |
+        #!/bin/bash
+
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --format '{{ index .Labels "konflux.additional-tags" }}' docker://$IMAGE)
+
+        if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
+          IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
+
+          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
+          for tag in "${tags_array[@]}"
+          do
+              echo "Applying tag $tag"
+              skopeo copy docker://$IMAGE docker://$IMAGE_WITHOUT_TAG:$tag
+          done
+        else
+          echo "No additional tags specified in the image labels"
+        fi
