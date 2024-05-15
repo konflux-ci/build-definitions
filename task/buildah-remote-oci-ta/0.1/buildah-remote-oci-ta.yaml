@@ -16,6 +16,11 @@ spec:
     When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
     When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
   params:
+  - default: ""
+    description: Comma separated list of extra capabilities to add when running 'buildah
+      build'
+    name: ADD_CAPABILITIES
+    type: string
   - default: []
     description: Array of --build-arg values ("arg=value" strings)
     name: BUILD_ARGS
@@ -119,6 +124,8 @@ spec:
   stepTemplate:
     computeResources: {}
     env:
+    - name: ADD_CAPABILITIES
+      value: $(params.ADD_CAPABILITIES)
     - name: BUILDAH_FORMAT
       value: oci
     - name: BUILD_ARGS_FILE
@@ -282,6 +289,10 @@ spec:
         BUILDAH_ARGS+=("--build-arg=$build_arg")
       done
 
+      if [ -n "${ADD_CAPABILITIES}" ]; then
+        BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
+      fi
+
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -358,6 +369,7 @@ spec:
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e CONTEXT="$CONTEXT" \
