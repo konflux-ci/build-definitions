@@ -24,7 +24,8 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
-|BUILD_ARGS_FILE|Path to a file with build arguments which will be passed to podman during build|""|false|
+|BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
+|BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
 
 ## Results
 |name|description|
