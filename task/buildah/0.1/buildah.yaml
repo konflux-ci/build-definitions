@@ -79,6 +79,14 @@ spec:
     description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
     type: string
     default: ""
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
 
   results:
   - description: Digest of the image just built
@@ -142,6 +150,13 @@ spec:
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
+      fi
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
       fi
 
       SOURCE_CODE_DIR=source
@@ -284,6 +299,9 @@ spec:
       name: varlibcontainers
     - mountPath: "/entitlement"
       name: etc-pki-entitlement
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
     workingDir: $(workspaces.source.path)
 
   - name: sbom-syft-generate
@@ -456,6 +474,13 @@ spec:
   - name: etc-pki-entitlement
     secret:
       secretName: $(params.ENTITLEMENT_SECRET)
+      optional: true
+  - name: trusted-ca
+    configMap:
+      name: $(params.caTrustConfigMapName)
+      items:
+        - key: $(params.caTrustConfigMapKey)
+          path: ca-bundle.crt
       optional: true
   workspaces:
   - name: source
