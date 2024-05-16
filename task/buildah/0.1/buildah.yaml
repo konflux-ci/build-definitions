@@ -103,6 +103,10 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
+  - name: SKIP_UNUSED_STAGES
+    description: Whether to skip stages in Containerfile that seem unused by subsequent stages
+    type: string
+    default: "true"
 
   results:
   - description: Digest of the image just built
@@ -157,6 +161,8 @@ spec:
       value: $(params.ADD_CAPABILITIES)
     - name: SQUASH
       value: $(params.SQUASH)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
 
   steps:
   - image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
@@ -251,6 +257,10 @@ spec:
 
       if [ "${SQUASH}" == "true" ]; then
         BUILDAH_ARGS+=("--squash")
+      fi
+
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
