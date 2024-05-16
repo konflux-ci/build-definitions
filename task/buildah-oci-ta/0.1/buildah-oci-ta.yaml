@@ -77,6 +77,11 @@ spec:
         be made available to the build.
       type: string
       default: ""
+    - name: SKIP_UNUSED_STAGES
+      description: Whether to skip stages in Containerfile that seem unused
+        by subsequent stages
+      type: string
+      default: "true"
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -178,6 +183,8 @@ spec:
         value: $(params.IMAGE)
       - name: IMAGE_EXPIRES_AFTER
         value: $(params.IMAGE_EXPIRES_AFTER)
+      - name: SKIP_UNUSED_STAGES
+        value: $(params.SKIP_UNUSED_STAGES)
       - name: SQUASH
         value: $(params.SQUASH)
       - name: STORAGE_DRIVER
@@ -297,6 +304,10 @@ spec:
 
         if [ "${SQUASH}" == "true" ]; then
           BUILDAH_ARGS+=("--squash")
+        fi
+
+        if [ "${SKIP_UNUSED_STAGES}" != "true" ]; then
+          BUILDAH_ARGS+=("--skip-unused-stages=false")
         fi
 
         if [ -f "/var/workdir/cachi2/cachi2.env" ]; then

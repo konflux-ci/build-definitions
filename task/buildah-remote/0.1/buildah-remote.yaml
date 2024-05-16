@@ -114,6 +114,11 @@ spec:
     description: Storage driver to configure for buildah
     name: STORAGE_DRIVER
     type: string
+  - default: "true"
+    description: Whether to skip stages in Containerfile that seem unused by subsequent
+      stages
+    name: SKIP_UNUSED_STAGES
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -169,6 +174,8 @@ spec:
       value: $(params.ADD_CAPABILITIES)
     - name: SQUASH
       value: $(params.SQUASH)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     volumeMounts:
@@ -308,6 +315,10 @@ spec:
         BUILDAH_ARGS+=("--squash")
       fi
 
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -412,6 +423,7 @@ spec:
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e SQUASH="$SQUASH" \
+       -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
        -v "$BUILD_DIR/volumes/shared:/shared:Z" \

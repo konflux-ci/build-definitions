@@ -77,6 +77,11 @@ spec:
       to the build.
     name: PREFETCH_INPUT
     type: string
+  - default: "true"
+    description: Whether to skip stages in Containerfile that seem unused by subsequent
+      stages
+    name: SKIP_UNUSED_STAGES
+    type: string
   - description: The Trusted Artifact URI pointing to the artifact with the application
       source code.
     name: SOURCE_ARTIFACT
@@ -158,6 +163,8 @@ spec:
       value: $(params.IMAGE)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
     - name: SQUASH
       value: $(params.SQUASH)
     - name: STORAGE_DRIVER
@@ -316,6 +323,10 @@ spec:
         BUILDAH_ARGS+=("--squash")
       fi
 
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ]; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -412,6 +423,7 @@ spec:
        -e HERMETIC="$HERMETIC" \
        -e IMAGE="$IMAGE" \
        -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+       -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
        -e SQUASH="$SQUASH" \
        -e STORAGE_DRIVER="$STORAGE_DRIVER" \
        -e TARGET_STAGE="$TARGET_STAGE" \
