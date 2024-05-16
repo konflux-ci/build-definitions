@@ -59,7 +59,7 @@
 ### gather-deploy-images:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGES_TO_VERIFY| The images to be verified, in a format compatible with https://github.com/redhat-appstudio/build-definitions/tree/main/task/verify-enterprise-contract/0.1. When there are no images to verify, this is an empty string. | verify-enteprise-contract:0.1:IMAGES|
+|IMAGES_TO_VERIFY| The images to be verified, in a format compatible with https://github.com/konflux-ci/build-definitions/tree/main/task/verify-enterprise-contract/0.1. When there are no images to verify, this is an empty string. | verify-enteprise-contract:0.1:IMAGES|
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
