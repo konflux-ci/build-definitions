@@ -18,17 +18,17 @@ spec:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
   - description: The trusted artifact URI containing the application source code.
-    name: source-artifact
+    name: SOURCE_ARTIFACT
     type: string
   - description: >-
       The OCI repository where the trusted artifacts with the modified cloned repository and
       the prefetched depedencies will be stored.
-    name: oci-storage
+    name: ociStorage
     type: string
   - description: >-
       Expiration date for the trusted artifacts created in the OCI repository. An empty string means
       the artifacts do not expire.
-    name: oci-artifact-expires-after
+    name: ociArtifactExpiresAfter
     type: string
     default: ""
   - description: >
@@ -49,10 +49,10 @@ spec:
     default: ca-bundle.crt
   results:
     - description: The trusted artifact URI containing the modified application source.
-      name: source-artifact
+      name: SOURCE_ARTIFACT
       type: string
     - description: The trusted artifact URI containing the fetched dependencies.
-      name: cachi2-artifact
+      name: CACHI2_ARTIFACT
   stepTemplate:
     volumeMounts:
       - mountPath: /var/workdir
@@ -62,7 +62,7 @@ spec:
     name: use-trusted-artifact
     args:
       - use
-      - $(params.source-artifact)=/var/workdir/source
+      - $(params.SOURCE_ARTIFACT)=/var/workdir/source
   - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     name: prefetch-dependencies
     env:
@@ -136,13 +136,13 @@ spec:
     name: create-trusted-artifact
     env:
     - name: IMAGE_EXPIRES_AFTER
-      value: $(params.oci-artifact-expires-after)
+      value: $(params.ociArtifactExpiresAfter)
     args:
       - create
       - --store
-      - $(params.oci-storage)
-      - $(results.source-artifact.path)=/var/workdir/source
-      - $(results.cachi2-artifact.path)=/var/workdir/cachi2
+      - $(params.ociStorage)
+      - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      - $(results.CACHI2_ARTIFACT.path)=/var/workdir/cachi2
   workspaces:
   - name: git-basic-auth
     description: |
