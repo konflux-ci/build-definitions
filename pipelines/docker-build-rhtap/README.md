@@ -2,11 +2,12 @@
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|build-args-file| Path to a file with build arguments which will be passed to podman during build| | build-container:0.1:BUILD_ARGS_FILE|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.1:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.1:BUILD_ARGS_FILE|
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.1:DOCKERFILE|
 |event-type| Event that triggered the pipeline run, e.g. push, pull_request| push| |
-|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|git-url| Source Repository URL| None| clone-repository:0.1:url ; acs-deploy-check:0.1:gitops-repo-url ; update-deployment:0.1:gitops-repo-url|
 |gitops-auth-secret-name| Secret name to enable this pipeline to update the gitops repo with the new image. | gitops-auth-secret| update-deployment:0.1:gitops-auth-secret-name|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.1:IMAGE_EXPIRES_AFTER|
@@ -40,10 +41,16 @@
 |image-digest| Digest of the image to scan | None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |insecure-skip-tls-verify| When set to `"true"`, skip verifying the TLS certs of the Central endpoint.  Defaults to `"false"`. | false| 'true'|
 |rox-secret-name| Secret containing the StackRox server endpoint and API token with CI permissions under rox-api-endpoint and rox-api-token keys. For example: rox-api-endpoint: rox.stackrox.io:443 ; rox-api-token: eyJhbGciOiJS... | None| '$(params.stackrox-secret)'|
+### apply-tags:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### buildah-rhtap:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BUILD_ARGS_FILE| Path to a file with build arguments which will be passed to podman during build| | '$(params.build-args-file)'|
+|BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
@@ -113,7 +120,7 @@
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
 |IMAGE_DIGEST| Digest of the image just built| acs-image-check:0.1:image-digest ; acs-image-scan:0.1:image-digest|
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; update-deployment:0.1:image|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; update-deployment:0.1:image|
 |SBOM_BLOB_URL| Link to the SBOM layer pushed to the registry as part of an OCI artifact.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
