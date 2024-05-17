@@ -34,6 +34,18 @@ def run(cmd):
     return process.stdout, process.stderr, failed
 
 
+def iter_values(param_value):
+    """Iterate over the values of a Tekton param.
+
+    For string params, yield the string.
+    For array params, yield the individual elements.
+    """
+    if isinstance(param_value, str):
+        yield param_value
+    else:
+        yield from param_value
+
+
 def main():
     temp_dir = mkdtemp()
 
@@ -89,7 +101,8 @@ def main():
             workspace_dict['optional'] = workspace.get('optional', False)
             pipelines_info[pipeline_name]['workspaces'].append(workspace_dict)
 
-        param_regex = re.compile(r'^\s*\$\(params\.(\S*)\)\s*$')
+        # matches $(params.param_name
+        param_regex = re.compile(r'\$\(params\.([\w\-.]*)')
 
         for task_object in ('finally', 'tasks'):
             for task in pipeline_data['spec'].get(task_object, []):
@@ -102,8 +115,8 @@ def main():
                 pipelines_info[pipeline_name]['tasks'].append(task_dict)
 
                 for param in task_dict['params']:
-                    match = param_regex.match(param['value'])
-                    if match:
+                    matches = [param_regex.search(v) for v in iter_values(param['value'])]
+                    for match in filter(None, matches):
                         uses_param = match.group(1)
                         task_param_name = f"{task_dict['name']}:{task_dict['refversion']}:{param['name']}"
 
@@ -222,14 +235,16 @@ def main():
 
                     for result in sorted(task['results'], key=lambda x: x['name']):
                         used_in_params = []
-                        result_regex = re.compile(r'\s*\$\(tasks\.' + task['pname'] + '\.results\.' + result['name'] + '\)\s*')
+                        # matches e.g.
+                        # - $(tasks.task_name.results.result_name)
+                        # - $(tasks.task_name.results.result_name[*])
+                        result_regex = re.compile(r'\s*\$\(tasks\.' + task['pname'] + r'\.results\.' + result['name'] + r'\S*\)s*')
 
                         for task_info in items['tasks']:
 
                             for task_param in task_info['params']:
-                                match = result_regex.match(task_param['value'])
-
-                                if match:
+                                matches = [result_regex.match(v) for v in iter_values(task_param['value'])]
+                                for match in filter(None, matches):
                                     task_param_name = f"{task_info['name']}:{task_info['refversion']}:{task_param['name']}"
                                     used_in_params.append(task_param_name)
 
