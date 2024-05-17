@@ -37,19 +37,19 @@ spec:
     - name: SOURCE_IMAGE_DIGEST
       description: The source image digest.
   volumes:
-    - name: source-build-work-place
+    - name: workdir
       emptyDir: {}
   stepTemplate:
     volumeMounts:
-      - name: source-build-work-place
-        mountPath: /var/source-build
+      - name: workdir
+        mountPath: /var/workdir
   steps:
     - name: use-trusted-artifact
       image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
       args:
         - use
-        - $(params.SOURCE_ARTIFACT)=/var/source-build/source
-        - $(params.CACHI2_ARTIFACT)=/var/source-build/cachi2
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: build
       image: quay.io/redhat-appstudio/build-definitions-source-image-build-utils@sha256:cd87bbe51f1c22ff7578f5c9caf19db4f9ee7aefd0307288383b9bd478cdf856
       computeResources:
@@ -58,7 +58,7 @@ spec:
         requests:
           memory: 512Mi
           cpu: 250m
-      workingDir: "/var/source-build"
+      workingDir: "/var/workdir"
       securityContext:
         runAsUser: 0
         capabilities:
@@ -68,19 +68,19 @@ spec:
         - name: BINARY_IMAGE
           value: "$(params.BINARY_IMAGE)"
         - name: SOURCE_DIR
-          value: "/var/source-build/source"
+          value: "/var/workdir/source"
         - name: BASE_IMAGES
           value: "$(params.BASE_IMAGES)"
         - name: RESULT_FILE
           value: "$(results.BUILD_RESULT.path)"
         - name: CACHI2_ARTIFACTS_DIR
-          value: "/var/source-build/cachi2"
+          value: "/var/workdir/cachi2"
         - name: RESULT_SOURCE_IMAGE_URL
           value: "$(results.SOURCE_IMAGE_URL.path)"
         - name: RESULT_SOURCE_IMAGE_DIGEST
           value: "$(results.SOURCE_IMAGE_DIGEST.path)"
         - name: WS_BUILD_RESULT_FILE
-          value: "/var/source-build/source_build_result.json"
+          value: "/var/workdir/source_build_result.json"
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -93,13 +93,13 @@ spec:
 
         ## This is needed for the builds performed by the rpm-ostree task
         ## otherwise, we can see this error:
-        ## "fatal: detected dubious ownership in repository at '/var/source-build/source'"
+        ## "fatal: detected dubious ownership in repository at '/var/workdir/source'"
         ##
         git config --global --add safe.directory $SOURCE_DIR
 
         ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py \
           --output-binary-image "$BINARY_IMAGE" \
-          --workspace /var/source-build \
+          --workspace /var/workdir \
           --source-dir "$SOURCE_DIR" \
           --base-images "$BASE_IMAGES" \
           --write-result-to "$RESULT_FILE" \

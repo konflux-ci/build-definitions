@@ -139,7 +139,7 @@ spec:
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
       value: $(workspaces.basic-auth.path)
     - name: CHECKOUT_DIR
-      value: /var/source
+      value: /var/workdir/source
     image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
     computeResources: {}
     securityContext:
@@ -148,8 +148,8 @@ spec:
       - name: trusted-ca
         mountPath: /mnt/trusted-ca
         readOnly: true
-      - name: source
-        mountPath: /var/source
+      - name: workdir
+        mountPath: /var/workdir
     script: |
       #!/usr/bin/env sh
       set -eu
@@ -221,10 +221,10 @@ spec:
     - name: PARAM_ENABLE_SYMLINK_CHECK
       value: $(params.enableSymlinkCheck)
     - name: CHECKOUT_DIR
-      value: /var/source
+      value: /var/workdir/source
     volumeMounts:
-      - name: source
-        mountPath: /var/source
+      - name: workdir
+        mountPath: /var/workdir
     computeResources: {}
     script: |
       #!/usr/bin/env bash
@@ -256,13 +256,13 @@ spec:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
     volumeMounts:
-      - name: source
-        mountPath: /var/source
+      - name: workdir
+        mountPath: /var/workdir
     args:
       - create
       - --store
       - $(params.ociStorage)
-      - $(results.SOURCE_ARTIFACT.path)=/var/source
+      - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
 
   workspaces:
   - description: |
@@ -281,7 +281,7 @@ spec:
     name: basic-auth
     optional: true
   volumes:
-    - name: source
+    - name: workdir
       emptyDir: {}
     - name: trusted-ca
       configMap:
