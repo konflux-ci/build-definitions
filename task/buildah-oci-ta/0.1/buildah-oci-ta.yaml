@@ -1,14 +1,14 @@
+---
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  annotations:
-    tekton.dev/pipelines.minVersion: 0.12.1
-    tekton.dev/tags: image-build, appstudio, hacbs
-  creationTimestamp: null
   labels:
     app.kubernetes.io/version: "0.1"
-    build.appstudio.redhat.com/build_type: docker
-  name: buildah-remote
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, appstudio, hacbs"
+  name: buildah-oci-ta
 spec:
   description: |-
     Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
@@ -19,10 +19,13 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: ""
-    description: Deprecated. Has no effect. Will be removed in the future.
-    name: BUILDER_IMAGE
+  - description: The trusted artifact URI containing the application source code.
+    name: SOURCE_ARTIFACT
     type: string
+  - description: The trusted artifact URI containing the prefetched dependencies.
+    name: CACHI2_ARTIFACT
+    type: string
+    default: ""
   - default: ./Dockerfile
     description: Path to the Dockerfile to build.
     name: DOCKERFILE
@@ -32,60 +35,51 @@ spec:
     name: CONTEXT
     type: string
   - default: "true"
-    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS
-      registry)
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
-  - default: ""
-    description: unused, should be removed in next task version
+  - description: unused, should be removed in next task version
     name: DOCKER_AUTH
     type: string
+    default: ""
   - default: "false"
     description: Determines if build will be executed without network access.
     name: HERMETIC
     type: string
   - default: ""
-    description: In case it is not empty, the prefetched content should be made available
-      to the build.
+    description: In case it is not empty, the prefetched content should be made available to the build.
     name: PREFETCH_INPUT
     type: string
   - default: ""
-    description: Delete image tag after specified time. Empty means to keep the image
-      tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks,
-      respectively.
+    description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     name: IMAGE_EXPIRES_AFTER
     type: string
-  - default: ""
+  - name: COMMIT_SHA
     description: The image is built from this commit.
-    name: COMMIT_SHA
     type: string
-  - default: repos.d
+    default: ""
+  - name: YUM_REPOS_D_SRC
     description: Path in the git repository in which yum repository files are stored
-    name: YUM_REPOS_D_SRC
-  - default: fetched.repos.d
+    default: repos.d
+  - name: YUM_REPOS_D_FETCHED
     description: Path in source workspace where dynamically-fetched repos are present
-    name: YUM_REPOS_D_FETCHED
-  - default: /etc/yum.repos.d
-    description: Target path on the container in which yum repository files should
-      be made available
-    name: YUM_REPOS_D_TARGET
-  - default: ""
-    description: Target stage in Dockerfile to build. If not specified, the Dockerfile
-      is processed entirely to (and including) its last stage.
-    name: TARGET_STAGE
+    default: fetched.repos.d
+  - name: YUM_REPOS_D_TARGET
+    description: Target path on the container in which yum repository files should be made available
+    default: /etc/yum.repos.d
+  - name: TARGET_STAGE
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
     type: string
-  - default: etc-pki-entitlement
+    default: ""
+  - name: ENTITLEMENT_SECRET
     description: Name of secret which contains the entitlement certificates
-    name: ENTITLEMENT_SECRET
     type: string
-  - default: ""
-    description: Path to a file with build arguments which will be passed to podman
-      during build
-    name: BUILD_ARGS_FILE
+    default: "etc-pki-entitlement"
+  - name: BUILD_ARGS_FILE
+    description: Path to a file with build arguments which will be passed to podman during build
     type: string
-  - description: The platform to build on
-    name: PLATFORM
-    type: string
+    default: ""
+
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -93,14 +87,12 @@ spec:
     name: IMAGE_URL
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
-  - description: The counting of Java components by publisher in JSON format
-    name: SBOM_JAVA_COMPONENTS_COUNT
+  - name: SBOM_JAVA_COMPONENTS_COUNT
+    description: The counting of Java components by publisher in JSON format
     type: string
-  - description: The Java dependencies that came from community sources such as Maven
-      central.
-    name: JAVA_COMMUNITY_DEPENDENCIES
+  - name: JAVA_COMMUNITY_DEPENDENCIES
+    description: The Java dependencies that came from community sources such as Maven central.
   stepTemplate:
-    computeResources: {}
     env:
     - name: BUILDAH_FORMAT
       value: oci
@@ -126,71 +118,37 @@ spec:
       value: $(params.YUM_REPOS_D_TARGET)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
-    - name: PARAM_BUILDER_IMAGE
-      value: $(params.BUILDER_IMAGE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
-    - name: BUILDER_IMAGE
-      value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
   steps:
-  - computeResources:
+  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
+    name: use-trusted-artifact
+    args:
+      - use
+      - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+  - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    name: build
+    computeResources:
       limits:
         memory: 4Gi
       requests:
-        cpu: 250m
         memory: 512Mi
+        cpu: 250m
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-    name: build
-    script: |-
-      set -o verbose
-      mkdir -p ~/.ssh
-      if [ -e "/ssh/error" ]; then
-        #no server could be provisioned
-        cat /ssh/error
-        exit 1
-      elif [ -e "/ssh/otp" ]; then
-       curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
-       echo "" >> ~/.ssh/id_rsa
-      else
-        cp /ssh/id_rsa ~/.ssh
-      fi
-      chmod 0400 ~/.ssh/id_rsa
-      export SSH_HOST=$(cat /ssh/host)
-      export BUILD_DIR=$(cat /ssh/user-dir)
-      export SSH_ARGS="-o StrictHostKeyChecking=no"
-      mkdir -p scripts
-      echo "$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts"
-
-      PORT_FORWARD=""
-      PODMAN_PORT_FORWARD=""
-      if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-      PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
-      PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
-      fi
-
-      rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
-      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-      rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
-      cat >scripts/script-build.sh <<'REMOTESSHEOF'
-      #!/bin/bash
-      set -o verbose
-      set -e
-      cd $(workspaces.source.path)
-      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
-        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
-      fi
-
+    script: |
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+        dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+        dockerfile_path="$SOURCE_CODE_DIR/$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -240,11 +198,11 @@ spec:
       fi
 
       if [ -n "${BUILD_ARGS_FILE}" ]; then
-        BUILDAH_ARGS+=("--build-arg-file=$(pwd)/$SOURCE_CODE_DIR/${BUILD_ARGS_FILE}")
+        BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
-        cp -r "$(workspaces.source.path)/cachi2" /tmp/
+      if [ -d "/var/workdir/cachi2" ]; then
+        cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
         sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
@@ -286,20 +244,20 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
-      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
+      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
         $VOLUME_MOUNTS \
         ${BUILDAH_ARGS[@]} \
         ${LABELS[@]} \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $IMAGE .
+        -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
 
       container=$(buildah from --pull-never $IMAGE)
-      buildah mount $container | tee /workspace/container_path
-      echo $container > /workspace/container_name
+      buildah mount $container | tee /var/workdir/container_path
+      echo $container > /var/workdir/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+      if [ -d "/var/workdir/cachi2" ]; then
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
@@ -311,86 +269,48 @@ spec:
       done
 
       # Needed to generate base images SBOM
-      echo "$BASE_IMAGES" > $(workspaces.source.path)/base_images_from_dockerfile
+      echo "$BASE_IMAGES" > /var/workdir/base_images_from_dockerfile
 
-      buildah push "$IMAGE" oci:rhtap-final-image
-      REMOTESSHEOF
-      chmod +x scripts/script-build.sh
-      rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
-       -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
-       -e STORAGE_DRIVER="$STORAGE_DRIVER" \
-       -e HERMETIC="$HERMETIC" \
-       -e CONTEXT="$CONTEXT" \
-       -e DOCKERFILE="$DOCKERFILE" \
-       -e IMAGE="$IMAGE" \
-       -e TLSVERIFY="$TLSVERIFY" \
-       -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-       -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
-       -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
-       -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
-       -e TARGET_STAGE="$TARGET_STAGE" \
-       -e PARAM_BUILDER_IMAGE="$PARAM_BUILDER_IMAGE" \
-       -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-       -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
-       -e COMMIT_SHA="$COMMIT_SHA" \
-       -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
-       -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-       -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
-       -v $BUILD_DIR/scripts:/script:Z \
-      --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
-      rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
-      rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
-      buildah pull oci:rhtap-final-image
-      buildah images
-      buildah tag localhost/rhtap-final-image "$IMAGE"
-      container=$(buildah from --pull-never "$IMAGE")
-      buildah mount "$container" | tee /workspace/container_path
-      echo $container > /workspace/container_name
     securityContext:
       capabilities:
         add:
-        - SETFCAP
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /entitlement
+    - mountPath: "/entitlement"
       name: etc-pki-entitlement
-    - mountPath: /ssh
-      name: ssh
-      readOnly: true
-    workingDir: $(workspaces.source.path)
-  - computeResources: {}
+    workingDir: /var/workdir
+
+  - name: sbom-syft-generate
     image: quay.io/redhat-appstudio/syft:v0.105.1@sha256:1910b829997650c696881e5fc2fc654ddf3184c27edb1b2024e9cb2ba51ac431
-    name: sbom-syft-generate
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: /var/workdir/source
     script: |
-      echo "Running syft on the source directory"
-      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
-      find $(cat /workspace/container_path) -xtype l -delete
-      echo "Running syft on the image filesystem"
-      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
+      syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
+      find $(cat /var/workdir/container_path) -xtype l -delete
+      syft dir:$(cat /var/workdir/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)/source
-  - computeResources: {}
+  - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-    name: analyse-dependencies-java-sbom
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /var/workdir/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
         touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
       fi
-    securityContext:
-      runAsUser: 0
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-  - computeResources: {}
+    securityContext:
+      runAsUser: 0
+
+  - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
-    name: merge-syft-sboms
     script: |
       #!/bin/python3
       import json
@@ -420,26 +340,26 @@ spec:
       # write the CycloneDX unified SBOM
       with open("./sbom-cyclonedx.json", "w") as f:
         json.dump(image_sbom, f, indent=4)
+    workingDir: /var/workdir
     securityContext:
       runAsUser: 0
-    workingDir: $(workspaces.source.path)
-  - computeResources: {}
+
+  - name: merge-cachi2-sbom
     image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
-    name: merge-cachi2-sbom
     script: |
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+      if [ -d "/var/workdir/cachi2" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
         /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
       fi
+    workingDir: /var/workdir
     securityContext:
       runAsUser: 0
-    workingDir: $(workspaces.source.path)
-  - computeResources: {}
+
+  - name: create-purl-sbom
     image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
-    name: create-purl-sbom
     script: |
       #!/bin/python3
       import json
@@ -452,28 +372,25 @@ spec:
 
       with open("sbom-purl.json", "w") as output_file:
         json.dump(purl_content, output_file, indent=4)
+    workingDir: /var/workdir
     securityContext:
       runAsUser: 0
-    workingDir: $(workspaces.source.path)
-  - computeResources: {}
+
+  - name: create-base-images-sbom
+    image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
     env:
     - name: BASE_IMAGES_DIGESTS_PATH
       value: $(results.BASE_IMAGES_DIGESTS.path)
-    image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
-    name: create-base-images-sbom
     script: |
       python3 /app/base_images_sbom_script.py --sbom=sbom-cyclonedx.json --base-images-from-dockerfile=base_images_from_dockerfile --base-images-digests=$BASE_IMAGES_DIGESTS_PATH
+    workingDir: /var/workdir
     securityContext:
       runAsUser: 0
-    workingDir: $(workspaces.source.path)
-  - computeResources: {}
-    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
-    name: inject-sbom-and-push
-    script: |
-      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
-        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
-      fi
 
+  - name: inject-sbom-and-push
+    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    computeResources: {}
+    script: |
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
@@ -490,7 +407,7 @@ spec:
         echo "Pushing sbom image to registry"
         buildah push \
           --tls-verify=$TLSVERIFY \
-          --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+          --digestfile /var/workdir/image-digest $IMAGE \
           docker://$IMAGE && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
@@ -498,40 +415,37 @@ spec:
           exit 1
       fi
 
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+
     securityContext:
+      runAsUser: 0
       capabilities:
         add:
-        - SETFCAP
-      runAsUser: 0
+          - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    workingDir: $(workspaces.source.path)
-  - args:
-    - attach
-    - sbom
-    - --sbom
-    - sbom-cyclonedx.json
-    - --type
-    - cyclonedx
-    - $(params.IMAGE)
-    computeResources: {}
+    workingDir: /var/workdir
+
+  - name: upload-sbom
     image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-    name: upload-sbom
-    workingDir: $(workspaces.source.path)
+    args:
+      - attach
+      - sbom
+      - --sbom
+      - sbom-cyclonedx.json
+      - --type
+      - cyclonedx
+      - $(params.IMAGE)
+    workingDir: /var/workdir
+
   volumes:
-  - emptyDir: {}
-    name: varlibcontainers
+  - name: varlibcontainers
+    emptyDir: {}
+  - name: workdir
+    emptyDir: {}
   - name: etc-pki-entitlement
     secret:
-      optional: true
       secretName: $(params.ENTITLEMENT_SECRET)
-  - name: ssh
-    secret:
-      optional: false
-      secretName: multi-platform-ssh-$(context.taskRun.name)
-  workspaces:
-  - description: Workspace containing the source code to build.
-    name: source
+      optional: true

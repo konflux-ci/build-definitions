@@ -16,7 +16,6 @@ spec:
     image: quay.io/redhat-appstudio/appstudio-utils:512cca38316355d6dbfc9c23ed3c5afabb943d24
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     workingDir: $(workspaces.source.path)/source
     script: |
       source hack/ec-checks.sh
@@ -24,7 +23,7 @@ spec:
       $(all_tasks_dir all_tasks-ec)
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:c9a6554179211cce61405e21903a4e2ee48df33411aa50bf19a495ba2c303c5e
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:bda9cfbc25b2ce76bae4387e5374cfb48312b0af9864f2d0f38591ad6662f46b
     script: |
       set -euo pipefail
 
@@ -38,7 +37,7 @@ spec:
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:c9a6554179211cce61405e21903a4e2ee48df33411aa50bf19a495ba2c303c5e
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:bda9cfbc25b2ce76bae4387e5374cfb48312b0af9864f2d0f38591ad6662f46b
     script: |
       set -euo pipefail
 
