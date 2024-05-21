@@ -19,10 +19,10 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - description: The trusted artifact URI containing the application source code.
+  - description: The Trusted Artifact URI pointing to the artifact with the application source code.
     name: SOURCE_ARTIFACT
     type: string
-  - description: The trusted artifact URI containing the prefetched dependencies.
+  - description: The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.
     name: CACHI2_ARTIFACT
     type: string
     default: ""
@@ -75,8 +75,12 @@ spec:
     description: Name of secret which contains the entitlement certificates
     type: string
     default: "etc-pki-entitlement"
+  - name: BUILD_ARGS
+    description: Array of --build-arg values ("arg=value" strings)
+    type: array
+    default: []
   - name: BUILD_ARGS_FILE
-    description: Path to a file with build arguments which will be passed to podman during build
+    description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
     type: string
     default: ""
 
@@ -143,12 +147,14 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    args:
+      - $(params.BUILD_ARGS[*])
     script: |
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-        dockerfile_path="$SOURCE_CODE_DIR/$DOCKERFILE"
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -198,8 +204,12 @@ spec:
       fi
 
       if [ -n "${BUILD_ARGS_FILE}" ]; then
-        BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
+        BUILDAH_ARGS+=("--build-arg-file=$(pwd)/$SOURCE_CODE_DIR/${BUILD_ARGS_FILE}")
       fi
+
+      for build_arg in "$@"; do
+        BUILDAH_ARGS+=("--build-arg=$build_arg")
+      done
 
       if [ -d "/var/workdir/cachi2" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
@@ -244,13 +254,13 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
-      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah build \
+      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
-        ${BUILDAH_ARGS[@]} \
-        ${LABELS[@]} \
+        "${BUILDAH_ARGS[@]}" \
+        "${LABELS[@]}" \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT
+        -f "$dockerfile_path" -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /var/workdir/container_path
@@ -288,8 +298,10 @@ spec:
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: /var/workdir/source
     script: |
+      echo "Running syft on the source directory"
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
       find $(cat /var/workdir/container_path) -xtype l -delete
+      echo "Running syft on the image filesystem"
       syft dir:$(cat /var/workdir/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers

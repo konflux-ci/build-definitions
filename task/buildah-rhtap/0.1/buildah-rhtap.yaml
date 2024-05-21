@@ -28,8 +28,12 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
+  - name: BUILD_ARGS
+    description: Array of --build-arg values ("arg=value" strings)
+    type: array
+    default: []
   - name: BUILD_ARGS_FILE
-    description: Path to a file with build arguments which will be passed to podman during build
+    description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
     type: string
     default: ""
   results:
@@ -58,6 +62,8 @@ spec:
   steps:
   - name: build
     image: registry.access.redhat.com/ubi9/buildah@sha256:3b11aae36f6c762e01731952ee6fb8e89c41660ce410e4c30d0bfc6496bca93c
+    args:
+      - $(params.BUILD_ARGS[*])
     script: |
       # Check if the Dockerfile exists
       SOURCE_CODE_DIR=source
@@ -75,9 +81,13 @@ spec:
         BUILDAH_ARGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
+      for build_arg in "$@"; do
+        BUILDAH_ARGS+=("--build-arg=$build_arg")
+      done
+
       # Build the image
       buildah build \
-        ${BUILDAH_ARGS[@]} \
+        "${BUILDAH_ARGS[@]}" \
         --tls-verify=$TLSVERIFY \
         --ulimit nofile=4096:4096 \
         -f "$dockerfile_path" -t $IMAGE $SOURCE_CODE_DIR/$CONTEXT

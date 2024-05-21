@@ -15,6 +15,11 @@
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 ## Available params from tasks
+### apply-tags:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### clair-scan:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -156,7 +161,7 @@
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| build-source-image:0.1:BASE_IMAGES ; deprecated-base-image-check:0.4:BASE_IMAGES_DIGESTS|
 |IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE|
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
 ### sast-snyk-check:0.1 task results

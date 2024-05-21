@@ -27,7 +27,7 @@ set -o pipefail
 mapfile -td ' ' COLLECT < <(echo -n "${COLLECT:-git oci}")
 INPUT_IMAGE=${INPUT_IMAGE:-quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles:latest}
 OUTPUT_IMAGE=${OUTPUT_IMAGE:-$INPUT_IMAGE}
-GIT_REPOSITORY=git+https://github.com/redhat-appstudio/build-definitions.git
+GIT_REPOSITORY=git+https://github.com/konflux-ci/build-definitions.git
 QUAY_NAMESPACE=${QUAY_NAMESPACE:-redhat-appstudio-tekton-catalog}
 
 HACK_DIR="$(dirname "${BASH_SOURCE[0]}")"
