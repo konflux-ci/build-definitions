@@ -44,6 +44,12 @@ spec:
     default: trustification-secret
     description: Name of the Secret containing auth and configuration
     type: string
+  - name: FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED
+    default: "true"
+    description: >-
+      Should the task fail if the Secret does not contain the required keys?
+      (Set "true" to fail, "false" to skip uploading and exit with success).
+    type: string
   workspaces:
   - name: sboms
     description: Directory containing the SBOMs to upload
@@ -62,6 +68,8 @@ spec:
       value: $(params.TRUSTIFICATION_SECRET_NAME)
     - name: TRUSTIFICATION_SECRET_PATH
       value: /run/secrets/trustification
+    - name: FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED
+      value: $(params.FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED)
     - name: WORKDIR
       value: /tekton/home
     volumeMounts:
@@ -175,7 +183,13 @@ spec:
           echo "Missing configuration: $key" >&2
           echo "Does the '$TRUSTIFICATION_SECRET_NAME' secret exist in your namespace and contain the required keys?" >&2
           echo "Refer to the description of this Task for details." >&2
-          exit 1
+
+          if [[ "$FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED" == "false" ]]; then
+            echo "WARNING: FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED=false; exiting with success" >&2
+            exit 0
+          else
+            exit 1
+          fi
         fi
       }
 

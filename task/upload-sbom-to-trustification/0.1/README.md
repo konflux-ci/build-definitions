@@ -29,6 +29,7 @@ Optional keys:
 |SBOMS_DIR|Directory containing SBOM files. The task will search for CycloneDX JSON SBOMs recursively in this directory and upload them all to Trustification. The path is relative to the 'sboms' workspace.|.|false|
 |HTTP_RETRIES|Maximum number of retries for transient HTTP(S) errors|3|false|
 |TRUSTIFICATION_SECRET_NAME|Name of the Secret containing auth and configuration|trustification-secret|false|
+|FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED|Should the task fail if the Secret does not contain the required keys? (Set "true" to fail, "false" to skip uploading and exit with success).|true|false|
 
 ## Workspaces
 |name|description|optional|
