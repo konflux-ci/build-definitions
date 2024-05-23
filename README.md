@@ -13,7 +13,7 @@ Currently a set of utilities are bundled with App Studio in `quay.io/konflux-ci/
 
 ## Building
 
-Script `hack/build-and-push.sh` creates bundles for pipelines, tasks and create appstudio-utils image. Images are pushed into your quay.io repository. You will need to set `MY_QUAY_USER` to use this feature and be logged into quay.io on your workstation.
+Script `hack/build-and-push.sh` creates bundles for pipelines, tasks and create appstudio-utils image. Images are pushed into your quay.io repository. You will need to set `QUAY_NAMESPACE` to use this feature and be logged into quay.io on your workstation.
 Once you run the `hack/build-and-push.sh` all pipelines will come from your bundle instead of from the default installed by gitops into the cluster.
 
 > **Note**
@@ -43,7 +43,7 @@ Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
 ## Release
 
-Release is done by setting env variable `MY_QUAY_USER=redhat-appstudio-tekton-catalog`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
+Release is done by setting env variable `QUAY_NAMESPACE=redhat-appstudio-tekton-catalog`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
 
 ### Versioning
 
@@ -55,7 +55,7 @@ Task version increase must be approved by Project Manager.
 
 ## Testing
 
-Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. By setting the environment variable `MY_QUAY_USER` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
+Script `./hack/test-builds.sh` creates pipelines and tasks directly in current namespace and executes there test builds. By setting the environment variable `QUAY_NAMESPACE` the images will be pushed into user's quay repository, in that case creation of secret named `redhat-appstudio-staginguser-pull-secret` is required.
 
 Script `./hack/test-build.sh` provides way to test on custom git repository and pipeline. Usage example: `./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
 

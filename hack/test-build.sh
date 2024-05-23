@@ -25,9 +25,9 @@ IMAGE_SHORT_TAG=${IMAGE_FULL_TAG:position:7}
 BUILD_TAG=$(date +"%Y-%m-%d-%H%M%S")
 NS=$(oc config view --minify -o "jsonpath={..namespace}")
 
-if [ -z "$MY_QUAY_USER" ]; then
+if [ -z "$QUAY_NAMESPACE" ]; then
   IMG=image-registry.openshift-image-registry.svc:5000/$NS/$APPNAME:$IMAGE_SHORT_TAG
-  echo MY_QUAY_USER env variable is not set, pushing to $IMG
+  echo QUAY_NAMESPACE env variable is not set, pushing to $IMG
 else
   if oc get secret redhat-appstudio-staginguser-pull-secret &>/dev/null; then
      # Ensure that the appstudio-pipeline service account has access to the secret. Although the
@@ -45,7 +45,7 @@ else
      echo "  oc secrets link appstudio-pipeline redhat-appstudio-staginguser-pull-secret"
      echo ""
   fi
-  IMG=quay.io/$MY_QUAY_USER/$APPNAME:$IMAGE_SHORT_TAG
+  IMG=quay.io/$QUAY_NAMESPACE/$APPNAME:$IMAGE_SHORT_TAG
   echo Building $IMG
 fi
 

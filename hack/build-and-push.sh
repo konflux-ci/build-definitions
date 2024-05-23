@@ -2,7 +2,15 @@
 
 set -e -o pipefail
 
-QUAY_ORG=redhat-appstudio-tekton-catalog
+function is_official_repo() {
+    # match e.g.
+    #   redhat-appstudio-tekton-catalog
+    #   quay.io/redhat-appstudio-tekton-catalog/.*
+    #   konflux-ci/tekton-catalog
+    #   quay.io/konflux-ci/tekton-catalog/.*
+    grep -Eq '^(quay\.io/)?(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)(/.*)?$' <<< "$1"
+}
+
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
@@ -47,13 +55,15 @@ function save_ref() {
     echo "${tagRef}@${digest}"
 }
 
-if [ -z "$MY_QUAY_USER" ]; then
-    echo "MY_QUAY_USER is not set, skip this build."
+# NOTE: the "namespace" here can be ${organization}/${subpath}, e.g. konflux-ci/tekton-catalog
+# That will result in bundles being pushed to quay.io/konflux-ci/tekton-catalog/* repos
+if [ -z "$QUAY_NAMESPACE" ]; then
+    echo "QUAY_NAMESPACE is not set, skip this build."
     exit 0
 fi
 if [ -z "$BUILD_TAG" ]; then
-    if [ "$MY_QUAY_USER" == "$QUAY_ORG" ]; then
-        echo "'${QUAY_ORG}' repo is used, define BUILD_TAG"
+    if is_official_repo "$QUAY_NAMESPACE"; then
+        echo "'${QUAY_NAMESPACE}' repo is used, define BUILD_TAG"
         exit 1
     else
         # At the step of converting tasks to Tekton catalog, this is only
@@ -67,7 +77,7 @@ fi
 # (This method is used in PR testing)
 : "${TEST_REPO_NAME:=}"
 
-APPSTUDIO_UTILS_IMG="quay.io/$MY_QUAY_USER/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
+APPSTUDIO_UTILS_IMG="quay.io/$QUAY_NAMESPACE/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
 
 OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-${SCRIPTDIR}/../task-bundle-list}"
 OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-${SCRIPTDIR}/../pipeline-bundle-list}"
@@ -75,7 +85,7 @@ rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 
 # Build appstudio-utils image
 if [ "$SKIP_BUILD" == "" ]; then
-    echo "Using $MY_QUAY_USER to push results "
+    echo "Using $QUAY_NAMESPACE to push results "
     docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
     docker push "$APPSTUDIO_UTILS_IMG"
 fi
@@ -106,7 +116,7 @@ do
     fi
     repository=${TEST_REPO_NAME:-task-${task_name}}
     tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
-    task_bundle=quay.io/$MY_QUAY_USER/${repository}:${tag}
+    task_bundle=quay.io/$QUAY_NAMESPACE/${repository}:${tag}
 
     if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}-${task_file_sha}" 2>/dev/null); then
       task_bundle_with_digest=${task_bundle}@${digest}
@@ -156,7 +166,7 @@ do
 
     repository=${TEST_REPO_NAME:-pipeline-${pipeline_name}}
     tag=${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
-    pipeline_bundle=quay.io/${MY_QUAY_USER}/${repository}:${tag}
+    pipeline_bundle=quay.io/${QUAY_NAMESPACE}/${repository}:${tag}
 
     tkn_bundle_push "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
@@ -165,7 +175,7 @@ do
     [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "nodejs-builder" ] && nodejs_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "java-builder" ] && java_pipeline_bundle=$pipeline_bundle
-    if [ "$SKIP_DEVEL_TAG" == "" ] && [ "$MY_QUAY_USER" == "$QUAY_ORG" ] && [ -z "$TEST_REPO_NAME" ]; then
+    if [ "$SKIP_DEVEL_TAG" == "" ] && is_official_repo "$QUAY_NAMESPACE" && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
     fi
