@@ -4,7 +4,7 @@ set -o nounset
 set -o pipefail
 
 # helps with debugging
-DATA_BUNDLE_REPO="${DATA_BUNDLE_REPO:-quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles}"
+DATA_BUNDLE_REPO="${DATA_BUNDLE_REPO:-quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles}"
 mapfile -t BUNDLES < <(cat "$@")
 
 # store a list of changed task files
@@ -34,7 +34,7 @@ printf '%s\n' "${BUNDLES[@]}"
 # advantages. First, it prevents the image from accidentally not having any tags,
 # and getting garbage collected. Second, it helps us create a timeline of the
 # changes done to the data over time.
-TAG="$(date '+%s')"
+DATA_BUNDLE_TAG=${DATA_BUNDLE_TAG:-$(date '+%s')}
 
 # task_records can be empty if a task wasn't changed
 TASK_PARAM=()
@@ -47,11 +47,11 @@ PARAMS=("${TASK_PARAM[@]}" "${BUNDLES_PARAM[@]}")
 
 ec track bundle --debug \
     --input "oci:${DATA_BUNDLE_REPO}:latest" \
-    --output "oci:${DATA_BUNDLE_REPO}:${TAG}" \
+    --output "oci:${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}" \
     --timeout "15m0s" \
     --freshen \
     --prune \
     "${PARAMS[@]}"
 
 # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
-skopeo copy "docker://${DATA_BUNDLE_REPO}:${TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
+skopeo copy "docker://${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
