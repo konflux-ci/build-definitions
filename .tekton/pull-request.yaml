@@ -151,21 +151,13 @@ spec:
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
-                QUAY_NAMESPACE=redhat-appstudio-tekton-catalog \
+                QUAY_NAMESPACE=konflux-ci \
                 TEST_REPO_NAME=pull-request-builds \
                 BUILD_TAG=$(params.revision) \
                 SKIP_BUILD=1 \
                 INSTALL_BUNDLE_NS=$(params.e2e_test_namespace) \
                 ENABLE_SOURCE_BUILD=1 \
                 hack/build-and-push.sh
-              volumeMounts:
-                - mountPath: /root/.docker/config.json
-                  subPath: .dockerconfigjson
-                  name: quay-secret
-          volumes:
-          - name: quay-secret
-            secret:
-              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
       - name: e2e-tests
