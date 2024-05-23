@@ -16,6 +16,10 @@ spec:
         contain the origin/$TARGET_BRANCH reference.
       type: string
       default: ""
+    - name: ENVIRONMENTS
+      description: Gather images from the manifest files for the specified environments
+      type: array
+      default: ["development", "stage", "prod"]
   results:
     - name: IMAGES_TO_VERIFY
       description: >
@@ -29,6 +33,8 @@ spec:
     env:
       - name: TARGET_BRANCH
         value: $(params.TARGET_BRANCH)
+    args:
+      - $(params.ENVIRONMENTS[*])
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -36,7 +42,7 @@ spec:
       IMAGE_PATH='.spec.template.spec.containers[0].image'
       component_name=$(yq .metadata.name application.yaml)
 
-      for env in development stage prod; do
+      for env in "$@"; do
         yaml_path=components/${component_name}/overlays/${env}/deployment-patch.yaml
         image=$(yq "$IMAGE_PATH" "$yaml_path")
 
