@@ -64,7 +64,7 @@ spec:
           - yaml-lint-check
         params:
           - name: IMAGE
-            value: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
           - name: CONTEXT
             value: appstudio-utils
         taskRef:
@@ -78,7 +78,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-structure
-              image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
               # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
               # the cluster will set imagePullPolicy to IfNotPresent
               workingDir: $(workspaces.source.path)/source
@@ -145,7 +145,7 @@ spec:
               type: string
           steps:
             - name: build-bundles
-              image: quay.io/redhat-appstudio/pull-request-builds:build-definitions-utils-{{revision}}
+              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
               # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
               # the cluster will set imagePullPolicy to IfNotPresent
               workingDir: $(workspaces.source.path)/source

@@ -8,7 +8,7 @@ Pipelines and Tasks are delivered into App Studio via quay organization `redhat-
 Pipelines are bundled and pushed into repositories prefixed with `pipeline-` and tagged with `$GIT_SHA` (tag will be updated with every change).
 Tasks are bundled and pushed into repositories prefixed with `task-` and tagged with `$VERSION` where `VERSION` is the task version (tag is updated when the task file contains any change in the PR)
 
-Currently a set of utilities are bundled with App Studio in `quay.io/redhat-appstudio/appstudio-utils:$GIT_SHA` as a convenience but tasks may be run from different per-task containers.
+Currently a set of utilities are bundled with App Studio in `quay.io/konflux-ci/appstudio-utils:$GIT_SHA` as a convenience but tasks may be run from different per-task containers.
 
 
 ## Building
@@ -37,7 +37,7 @@ The pipelines can be found in the `pipelines` directory.
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the Cluster.
 For quick local innerloop style task development, you may install new Tasks in your local namespace manually and create your pipelines as well as the base task image to test new function. Tasks can be installed into local namespace using `oc apply -k tasks/appstudio-utils/util-tasks`.
 
-There is a container which is used to support multiple set of tasks called `quay.io/redhat-appstudio/appstudio-utils:GIT_SHA` , which is a single container which is used by multiple tasks. Tasks may also be in their own container as well however many simple tasks are utilities and will be packaged for app studio in a single container. Tasks can rely on other tasks in the system which are co-packed in a container allowing combined tasks (build-only vs build-deploy) which use the same core implementations.
+There is a container which is used to support multiple set of tasks called `quay.io/konflux-ci/appstudio-utils:GIT_SHA` , which is a single container which is used by multiple tasks. Tasks may also be in their own container as well however many simple tasks are utilities and will be packaged for app studio in a single container. Tasks can rely on other tasks in the system which are co-packed in a container allowing combined tasks (build-only vs build-deploy) which use the same core implementations.
 
 Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
