@@ -4,7 +4,7 @@ This repository contains components that are installed or managed by the managed
 
 This includes default Pipelines and Tasks. You need to have bootstrapped a working appstudio configuration from (see `https://github.com/redhat-appstudio/infra-deployments`) for the dev of pipelines or new tasks.
 
-Pipelines and Tasks are delivered into App Studio via quay organization `redhat-appstudio-tekton-catalog`.
+Pipelines and Tasks are delivered into App Studio via quay organization `konflux-ci/tekton-catalog`.
 Pipelines are bundled and pushed into repositories prefixed with `pipeline-` and tagged with `$GIT_SHA` (tag will be updated with every change).
 Tasks are bundled and pushed into repositories prefixed with `task-` and tagged with `$VERSION` where `VERSION` is the task version (tag is updated when the task file contains any change in the PR)
 
@@ -43,7 +43,13 @@ Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
 ## Release
 
-Release is done by setting env variable `QUAY_NAMESPACE=redhat-appstudio-tekton-catalog`, `BUILD_TAG=$(git rev-parse HEAD)` and running `hack/build-and-push.sh`.
+Release is done by (better leave it to the [push pipeline](.tekton/push.yaml)):
+
+```bash
+for quay_namespace in redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog; do
+  QUAY_NAMESPACE=$quay_namespace BUILD_TAG=$(git rev-parse HEAD) hack/build-and-push.sh
+done
+```
 
 ### Versioning
 
