@@ -1,4 +1,4 @@
-# Source for quay.io/redhat-appstudio/appstudio-utils:$GIT_SHA
+# Source for quay.io/konflux-ci/appstudio-utils:$GIT_SHA
 
 This component provides an image which contains a suite of app-studio specific utilies.
 

@@ -52,7 +52,7 @@ spec:
       - name: build-container
         params:
           - name: IMAGE
-            value: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
           - name: CONTEXT
             value: appstudio-utils
         runAfter:
@@ -77,7 +77,7 @@ spec:
               type: string
           steps:
             - name: build-bundles
-              image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
               # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
               # the cluster will set imagePullPolicy to IfNotPresent
               workingDir: $(workspaces.source.path)/source
@@ -134,7 +134,7 @@ spec:
               secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           steps:
             - name: build-bundles
-              image: quay.io/redhat-appstudio/appstudio-utils:{{ revision }}
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
               workingDir: $(workspaces.artifacts.path)/source
               env:
               - name: REVISION
