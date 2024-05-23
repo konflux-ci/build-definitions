@@ -195,6 +195,9 @@ spec:
           - name: quay-secret
             secret:
               secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
+          results:
+          - name: DATA_BUNDLE_REPO
+          - name: DATA_BUNDLE_TAG
           steps:
             - name: build-bundles
               image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
@@ -204,7 +207,18 @@ spec:
                 value: "$(params.revision)"
               - name: GIT_URL
                 value: "$(params.git-url)"
-              command: [".tekton/scripts/build-acceptable-bundles.sh"]
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+
+                DATA_BUNDLE_REPO=quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles
+                DATA_BUNDLE_TAG=$(date '+%s')
+                export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
+
+                .tekton/scripts/build-acceptable-bundles.sh "$@"
+
+                echo -n "$DATA_BUNDLE_REPO" > "$(results.DATA_BUNDLE_REPO.path)"
+                echo -n "$DATA_BUNDLE_TAG" > "$(results.DATA_BUNDLE_TAG.path)"
               args:
                 - $(workspaces.artifacts.path)/task-bundle-list
                 - $(workspaces.artifacts.path)/pipeline-bundle-list
@@ -214,6 +228,34 @@ spec:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
                   name: quay-secret
+
+      # Note: copies the redhat-appstudio-tekton-catalog data-acceptable-bundles image
+      - name: build-acceptable-bundles-konflux-ci
+        runAfter:
+          - build-acceptable-bundles-redhat-appstudio
+        taskSpec:
+          steps:
+            - name: copy-bundles
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              env:
+              - name: DATA_BUNDLE_RH_APPSTUDIO
+                value: $(tasks.build-acceptable-bundles-redhat-appstudio.results.DATA_BUNDLE_REPO)
+              - name: DATA_BUNDLE_TAG
+                value: $(tasks.build-acceptable-bundles-redhat-appstudio.results.DATA_BUNDLE_TAG)
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+                set -x
+
+                DATA_BUNDLE_KONFLUX_CI=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
+
+                skopeo copy \
+                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:$DATA_BUNDLE_TAG" \
+                  "docker://$DATA_BUNDLE_KONFLUX_CI:$DATA_BUNDLE_TAG"
+
+                skopeo copy \
+                  "docker://$DATA_BUNDLE_KONFLUX_CI:$DATA_BUNDLE_TAG" \
+                  "docker://$DATA_BUNDLE_KONFLUX_CI:latest"
     workspaces:
       - name: workspace
         description: Workspace containing arbitrary artifacts used during the pipeline run.
