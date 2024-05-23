@@ -99,6 +99,8 @@ spec:
   - description: The Trusted Artifact URI pointing to the artifact with the application source code.
     name: SOURCE_ARTIFACT
     type: string
+  - description: the timestamp of the commit that was fetched by this Task
+    name: commitTimestamp
   steps:
   - name: clone
     env:
@@ -202,6 +204,7 @@ spec:
         -depth="${PARAM_DEPTH}" \
         -sparseCheckoutDirectories="${PARAM_SPARSE_CHECKOUT_DIRECTORIES}"
       cd "${CHECKOUT_DIR}"
+      COMMIT_TIMESTAMP="$(git log -1 --format=%ct)"
       RESULT_SHA="$(git rev-parse HEAD)"
       EXIT_CODE="$?"
       if [ "${EXIT_CODE}" != 0 ] ; then
@@ -209,6 +212,7 @@ spec:
       fi
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+      printf "%s" "${COMMIT_TIMESTAMP}" > "&(results.commitTimestamp.path)"   
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"
