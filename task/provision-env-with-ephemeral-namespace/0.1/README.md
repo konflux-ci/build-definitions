@@ -8,7 +8,11 @@ an ephemeral environment that will be completely clean of previous artifacts.
 
 ## Params:
 
-The task takes no parameters.
+| name            | description                                                       |
+|-----------------|-------------------------------------------------------------------|
+| KONFLUXNAMESPACE | The Namespace in which the pipeline runs in. Accessible using `$(context.pipelineRun.namespace)` within the pipelinerun   |
+| PIPELINERUN_NAME | The name of the Pipelinerun this task is a part of. Accessible using `$(context.pipelineRun.name)` within the pipelinerun |
+| PIPELINERUN_UID | The unique identifier of the Pipelinerun this task is a part of. Accessible using `$(context.pipelineRun.uid)` within the pipelinerun |
 
 
 ## Results:
@@ -20,5 +24,3 @@ The task takes no parameters.
 
 ## Source repository for task:
 https://github.com/redhat-appstudio/tekton-tools
-
-
