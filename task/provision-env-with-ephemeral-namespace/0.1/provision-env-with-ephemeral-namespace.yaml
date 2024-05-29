@@ -4,6 +4,13 @@ kind: Task
 metadata:
   name: provision-env-with-ephemeral-namespace
 spec:
+  params:
+  - name: KONFLUXNAMESPACE
+    type: string
+  - name: PIPELINERUN_NAME
+    type: string
+  - name: PIPELINERUN_UID
+    type: string
   results:
     - name: secretRef
       description:
@@ -15,11 +22,11 @@ spec:
       image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
       env:
         - name: KONFLUXNAMESPACE
-          value: "$(context.pipelineRun.namespace)"
+          value: $(params.KONFLUXNAMESPACE)
         - name: PIPELINERUN_NAME
-          value: "$(context.pipelineRun.name)"
+          value: $(params.PIPELINERUN_NAME)
         - name: PIPELINERUN_UID
-          value: "$(context.pipelineRun.uid)"
+          value: $(params.PIPELINERUN_UID)
       script: |
         #!/bin/bash
         set -ex
