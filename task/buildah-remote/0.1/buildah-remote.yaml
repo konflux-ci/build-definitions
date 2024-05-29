@@ -252,7 +252,7 @@ spec:
         BUILDAH_ARGS+=("--build-arg=$build_arg")
       done
 
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+      if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
@@ -308,7 +308,7 @@ spec:
       echo $container > /workspace/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+      if [ -f "/tmp/cachi2/output/bom.json" ]; then
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
@@ -436,7 +436,7 @@ spec:
     image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     name: merge-cachi2-sbom
     script: |
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
+      if [ -f "sbom-cachi2.json" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
         /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
