@@ -95,8 +95,6 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-              # the cluster will set imagePullPolicy to IfNotPresent
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
@@ -139,8 +137,6 @@ spec:
           steps:
             - name: build-bundles
               image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-              # the cluster will set imagePullPolicy to IfNotPresent
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
