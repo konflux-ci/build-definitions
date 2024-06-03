@@ -179,7 +179,7 @@ spec:
       export SSH_ARGS="-o StrictHostKeyChecking=no"
       mkdir -p scripts
       echo "$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts"
+      ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
       PORT_FORWARD=""
       PODMAN_PORT_FORWARD=""
@@ -189,6 +189,8 @@ spec:
       fi
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+      rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
@@ -360,6 +362,8 @@ spec:
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
+       -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
+       -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
        -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
        -v $BUILD_DIR/scripts:/script:Z \
