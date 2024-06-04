@@ -44,9 +44,11 @@ echo "Checking existence of task and pipeline bundle repositories ..."
 # tasks
 for task_dir in $(find task/*/*/ -maxdepth 0 -type d); do
     if [ ! -f $task_dir/kustomization.yaml ]; then
-      task_name=$(oc apply --dry-run=client -f "$task_dir/*.yaml" -o jsonpath='{.metadata.name}')
+      # expected structure: task/${name}/${version}/${name}.yaml
+      task_name=$(basename "$(dirname "$task_dir")")
+      task_name=$(yq < "$task_dir/$task_name.yaml" .metadata.name)
     else
-      task_name=$(oc apply --dry-run=client -k "$task_dir" -o jsonpath='{.metadata.name}')
+      task_name=$(oc kustomize "$task_dir" | yq .metadata.name)
     fi
 
     if ! locate_in_all_namespaces task "$task_name"; then
@@ -55,9 +57,9 @@ for task_dir in $(find task/*/*/ -maxdepth 0 -type d); do
 done
 
 # pipelines
-pl_names=($(oc kustomize pipelines/ | oc apply --dry-run=client -f - -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'))
+pl_names=($(oc kustomize pipelines/ | yq -o json '.metadata.name' | jq -r))
 # Currently, only one pipeline for core services CI
-pl_names+=($(oc kustomize pipelines/core-services/ | oc apply --dry-run=client -f - -o jsonpath='{"core-services-"}{.metadata.name}'))
+pl_names=($(oc kustomize pipelines/core-services/ | yq -o json '"core-services-" + .metadata.name' | jq -r))
 for pl_name in ${pl_names[@]}; do
     if ! locate_in_all_namespaces pipeline "$pl_name"; then
         has_missing_repo=yes
