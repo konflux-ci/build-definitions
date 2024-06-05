@@ -8,20 +8,20 @@ https://github.com/containerbuildsystem/cachi2#basic-usage.
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
-|input|Configures project packages that will have their dependencies prefetched.||true|
-|source-artifact|The trusted artifact URI containing the application source code.||true|
-|oci-storage|The OCI repository where the trusted artifacts with the modified cloned repository and the prefetched depedencies will be stored.||true|
-|oci-artifact-expires-after|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
-|dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
-|log-level|Set cachi2 log level (debug, info, warning, error)|info|false|
-|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
+|input|Configures project packages that will have their dependencies prefetched.||true|
+|log-level|Set cachi2 log level (debug, info, warning, error)|info|false|
+|ociArtifactExpiresAfter|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
+|ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
 
 ## Results
 |name|description|
 |---|---|
-|source-artifact|The trusted artifact URI containing the modified application source.|
-|cachi2-artifact|The trusted artifact URI containing the fetched dependencies.|
+|CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.|
 
 ## Workspaces
 |name|description|optional|
