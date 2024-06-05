@@ -30,7 +30,7 @@ Describe "build-image-manifest task"
     End
 
     Mock buildah
-        echo buildah "$@"
+        echo buildah "$@" >&2
         args=("$@")
         if [[ "${args[1]}" == "push" ]]; then
             echo "sha256:manifest_digest" > image-digest
@@ -67,48 +67,48 @@ Describe "build-image-manifest task"
         When call "${script}" registry.io/repository/image-amd64:tag@sha:abc
         The variable chown_args should eq "root:root /var/lib/containers"
         The contents of file "${registries_conf}" should eq 'short-name-mode = "disabled"'
-        The output should eq 'buildah manifest create registry.io/repository/image:tag
-Adding registry.io/repository/image-amd64@sha:abc
-buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+        The output should eq 'Adding registry.io/repository/image-amd64@sha:abc
 Pushing image to registry
-buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag
 sha256:manifest_digest
 registry.io/repository/image:tag'
+        The error should eq 'buildah manifest create registry.io/repository/image:tag
+buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag'
     End
 
     It "supports digests following image references"
         When call "${script}" registry.io/repository/image-amd64 registry.io/repository/image-arm64:tag registry.io:12345/repository/image-ppc64le @sha:abc @sha:def @sha:ghi
         The variable chown_args should eq "root:root /var/lib/containers"
         The contents of file "${registries_conf}" should eq 'short-name-mode = "disabled"'
-        The output should eq 'buildah manifest create registry.io/repository/image:tag
-Adding registry.io/repository/image-amd64@sha:abc
-buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+        The output should eq 'Adding registry.io/repository/image-amd64@sha:abc
 Adding registry.io/repository/image-arm64@sha:def
-buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-arm64@sha:def
 Adding registry.io:12345/repository/image-ppc64le@sha:ghi
-buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-ppc64le@sha:ghi
 Pushing image to registry
-buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag
 sha256:manifest_digest
 registry.io/repository/image:tag'
+        The error should eq 'buildah manifest create registry.io/repository/image:tag
+buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-arm64@sha:def
+buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-ppc64le@sha:ghi
+buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag'
     End
 
     It "supports mixed image references"
         When call "${script}" registry.io/repository/image-amd64@sha:abc registry.io/repository/image-arm64 registry.io:12345/repository/image-ppc64le@sha:ghi registry.io:12345/repository/image-s390x @sha:def @sha:jkl
         The variable chown_args should eq "root:root /var/lib/containers"
         The contents of file "${registries_conf}" should eq 'short-name-mode = "disabled"'
-        The output should eq 'buildah manifest create registry.io/repository/image:tag
-Adding registry.io/repository/image-amd64@sha:abc
-buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+        The output should eq 'Adding registry.io/repository/image-amd64@sha:abc
 Adding registry.io/repository/image-arm64@sha:def
-buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-arm64@sha:def
 Adding registry.io:12345/repository/image-ppc64le@sha:ghi
-buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-ppc64le@sha:ghi
 Adding registry.io:12345/repository/image-s390x@sha:jkl
-buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-s390x@sha:jkl
 Pushing image to registry
-buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag
 sha256:manifest_digest
 registry.io/repository/image:tag'
+        The error should eq 'buildah manifest create registry.io/repository/image:tag
+buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-amd64@sha:abc
+buildah manifest add registry.io/repository/image:tag docker://registry.io/repository/image-arm64@sha:def
+buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-ppc64le@sha:ghi
+buildah manifest add registry.io/repository/image:tag docker://registry.io:12345/repository/image-s390x@sha:jkl
+buildah manifest push --tls-verify=true --digestfile image-digest registry.io/repository/image:tag docker://registry.io/repository/image:tag'
     End
 End
