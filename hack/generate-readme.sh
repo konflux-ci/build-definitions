@@ -1,13 +1,13 @@
 #!/bin/bash
 
-TASK=$1
-if [ ! -f "$TASK" ]; then
-  echo "Usage: $0 \$PATH_TO_TASK"
+RESOURCE=$1
+if [ ! -f "$RESOURCE" ]; then
+  echo "Usage: $0 \$PATH_TO_TASK_OR_STEPACTION"
   exit 1
 fi
-echo "# $(yq '.metadata.name' $TASK) task"
+echo "# $(yq '.metadata.name' $RESOURCE) $(yq '.kind | downcase' $RESOURCE)"
 echo
-yq '.spec.description' $TASK
+yq '.spec.description' $RESOURCE
 echo
 PARAMS=$(yq '
     .spec.params.[] |
@@ -17,7 +17,7 @@ PARAMS=$(yq '
         "|" + (.description // "" | sub("\n", " ")) +
         "|" + (.default // (.default != "*" | "")) +
         "|" + (.default != "*") + "|"
-    )' $TASK
+    )' $RESOURCE
 )
 if [ -n "$PARAMS" ]; then
   echo "## Parameters"
@@ -27,7 +27,7 @@ if [ -n "$PARAMS" ]; then
   echo
 fi
 
-RESULTS=$(yq '.spec.results.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|")' $TASK)
+RESULTS=$(yq '.spec.results.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|")' $RESOURCE)
 if [ -n "$RESULTS" ]; then
   echo "## Results"
   echo "|name|description|"
@@ -36,7 +36,7 @@ if [ -n "$RESULTS" ]; then
   echo
 fi
 
-WORKSPACES=$(yq '.spec.workspaces.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.optional // "false") + "|")' $TASK)
+WORKSPACES=$(yq '.spec.workspaces.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.optional // "false") + "|")' $RESOURCE)
 if [ -n "$WORKSPACES" ]; then
   echo "## Workspaces"
   echo "|name|description|optional|"

@@ -41,6 +41,10 @@ There is a container which is used to support multiple set of tasks called `quay
 
 Shellspec tests can be run by invoking `hack/test-shellspec.sh`.
 
+### StepActions
+
+The StepActions can be found in the `stepactions` directory. StepActions are not yet bundled.
+
 ## Release
 
 Release is done by (better leave it to the [push pipeline](.tekton/push.yaml)):
