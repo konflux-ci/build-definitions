@@ -22,7 +22,7 @@ spec:
       type: string
   steps:
     - name: e2e-test
-      image: quay.io/redhat-appstudio/e2e-tests:871b3d3203c6a37326e5c3b85396ae89e232b941
+      image: quay.io/redhat-appstudio/e2e-tests:bf19763689bec49c3169fe1ca5e704789ea48f56
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
       args: [
@@ -51,7 +51,7 @@ spec:
       - name: QUAY_TOKEN
         valueFrom:
           secretKeyRef:
-            name: quay-push-secret
+            name: quay-push-secret-konflux-ci
             key: .dockerconfigjson
       - name: MY_GITHUB_ORG
         value: redhat-appstudio-appdata
