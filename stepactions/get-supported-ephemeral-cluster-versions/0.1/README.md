@@ -6,7 +6,7 @@ This StepAction queries the hub cluster used to provision ephemeral clusters for
 |name|description|default value|required|
 |---|---|---|---|
 |kubeconfigSecretLabelSelector|A label selector used to identify the secret containing the EaaS hub cluster kubeconfig|toolchain.dev.openshift.com/spacerequest=eaas|false|
-|insecureSkipTLSVerify|Skip TLS verification when accessing the EaaS hub cluster|false|false|
+|insecureSkipTLSVerify|Skip TLS verification when accessing the EaaS hub cluster. This should not be set to "true" in a production environment.|false|false|
 
 ## Results
 |name|description|
