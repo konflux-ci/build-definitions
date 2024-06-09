@@ -2,17 +2,16 @@
 apiVersion: tekton.dev/v1alpha1
 kind: StepAction
 metadata:
-  name: get-supported-ephemeral-cluster-versions
+  name: eaas-get-supported-ephemeral-cluster-versions
 spec:
   description: >-
-    This StepAction queries the hub cluster used to provision ephemeral clusters for testing.
+    This StepAction queries the EaaS hub cluster used to provision ephemeral clusters for testing.
     It returns a list of supported versions stored in a hypershift ConfigMap.
   image: quay.io/redhat-appstudio/appstudio-utils@sha256:586149e3f18d966f681d956ab074b4e1d8433663d615ed86e19a3804ba952dfe
   params:
-    - name: kubeconfigSecretLabelSelector
+    - name: eaasSpaceSecretRef
       type: string
-      default: toolchain.dev.openshift.com/spacerequest=eaas
-      description: A label selector used to identify the secret containing the EaaS hub cluster kubeconfig
+      description: Name of a secret containing credentials for accessing an EaaS space.
     - name: insecureSkipTLSVerify
       type: string
       default: "false"
@@ -20,10 +19,15 @@ spec:
         Skip TLS verification when accessing the EaaS hub cluster.
         This should not be set to "true" in a production environment.
   env:
-    - name: LABEL_SELECTOR
-      value: "$(params.kubeconfigSecretLabelSelector)"
     - name: INSECURE_SKIP_TLS_VERIFY
       value: "$(params.insecureSkipTLSVerify)"
+    - name: KUBECONFIG
+      value: /tmp/kubeconfig
+    - name: KUBECONFIG_VALUE
+      valueFrom:
+        secretKeyRef:
+          name: $(params.eaasSpaceSecretRef)
+          key: kubeconfig
   results:
     - name: versions
       type: array
@@ -32,12 +36,10 @@ spec:
     #!/bin/bash
     set -eo pipefail
 
-    TMP_KUBECONFIG=$(mktemp)
-    trap 'rm "$TMP_KUBECONFIG"' EXIT
+    trap 'rm -f "$KUBECONFIG"' EXIT
+    echo "$KUBECONFIG_VALUE" > $KUBECONFIG
 
-    oc get secret -l $LABEL_SELECTOR -o jsonpath="{.items[0].data.kubeconfig}" | base64 -d > $TMP_KUBECONFIG
-    OC=(oc --insecure-skip-tls-verify=$INSECURE_SKIP_TLS_VERIFY --kubeconfig=$TMP_KUBECONFIG)
-
+    OC=(oc --insecure-skip-tls-verify=$INSECURE_SKIP_TLS_VERIFY)
     SV=$(${OC[*]} get configmap supported-versions -n hypershift -o=jsonpath='{.data.supported-versions}')
     VERSIONS=$(echo "$SV" | jq -c '.versions')
     echo "Supported versions: $VERSIONS"
