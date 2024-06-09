@@ -193,6 +193,7 @@ spec:
       fi
 
       rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
+      rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
@@ -313,8 +314,8 @@ spec:
         -f "$dockerfile_path" -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
-      buildah mount $container | tee /var/workdir/container_path
-      echo $container > /var/workdir/container_name
+      buildah mount $container | tee /shared/container_path
+      echo $container > /shared/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
@@ -353,6 +354,7 @@ spec:
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
+       -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
        -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
        -v $BUILD_DIR/scripts:/script:Z \
@@ -363,8 +365,8 @@ spec:
       buildah images
       buildah tag localhost/rhtap-final-image "$IMAGE"
       container=$(buildah from --pull-never "$IMAGE")
-      buildah mount "$container" | tee /var/workdir/container_path
-      echo $container > /var/workdir/container_name
+      buildah mount "$container" | tee /shared/container_path
+      echo $container > /shared/container_name
     securityContext:
       capabilities:
         add:
@@ -374,6 +376,8 @@ spec:
       name: varlibcontainers
     - mountPath: /entitlement
       name: etc-pki-entitlement
+    - mountPath: /shared
+      name: shared
     - mountPath: /ssh
       name: ssh
       readOnly: true
@@ -384,19 +388,21 @@ spec:
     script: |
       echo "Running syft on the source directory"
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
-      find $(cat /var/workdir/container_path) -xtype l -delete
+      find $(cat /shared/container_path) -xtype l -delete
       echo "Running syft on the image filesystem"
-      syft dir:$(cat /var/workdir/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
+      syft dir:$(cat /shared/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /shared
+      name: shared
     workingDir: /var/workdir/source
   - computeResources: {}
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
     name: analyse-dependencies-java-sbom
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /var/workdir/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
         touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
@@ -406,6 +412,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /shared
+      name: shared
   - computeResources: {}
     image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
     name: merge-syft-sboms
@@ -538,6 +546,8 @@ spec:
   volumes:
   - emptyDir: {}
     name: varlibcontainers
+  - emptyDir: {}
+    name: shared
   - emptyDir: {}
     name: workdir
   - name: etc-pki-entitlement

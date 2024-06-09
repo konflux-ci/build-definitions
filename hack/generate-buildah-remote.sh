@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-IMG=quay.io/redhat-user-workloads/rhtap-build-tenant/multi-arch-controller/multi-arch-controller:taskgen-e6a24407844cac38b16df363fe2bdf5e23902646
+IMG=quay.io/redhat-user-workloads/rhtap-build-tenant/multi-arch-controller/multi-arch-controller:taskgen-19eee88a173beaa01ad47511a683fb35927f8f96
 
 podman run -v "$SCRIPTDIR"/..:/data:Z $IMG \
        --buildah-task=/data/task/buildah/0.1/buildah.yaml \
