@@ -272,8 +272,8 @@ spec:
         -f "$dockerfile_path" -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
-      buildah mount $container | tee /workspace/container_path
-      echo $container > /workspace/container_name
+      buildah mount $container | tee /shared/container_path
+      echo $container > /shared/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
@@ -298,6 +298,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /shared
+      name: shared
     - mountPath: "/entitlement"
       name: etc-pki-entitlement
     - name: trusted-ca
@@ -313,17 +315,19 @@ spec:
     script: |
       echo "Running syft on the source directory"
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
-      find $(cat /workspace/container_path) -xtype l -delete
+      find $(cat /shared/container_path) -xtype l -delete
       echo "Running syft on the image filesystem"
-      syft dir:$(cat /workspace/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
+      syft dir:$(cat /shared/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /shared
+      name: shared
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
     script: |
       if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /workspace/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
         sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
         touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
@@ -331,6 +335,8 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - mountPath: /shared
+      name: shared
     securityContext:
       runAsUser: 0
 
@@ -471,6 +477,8 @@ spec:
 
   volumes:
   - name: varlibcontainers
+    emptyDir: {}
+  - name: shared
     emptyDir: {}
   - name: etc-pki-entitlement
     secret:
