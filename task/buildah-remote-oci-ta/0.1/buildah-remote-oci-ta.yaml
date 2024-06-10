@@ -141,6 +141,8 @@ spec:
     - name: BUILDER_IMAGE
       value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
     volumeMounts:
+    - mountPath: /shared
+      name: shared
     - mountPath: /var/workdir
       name: workdir
   steps:
@@ -192,6 +194,7 @@ spec:
       PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
       fi
 
+      rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
       rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
       rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
@@ -353,12 +356,14 @@ spec:
        -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
+       -v "$BUILD_DIR/volumes/shared:/shared:Z" \
        -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
        -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
        -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
        -v $BUILD_DIR/scripts:/script:Z \
       --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
+      rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
       rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
       rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
       buildah pull oci:rhtap-final-image
