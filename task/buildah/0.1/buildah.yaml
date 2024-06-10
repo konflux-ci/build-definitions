@@ -101,6 +101,9 @@ spec:
   - name: JAVA_COMMUNITY_DEPENDENCIES
     description: The Java dependencies that came from community sources such as Maven central.
   stepTemplate:
+    volumeMounts:
+      - mountPath: /shared
+        name: shared
     env:
     - name: BUILDAH_FORMAT
       value: oci
@@ -298,8 +301,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /shared
-      name: shared
     - mountPath: "/entitlement"
       name: etc-pki-entitlement
     - name: trusted-ca

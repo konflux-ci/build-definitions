@@ -146,6 +146,9 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
     - name: BUILDER_IMAGE
       value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    volumeMounts:
+    - mountPath: /shared
+      name: shared
   steps:
   - args:
     - $(params.BUILD_ARGS[*])
@@ -189,6 +192,7 @@ spec:
       fi
 
       rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
       rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
       rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
@@ -363,6 +367,7 @@ spec:
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e COMMIT_SHA="$COMMIT_SHA" \
        -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
+       -v "$BUILD_DIR/volumes/shared:/shared:Z" \
        -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
        -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
@@ -370,6 +375,7 @@ spec:
        -v $BUILD_DIR/scripts:/script:Z \
       --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
       rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
+      rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
       rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
       buildah pull oci:rhtap-final-image
       buildah images
@@ -384,8 +390,6 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
-    - mountPath: /shared
-      name: shared
     - mountPath: /entitlement
       name: etc-pki-entitlement
     - mountPath: /mnt/trusted-ca
