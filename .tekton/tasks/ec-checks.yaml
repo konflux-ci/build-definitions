@@ -13,10 +13,9 @@ spec:
     This task can be used to run enterprise contract checks
   steps:
   - name: gather-tasks
-    image: quay.io/redhat-appstudio/appstudio-utils:512cca38316355d6dbfc9c23ed3c5afabb943d24
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     workingDir: $(workspaces.source.path)/source
     script: |
       source hack/ec-checks.sh
@@ -24,7 +23,7 @@ spec:
       $(all_tasks_dir all_tasks-ec)
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:c9a6554179211cce61405e21903a4e2ee48df33411aa50bf19a495ba2c303c5e
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:dc7d404596385e7d3c624ec0492524a1d57efe2b0c10cf0ec2158d49c0290a83
     script: |
       set -euo pipefail
 
@@ -38,7 +37,7 @@ spec:
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:c9a6554179211cce61405e21903a4e2ee48df33411aa50bf19a495ba2c303c5e
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:dc7d404596385e7d3c624ec0492524a1d57efe2b0c10cf0ec2158d49c0290a83
     script: |
       set -euo pipefail
 

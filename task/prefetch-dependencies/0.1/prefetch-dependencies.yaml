@@ -34,7 +34,6 @@ spec:
   - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     name: prefetch-dependencies
     env:
     - name: INPUT
@@ -65,7 +64,7 @@ spec:
         dev_pacman_flag=""
       fi
 
-      # Copied from https://github.com/redhat-appstudio/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
+      # Copied from https://github.com/konflux-ci/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
       if [ "${WORKSPACE_GIT_AUTH_BOUND}" = "true" ] ; then
         if [ -f "${WORKSPACE_GIT_AUTH_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_GIT_AUTH_PATH}/.gitconfig" ]; then
           cp "${WORKSPACE_GIT_AUTH_PATH}/.git-credentials" "${HOME}/.git-credentials"

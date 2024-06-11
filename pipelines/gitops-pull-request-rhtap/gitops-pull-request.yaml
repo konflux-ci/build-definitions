@@ -35,6 +35,10 @@ spec:
       name: ec-tuf-mirror
       type: string
       default: http://tuf.rhtap.svc
+    - description: The name of the Secret that contains Trustification (TPA) configuration
+      name: trustification-secret-name
+      type: string
+      default: tpa-secret
   tasks:
     - name: clone-repository
       params:
@@ -54,7 +58,8 @@ spec:
           workspace: workspace
         - name: basic-auth
           workspace: git-auth
-    - name: gather-deploy-images
+
+    - name: get-images-to-verify
       params:
         - name: TARGET_BRANCH
           value: $(params.target-branch)
@@ -66,10 +71,11 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+
     - name: verify-enteprise-contract
       params:
         - name: IMAGES
-          value: $(tasks.gather-deploy-images.results.IMAGES_TO_VERIFY)
+          value: $(tasks.get-images-to-verify.results.IMAGES_TO_VERIFY)
         - name: STRICT
           value: $(params.ec-strict)
         - name: POLICY_CONFIGURATION
@@ -81,11 +87,58 @@ spec:
         - name: TUF_MIRROR
           value: $(params.ec-tuf-mirror)
       runAfter:
-        - gather-deploy-images
-      when:
-        - input: $(tasks.gather-deploy-images.results.IMAGES_TO_VERIFY)
-          operator: notin
-          values: [""]
+        - get-images-to-verify
       taskRef:
         name: verify-enterprise-contract
+        version: "0.1"
+
+    - name: get-images-to-upload-sbom
+      params:
+        - name: TARGET_BRANCH
+          value: $(params.target-branch)
+        - name: FROM_ENVIRONMENTS
+          value: ["stage", "prod"]
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: gather-deploy-images
+        version: "0.1"
+      workspaces:
+        - name: source
+          workspace: workspace
+
+    - name: download-sboms
+      runAfter:
+        - get-images-to-upload-sbom
+      params:
+        - name: IMAGES
+          value: $(tasks.get-images-to-upload-sbom.results.IMAGES_TO_VERIFY)
+        - name: SBOMS_DIR
+          value: sboms
+        - name: PUBLIC_KEY
+          value: $(params.ec-public-key)
+        - name: REKOR_HOST
+          value: $(params.ec-rekor-host)
+        - name: TUF_MIRROR
+          value: $(params.ec-tuf-mirror)
+      workspaces:
+        - name: sboms
+          workspace: workspace
+      taskRef:
+        name: download-sbom-from-url-in-attestation
+        version: "0.1"
+
+    - name: upload-sboms-to-trustification
+      runAfter:
+        - download-sboms
+      params:
+        - name: SBOMS_DIR
+          value: sboms
+        - name: TRUSTIFICATION_SECRET_NAME
+          value: $(params.trustification-secret-name)
+      workspaces:
+        - name: sboms
+          workspace: workspace
+      taskRef:
+        name: upload-sbom-to-trustification
         version: "0.1"

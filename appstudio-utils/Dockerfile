@@ -12,6 +12,8 @@ RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/snap
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \
     skopeo \
+    make \
+    golang \
     && dnf clean all
 
 COPY util-scripts /appstudio-utils/util-scripts

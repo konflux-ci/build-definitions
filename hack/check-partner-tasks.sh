@@ -136,6 +136,9 @@ if check_dir_structure; then
     if ! oc whoami >/dev/null 2>&1; then
         echo "warning: haven't logged in an OpenShift instance. Task definition can't be validated on server side."
         check_task_schema_status=Ignored
+    elif ! oc auth can-i get task >/dev/null; then
+        echo "warning: don't have permission to get Task objects. Task definition can't be validated on server side."
+        check_task_schema_status=Ignored
     else
         if check_task_schema; then
             check_task_schema_status=Pass

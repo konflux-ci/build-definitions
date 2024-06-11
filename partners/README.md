@@ -1,6 +1,6 @@
 # Partner Tekton Task submission process
 
-Partners can submit their Tekton Task in [build-definitions](https://github.com/redhat-appstudio/build-definitions) repository by sending a pull request.
+Partners can submit their Tekton Task in [build-definitions](https://github.com/konflux-ci/build-definitions) repository by sending a pull request.
 
 build-definitions repository CI job will validate the PR against a [set of checks](#checks).
 
@@ -15,7 +15,7 @@ also include an `OWNERS` file inside the Task directory `partners/<task_name>/OW
 
 For example, if your Task name is `my_task` and the version of your Task is `0.1`, your Task YAML and OWNERS file locations will be `partners/my_task/0.1/my_task.yaml` and `partners/my_task/OWNERS`
 
-Send a pull request to the [build-definitions](https://github.com/redhat-appstudio/build-definitions) repository containing your Task YAML and OWNERS file.
+Send a pull request to the [build-definitions](https://github.com/konflux-ci/build-definitions) repository containing your Task YAML and OWNERS file.
 
 ### How to debug the CI failures in my submitted Task?
 
@@ -45,7 +45,7 @@ Example task is in `partners/example-hello-world`. The example task is printing 
         resolver: git
         params:
         - name: url
-          value: https://github.com/redhat-appstudio/build-definitions
+          value: https://github.com/konflux-ci/build-definitions
         - name: revision
           value: main
         - name: pathInRepo

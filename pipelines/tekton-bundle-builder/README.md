@@ -15,6 +15,11 @@
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 ## Available params from tasks
+### apply-tags:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### clair-scan:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -126,7 +131,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| clair-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL|
+|IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE|
 
 ## Workspaces
 |name|description|optional|used in tasks

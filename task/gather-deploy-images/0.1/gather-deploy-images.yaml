@@ -16,19 +16,25 @@ spec:
         contain the origin/$TARGET_BRANCH reference.
       type: string
       default: ""
+    - name: ENVIRONMENTS
+      description: Gather images from the manifest files for the specified environments
+      type: array
+      default: ["development", "stage", "prod"]
   results:
     - name: IMAGES_TO_VERIFY
       description: >
         The images to be verified, in a format compatible with
-        https://github.com/redhat-appstudio/build-definitions/tree/main/task/verify-enterprise-contract/0.1.
+        https://github.com/konflux-ci/build-definitions/tree/main/task/verify-enterprise-contract/0.1.
         When there are no images to verify, this is an empty string.
   steps:
   - name: get-images-per-env
-    image: quay.io/redhat-appstudio/appstudio-utils:5bd7d6cb0b17f9f2eab043a8ad16ba3d90551bc2@sha256:8c7fcf86af40c71aeb58e4279625c8308af5144e2f6b8e28b0ec7e795260e5f7
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     workingDir: $(workspaces.source.path)/source
     env:
       - name: TARGET_BRANCH
         value: $(params.TARGET_BRANCH)
+    args:
+      - $(params.ENVIRONMENTS[*])
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -36,7 +42,7 @@ spec:
       IMAGE_PATH='.spec.template.spec.containers[0].image'
       component_name=$(yq .metadata.name application.yaml)
 
-      for env in development stage prod; do
+      for env in "$@"; do
         yaml_path=components/${component_name}/overlays/${env}/deployment-patch.yaml
         image=$(yq "$IMAGE_PATH" "$yaml_path")
 

@@ -22,10 +22,9 @@ spec:
       default: "linux/amd64"
   steps:
   - name: show-sbom
-    image: quay.io/redhat-appstudio/appstudio-utils:3e548a38b3ad183262a25bc2a4eb6b5367b83fb5
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
-    # also per direction from Ralph Bean, we want to use image digest based tags to use a cue to automation like dependabot or renovatebot to periodially submit pull requests that update the digest as new images are released.
     env:
     - name: IMAGE_URL
       value: $(params.IMAGE_URL)

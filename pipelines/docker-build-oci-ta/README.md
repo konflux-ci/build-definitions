@@ -1,0 +1,212 @@
+# "docker-build-oci-ta pipeline"
+## Parameters
+|name|description|default value|used in (taskname:taskrefversion:taskparam)|
+|---|---|---|---|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.1:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.1:BUILD_ARGS_FILE|
+|build-source-image| Build a source image.| false| |
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.1:DOCKERFILE|
+|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|hermetic| Execute the build with network isolation| false| build-container:0.1:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.1:ociArtifactExpiresAfter ; build-container:0.1:IMAGE_EXPIRES_AFTER|
+|java| Java build| false| |
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.1:ociStorage ; build-container:0.1:IMAGE ; build-source-image:0.1:BINARY_IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input ; build-container:0.1:PREFETCH_INPUT|
+|rebuild| Force rebuild image| false| init:0.2:rebuild|
+|revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+## Available params from tasks
+### apply-tags:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+### buildah-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
+|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
+|DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
+|DOCKER_AUTH| unused, should be removed in next task version| | |
+|ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
+|HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
+|IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
+|TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
+|YUM_REPOS_D_FETCHED| Path in source workspace where dynamically-fetched repos are present| fetched.repos.d| |
+|YUM_REPOS_D_SRC| Path in the git repository in which yum repository files are stored| repos.d| |
+|YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
+### clair-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|docker-auth| unused, should be removed in next task version.| | |
+|image-digest| Image digest to scan.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+### clamav-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|docker-auth| unused| | |
+|image-digest| Image digest to scan.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+### deprecated-image-check:0.4 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|BASE_IMAGES_DIGESTS| Digests of base build images.| | '$(tasks.build-container.results.BASE_IMAGES_DIGESTS)'|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
+|POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
+### ecosystem-cert-preflight-checks:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|image-url| Image url to scan.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+### git-clone-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
+|enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
+|fetchTags| Fetch all tags for the repo.| false| |
+|httpProxy| HTTP proxy server for non-SSL requests.| | |
+|httpsProxy| HTTPS proxy server for SSL requests.| | |
+|noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).git'|
+|refspec| Refspec to fetch before checking out revision.| | |
+|revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
+|sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| | |
+|sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
+|submodules| Initialize and fetch git submodules.| true| |
+|url| Repository URL to clone from.| None| '$(params.git-url)'|
+|userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
+|verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
+### init:0.2 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
+|rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
+|skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
+### prefetch-dependencies-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
+|input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
+|log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
+### sast-snyk-check-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ARGS| Append arguments.| --all-projects --exclude=test*,vendor,deps| |
+|SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+### sbom-json-check:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name to verify.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+### show-sbom:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|PLATFORM| Specific architecture to display the SBOM for. An example arch would be "linux/amd64". If IMAGE_URL refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".| linux/amd64| |
+### source-build-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|BASE_IMAGES| Base images used to build the binary image. Each image per line in the same order of FROM instructions specified in a multistage Dockerfile. Default to an empty string, which means to skip handling a base image.| | '$(tasks.build-container.results.BASE_IMAGES_DIGESTS)'|
+|BINARY_IMAGE| Binary image name from which to generate the source image name.| None| '$(params.output-image)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+
+## Results
+|name|description|value|
+|---|---|---|
+|CHAINS-GIT_COMMIT| |$(tasks.clone-repository.results.commit)|
+|CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
+|IMAGE_DIGEST| |$(tasks.build-container.results.IMAGE_DIGEST)|
+|IMAGE_URL| |$(tasks.build-container.results.IMAGE_URL)|
+|JAVA_COMMUNITY_DEPENDENCIES| |$(tasks.build-container.results.JAVA_COMMUNITY_DEPENDENCIES)|
+## Available results from tasks
+### buildah-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|BASE_IMAGES_DIGESTS| Digests of the base images used for build| build-source-image:0.1:BASE_IMAGES ; deprecated-base-image-check:0.4:BASE_IMAGES_DIGESTS|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE|
+|JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
+|SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
+### clair-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|CLAIR_SCAN_RESULT| Clair scan result.| |
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### clamav-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### deprecated-image-check:0.4 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
+### ecosystem-cert-preflight-checks:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Preflight pass or fail outcome.| |
+### git-clone-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.1:SOURCE_ARTIFACT|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.1:COMMIT_SHA|
+|url| The precise URL that was fetched by this Task.| |
+### init:0.2 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|build| Defines if the image in param image-url should be built| |
+### prefetch-dependencies-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.1:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.1:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.1:SOURCE_ARTIFACT|
+### sast-snyk-check-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
+### sbom-json-check:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### source-build-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|BUILD_RESULT| Build result.| |
+|SOURCE_IMAGE_DIGEST| The source image digest.| |
+|SOURCE_IMAGE_URL| The source image url.| |
+
+## Workspaces
+|name|description|optional|used in tasks
+|---|---|---|---|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
+## Available workspaces from tasks
+### git-clone-oci-ta:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
+|ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
+### prefetch-dependencies-oci-ta:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
