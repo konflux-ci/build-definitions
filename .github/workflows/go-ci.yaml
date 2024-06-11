@@ -1,0 +1,68 @@
+name: Validate PR - golang CI
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version-file: './remote-task-generator/go.mod'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804
+        with:
+          working-directory: remote-task-generator
+          args: "--timeout=10m --build-tags='normal periodic'"
+  go:
+    name: Check sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - name: Install Go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version-file: './remote-task-generator/go.mod'
+      - name: Check go mod status
+        working-directory: remote-task-generator
+        run: |
+          go mod tidy
+          if [[ ! -z $(git status -s) ]]
+          then
+            echo "Go mod state is not clean:"
+            git --no-pager diff
+            exit 1
+          fi
+      - name: Check format
+        working-directory: remote-task-generator
+        run: |
+          go fmt
+
+          if [[ ! -z $(git status -s) ]]
+          then
+            echo "not all golang files properly gofmt'ed:"
+            git --no-pager diff
+            exit 1
+          fi
+
+  security_scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        with:
+          go-version-file: './remote-task-generator/go.mod'
+      # https://github.com/securego/gosec/blob/12be14859bc7d4b956b71bef0b443694aa519d8a/README.md#integrating-with-code-scanning
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          # we let the report trigger content trigger a failure using the GitHub Security features.
+          args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ./...'
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@1b1aada464948af03b950897e5eb522f92603cc2
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: results.sarif
