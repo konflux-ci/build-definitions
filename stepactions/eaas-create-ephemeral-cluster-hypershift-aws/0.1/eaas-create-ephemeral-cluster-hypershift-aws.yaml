@@ -66,17 +66,17 @@ spec:
     trap 'rm -f "$KUBECONFIG"' EXIT
     echo "$KUBECONFIG_VALUE" > $KUBECONFIG
 
-    OC=(oc --insecure-skip-tls-verify=$INSECURE_SKIP_TLS_VERIFY)
-    CTI_NAME=$(${OC[*]} create -f cti.yaml -o=jsonpath='{.metadata.name}')
+    OC=(oc --insecure-skip-tls-verify="$INSECURE_SKIP_TLS_VERIFY")
+    CTI_NAME=$("${OC[@]}" create -f cti.yaml -o=jsonpath='{.metadata.name}')
     echo "Created ClusterTemplateInstance $CTI_NAME"
     echo -n $CTI_NAME > $(step.results.clusterName.path)
 
     echo "Waiting for ClusterTemplateInstance to be ready (20m timeout)"
-    if ${OC[*]} wait cti $CTI_NAME --for=jsonpath='{.status.phase}'=Ready --timeout=20m; then
+    if "${OC[@]}" wait cti $CTI_NAME --for=jsonpath='{.status.phase}'=Ready --timeout=20m; then
       echo "Successfully provisioned $CTI_NAME"
       exit 0
     else
-      ${OC[*]} get cti $CTI_NAME -o yaml
+      "${OC[@]}" get cti $CTI_NAME -o yaml
       echo "Failed to provision $CTI_NAME"
       exit 1
     fi
