@@ -101,6 +101,8 @@ spec:
       type: string
     - name: commit
       description: The precise commit SHA that was fetched by this Task.
+    - name: commit-timestamp
+      description: The commit timestamp of the checkout
     - name: url
       description: The precise URL that was fetched by this Task.
   volumes:
@@ -236,6 +238,7 @@ spec:
         fi
         printf "%s" "${RESULT_SHA}" >"$(results.commit.path)"
         printf "%s" "${PARAM_URL}" >"$(results.url.path)"
+        printf "%s" "$(git log -1 --pretty=%ct)" >"$(results.commit-timestamp.path)"
 
         if [ "${PARAM_FETCH_TAGS}" = "true" ]; then
           echo "Fetching tags"

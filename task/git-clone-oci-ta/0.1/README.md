@@ -29,6 +29,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |---|---|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.|
 |commit|The precise commit SHA that was fetched by this Task.|
+|commit-timestamp|The commit timestamp of the checkout|
 |url|The precise URL that was fetched by this Task.|
 
 ## Workspaces
