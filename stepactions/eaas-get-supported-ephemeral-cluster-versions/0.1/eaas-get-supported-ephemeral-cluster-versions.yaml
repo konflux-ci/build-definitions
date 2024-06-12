@@ -39,8 +39,8 @@ spec:
     trap 'rm -f "$KUBECONFIG"' EXIT
     echo "$KUBECONFIG_VALUE" > $KUBECONFIG
 
-    OC=(oc --insecure-skip-tls-verify=$INSECURE_SKIP_TLS_VERIFY)
-    SV=$(${OC[*]} get configmap supported-versions -n hypershift -o=jsonpath='{.data.supported-versions}')
-    VERSIONS=$(echo "$SV" | jq -c '.versions')
+    OC=(oc --insecure-skip-tls-verify="$INSECURE_SKIP_TLS_VERIFY")
+    SV=$("${OC[@]}" get configmap supported-versions -n hypershift -o=jsonpath='{.data.supported-versions}')
+    VERSIONS=$(jq -c '.versions' <<< "$SV")
     echo "Supported versions: $VERSIONS"
     echo -n "$VERSIONS" > $(step.results.versions.path)
