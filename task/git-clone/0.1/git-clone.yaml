@@ -143,6 +143,10 @@ spec:
       value: $(workspaces.basic-auth.bound)
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
       value: $(workspaces.basic-auth.path)
+    - name: COMMIT_PATH_RESULT
+      value: $(results.commit.path)
+    - name: URL_PATH
+      value: $(results.url.path)
     image: quay.io/konflux-ci/git-clone@sha256:005487d3967e7a90490f96b2ff3b0c6d0463b647d212cd809683b494e20146a8
     computeResources: {}
     securityContext:
@@ -233,8 +237,8 @@ spec:
       if [ "${EXIT_CODE}" != 0 ] ; then
         exit "${EXIT_CODE}"
       fi
-      printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
-      printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+      printf "%s" "${RESULT_SHA}" > "${COMMIT_PATH_RESULT}"
+      printf "%s" "${PARAM_URL}" > "${URL_PATH}"
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"

@@ -175,6 +175,10 @@ spec:
           value: $(workspaces.basic-auth.bound)
         - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
           value: $(workspaces.basic-auth.path)
+        - name: COMMIT_PATH_RESULT
+          value: $(results.commit.path)
+        - name: URL_PATH
+          value: $(results.url.path)
         - name: CHECKOUT_DIR
           value: /var/workdir/source
       script: |
@@ -234,8 +238,8 @@ spec:
         if [ "${EXIT_CODE}" != 0 ]; then
           exit "${EXIT_CODE}"
         fi
-        printf "%s" "${RESULT_SHA}" >"$( results.commit.path)"
-        printf "%s" "${PARAM_URL}" >"$( results.url.path)"
+        printf "%s" "${RESULT_SHA}" >"${COMMIT_PATH_RESULT}"
+        printf "%s" "${PARAM_URL}" >"${URL_PATH}"
 
         if [ "${PARAM_FETCH_TAGS}" = "true" ]; then
           echo "Fetching tags"
