@@ -96,6 +96,8 @@ spec:
     name: commit
   - description: The precise URL that was fetched by this Task.
     name: url
+  - description: The commit timestamp of the checkout
+    name: commit-timestamp
   steps:
   - name: clone
     env:
@@ -235,6 +237,7 @@ spec:
       fi
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+      printf "%s" "$(git log -1 --pretty=%ct)" > "$(results.commit-timestamp.path)"
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"
