@@ -28,4 +28,4 @@ spec:
     echo "GET $URL"
     RESULT=$(curl -s -L -H "Accepts: application/json" $URL)
     echo "$RESULT"
-    echo "$RESULT" | jq -j '.name' > $(step.results.version.path)
+    jq -j '.name' <<< "$RESULT" > $(step.results.version.path)
