@@ -324,7 +324,7 @@ spec:
         touch $(results.BASE_IMAGES_DIGESTS.path)
         for image in $BASE_IMAGES; do
           if [ "${image}" != "scratch" ]; then
-            buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >>$( results.BASE_IMAGES_DIGESTS.path)
+            buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >>$(results.BASE_IMAGES_DIGESTS.path)
           fi
         done
 
