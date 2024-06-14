@@ -29,6 +29,8 @@ spec:
   results:
     - description: Tekton task test output.
       name: TEST_OUTPUT
+    - description: Images processed in the task.
+      name: IMAGES_PROCESSED
 
   steps:
     - name: check-images
@@ -53,20 +55,43 @@ spec:
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         IMAGES_TO_BE_PROCESSED_PATH="/tmp/images_to_be_processed.txt"
-        SBOM_FILE_PATH="/tmp/sbom.json"
+        touch /tmp/images_to_be_processed.txt
 
         success_counter=0
         failure_counter=0
         error_counter=0
         warnings_counter=0
 
-        # Get base images from SBOM
-        cosign download sbom "${IMAGE_URL}@${IMAGE_DIGEST}" > ${SBOM_FILE_PATH}
+        images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+        digests_processed=()
 
-        cat ${SBOM_FILE_PATH} | jq -r '.formulation? // empty | .[] | .components? // empty | .[] | select(any((.properties // empty)[]; .name | test("^konflux:container:is_(base|builder)_image"))) | .name' > ${IMAGES_TO_BE_PROCESSED_PATH}
-        echo "Detected base images from SBOM:"
-        cat "${IMAGES_TO_BE_PROCESSED_PATH}"
-        echo ""
+        imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
+        # strip new-line escape symbol from parameter and save it to variable
+        imageanddigest=$(echo -n $imagewithouttag@$IMAGE_DIGEST)
+
+        # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
+        image_manifests=$(get_image_manifests -i ${imageanddigest})
+        if [ -n "$image_manifests" ]; then
+          while read -r arch arch_sha; do
+            SBOM_FILE_PATH=$(echo "/tmp/sbom-$arch.json")
+            arch_imageanddigest=$(echo $imagewithouttag@$arch_sha)
+
+            # Get base images from SBOM
+            cosign download sbom $arch_imageanddigest > ${SBOM_FILE_PATH}
+            if [ $? -ne 0 ]; then
+              echo "Unable to download sbom for arch $arch."
+              continue
+            fi
+
+            cat ${SBOM_FILE_PATH} | jq -r '.formulation? // empty | .[] | .components? // empty | .[] | select(any((.properties // empty)[]; .name | test("^konflux:container:is_(base|builder)_image"))) | .name' >> ${IMAGES_TO_BE_PROCESSED_PATH}
+            echo "Detected base images from $arch SBOM:"
+            cat "${IMAGES_TO_BE_PROCESSED_PATH}"
+            echo ""
+
+            digests_processed+=("\"$arch_sha\"")
+          done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
+        fi
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
 
         if [ -n "${BASE_IMAGES_DIGESTS}" ];
         then
@@ -148,3 +173,5 @@ spec:
             -s "${success_counter}" -f "${failure_counter}" -w "${warnings_counter}" -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+
+        echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee $(results.IMAGES_PROCESSED.path)
