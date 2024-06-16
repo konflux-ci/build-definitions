@@ -7,12 +7,15 @@ metadata:
   labels:
     app.kubernetes.io/version: "0.1"
     build.appstudio.redhat.com/build_type: oci-artifact
-  name: oci-copy
+  name: oci-copy-oci-ta
 spec:
   description: Given a file in the user's source directory, copy content from arbitrary urls into the OCI registry.
   params:
     - description: Reference of the image we will push
       name: IMAGE
+      type: string
+    - description: The Trusted Artifact URI pointing to the artifact with the application source code.
+      name: SOURCE_ARTIFACT
       type: string
     - default: ./oci-copy.yaml
       description: Path to the oci copy file.
@@ -33,6 +36,12 @@ spec:
       - mountPath: "/var/workdir"
         name: workdir
   steps:
+    - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
+      name: use-trusted-artifact
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: prepare
       image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       script: |
