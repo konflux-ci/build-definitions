@@ -73,6 +73,11 @@ spec:
         other files in this Workspace are ignored. It is strongly recommended
         to bind a Secret to this Workspace over other volume types.
       optional: true
+    - name: netrc
+      description: |
+        Workspace containing a .netrc file. Cachi2 will use the credentials in this file when
+        performing http(s) requests.
+      optional: true
   stepTemplate:
     volumeMounts:
       - mountPath: /var/workdir
@@ -116,6 +121,10 @@ spec:
           value: $(workspaces.git-basic-auth.bound)
         - name: WORKSPACE_GIT_AUTH_PATH
           value: $(workspaces.git-basic-auth.path)
+        - name: WORKSPACE_NETRC_BOUND
+          value: $(workspaces.netrc.bound)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
       script: |
         if [ -z "${INPUT}" ]; then
           # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
@@ -145,6 +154,10 @@ spec:
           fi
           chmod 400 "${HOME}/.git-credentials"
           chmod 400 "${HOME}/.gitconfig"
+        fi
+
+        if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
         fi
 
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
