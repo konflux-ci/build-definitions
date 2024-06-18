@@ -19,3 +19,39 @@ It is not to be considered safe for general use as it cannot provide a high degr
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
 
+## oci-copy.yaml schema
+JSON schema for the `oci-copy.yaml` file.
+
+```json
+{
+    "type": "object",
+    "required": ["artifacts"],
+    "properties": {
+        "artifacts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["source", "filename", "type", "sha256sum"],
+                "properties": {
+                    "source": {
+                        "description": "URL of the artifact to copy",
+                        "type": "string"
+                    },
+                    "filename": {
+                        "description": "Filename that should be applied to the artifact in the OCI registry",
+                        "type": "string"
+                    },
+                    "type": {
+                        "description": "Media type that should be applied to the artifact in the OCI registry",
+                        "type": "string"
+                    },
+                    "sha256sum": {
+                        "description": "Digest of the artifact to be checked before copy",
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}
+```
