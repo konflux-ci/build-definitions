@@ -105,13 +105,18 @@ spec:
       script: |
         #!/usr/bin/env bash
 
+        UPLOAD_FILE=sast_snyk_check_out.json
+        MEDIA_TYPE=application/sarif+json
+
         if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}"  ]; then
           echo 'No image-url or image-digest param provided. Skipping upload.'
           exit 0;
         fi
 
-        UPLOAD_FILE=sast_snyk_check_out.json
-        MEDIA_TYPE=application/sarif+json
+        if [ ! -f "${UPLOAD_FILE}" ]; then
+          echo "No ${UPLOAD_FILE} exists. Skipping upload."
+          exit 0;
+        fi
 
         echo "Selecting auth"
         select-oci-auth $IMAGE_URL > $HOME/auth.json

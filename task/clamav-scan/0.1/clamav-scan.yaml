@@ -164,6 +164,11 @@ spec:
           args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
         done
 
+        if [ -z "${args}" ]; then
+          echo "No files found. Skipping upload."
+          exit 0;
+        fi
+
         echo "Selecting auth"
         select-oci-auth $IMAGE_URL > $HOME/auth.json
         echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
