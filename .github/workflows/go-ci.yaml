@@ -10,11 +10,11 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
-          go-version-file: './remote-task-generator/go.mod'
+          go-version-file: './task-generator/go.mod'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804
         with:
-          working-directory: remote-task-generator
+          working-directory: task-generator
           args: "--timeout=10m --build-tags='normal periodic'"
   go:
     name: Check sources
@@ -24,9 +24,9 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
-          go-version-file: './remote-task-generator/go.mod'
+          go-version-file: './task-generator/go.mod'
       - name: Check go mod status
-        working-directory: remote-task-generator
+        working-directory: task-generator
         run: |
           go mod tidy
           if [[ ! -z $(git status -s) ]]
@@ -36,9 +36,9 @@ jobs:
             exit 1
           fi
       - name: Check format
-        working-directory: remote-task-generator
+        working-directory: task-generator
         run: |
-          go fmt
+          go fmt ./...
 
           if [[ ! -z $(git status -s) ]]
           then
@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
         with:
-          go-version-file: './remote-task-generator/go.mod'
+          go-version-file: './task-generator/go.mod'
       # https://github.com/securego/gosec/blob/12be14859bc7d4b956b71bef0b443694aa519d8a/README.md#integrating-with-code-scanning
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
