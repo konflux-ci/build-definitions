@@ -11,9 +11,9 @@ See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
-|SOURCE_ARTIFACT|The trusted artifact URI containing the application source code.||true|
-|SNYK_SECRET|Name of secret which contains Snyk token.|snyk-secret|false|
 |ARGS|Append arguments.|--all-projects --exclude=test*,vendor,deps|false|
+|SNYK_SECRET|Name of secret which contains Snyk token.|snyk-secret|false|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 
 ## Results
 |name|description|

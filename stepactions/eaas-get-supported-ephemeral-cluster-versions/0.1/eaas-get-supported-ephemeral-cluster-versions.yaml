@@ -1,0 +1,46 @@
+---
+apiVersion: tekton.dev/v1alpha1
+kind: StepAction
+metadata:
+  name: eaas-get-supported-ephemeral-cluster-versions
+spec:
+  description: >-
+    This StepAction queries the EaaS hub cluster used to provision ephemeral clusters for testing.
+    It returns a list of supported versions stored in a hypershift ConfigMap.
+  image: quay.io/redhat-appstudio/appstudio-utils@sha256:586149e3f18d966f681d956ab074b4e1d8433663d615ed86e19a3804ba952dfe
+  params:
+    - name: eaasSpaceSecretRef
+      type: string
+      description: Name of a secret containing credentials for accessing an EaaS space.
+    - name: insecureSkipTLSVerify
+      type: string
+      default: "false"
+      description: >-
+        Skip TLS verification when accessing the EaaS hub cluster.
+        This should not be set to "true" in a production environment.
+  env:
+    - name: INSECURE_SKIP_TLS_VERIFY
+      value: "$(params.insecureSkipTLSVerify)"
+    - name: KUBECONFIG
+      value: /tmp/kubeconfig
+    - name: KUBECONFIG_VALUE
+      valueFrom:
+        secretKeyRef:
+          name: $(params.eaasSpaceSecretRef)
+          key: kubeconfig
+  results:
+    - name: versions
+      type: array
+      description: List of supported minor versions from newest to oldest. E.g. ["4.15","4.14","4.13"]
+  script: |
+    #!/bin/bash
+    set -eo pipefail
+
+    trap 'rm -f "$KUBECONFIG"' EXIT
+    echo "$KUBECONFIG_VALUE" > $KUBECONFIG
+
+    OC=(oc --insecure-skip-tls-verify="$INSECURE_SKIP_TLS_VERIFY")
+    SV=$("${OC[@]}" get configmap supported-versions -n hypershift -o=jsonpath='{.data.supported-versions}')
+    VERSIONS=$(jq -c '.versions' <<< "$SV")
+    echo "Supported versions: $VERSIONS"
+    echo -n "$VERSIONS" > $(step.results.versions.path)

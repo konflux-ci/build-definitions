@@ -1,0 +1,13 @@
+name: Validate PR - Trusted Artifact variants
+'on':
+  pull_request:
+    branches: [main]
+jobs:
+  go:
+    name: Check Trusted Artifact variants
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Check Trusted Artifact variants
+        run: hack/generate-ta-tasks.sh

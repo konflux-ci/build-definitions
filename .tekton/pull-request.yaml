@@ -139,6 +139,11 @@ spec:
               type: string
             - name: e2e_test_namespace
               type: string
+          results:
+          - name: custom-docker-build-bundle
+            description: "custom bundle for docker-build pipeline"
+          - name: custom-fbc-builder-bundle
+            description: "custom bundle for fbc-builder pipeline"
           steps:
             - name: build-bundles
               image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
@@ -151,7 +156,11 @@ spec:
                 SKIP_BUILD=1 \
                 INSTALL_BUNDLE_NS=$(params.e2e_test_namespace) \
                 ENABLE_SOURCE_BUILD=1 \
+                ENABLE_HERMETIC_BUILD=1 \
                 hack/build-and-push.sh
+                eval "source bundle_values.env"
+                echo -n $CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE | tee $(results.custom-docker-build-bundle.path)
+                echo -n $CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE | tee $(results.custom-fbc-builder-bundle.path)
           workspaces:
             - name: source
       - name: e2e-tests
@@ -164,6 +173,10 @@ spec:
             value: "{{ source_url }}"
           - name: ec_pipelines_repo_revision
             value: "{{ revision }}"
+          - name: docker-build-bundle
+            value: "$(tasks.build-bundles.results.custom-docker-build-bundle)"
+          - name: fbc-builder-bundle
+            value: "$(tasks.build-bundles.results.custom-fbc-builder-bundle)"
         runAfter:
           - build-bundles
         taskRef:

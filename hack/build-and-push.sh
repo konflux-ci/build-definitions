@@ -182,5 +182,5 @@ do
 done
 
 if [ "$SKIP_INSTALL" == "" ]; then
-    "$SCRIPTDIR/util-install-bundle.sh" "$docker_pipeline_bundle,$fbc_pipeline_bundle,$nodejs_pipeline_bundle,$java_pipeline_bundle" "$INSTALL_BUNDLE_NS"
+    printf "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$docker_pipeline_bundle\nexport CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" > bundle_values.env
 fi
