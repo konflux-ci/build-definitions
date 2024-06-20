@@ -11,6 +11,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
+|CAP_SYS_ADMIN|Determines if buildah should be invoked with --cap-add SYS_ADMIN|false|false|
 |COMMIT_SHA|The image is built from this commit.|""|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|

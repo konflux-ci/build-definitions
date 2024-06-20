@@ -29,6 +29,11 @@ spec:
         the prefetched dependencies.
       type: string
       default: ""
+    - name: CAP_SYS_ADMIN
+      description: Determines if buildah should be invoked with --cap-add
+        SYS_ADMIN
+      type: string
+      default: "false"
     - name: COMMIT_SHA
       description: The image is built from this commit.
       type: string
@@ -139,6 +144,8 @@ spec:
         value: oci
       - name: BUILD_ARGS_FILE
         value: $(params.BUILD_ARGS_FILE)
+      - name: CAP_SYS_ADMIN
+        value: $(params.CAP_SYS_ADMIN)
       - name: CONTEXT
         value: $(params.CONTEXT)
       - name: DOCKERFILE
@@ -250,6 +257,10 @@ spec:
 
         if [ -n "${TARGET_STAGE}" ]; then
           BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+        fi
+
+        if [ -n "${CAP_SYS_ADMIN}" ]; then
+          BUILDAH_ARGS+=("--cap-add=SYS_ADMIN")
         fi
 
         if [ -n "${BUILD_ARGS_FILE}" ]; then

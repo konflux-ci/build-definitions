@@ -87,6 +87,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: CAP_SYS_ADMIN
+    description: Determines if buildah should be invoked with --cap-add SYS_ADMIN
+    type: string
+    default: "false"
 
   results:
   - description: Digest of the image just built
@@ -135,6 +139,8 @@ spec:
       value: $(params.ENTITLEMENT_SECRET)
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
+    - name: CAP_SYS_ADMIN
+      value: $(params.CAP_SYS_ADMIN)
 
   steps:
   - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
@@ -213,6 +219,10 @@ spec:
 
       if [ -n "${TARGET_STAGE}" ]; then
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+      fi
+
+      if [ -n "${CAP_SYS_ADMIN}" ]; then
+        BUILDAH_ARGS+=("--cap-add=SYS_ADMIN")
       fi
 
       if [ -n "${BUILD_ARGS_FILE}" ]; then

@@ -25,6 +25,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
+|CAP_SYS_ADMIN|Determines if buildah should be invoked with --cap-add SYS_ADMIN. May be forbidden by the SecurityContextConstraints.|"false"|false|
 
 ## Results
 |name|description|

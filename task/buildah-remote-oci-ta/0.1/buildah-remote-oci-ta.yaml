@@ -29,6 +29,10 @@ spec:
       dependencies.
     name: CACHI2_ARTIFACT
     type: string
+  - default: "false"
+    description: Determines if buildah should be invoked with --cap-add SYS_ADMIN
+    name: CAP_SYS_ADMIN
+    type: string
   - default: ""
     description: The image is built from this commit.
     name: COMMIT_SHA
@@ -123,6 +127,8 @@ spec:
       value: oci
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
+    - name: CAP_SYS_ADMIN
+      value: $(params.CAP_SYS_ADMIN)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE
@@ -274,6 +280,10 @@ spec:
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
       fi
 
+      if [ -n "${CAP_SYS_ADMIN}" ]; then
+        BUILDAH_ARGS+=("--cap-add=SYS_ADMIN")
+      fi
+
       if [ -n "${BUILD_ARGS_FILE}" ]; then
         BUILDAH_ARGS+=("--build-arg-file=$(pwd)/$SOURCE_CODE_DIR/${BUILD_ARGS_FILE}")
       fi
@@ -360,6 +370,7 @@ spec:
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
+       -e CAP_SYS_ADMIN="$CAP_SYS_ADMIN" \
        -e CONTEXT="$CONTEXT" \
        -e DOCKERFILE="$DOCKERFILE" \
        -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
