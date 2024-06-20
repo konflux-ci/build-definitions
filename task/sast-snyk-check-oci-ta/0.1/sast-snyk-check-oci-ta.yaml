@@ -29,6 +29,14 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: image-digest
+      description: Image digest to report findings for.
+      type: string
+      default: ""
+    - name: image-url
+      description: Image URL.
+      type: string
+      default: ""
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -104,3 +112,33 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:04cbd5efbcf1a38944b050e3adbc3071218643f6aa92e95d5d25b173574bca5e
+      workingDir: /var/workdir/source
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      script: |
+        #!/usr/bin/env bash
+
+        UPLOAD_FILE=sast_snyk_check_out.json
+        MEDIA_TYPE=application/sarif+json
+
+        if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}"  ]; then
+          echo 'No image-url or image-digest param provided. Skipping upload.'
+          exit 0
+        fi
+
+        if [ ! -f "${UPLOAD_FILE}" ]; then
+          echo "No ${UPLOAD_FILE} exists. Skipping upload."
+          exit 0
+        fi
+
+        echo "Selecting auth"
+        select-oci-auth $IMAGE_URL >$HOME/auth.json
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-api --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers Tag"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-tag --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
