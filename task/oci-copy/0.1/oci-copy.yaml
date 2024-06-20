@@ -124,7 +124,8 @@ spec:
           source $varfile
 
           ENCODED_URL=$(echo "${OCI_SOURCE}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
-          purl="pkg:generic/${OCI_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
+          ENCODED_FILENAME=$(echo "${OCI_FILENAME}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
+          purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
 
           echo "Recording purl $purl"
           yq -oj -i '.components += [ {"purl": "'$purl'", "type": "file", "name": "'$OCI_FILENAME'", "hashes": [{"alg": "SHA-256", "content": "'$OCI_ARTIFACT_DIGEST'"}], "externalReferences": [{"type": "distribution", "url": "'$OCI_SOURCE'"}]} ]' sbom-cyclonedx.json
