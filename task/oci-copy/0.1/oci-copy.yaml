@@ -23,6 +23,8 @@ spec:
       name: IMAGE_DIGEST
     - description: Repository where the artifact was pushed
       name: IMAGE_URL
+    - description: URIs for all image manifests published, for signing
+      name: IMAGES
   stepTemplate:
     env:
       - name: OCI_COPY_FILE
@@ -100,14 +102,29 @@ spec:
             --all \
             $IMAGE
 
-        cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-        echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+        IMAGE_INDEX_DIGEST=$(cat "$(workspaces.source.path)"/image-digest)
+        echo -n "$IMAGE_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        buildah manifest inspect $IMAGE@$IMAGE_INDEX_DIGEST | tee "$(workspaces.source.path)"/image-manifests
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
-    - image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
-      name: sbom-generate
+
+    - name: artifact-manifest-generate
+      image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
+      script: |
+        MANIFEST_DIGESTS=$(cat "$(workspaces.source.path)"/image-manifests | yq -r '.manifests[].digest')
+        for MANIFEST_DIGEST in $MANIFEST_DIGESTS; do
+          reference="$IMAGE@$MANIFEST_DIGEST, "
+          echo "Writing ${reference} to $(results.IMAGES.path)"
+          echo -n "${reference}" >> $(results.IMAGES.path)
+        done
+        echo -n "$IMAGE@$(cat $(results.IMAGE_DIGEST.path))" >> $(results.IMAGES.path)
+      workingDir: $(workspaces.source.path)
+
+    - name: sbom-generate
+      image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       script: |
         cat >sbom-cyclonedx.json <<EOL
         {
