@@ -173,6 +173,8 @@ spec:
     args:
       - $(params.BUILD_ARGS[*])
     script: |
+      #!/bin/bash
+      set -e
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
         echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
       fi
@@ -308,7 +310,7 @@ spec:
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
-        "${BUILDAH_ARGS[@]}" \
+        ${BUILDAH_ARGS[@]} \
         "${LABELS[@]}" \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
