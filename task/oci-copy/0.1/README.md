@@ -17,6 +17,7 @@ It is not to be considered safe for general use as it cannot provide a high degr
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
+|IMAGES|A comma separate list of all the individual image manifests produced|
 
 ## Workspaces
 |name|description|optional|
