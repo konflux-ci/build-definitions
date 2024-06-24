@@ -25,8 +25,6 @@ spec:
         the application source code.
       type: string
   results:
-    - name: IMAGES
-      description: URIs for all image manifests published, for signing
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
     - name: IMAGE_URL
@@ -62,8 +60,7 @@ spec:
         set -eu
         set -o pipefail
 
-        SOURCE_CODE_DIR=source
-        oci_copy_file_path="$(pwd)/$SOURCE_CODE_DIR/$OCI_COPY_FILE"
+        oci_copy_file_path="$(pwd)/source/$OCI_COPY_FILE"
 
         mkdir -p /var/workdir/vars/
 
@@ -83,7 +80,7 @@ spec:
           cat /var/workdir/vars/$filename
         done
     - name: oci-copy
-      image: quay.io/redhat-appstudio/buildah:v1.35.4@sha256:3d3575bb7d0df64abcf1f22f06e82101a945d03317db1f3caac12814f796d01c
+      image: quay.io/konflux-ci/oras:latest@sha256:04cbd5efbcf1a38944b050e3adbc3071218643f6aa92e95d5d25b173574bca5e
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -91,8 +88,6 @@ spec:
       script: |
         set -eu
         set -o pipefail
-
-        buildah manifest create $IMAGE
 
         for varfile in /var/workdir/vars/*; do
           echo "Reading $varfile"
@@ -104,21 +99,27 @@ spec:
           echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
           echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
 
-          echo "Building manifest of type $OCI_ARTIFACT_TYPE from $OCI_FILENAME"
-          buildah manifest add $IMAGE --artifact --artifact-type $OCI_ARTIFACT_TYPE $OCI_FILENAME
+          echo "Appending to arguments for $OCI_FILENAME of type $OCI_ARTIFACT_TYPE"
+          args+=("${OCI_FILENAME}:${OCI_ARTIFACT_TYPE}")
         done
 
-        echo "Pushing conents to $IMAGE"
-        buildah manifest push \
-            --digestfile /var/workdir/image-digest \
-            --authfile $HOME/.docker/config.json \
-            --all \
-            $IMAGE
+        if [ -z "${args}" ]; then
+          echo "No files found. Something is very wrong. Skipping upload."
+          exit 1
+        fi
 
-        IMAGE_INDEX_DIGEST=$(cat "/var/workdir"/image-digest)
+        echo "Extracting artifact_type"
+        ARTIFACT_TYPE=$(cat "$(pwd)/source/$OCI_COPY_FILE" | yq '.artifact_type')
+
+        echo "Selecting auth for $IMAGE"
+        select-oci-auth $IMAGE >auth.json
+
+        echo "Pushing contents to ${IMAGE}"
+        oras push --no-tty --registry-config auth.json --artifact-type ${ARTIFACT_TYPE} "${IMAGE}" "${args[@]}"
+
+        IMAGE_INDEX_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
         echo -n "$IMAGE_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-        buildah manifest inspect $IMAGE@$IMAGE_INDEX_DIGEST | tee "/var/workdir"/image-manifests
       computeResources:
         limits:
           memory: 1Gi
@@ -129,17 +130,6 @@ spec:
         capabilities:
           add:
             - SETFCAP
-    - name: artifact-manifest-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
-      workingDir: /var/workdir
-      script: |
-        MANIFEST_DIGESTS=$(cat "/var/workdir"/image-manifests | yq -r '.manifests[].digest')
-        for MANIFEST_DIGEST in $MANIFEST_DIGESTS; do
-          reference="$IMAGE@$MANIFEST_DIGEST, "
-          echo "Writing ${reference} to $(results.IMAGES.path)"
-          echo -n "${reference}" >>$(results.IMAGES.path)
-        done
-        echo -n "$IMAGE@$(cat $(results.IMAGE_DIGEST.path))" >>$(results.IMAGES.path)
     - name: sbom-generate
       image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       workingDir: /var/workdir
