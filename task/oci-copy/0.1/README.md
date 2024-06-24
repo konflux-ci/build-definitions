@@ -17,7 +17,6 @@ It is not to be considered safe for general use as it cannot provide a high degr
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
-|IMAGES|A comma separate list of all the individual image manifests produced|
 
 ## Workspaces
 |name|description|optional|
@@ -30,8 +29,12 @@ JSON schema for the `oci-copy.yaml` file.
 ```json
 {
     "type": "object",
-    "required": ["artifacts"],
+    "required": ["artifacts", "artifact_type"],
     "properties": {
+        "artifact_type": {
+            "description": "Artifact type to be applied to the top-level OCI artifact, i.e. `application/x-mlmodel`",
+            "type": "string"
+        },
         "artifacts": {
             "type": "array",
             "items": {

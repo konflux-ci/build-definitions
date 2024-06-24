@@ -12,7 +12,6 @@ Given a file in the user's source directory, copy content from arbitrary urls in
 ## Results
 |name|description|
 |---|---|
-|IMAGES|URIs for all image manifests published, for signing|
 |IMAGE_DIGEST|Digest of the artifact just pushed|
 |IMAGE_URL|Repository where the artifact was pushed|
 
