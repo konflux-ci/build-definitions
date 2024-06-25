@@ -26,6 +26,6 @@ spec:
     set -eo pipefail
 
     echo "GET $URL"
-    RESULT=$(curl -s -L -H "Accepts: application/json" $URL)
+    RESULT=$(curl -f -s -L -H "Accepts: application/json" $URL)
     echo "$RESULT"
     jq -j '.name' <<< "$RESULT" > $(step.results.version.path)
