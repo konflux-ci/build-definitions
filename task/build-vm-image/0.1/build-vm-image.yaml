@@ -105,7 +105,7 @@ spec:
         chmod 0400 ~/.ssh/id_rsa
         export SSH_HOST=$(cat /ssh/host)
         export BUILD_DIR=$(cat /ssh/user-dir)
-        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=180"
+        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60"
         mkdir -p scripts
         echo "$BUILD_DIR"
         ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results"
@@ -128,6 +128,9 @@ spec:
 
         REMOTESSHEOF
 
+        # just gathering some info
+        cat /etc/fstab
+        mount
 
         # no expansions in this one, the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
@@ -157,7 +160,7 @@ spec:
         cat >scripts/script-push.sh <<REMOTESSHEOF
         #!/bin/bash
         set -ex
-        dnf -y install buildah
+        dnf -y install buildah pigz
         buildah --storage-driver=vfs manifest create "$OUTPUT_IMAGE"
 
         # show contents of /output
@@ -165,15 +168,15 @@ spec:
 
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
-          gzip /output/qcow2/disk.qcow2
+          pigz /output/qcow2/disk.qcow2
           buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2.gz
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
-          gzip /output/image/disk.raw
+          pigz /output/image/disk.raw
           buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
         elif [ -f "/output/bootiso/install.iso" ]; then
           echo -e "Found iso image."
-          gzip /output/bootiso/install.iso
+          pigz /output/bootiso/install.iso
           buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
         fi
         buildah --storage-driver=vfs manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
