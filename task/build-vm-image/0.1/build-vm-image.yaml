@@ -47,6 +47,7 @@ spec:
         #!/bin/bash
         set -o verbose
         set -e
+        set -x
 
         # expects a config file like the following as BIB_CONFIG_FILE
         #
@@ -80,6 +81,7 @@ spec:
         #!/bin/bash
         set -o verbose
         set -eu
+        set -x
 
         # get values stored from previous task
         echo "vars file"
@@ -106,7 +108,7 @@ spec:
         export SSH_ARGS="-o StrictHostKeyChecking=no"
         mkdir -p scripts
         echo "$BUILD_DIR"
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results"
+        ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results"
 
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
 
@@ -154,7 +156,7 @@ spec:
         # script-push.sh script is intended run _inside_ podman on the ssh host and requires sudo
         cat >scripts/script-push.sh <<REMOTESSHEOF
         #!/bin/bash
-        set -e
+        set -ex
         dnf -y install buildah
         buildah --storage-driver=vfs manifest create "$OUTPUT_IMAGE"
 
@@ -186,7 +188,7 @@ spec:
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
 
-        ssh $SSH_ARGS "$SSH_HOST" $BUILD_DIR/scripts/script-build.sh
+        ssh -v $SSH_ARGS "$SSH_HOST" $BUILD_DIR/scripts/script-build.sh
         rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
 
       volumeMounts:
