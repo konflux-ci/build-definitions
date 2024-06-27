@@ -67,6 +67,11 @@ spec:
         hours, days, and weeks, respectively.
       type: string
       default: ""
+    - name: OPTIONAL_SECRET
+      description: Name of a secret which will be made available to the build
+        with 'buildah build --secret' at /run/secrets/$OPTIONAL_SECRET
+      type: string
+      default: ""
     - name: PREFETCH_INPUT
       description: In case it is not empty, the prefetched content should
         be made available to the build.
@@ -135,6 +140,10 @@ spec:
       secret:
         optional: true
         secretName: $(params.ENTITLEMENT_SECRET)
+    - name: optional-secret
+      secret:
+        optional: true
+        secretName: $(params.OPTIONAL_SECRET)
     - name: shared
       emptyDir: {}
     - name: trusted-ca
@@ -172,6 +181,8 @@ spec:
         value: $(params.SQUASH)
       - name: SQUASH_ALL
         value: $(params.SQUASH_ALL)
+      - name: OPTIONAL_SECRET
+        value: $(params.OPTIONAL_SECRET)
       - name: STORAGE_DRIVER
         value: vfs
       - name: TARGET_STAGE
@@ -206,6 +217,8 @@ spec:
           name: varlibcontainers
         - mountPath: /entitlement
           name: etc-pki-entitlement
+        - mountPath: /optional-secret
+          name: optional-secret
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
           readOnly: true
@@ -334,6 +347,13 @@ spec:
           cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
           VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
           echo "Adding the entitlement to the build"
+        fi
+
+        OPTIONAL_SECRET_PATH="/optional-secret"
+        if [ -d "$OPTIONAL_SECRET_PATH" ]; then
+          cp -r --preserve=mode "$OPTIONAL_SECRET_PATH" /tmp/optional-secret
+          BUILDAH_ARGS+=("--secret=id=${OPTIONAL_SECRET},src=/tmp/optional-secret")
+          echo "Adding the secret ${OPTIONAL_SECRET} to the build, available at /run/secrets/${OPTIONAL_SECRET}"
         fi
 
         unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
