@@ -156,7 +156,7 @@ spec:
         #!/bin/bash
         set -e
         dnf -y install buildah
-        buildah manifest create "$OUTPUT_IMAGE"
+        buildah --storage-driver=vfs manifest create "$OUTPUT_IMAGE"
 
         # show contents of /output
         ls -alR /output
@@ -164,17 +164,17 @@ spec:
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
           gzip /output/qcow2/disk.qcow2
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2.gz
+          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2.gz
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
           gzip /output/image/disk.raw
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
+          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
         elif [ -f "/output/bootiso/install.iso" ]; then
           echo -e "Found iso image."
           gzip /output/bootiso/install.iso
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
         fi
-        buildah manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
+        buildah --storage-driver=vfs manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
         echo -n "$OUTPUT_IMAGE" | tee /tekton-results/IMAGE_URL
         cat image-digest | tee /tekton-results/IMAGE_DIGEST
         REMOTESSHEOF
