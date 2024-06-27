@@ -128,9 +128,6 @@ spec:
 
         REMOTESSHEOF
 
-        # just gathering some info
-        mount
-
         # no expansions in this one, the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
         echo >config.toml <<EOF
@@ -185,6 +182,10 @@ spec:
 
 
         # make scripts executable and sync them to the cloud VM.
+        
+        # TEMP just gathering some info
+        mount
+        
         chmod +x scripts/script-build.sh
         chmod +x scripts/script-push.sh
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
