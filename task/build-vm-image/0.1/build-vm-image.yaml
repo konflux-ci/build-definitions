@@ -164,8 +164,8 @@ spec:
 
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
-          pigz /output/qcow2/disk.qcow2
-          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2.gz
+          # don't zip qcow2 images, it is already compressed.
+          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
           pigz /output/image/disk.raw
@@ -182,9 +182,6 @@ spec:
 
 
         # make scripts executable and sync them to the cloud VM.
-        
-        # TEMP just gathering some info
-        mount
         
         chmod +x scripts/script-build.sh
         chmod +x scripts/script-push.sh
