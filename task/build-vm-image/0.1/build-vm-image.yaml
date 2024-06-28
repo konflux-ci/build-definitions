@@ -160,7 +160,7 @@ spec:
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $(pwd)/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
-          -v /etc/pki/entitlement:/etc/pki/entitlement:Z \
+          -v /entitlement:/etc/pki/entitlement:Z \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPES --local $SOURCE_IMAGE
 
         # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
@@ -211,6 +211,8 @@ spec:
         - mountPath: /ssh
           name: ssh
           readOnly: true
+        - mountPath: /entitlement
+          name: etc-pki-entitlement
 
   volumes:
     - emptyDir: {}
