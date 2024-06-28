@@ -42,7 +42,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/redhat-user-workloads/rhtap-integration-tenant/yq-container/yq:99301602bc9ea9c909df5903d848e5fb582598de
+      image: quay.io/konflux-ci/yq@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       script: |-
         #!/bin/bash
         set -o verbose
@@ -91,7 +91,7 @@ spec:
         echo BOOTC_BUILDER_IMAGE $BOOTC_BUILDER_IMAGE
         echo SOURCE_IMAGE $SOURCE_IMAGE
 
-        mkdir -p ~/.ssh 
+        mkdir -p ~/.ssh
         if [ -e "/ssh/error" ]; then
           #no server could be provisioned
           cat /ssh/error
