@@ -115,10 +115,10 @@ spec:
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60"
         mkdir -p scripts
         echo "$BUILD_DIR"
-        ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results"
+        ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement"
 
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
 
         # this prevents the container from using podman-subscripition-mananger magic,
         # so that it will use certificates from /etc/pki/entitlements 
@@ -160,7 +160,7 @@ spec:
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $(pwd)/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
-          -v /entitlement:/etc/pki/entitlement:Z \
+          -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPES --local $SOURCE_IMAGE
 
         # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
