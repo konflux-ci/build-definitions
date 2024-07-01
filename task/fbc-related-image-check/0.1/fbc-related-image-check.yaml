@@ -41,7 +41,7 @@ spec:
         # however there is also posibility that catalog.yaml has yaml data in it
 
         status=0
-        relImgs="$(jq -r '.relatedImages[]?.image' <<< ${catalog)" || status=$?
+        relImgs="$(jq -r '.relatedImages[]?.image' <<< ${catalog})" || status=$?
         if [ $status -ne 0 ]; then
           echo "Could not get related images. Make sure catalog.yaml exists in FBC fragment image and it is valid .yaml or .json format."
           note="Task $(context.task.name) failed: Could not fetch related images. Make sure you have catalog.yaml or catalog.json formatted correctly in your file-based catalog (FBC) fragment image."
