@@ -265,7 +265,7 @@ spec:
         FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=false
         while read symlink
         do
-          target=$(readlink -f "$symlink")
+          target=$(readlink -m "$symlink")
           if ! [[ "$target" =~ ^$CHECKOUT_DIR ]]; then
             echo "The cloned repository contains symlink pointing outside of the cloned repository: $symlink"
             FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=true
