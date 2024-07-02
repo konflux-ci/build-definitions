@@ -467,7 +467,13 @@ spec:
       container=$(buildah from --pull-never $IMAGE)
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-      buildah commit $container $IMAGE
+
+      BUILDAH_ARGS=()
+      if [ "${SQUASH}" == "true" ]; then
+        BUILDAH_ARGS+=("--squash")
+      fi
+
+      buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
 
       status=-1
       max_run=5
