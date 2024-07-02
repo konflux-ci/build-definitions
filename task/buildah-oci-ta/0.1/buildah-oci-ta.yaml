@@ -76,6 +76,16 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: SQUASH
+      description: Squash new layers added as a part of this build, as per
+        --squash
+      type: string
+      default: "false"
+    - name: SQUASH_ALL
+      description: Squash all new and previous layers added as a part of this
+        build, as per --squash-all
+      type: string
+      default: "false"
     - name: TARGET_STAGE
       description: Target stage in Dockerfile to build. If not specified,
         the Dockerfile is processed entirely to (and including) its last stage.
@@ -158,6 +168,10 @@ spec:
         value: $(params.IMAGE)
       - name: IMAGE_EXPIRES_AFTER
         value: $(params.IMAGE_EXPIRES_AFTER)
+      - name: SQUASH
+        value: $(params.SQUASH)
+      - name: SQUASH_ALL
+        value: $(params.SQUASH_ALL)
       - name: STORAGE_DRIVER
         value: vfs
       - name: TARGET_STAGE
@@ -269,6 +283,14 @@ spec:
 
         if [ -n "${ADD_CAPABILITIES}" ]; then
           BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
+        fi
+
+        if [ "${SQUASH}" == "true" ]; then
+          BUILDAH_ARGS+=("--squash")
+        fi
+
+        if [ "${SQUASH_ALL}" == "true" ]; then
+          BUILDAH_ARGS+=("--squash-all")
         fi
 
         if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
