@@ -16,6 +16,11 @@ spec:
     When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
     When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
   params:
+  - default: does-not-exist
+    description: Name of a secret which will be made available to the build with 'buildah
+      build --secret' at /run/secrets/$ADDITIONAL_SECRET
+    name: ADDITIONAL_SECRET
+    type: string
   - default: ""
     description: Comma separated list of extra capabilities to add when running 'buildah
       build'
@@ -66,11 +71,6 @@ spec:
       tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks,
       respectively.
     name: IMAGE_EXPIRES_AFTER
-    type: string
-  - default: does-not-exist
-    description: Name of a secret which will be made available to the build with 'buildah
-      build --secret' at /run/secrets/$ADDITIONAL_SECRET
-    name: ADDITIONAL_SECRET
     type: string
   - default: ""
     description: In case it is not empty, the prefetched content should be made available
@@ -138,6 +138,8 @@ spec:
   stepTemplate:
     computeResources: {}
     env:
+    - name: ADDITIONAL_SECRET
+      value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
       value: $(params.ADD_CAPABILITIES)
     - name: BUILDAH_FORMAT
@@ -160,8 +162,6 @@ spec:
       value: $(params.SQUASH)
     - name: SQUASH_ALL
       value: $(params.SQUASH_ALL)
-    - name: ADDITIONAL_SECRET
-      value: $(params.ADDITIONAL_SECRET)
     - name: STORAGE_DRIVER
       value: vfs
     - name: TARGET_STAGE
@@ -405,6 +405,7 @@ spec:
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
@@ -416,7 +417,6 @@ spec:
        -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
        -e SQUASH="$SQUASH" \
        -e SQUASH_ALL="$SQUASH_ALL" \
-       -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e STORAGE_DRIVER="$STORAGE_DRIVER" \
        -e TARGET_STAGE="$TARGET_STAGE" \
        -e TLSVERIFY="$TLSVERIFY" \
@@ -622,14 +622,14 @@ spec:
     name: upload-sbom
     workingDir: /var/workdir
   volumes:
-  - name: etc-pki-entitlement
-    secret:
-      optional: true
-      secretName: $(params.ENTITLEMENT_SECRET)
   - name: additional-secret
     secret:
       optional: true
       secretName: $(params.ADDITIONAL_SECRET)
+  - name: etc-pki-entitlement
+    secret:
+      optional: true
+      secretName: $(params.ENTITLEMENT_SECRET)
   - emptyDir: {}
     name: shared
   - configMap:

@@ -16,6 +16,11 @@ spec:
     When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
     When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
   params:
+    - name: ADDITIONAL_SECRET
+      description: Name of a secret which will be made available to the build
+        with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
+      type: string
+      default: does-not-exist
     - name: ADD_CAPABILITIES
       description: Comma separated list of extra capabilities to add when
         running 'buildah build'
@@ -67,11 +72,6 @@ spec:
         hours, days, and weeks, respectively.
       type: string
       default: ""
-    - name: ADDITIONAL_SECRET
-      description: Name of a secret which will be made available to the build
-        with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
-      type: string
-      default: does-not-exist
     - name: PREFETCH_INPUT
       description: In case it is not empty, the prefetched content should
         be made available to the build.
@@ -136,14 +136,14 @@ spec:
       description: The counting of Java components by publisher in JSON format
       type: string
   volumes:
-    - name: etc-pki-entitlement
-      secret:
-        optional: true
-        secretName: $(params.ENTITLEMENT_SECRET)
     - name: additional-secret
       secret:
         optional: true
         secretName: $(params.ADDITIONAL_SECRET)
+    - name: etc-pki-entitlement
+      secret:
+        optional: true
+        secretName: $(params.ENTITLEMENT_SECRET)
     - name: shared
       emptyDir: {}
     - name: trusted-ca
@@ -159,6 +159,8 @@ spec:
       emptyDir: {}
   stepTemplate:
     env:
+      - name: ADDITIONAL_SECRET
+        value: $(params.ADDITIONAL_SECRET)
       - name: ADD_CAPABILITIES
         value: $(params.ADD_CAPABILITIES)
       - name: BUILDAH_FORMAT
@@ -181,8 +183,6 @@ spec:
         value: $(params.SQUASH)
       - name: SQUASH_ALL
         value: $(params.SQUASH_ALL)
-      - name: ADDITIONAL_SECRET
-        value: $(params.ADDITIONAL_SECRET)
       - name: STORAGE_DRIVER
         value: vfs
       - name: TARGET_STAGE
