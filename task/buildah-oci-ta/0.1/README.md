@@ -8,6 +8,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
+|ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
@@ -20,7 +21,6 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |IMAGE|Reference of the image buildah will produce.||true|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
-|ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SQUASH|Squash new layers added as a part of this build, as per --squash|false|false|
