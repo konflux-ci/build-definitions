@@ -339,10 +339,13 @@ spec:
         fi
 
         ADDITIONAL_SECRET_PATH="/additional-secret"
+        ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
         if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
-          cp -r --preserve=mode "$ADDITIONAL_SECRET_PATH" /tmp/additional-secret
-          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET},src=/tmp/additional-secret")
-          echo "Adding the secret ${ADDITIONAL_SECRET} to the build, available at /run/secrets/${ADDITIONAL_SECRET}"
+          cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+          while read -r filename; do
+            echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+            BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+          done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
         fi
 
         unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
