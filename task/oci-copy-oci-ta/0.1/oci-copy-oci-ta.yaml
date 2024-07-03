@@ -15,7 +15,10 @@ spec:
   params:
     - name: BEARER_TOKEN_SECRET_NAME
       description: Name of a secret which will be made available to the build
-        as an Authorization header
+        as an Authorization header. Note, the token will be sent to all servers
+        found in the oci-copy.yaml file. If you do not wish to send the token
+        to all servers, different taskruns and therefore different oci artifacts
+        must be used.
       type: string
       default: ""
     - name: IMAGE
@@ -116,7 +119,7 @@ spec:
           source $varfile
 
           echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
-          curl "${CURL_ARGS[@]}" --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
+          curl "${CURL_ARGS[@]}" --fail --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
 
           echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
           echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
