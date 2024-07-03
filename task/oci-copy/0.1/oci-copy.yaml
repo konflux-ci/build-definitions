@@ -101,7 +101,7 @@ spec:
           source $varfile
 
           echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
-          curl "${CURL_ARGS[@]}" --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
+          curl "${CURL_ARGS[@]}" --fail --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
 
           echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
           echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
