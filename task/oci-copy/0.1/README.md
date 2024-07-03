@@ -6,12 +6,15 @@ It generates a limited SBOM and pushes that into the OCI registry alongside the 
 
 It is not to be considered safe for general use as it cannot provide a high degree of provenance for artficats and reports them only as "general" type artifacts in the purl spec it reports in the SBOM. Use only in limited situations.
 
+Note: the bearer token secret, if specified, will be sent to **all servers listed in the oci-copy.yaml file**.
+
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
 |IMAGE|Reference of the image buildah will produce.||true|
 |OCI_COPY_FILE|Path to the oci copy file.|./oci-copy.yaml|false|
-|BEARER_TOKEN_SECRET_NAME|Name of a secret which will be made available to the build as an Authorization header|""|false|
+|BEARER_TOKEN_SECRET_NAME|Name of a secret which will be made available to the build as an Authorization header. Note, the token will be sent to all servers found in the oci-copy.yaml file. If you do not wish to send the token to all servers, different taskruns and therefore different oci artifacts must be used.|""|false|
+
 
 ## Results
 |name|description|
