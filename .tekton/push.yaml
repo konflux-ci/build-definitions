@@ -132,7 +132,12 @@ spec:
                 DATA_BUNDLE_TAG=$(date '+%s')
                 export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
 
-                .tekton/scripts/build-acceptable-bundles.sh "$@"
+                list=()
+                for f in "$@"; do
+                  [[ -f "$f" ]] && list+=("$f")
+                done
+
+                .tekton/scripts/build-acceptable-bundles.sh "${list[*]}"
 
                 echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
               args:
