@@ -24,6 +24,7 @@
 #  9  clamav-scan
 # 10  sbom-json-check
 # 11  apply-tags
+# 12  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -111,6 +112,18 @@
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: remove
   path: /spec/tasks/8/workspaces/0
+
+# push-dockerfile
+- op: replace
+  path: /spec/tasks/12/taskRef/name
+  value: push-dockerfile-oci-ta
+- op: add
+  path: /spec/tasks/12/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/12/workspaces/0
 
 # Order of finally Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0
