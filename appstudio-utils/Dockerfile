@@ -8,6 +8,7 @@ RUN curl -L https://github.com/tektoncd/cli/releases/download/v0.32.2/tkn_0.32.2
 RUN curl -L https://github.com/sigstore/rekor/releases/download/v0.5.0/rekor-cli-linux-amd64 -o /usr/bin/rekor-cli && chmod +x /usr/bin/rekor-cli
 RUN curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.32.0/conftest_0.32.0_Linux_x86_64.tar.gz | tar -xz --no-same-owner -C /usr/bin
 RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/snapshot/ec_linux_amd64 -o /usr/bin/ec && chmod +x /usr/bin/ec && ec version
+RUN curl -L https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz | tar -xz --no-same-owner -C /usr/bin
 
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \
