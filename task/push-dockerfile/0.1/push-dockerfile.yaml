@@ -1,0 +1,98 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, appstudio"
+  name: push-dockerfile
+spec:
+  description: |-
+    Discover Dockerfile from source code and push it to registry as an OCI artifact.
+  params:
+  - name: IMAGE
+    description: The built binary image. The Dockerfile is pushed to the same image repository alongside.
+    type: string
+  - name: IMAGE_DIGEST
+    description: The built binary image digest, which is used to construct the tag of Dockerfile image.
+    type: string
+  - name: DOCKERFILE
+    description: Path to the Dockerfile.
+    type: string
+    default: ./Dockerfile
+  - name: CONTEXT
+    description: Path to the directory to use as context.
+    type: string
+    default: .
+  - name: TAG_SUFFIX
+    description: Suffix of the Dockerfile image tag.
+    type: string
+    default: .dockerfile
+  - name: ARTIFACT_TYPE
+    description: Artifact type of the Dockerfile image.
+    type: string
+    default: application/vnd.konflux.dockerfile
+  results:
+  - name: IMAGE_REF
+    description: Digest-pinned image reference to the Dockerfile image.
+  steps:
+  - name: push
+    image: quay.io/konflux-ci/oras@sha256:5d0a8a5535fcc4ba467264cacbdeab2fb8662a538a61cb7fc8b3155e3f20fa39
+    workingDir: $(workspaces.workspace.path)
+    env:
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: IMAGE_DIGEST
+      value: $(params.IMAGE_DIGEST)
+    - name: TAG_SUFFIX
+      value: $(params.TAG_SUFFIX)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: ARTIFACT_TYPE
+      value: $(params.ARTIFACT_TYPE)
+    - name: IMAGE_REF_RESULT
+      value: $(results.IMAGE_REF.path)
+    script: |
+      set -eu
+      set -o pipefail
+
+      # Same discovery logic used in buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ $http_code != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      echo "Selecting auth for $IMAGE"
+      auth_json=$(mktemp)
+      select-oci-auth $IMAGE >"$auth_json"
+
+      dockerfile_image=${IMAGE%:*}:${IMAGE_DIGEST/:/-}${TAG_SUFFIX}
+
+      cd "$(dirname $dockerfile_path)"
+      retry oras push --no-tty \
+        --format json \
+        --registry-config "$auth_json" \
+        --artifact-type "$ARTIFACT_TYPE" \
+        "$dockerfile_image" "$(basename $dockerfile_path)" \
+        | yq '.reference' | tr -d '\r\n' >"$IMAGE_REF_RESULT"
+
+  workspaces:
+  - name: workspace
+    description: Workspace containing the source code from where the Dockerfile is discovered.
