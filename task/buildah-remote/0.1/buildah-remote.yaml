@@ -166,7 +166,7 @@ spec:
     - name: SQUASH
       value: $(params.SQUASH)
     - name: BUILDER_IMAGE
-      value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+      value: quay.io/konflux-ci/buildah:latest@sha256:6d41d76152f635b0cb4fe37e96255fe545709a693eeb50f9a3aa63206a372d9e
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -556,7 +556,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    image: quay.io/konflux-ci/buildah:latest@sha256:6d41d76152f635b0cb4fe37e96255fe545709a693eeb50f9a3aa63206a372d9e
     name: inject-sbom-and-push
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
