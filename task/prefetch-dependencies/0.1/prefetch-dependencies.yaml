@@ -31,7 +31,7 @@ spec:
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
   steps:
-  - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
+  - image: quay.io/redhat-appstudio/cachi2:0.8.0@sha256:5cf15d6f3fb151a3e12c8a17024062b7cc62b0c3e1b165e4a9fa5bf7a77bdc30
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: prefetch-dependencies
@@ -46,6 +46,10 @@ spec:
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
       value: $(workspaces.git-basic-auth.path)
+    - name: WORKSPACE_NETRC_BOUND
+      value: $(workspaces.netrc.bound)
+    - name: WORKSPACE_NETRC_PATH
+      value: $(workspaces.netrc.path)
     volumeMounts:
       - name: trusted-ca
         mountPath: /mnt/trusted-ca
@@ -82,6 +86,10 @@ spec:
         chmod 400 "${HOME}/.gitconfig"
       fi
 
+      if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+        cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
+      fi
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -111,6 +119,11 @@ spec:
       These will be copied to the user's home before any cachi2 commands are run. Any
       other files in this Workspace are ignored. It is strongly recommended
       to bind a Secret to this Workspace over other volume types.
+    optional: true
+  - name: netrc
+    description: |
+      Workspace containing a .netrc file. Cachi2 will use the credentials in this file when
+      performing http(s) requests.
     optional: true
   volumes:
     - name: trusted-ca

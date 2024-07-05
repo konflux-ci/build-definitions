@@ -73,6 +73,11 @@ spec:
         other files in this Workspace are ignored. It is strongly recommended
         to bind a Secret to this Workspace over other volume types.
       optional: true
+    - name: netrc
+      description: |
+        Workspace containing a .netrc file. Cachi2 will use the credentials in this file when
+        performing http(s) requests.
+      optional: true
   stepTemplate:
     volumeMounts:
       - mountPath: /var/workdir
@@ -100,7 +105,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prefetch-dependencies
-      image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
+      image: quay.io/redhat-appstudio/cachi2:0.8.0@sha256:5cf15d6f3fb151a3e12c8a17024062b7cc62b0c3e1b165e4a9fa5bf7a77bdc30
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -116,6 +121,10 @@ spec:
           value: $(workspaces.git-basic-auth.bound)
         - name: WORKSPACE_GIT_AUTH_PATH
           value: $(workspaces.git-basic-auth.path)
+        - name: WORKSPACE_NETRC_BOUND
+          value: $(workspaces.netrc.bound)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
       script: |
         if [ -z "${INPUT}" ]; then
           # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
@@ -145,6 +154,10 @@ spec:
           fi
           chmod 400 "${HOME}/.git-credentials"
           chmod 400 "${HOME}/.gitconfig"
+        fi
+
+        if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
         fi
 
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt

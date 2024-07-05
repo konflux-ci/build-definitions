@@ -34,6 +34,11 @@ emit() {
   changes=$((changes + 1))
 }
 
+msg="File is out of date and has been updated"
+if [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
+  # shellcheck disable=SC2016
+  msg='File is out of date, run `hack/generate-ta-tasks.sh` and include the updated file with your changes'
+fi
 
 cd "${TASK_DIR}"
 for recipe_path in **/recipe.yaml; do
@@ -42,10 +47,10 @@ for recipe_path in **/recipe.yaml; do
     readme_path="${recipe_path%/recipe.yaml}/README.md"
     "${HACK_DIR}/generate-readme.sh" "${task_path}" > "${readme_path}"
     if ! git diff --quiet HEAD "${task_path}"; then
-        emit "task/${task_path}" "file is out of date and has been updated"
+        emit "task/${task_path}" "${msg}"
     fi
     if ! git diff --quiet HEAD "${readme_path}"; then
-        emit "task/${readme_path}" "file is out of date and has been updated"
+        emit "task/${readme_path}" "${msg}"
     fi
 done
 

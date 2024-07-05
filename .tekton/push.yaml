@@ -42,20 +42,6 @@ spec:
           - name: output
             workspace: workspace
 
-      - name: clone-repository-to-redhat-appstudio-workspace
-        params:
-          - name: url
-            value: $(params.git-url)
-          - name: revision
-            value: "$(params.revision)"
-          - name: depth
-            value: "0"
-        taskRef:
-          name: git-clone
-        workspaces:
-          - name: output
-            workspace: workspace-redhat-appstudio
-
       - name: ec-task-checks
         runAfter:
           - clone-repository
@@ -78,55 +64,12 @@ spec:
           - name: source
             workspace: workspace
 
-      - name: build-bundles-redhat-appstudio
+      - name: build-bundles
         params:
           - name: revision
             value: "$(params.revision)"
         runAfter:
-          - build-container
-          - clone-repository-to-redhat-appstudio-workspace
-        workspaces:
-          - name: source
-            workspace: workspace-redhat-appstudio
-        taskSpec:
-          params:
-            - name: revision
-              type: string
-          steps:
-            - name: build-bundles
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
-              env:
-                - name: QUAY_NAMESPACE
-                  value: redhat-appstudio-tekton-catalog
-                - name: BUILD_TAG
-                  value: "$(params.revision)"
-                - name: SKIP_BUILD
-                  value: "1"
-                - name: SKIP_INSTALL
-                  value: "1"
-                - name: OUTPUT_TASK_BUNDLE_LIST
-                  value: $(workspaces.source.path)/task-bundle-list
-                - name: OUTPUT_PIPELINE_BUNDLE_LIST
-                  value: $(workspaces.source.path)/pipeline-bundle-list
-              volumeMounts:
-                - mountPath: /root/.docker/config.json
-                  subPath: .dockerconfigjson
-                  name: quay-secret
-          volumes:
-          - name: quay-secret
-            secret:
-              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
-          workspaces:
-            - name: source
-
-      - name: build-bundles-konflux-ci
-        params:
-          - name: revision
-            value: "$(params.revision)"
-        runAfter:
-          - build-container
+          - ec-task-checks
         workspaces:
           - name: source
             workspace: workspace
@@ -135,7 +78,7 @@ spec:
             - name: revision
               type: string
           steps:
-            - name: build-bundles
+            - name: build-bundles-konflux-ci
               image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
@@ -149,16 +92,86 @@ spec:
                 - name: SKIP_INSTALL
                   value: "1"
                 - name: OUTPUT_TASK_BUNDLE_LIST
-                  value: $(workspaces.source.path)/task-bundle-list
+                  value: $(workspaces.source.path)/task-bundle-list-konflux-ci
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
-                  value: $(workspaces.source.path)/pipeline-bundle-list
+                  value: $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+            - name: build-bundles-redhat-appstudio
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.source.path)/source
+              command: ["./hack/build-and-push.sh"]
+              env:
+                - name: QUAY_NAMESPACE
+                  value: redhat-appstudio-tekton-catalog
+                - name: BUILD_TAG
+                  value: "$(params.revision)"
+                - name: SKIP_BUILD
+                  value: "1"
+                - name: SKIP_INSTALL
+                  value: "1"
+                - name: OUTPUT_TASK_BUNDLE_LIST
+                  value: $(workspaces.source.path)/task-bundle-list-appstudio
+                - name: OUTPUT_PIPELINE_BUNDLE_LIST
+                  value: $(workspaces.source.path)/pipeline-bundle-list-appstudio
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
+            - name: update-acceptable-bundles
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.source.path)/source
+              env:
+              - name: REVISION
+                value: "$(params.revision)"
+              - name: GIT_URL
+                value: "$(params.git-url)"
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+
+                DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
+                DATA_BUNDLE_TAG=$(date '+%s')
+                export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
+
+                .tekton/scripts/build-acceptable-bundles.sh "$@"
+
+                echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
+              args:
+                - $(workspaces.source.path)/task-bundle-list-konflux-ci
+                - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+                - $(workspaces.source.path)/task-bundle-list-appstudio
+                - $(workspaces.source.path)/pipeline-bundle-list-appstudio
+            - name: copy-acceptable-bundle-to-appstudio
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.source.path)/source
+              script: |
+                #!/bin/bash
+                set -euo pipefail
+
+                DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
+                DATA_BUNDLE_TAG=$(<acceptable_bundle_tag)
+                DATA_BUNDLE_RH_APPSTUDIO=quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles
+
+                skopeo copy \
+                  "docker://$DATA_BUNDLE_REPO:$DATA_BUNDLE_TAG" \
+                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:$DATA_BUNDLE_TAG"
+
+                skopeo copy \
+                  "docker://$DATA_BUNDLE_REPO:$DATA_BUNDLE_TAG" \
+                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:latest"
+              volumeMounts:
+                - mountPath: /root/.docker/config.json
+                  subPath: .dockerconfigjson
+                  name: quay-secret
+          volumes:
+          - name: quay-secret
+            secret:
+              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
 
       - name: update-infra-repo
         runAfter:
-          - build-bundles-redhat-appstudio
-          - build-bundles-konflux-ci
+          - build-bundles
         params:
           - name: ORIGIN_REPO
             value: $(params.git-url)
@@ -170,93 +183,9 @@ spec:
         taskRef:
           name: update-infra-deployments
 
-      # Note: pushes to redhat-appstudio-tekton-catalog, but contains the bundles
-      # from both redhat-appstudio-tekton-catalog and konflux-ci/tekton-catalog
-      - name: build-acceptable-bundles-redhat-appstudio
-        runAfter:
-          - build-bundles-redhat-appstudio
-          - build-bundles-konflux-ci
-        workspaces:
-          - name: artifacts
-            workspace: workspace
-          - name: artifacts-redhat-appstudio
-            workspace: workspace-redhat-appstudio
-        taskSpec:
-          workspaces:
-            - name: artifacts
-              description: Workspace containing arbitrary artifacts used during the task run.
-            - name: artifacts-redhat-appstudio
-              description: Same as 'artifacts', but for tasks that push to the old redhat-appstudio location.
-          volumes:
-          - name: quay-secret
-            secret:
-              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
-          results:
-          - name: DATA_BUNDLE_REPO
-          - name: DATA_BUNDLE_TAG
-          steps:
-            - name: build-bundles
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              workingDir: $(workspaces.artifacts.path)/source
-              env:
-              - name: REVISION
-                value: "$(params.revision)"
-              - name: GIT_URL
-                value: "$(params.git-url)"
-              script: |
-                #!/bin/bash
-                set -euo pipefail
-
-                DATA_BUNDLE_REPO=quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles
-                DATA_BUNDLE_TAG=$(date '+%s')
-                export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
-
-                .tekton/scripts/build-acceptable-bundles.sh "$@"
-
-                echo -n "$DATA_BUNDLE_REPO" > "$(results.DATA_BUNDLE_REPO.path)"
-                echo -n "$DATA_BUNDLE_TAG" > "$(results.DATA_BUNDLE_TAG.path)"
-              args:
-                - $(workspaces.artifacts.path)/task-bundle-list
-                - $(workspaces.artifacts.path)/pipeline-bundle-list
-                - $(workspaces.artifacts-redhat-appstudio.path)/task-bundle-list
-                - $(workspaces.artifacts-redhat-appstudio.path)/pipeline-bundle-list
-              volumeMounts:
-                - mountPath: /root/.docker/config.json
-                  subPath: .dockerconfigjson
-                  name: quay-secret
-
-      # Note: copies the redhat-appstudio-tekton-catalog data-acceptable-bundles image
-      - name: build-acceptable-bundles-konflux-ci
-        runAfter:
-          - build-acceptable-bundles-redhat-appstudio
-        taskSpec:
-          steps:
-            - name: copy-bundles
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              env:
-              - name: DATA_BUNDLE_RH_APPSTUDIO
-                value: $(tasks.build-acceptable-bundles-redhat-appstudio.results.DATA_BUNDLE_REPO)
-              - name: DATA_BUNDLE_TAG
-                value: $(tasks.build-acceptable-bundles-redhat-appstudio.results.DATA_BUNDLE_TAG)
-              script: |
-                #!/bin/bash
-                set -euo pipefail
-                set -x
-
-                DATA_BUNDLE_KONFLUX_CI=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
-
-                skopeo copy \
-                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:$DATA_BUNDLE_TAG" \
-                  "docker://$DATA_BUNDLE_KONFLUX_CI:$DATA_BUNDLE_TAG"
-
-                skopeo copy \
-                  "docker://$DATA_BUNDLE_KONFLUX_CI:$DATA_BUNDLE_TAG" \
-                  "docker://$DATA_BUNDLE_KONFLUX_CI:latest"
     workspaces:
       - name: workspace
         description: Workspace containing arbitrary artifacts used during the pipeline run.
-      - name: workspace-redhat-appstudio
-        description: Same as 'workspace', but for tasks that push to the old redhat-appstudio location.
     finally:
       - name: slack-webhook-notification
         taskRef:
@@ -275,14 +204,6 @@ spec:
           value: $(params.slack-webhook-notification-team)
   workspaces:
     - name: workspace
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 1Gi
-    - name: workspace-redhat-appstudio
       volumeClaimTemplate:
         spec:
           accessModes:
