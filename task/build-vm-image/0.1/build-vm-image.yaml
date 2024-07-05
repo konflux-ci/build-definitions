@@ -64,16 +64,19 @@ spec:
         # # BIB: Bootc Image Builder config
         # bootc-builder-image: "quay.io/centos-bootc/bootc-image-builder:latest"
         # source-image: "quay.io/centos-bootc/centos-bootc:stream9"
+        # tagged-as: registry.centos.org/bootc:stream9
 
         # trim any leading slash.
         BIB_CONFIG_FILE=${BIB_CONFIG_FILE#/}
 
         BIB_IMAGE=$(yq -r .bootc-builder-image /var/workdir/source/$BIB_CONFIG_FILE)
         SOURCE_IMAGE=$(yq -r  .source-image /var/workdir/source/$BIB_CONFIG_FILE)
+        TAGGED_AS=$(yq -r  ".tagged-as // \"${SOURCE_IMAGE}\"" /var/workdir/source/$BIB_CONFIG_FILE)
 
         # write values to a file in the workspace
         echo "declare BOOTC_BUILDER_IMAGE=${BIB_IMAGE}" > /var/workdir/vars
         echo "declare SOURCE_IMAGE=${SOURCE_IMAGE}" >> /var/workdir/vars
+        echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
         # here we should validate that both keys exist and are valid pullspecs.
         # todo
@@ -99,6 +102,7 @@ spec:
         echo "Vars:"
         echo BOOTC_BUILDER_IMAGE $BOOTC_BUILDER_IMAGE
         echo SOURCE_IMAGE $SOURCE_IMAGE
+        echo TAGGED_AS $TAGGED_AS
 
         mkdir -p ~/.ssh
         if [ -e "/ssh/error" ]; then
@@ -138,6 +142,7 @@ spec:
         export OUTPUT_IMAGE="$OUTPUT_IMAGE"
         export BOOTC_BUILDER_IMAGE="$BOOTC_BUILDER_IMAGE"
         export SOURCE_IMAGE="$SOURCE_IMAGE"
+        export TAGGED_AS="$TAGGED_AS"
         export IMAGE_TYPES="$IMAGE_TYPES"
 
         REMOTESSHEOF
@@ -156,6 +161,8 @@ spec:
         time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json $BOOTC_BUILDER_IMAGE
         echo "PULLING IMAGE"
         time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json $SOURCE_IMAGE
+        echo "TAGGING IMAGE"
+        time sudo podman tag $SOURCE_IMAGE $TAGGED_AS
         echo "RUNNING BUILD"
         echo -e "IMAGE_TYPES = $IMAGE_TYPES"
 
@@ -163,7 +170,7 @@ spec:
           -v $(pwd)/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
-          $BOOTC_BUILDER_IMAGE $IMAGE_TYPES --local $SOURCE_IMAGE
+          $BOOTC_BUILDER_IMAGE $IMAGE_TYPES --local $TAGGED_AS
 
         # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
