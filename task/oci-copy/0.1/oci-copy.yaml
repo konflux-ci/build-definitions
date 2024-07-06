@@ -30,6 +30,8 @@ spec:
       name: IMAGE_DIGEST
     - description: Repository where the artifact was pushed
       name: IMAGE_URL
+    - description: Link to the SBOM blob pushed to the registry.
+      name: SBOM_BLOB_URL
   stepTemplate:
     env:
       - name: OCI_COPY_FILE
@@ -170,7 +172,15 @@ spec:
         - cyclonedx
         - $(params.IMAGE)
       workingDir: $(workspaces.source.path)
-
+    - name: report-sbom-url
+      image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
+      script: |
+        REPO=${IMAGE%:*}
+        echo "Found that ${REPO} is the repository for ${IMAGE}"
+        SBOM_DIGEST=$(sha256sum sbom-cyclonedx.json | awk '{ print $1 }')
+        echo "Found that ${SBOM_DIGEST} is the SBOM digest"
+        echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee $(results.SBOM_BLOB_URL.path)
+      workingDir: $(workspaces.source.path)
   volumes:
     - emptyDir: {}
       name: varlibcontainers
