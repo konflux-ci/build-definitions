@@ -101,36 +101,75 @@ spec:
 
         set -u
 
-        for varfile in /var/workdir/vars/*; do
-          echo "Reading $varfile"
-          source $varfile
-
-          echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
-          curl "${CURL_ARGS[@]}" --fail --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
-
-          echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
-          echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
-
-          echo "Appending to arguments for $OCI_FILENAME of type $OCI_ARTIFACT_TYPE"
-          args+=("${OCI_FILENAME}:${OCI_ARTIFACT_TYPE}")
-        done
-
-        if [ -z "${args}" ]; then
-          echo "No files found. Something is very wrong. Skipping upload."
-          exit 1;
-        fi
+        echo "Selecting auth for $IMAGE"
+        select-oci-auth $IMAGE > auth.json
 
         echo "Extracting artifact_type"
         ARTIFACT_TYPE=$(cat "$(pwd)/source/$OCI_COPY_FILE" | yq '.artifact_type')
 
-        echo "Selecting auth for $IMAGE"
-        select-oci-auth $IMAGE > auth.json
+        REPO=$(echo ${IMAGE} | awk -F ':' '{print $1}')
+        echo "Found that ${REPO} is the repository for ${IMAGE}"
 
-        echo "Pushing contents to ${IMAGE}"
-        oras push --no-tty --registry-config auth.json --artifact-type ${ARTIFACT_TYPE} "${IMAGE}" "${args[@]}"
+        cat >artifact-manifest.json <<EOL
+        {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "artifactType": "${ARTIFACT_TYPE}",
+          "config": {
+            "mediaType": "application/vnd.oci.empty.v1+json",
+            "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "size": 2,
+            "data": "e30="
+          },
+          "layers": [],
+          "annotations": {
+            "org.opencontainers.image.created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+        }
+        EOL
 
-        IMAGE_INDEX_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
-        echo -n "$IMAGE_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        for varfile in /var/workdir/vars/*; do
+          echo "Reading $varfile"
+          source $varfile
+
+          echo "Checking to see if blob $OCI_ARTIFACT_DIGEST exists"
+          if [[ $(oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}") ]]; then
+            echo "Blob for ${OCI_FILENAME} already exists in the registry at ${REPO}@sha256:${OCI_ARTIFACT_DIGEST}. Skipping download."
+          else
+            echo "Blob for ${OCI_FILENAME} does not yet exist in the registry at ${REPO}@sha256:${OCI_ARTIFACT_DIGEST}."
+            echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
+            curl "${CURL_ARGS[@]}" --fail --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
+
+            echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
+            echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
+
+            echo "Pushing blob of $OCI_FILENAME of type $OCI_ARTIFACT_TYPE"
+            oras blob push --registry-config auth.json ${REPO} --media-type ${OCI_ARTIFACT_TYPE} ${OCI_FILENAME}
+
+            echo "Removing local copy of $OCI_FILENAME to save space."
+            rm ${OCI_FILENAME}
+          fi
+
+          echo "Grabbing descriptor of blob from the registry"
+          oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > descriptor.json
+
+          echo "Setting mediaType to ${OCI_ARTIFACT_TYPE}"
+          yq -oj -i '.mediaType = "'${OCI_ARTIFACT_TYPE}'"' descriptor.json
+
+          echo "Inserting org.opencontainers.image.title = ${OCI_FILENAME} annotation"
+          yq -oj -i '.annotations."org.opencontainers.image.title" = "'${OCI_FILENAME}'"' descriptor.json
+
+          echo "Appending blob descriptor for ${OCI_FILENAME} to the overall artifact manifest for ${IMAGE}"
+          yq -oj -i ".layers += $(cat descriptor.json)" artifact-manifest.json
+
+          echo "Done with ${OCI_FILENAME}."
+        done
+
+        echo "Pushing complete artifact manifest to ${IMAGE}"
+        oras manifest push --no-tty --registry-config auth.json "${IMAGE}" artifact-manifest.json
+
+        RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
+        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
       volumeMounts:
         - mountPath: /var/lib/containers
