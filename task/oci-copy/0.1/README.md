@@ -21,6 +21,7 @@ Note: the bearer token secret, if specified, will be sent to **all servers liste
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
+|SBOM_BLOB_URL|Link to the SBOM blob pushed to the registry.|
 
 ## Workspaces
 |name|description|optional|
