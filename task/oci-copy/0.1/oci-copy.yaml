@@ -107,7 +107,7 @@ spec:
         echo "Extracting artifact_type"
         ARTIFACT_TYPE=$(cat "$(pwd)/source/$OCI_COPY_FILE" | yq '.artifact_type')
 
-        REPO=$(echo ${IMAGE} | awk -F ':' '{print $1}')
+        REPO=${IMAGE%:*}
         echo "Found that ${REPO} is the repository for ${IMAGE}"
 
         cat >artifact-manifest.json <<EOL
