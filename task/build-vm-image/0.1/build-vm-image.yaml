@@ -80,13 +80,25 @@ spec:
         SOURCE_IMAGE=$(yq -r  .source-image /var/workdir/source/$BIB_CONFIG_FILE)
         TAGGED_AS=$(yq -r  ".tagged-as // \"${SOURCE_IMAGE}\"" /var/workdir/source/$BIB_CONFIG_FILE)
 
+        # Validate that all keys exist and are plausible pullspecs
+        valid='0-9a-zA-Z@:/'
+        if [[ "${BIB_IMAGE}" =~ [^$pullspec]  ]]; do
+          echo ".bootc-builder-image in $BIB_CONFIG_FILE doesn't match $valid"
+          exit 1
+        done
+        if [[ "${SOURCE_IMAGE}" =~ [^$pullspec]  ]]; do
+          echo ".source-image in $BIB_CONFIG_FILE doesn't match $valid"
+          exit 1
+        done
+        if [[ "${TAGGED_AS}" =~ [^$pullspec]  ]]; do
+          echo ".tagged-as in $BIB_CONFIG_FILE doesn't match $valid"
+          exit 1
+        done
+
         # write values to a file in the workspace
         echo "declare BOOTC_BUILDER_IMAGE=${BIB_IMAGE}" > /var/workdir/vars
         echo "declare SOURCE_IMAGE=${SOURCE_IMAGE}" >> /var/workdir/vars
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
-
-        # here we should validate that both keys exist and are valid pullspecs.
-        # todo
 
     - name: build
       image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
