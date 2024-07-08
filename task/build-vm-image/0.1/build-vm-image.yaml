@@ -1,6 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, appstudio, hacbs
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
   params:
