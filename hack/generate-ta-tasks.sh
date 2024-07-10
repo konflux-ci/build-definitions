@@ -43,7 +43,7 @@ fi
 cd "${TASK_DIR}"
 for recipe_path in **/recipe.yaml; do
     task_path="${recipe_path%/recipe.yaml}/$(basename "${recipe_path%/*/*}").yaml"
-    tash "${recipe_path}" > "${task_path}"
+    cat <<< "$(tash "${recipe_path}")" > "${task_path}"
     readme_path="${recipe_path%/recipe.yaml}/README.md"
     "${HACK_DIR}/generate-readme.sh" "${task_path}" > "${readme_path}"
     if ! git diff --quiet HEAD "${task_path}"; then
