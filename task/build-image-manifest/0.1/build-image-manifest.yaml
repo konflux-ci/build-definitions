@@ -45,6 +45,8 @@ spec:
       value: $(params.IMAGE)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
   steps:
   - image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -56,9 +58,6 @@ spec:
       requests:
         memory: 512Mi
         cpu: 250m
-    env:
-    - name: COMMIT_SHA
-      value: $(params.COMMIT_SHA)
     args: ["$(params.IMAGES[*])"]
     script: |
       #!/bin/bash
@@ -79,7 +78,7 @@ spec:
           TOADD="$(echo $i | cut -d: -f1)@sha256:$(echo $i | cut -d: -f3)"
         fi
         echo "Adding $TOADD"
-        buildah manifest add $IMAGE "docker://$TOADD"
+        buildah manifest add $IMAGE "docker://$TOADD" --all
       done
 
       status=-1
