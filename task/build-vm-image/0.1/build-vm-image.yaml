@@ -146,7 +146,7 @@ spec:
         rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
 
         # form the --type arguments
-        IMAGE_TYPES=" --type $IMAGE_TYPE "
+        IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
 
         # this heredoc allows expansions for the image name
         cat >scripts/script-build.sh <<REMOTESSHEOF
@@ -162,7 +162,7 @@ spec:
         export BOOTC_BUILDER_IMAGE="$BOOTC_BUILDER_IMAGE"
         export SOURCE_IMAGE="$SOURCE_IMAGE"
         export TAGGED_AS="$TAGGED_AS"
-        export IMAGE_TYPES="$IMAGE_TYPES"
+        export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
 
         REMOTESSHEOF
 
@@ -183,13 +183,13 @@ spec:
         echo "TAGGING IMAGE"
         time sudo podman tag $SOURCE_IMAGE $TAGGED_AS
         echo "RUNNING BUILD"
-        echo -e "IMAGE_TYPES = $IMAGE_TYPES"
+        echo -e "IMAGE_TYPE_ARGUMENT = $IMAGE_TYPE_ARGUMENT"
 
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $(pwd)/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
-          $BOOTC_BUILDER_IMAGE $IMAGE_TYPES --local $TAGGED_AS
+          $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
 
         # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
