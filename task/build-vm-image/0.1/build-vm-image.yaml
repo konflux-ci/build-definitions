@@ -148,7 +148,7 @@ spec:
         # form the --type arguments
         IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
 
-        # this heredoc allows expansions for the image name
+        # this unquoted heredoc allows expansions for the image name
         cat >scripts/script-build.sh <<REMOTESSHEOF
         #!/bin/sh
         set -e
@@ -166,7 +166,7 @@ spec:
 
         REMOTESSHEOF
 
-        # no expansions in this one, the env vars are evaluated on the remote vm
+        # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
         echo >config.toml <<EOF
         [[blueprint.customizations.user]]
@@ -203,9 +203,17 @@ spec:
         REMOTESSHEOF
 
         # script-push.sh script is intended run _inside_ podman on the ssh host and requires sudo
+        # this unquoted heredoc allows expansions for the image name
         cat >scripts/script-push.sh <<REMOTESSHEOF
         #!/bin/bash
         set -ex
+
+        export OUTPUT_IMAGE="$OUTPUT_IMAGE"
+
+        REMOTESSHEOF
+
+        # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
+        cat >>scripts/script-push.sh <<'REMOTESSHEOF'
         dnf -y install buildah pigz jq
 
         # Build an image index of length 1 referring to an image manifest with the content
