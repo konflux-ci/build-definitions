@@ -30,6 +30,10 @@ spec:
       description: Name of secret which contains the entitlement certificates
       name: ENTITLEMENT_SECRET
       type: string
+    - name: STORAGE_DRIVER
+      description: Storage driver to configure for buildah
+      type: string
+      default: "vfs"
   results:
     - description: Digest of the manifest list just built
       name: IMAGE_DIGEST
@@ -45,6 +49,8 @@ spec:
         value: $(params.IMAGE_TYPE)
       - name: ENTITLEMENT_SECRET
         value: $(params.ENTITLEMENT_SECRET)
+      - name: STORAGE_DRIVER
+        value: $(params.STORAGE_DRIVER)
 
     volumeMounts:
       - mountPath: "/var/workdir"
@@ -163,6 +169,7 @@ spec:
         export SOURCE_IMAGE="$SOURCE_IMAGE"
         export TAGGED_AS="$TAGGED_AS"
         export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
+        export STORAGE_DRIVER="$STORAGE_DRIVER"
 
         REMOTESSHEOF
 
@@ -217,7 +224,7 @@ spec:
         dnf -y install buildah skopeo pigz jq
 
         # Build an image index of length 1 referring to an image manifest with the content
-        buildah --storage-driver=vfs manifest create "$OUTPUT_IMAGE"
+        buildah manifest create "$OUTPUT_IMAGE"
 
         # show contents of /output
         ls -alR /output
@@ -225,17 +232,17 @@ spec:
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
           # don't zip qcow2 images, it is already compressed.
-          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
           pigz /output/image/disk.raw
-          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
         elif [ -f "/output/bootiso/install.iso" ]; then
           echo -e "Found iso image."
           pigz /output/bootiso/install.iso
-          buildah --storage-driver=vfs manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
         fi
-        buildah --storage-driver=vfs manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
+        buildah manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
 
         # At this point, we have pushed an image index of length 1 to the registry.
         # Next, extract a reference to the image manifest and expose that, throwing away the image index.
