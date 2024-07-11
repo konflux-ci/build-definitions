@@ -6,7 +6,7 @@ Source image build.
 |name|description|default value|required|
 |---|---|---|---|
 |BINARY_IMAGE|Binary image name from which to generate the source image name.||true|
-|BASE_IMAGES|Base images used to build the binary image. Each image per line in the same order of FROM instructions specified in a multistage Dockerfile. Default to an empty string, which means to skip handling a base image.|""|false|
+|BASE_IMAGES|By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.|""|false|
 
 ## Results
 |name|description|
