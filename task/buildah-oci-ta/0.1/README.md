@@ -24,6 +24,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
+|STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
