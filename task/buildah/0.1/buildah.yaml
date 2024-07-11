@@ -99,6 +99,10 @@ spec:
     description: Squash all new and previous layers added as a part of this build, as per --squash
     type: string
     default: "false"
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: "vfs"
 
   results:
   - description: Digest of the image just built
@@ -120,7 +124,7 @@ spec:
     - name: BUILDAH_FORMAT
       value: oci
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
       value: $(params.HERMETIC)
     - name: CONTEXT

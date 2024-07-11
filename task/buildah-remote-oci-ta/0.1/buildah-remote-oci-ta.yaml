@@ -86,6 +86,10 @@ spec:
       as per --squash
     name: SQUASH
     type: string
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: "vfs"
   - default: ""
     description: Target stage in Dockerfile to build. If not specified, the Dockerfile
       is processed entirely to (and including) its last stage.
@@ -157,7 +161,7 @@ spec:
     - name: SQUASH
       value: $(params.SQUASH)
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
     - name: TLSVERIFY
