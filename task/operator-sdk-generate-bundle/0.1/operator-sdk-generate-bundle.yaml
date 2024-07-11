@@ -1,0 +1,37 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: operator-sdk-generate-bundle
+spec:
+  description: Generate an OLM bundle using the operator-sdk
+  params:
+    - name: input-dir
+      description: Directory to read cluster-ready operator manifests from
+      default: deploy
+    - name: channels
+      description: Comma-separated list of channels the bundle belongs to
+      default: alpha
+    - name: version
+      description: Semantic version of the operator in the generated bundle
+    - name: package-name
+      description: Bundle's package name
+  workspaces:
+    - name: source
+      description: Workspace with the source code
+  steps:
+    - name: operator-sdk-generate-bundle
+      image: "registry.redhat.io/openshift4/ose-operator-sdk-rhel9:v4.16"
+      workingDir: $(workspaces.source.path)/source
+      args:
+        - generate
+        - bundle
+        - --overwrite
+        - --channels
+        - $(params.channels)
+        - --input-dir
+        - $(params.input-dir)
+        - --version
+        - $(params.version)
+        - --package
+        - $(params.package-name)
