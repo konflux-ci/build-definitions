@@ -125,6 +125,8 @@ spec:
                 value: "$(params.revision)"
               - name: GIT_URL
                 value: "$(params.git-url)"
+              - name: OUTPUT_TASK_BUNDLE_LIST
+                value: $(workspaces.source.path)/full-bundle-list
               script: |
                 #!/bin/bash
                 set -euo pipefail
@@ -138,7 +140,7 @@ spec:
                   [[ -f "$f" ]] && list+=("$f")
                 done
 
-                .tekton/scripts/build-acceptable-bundles.sh "${list[@]}"
+                hack/build-acceptable-bundles.sh "${list[@]}"
 
                 echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
               args:
@@ -168,6 +170,14 @@ spec:
                 - mountPath: /root/.docker/config.json
                   subPath: .dockerconfigjson
                   name: quay-secret
+            - name: tag-bundles-konflux-ci
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.source.path)/source
+              command: ["./hack/push-and-tag.sh"]
+              env:
+              - name: OUTPUT_TASK_BUNDLE_LIST
+                value: $(workspaces.source.path)/full-bundle-list
+
           volumes:
           - name: quay-secret
             secret:

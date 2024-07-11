@@ -20,6 +20,7 @@ tkn_bundle_push() {
     local retry=0
     local -r interval=${RETRY_INTERVAL:-5}
     local -r max_retries=5
+
     while true; do
         tkn bundle push "$@" && break
         status=$?
@@ -42,7 +43,6 @@ tkn_bundle_push() {
 function save_ref() {
     local output
     output="$(< /dev/stdin)"
-    echo "${output}"
     local digest
     digest="$(echo "${output}" | grep -Po '@\K(sha256:[a-f0-9]*)')"
 
@@ -51,7 +51,6 @@ function save_ref() {
     local refFile
     refFile="$2"
     echo "${tagRef}@${digest}" >> "${refFile}"
-    echo "Created:"
     echo "${tagRef}@${digest}"
 }
 
@@ -114,20 +113,18 @@ do
         echo Unknown task in "$task_dir"
         continue
     fi
+
+    # the task files have been copied to the $prepared_task_file location at this point
     repository=${TEST_REPO_NAME:-task-${task_name}}
     tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
-    task_bundle=quay.io/$QUAY_NAMESPACE/${repository}:${tag}
+    task_bundle=quay.io/$QUAY_NAMESPACE/${repository}:${tag}-${task_file_sha}
 
-    if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}-${task_file_sha}" 2>/dev/null); then
+    if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}" 2>/dev/null); then
       task_bundle_with_digest=${task_bundle}@${digest}
     else
       output=$(tkn_bundle_push -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
       echo "$output"
       task_bundle_with_digest="${output##*$'\n'}"
-
-      # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
-      # even when original tag is updated
-      skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
     fi
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
