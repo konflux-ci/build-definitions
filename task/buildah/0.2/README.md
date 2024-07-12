@@ -39,7 +39,6 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
-|BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|
 
