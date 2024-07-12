@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.2"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -117,8 +117,6 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
-  - description: Digests of the base images used for build
-    name: BASE_IMAGES_DIGESTS
   - name: SBOM_JAVA_COMPONENTS_COUNT
     description: The counting of Java components by publisher in JSON format
     type: string
@@ -346,16 +344,14 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
-      # Expose base image digests
-      touch $(results.BASE_IMAGES_DIGESTS.path)
       for image in $BASE_IMAGES; do
         if [ "${image}" != "scratch" ]; then
-          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> $(results.BASE_IMAGES_DIGESTS.path)
+          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> /shared/base_images_digests
         fi
       done
 
       # Needed to generate base images SBOM
-      echo "$BASE_IMAGES" > $(workspaces.source.path)/base_images_from_dockerfile
+      echo "$BASE_IMAGES" > /shared/base_images_from_dockerfile
 
     securityContext:
       capabilities:
@@ -477,11 +473,11 @@ spec:
 
   - name: create-base-images-sbom
     image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
-    env:
-    - name: BASE_IMAGES_DIGESTS_PATH
-      value: $(results.BASE_IMAGES_DIGESTS.path)
     script: |
-      python3 /app/base_images_sbom_script.py --sbom=sbom-cyclonedx.json --base-images-from-dockerfile=base_images_from_dockerfile --base-images-digests=$BASE_IMAGES_DIGESTS_PATH
+      python3 /app/base_images_sbom_script.py \
+        --sbom=sbom-cyclonedx.json \
+        --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
+        --base-images-digests=/shared/base_images_digests
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
