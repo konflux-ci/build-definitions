@@ -23,10 +23,16 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
+|ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
+|STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
+|SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 
 ## Results
 |name|description|
