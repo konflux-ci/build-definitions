@@ -57,7 +57,11 @@ func main() {
 	y := printers.YAMLPrinter{}
 	b := bytes.Buffer{}
 	_ = y.PrintObj(&task, &b)
-	err := os.WriteFile(buildahRemoteTask, b.Bytes(), 0660) //#nosec
+	err := os.MkdirAll(filepath.Dir(buildahRemoteTask), 0755) //#nosec G301 -- all the dirs in the repo are 755
+	if err != nil {
+		panic(err)
+	}
+	err = os.WriteFile(buildahRemoteTask, b.Bytes(), 0660) //#nosec
 	if err != nil {
 		panic(err)
 	}
