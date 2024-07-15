@@ -1,3 +1,6 @@
+# This build pipeline template is intended to be processed by scripts
+# under hack/ directory rather than by kustomize directly.
+
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -64,6 +67,7 @@ spec:
           value: "$(params.skip-checks)"
       taskRef:
         name: init
+        # A pointer for referencing the correct version of task in the built bundle.
         version: "0.2"
     - name: clone-repository
       when:
