@@ -36,6 +36,10 @@ spec:
     description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
     type: string
     default: ""
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: vfs
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -48,7 +52,7 @@ spec:
   stepTemplate:
     env:
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE

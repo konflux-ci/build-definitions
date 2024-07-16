@@ -240,6 +240,24 @@ spec:
       params:
       - name: IMAGE
         value: $(tasks.build-container.results.IMAGE_URL)
+    - name: push-dockerfile
+      runAfter:
+      - build-container
+      taskRef:
+        name: push-dockerfile
+        version: "0.1"
+      params:
+      - name: IMAGE
+        value: $(tasks.build-container.results.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(tasks.build-container.results.IMAGE_DIGEST)
+      - name: DOCKERFILE
+        value: $(params.dockerfile)
+      - name: CONTEXT
+        value: $(params.path-context)
+      workspaces:
+      - name: workspace
+        workspace: workspace
 
   finally:
     - name: show-sbom

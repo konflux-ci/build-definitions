@@ -51,12 +51,16 @@ spec:
     description: The image is built from this commit.
     type: string
     default: ""
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: vfs
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
       value: oci
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
     - name: IMAGE

@@ -6,7 +6,7 @@ metadata:
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "image-build, appstudio, hacbs"
+    tekton.dev/tags: "image-build, konflux"
   name: build-image-manifest
 spec:
   description: |-
@@ -30,6 +30,10 @@ spec:
     description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     name: IMAGE_EXPIRES_AFTER
     type: string
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: vfs
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -40,13 +44,15 @@ spec:
     - name: BUILDAH_FORMAT
       value: oci
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: IMAGE
       value: $(params.IMAGE)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
   steps:
-  - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+  - image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: build
@@ -56,9 +62,6 @@ spec:
       requests:
         memory: 512Mi
         cpu: 250m
-    env:
-    - name: COMMIT_SHA
-      value: $(params.COMMIT_SHA)
     args: ["$(params.IMAGES[*])"]
     script: |
       #!/bin/bash
@@ -79,7 +82,7 @@ spec:
           TOADD="$(echo $i | cut -d: -f1)@sha256:$(echo $i | cut -d: -f3)"
         fi
         echo "Adding $TOADD"
-        buildah manifest add $IMAGE "docker://$TOADD"
+        buildah manifest add $IMAGE "docker://$TOADD" --all
       done
 
       status=-1

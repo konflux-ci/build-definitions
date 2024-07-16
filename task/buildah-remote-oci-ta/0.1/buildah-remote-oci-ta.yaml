@@ -3,7 +3,7 @@ kind: Task
 metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
-    tekton.dev/tags: image-build, appstudio, hacbs
+    tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
     app.kubernetes.io/version: "0.1"
@@ -86,6 +86,10 @@ spec:
       as per --squash
     name: SQUASH
     type: string
+  - default: vfs
+    description: Storage driver to configure for buildah
+    name: STORAGE_DRIVER
+    type: string
   - default: ""
     description: Target stage in Dockerfile to build. If not specified, the Dockerfile
       is processed entirely to (and including) its last stage.
@@ -157,7 +161,7 @@ spec:
     - name: SQUASH
       value: $(params.SQUASH)
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
     - name: TLSVERIFY
@@ -169,7 +173,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+      value: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -181,7 +185,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:4e39fb97f4444c2946944482df47b39c5bbc195c54c6560b0647635f553ab23d
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:bf4bfae950fe31d08f44488bb788bea8800cd6d75f5e09fcc21cf98689c61185
     name: use-trusted-artifact
   - args:
     - $(params.BUILD_ARGS[*])
@@ -356,10 +360,13 @@ spec:
       fi
 
       ADDITIONAL_SECRET_PATH="/additional-secret"
+      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
-        cp -r --preserve=mode "$ADDITIONAL_SECRET_PATH" /tmp/additional-secret
-        BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET},src=/tmp/additional-secret")
-        echo "Adding the secret ${ADDITIONAL_SECRET} to the build, available at /run/secrets/${ADDITIONAL_SECRET}"
+        cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+        while read -r filename; do
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+        done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
       fi
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
@@ -560,7 +567,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     name: inject-sbom-and-push
     script: |
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')

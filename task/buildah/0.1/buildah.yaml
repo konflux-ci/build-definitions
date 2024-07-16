@@ -6,7 +6,7 @@ metadata:
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "image-build, appstudio, hacbs"
+    tekton.dev/tags: "image-build, konflux"
   name: buildah
 spec:
   description: |-
@@ -99,6 +99,10 @@ spec:
     description: Squash all new and previous layers added as a part of this build, as per --squash
     type: string
     default: "false"
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: vfs
 
   results:
   - description: Digest of the image just built
@@ -120,7 +124,7 @@ spec:
     - name: BUILDAH_FORMAT
       value: oci
     - name: STORAGE_DRIVER
-      value: vfs
+      value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
       value: $(params.HERMETIC)
     - name: CONTEXT
@@ -155,7 +159,7 @@ spec:
       value: $(params.SQUASH)
 
   steps:
-  - image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+  - image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     name: build
     computeResources:
       limits:
@@ -293,10 +297,13 @@ spec:
       fi
 
       ADDITIONAL_SECRET_PATH="/additional-secret"
+      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
-        cp -r --preserve=mode "$ADDITIONAL_SECRET_PATH" /tmp/additional-secret
-        BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET},src=/tmp/additional-secret")
-        echo "Adding the secret ${ADDITIONAL_SECRET} to the build, available at /run/secrets/${ADDITIONAL_SECRET}"
+        cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+        while read -r filename; do
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+        done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
       fi
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
@@ -455,7 +462,7 @@ spec:
       runAsUser: 0
 
   - name: inject-sbom-and-push
-    image: quay.io/redhat-appstudio/buildah:v1.31.0@sha256:34f12c7b72ec2c28f1ded0c494b428df4791c909f1f174dd21b8ed6a57cf5ddb
+    image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     computeResources: {}
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then

@@ -47,6 +47,11 @@ spec:
         Public key used to verify signatures. Must be a valid k8s cosign
         reference, e.g. k8s://my-space/my-secret where my-secret contains
         the expected cosign.pub attribute.
+    - name: TIMEOUT
+      type: string
+      description: Timeout setting for `ec validate`.
+      default: "5m0s"
+
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
@@ -69,11 +74,13 @@ spec:
           value: "$(params.PUBLIC_KEY)"
         - name: IGNORE_REKOR
           value: "true"
+        - name: TIMEOUT
+          value: "$(params.TIMEOUT)"
       taskRef:
         resolver: bundles
         params:
           - name: bundle
-            value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:186ed09cdebd169a501ac8a379e7bc1a4f4d50ab5a5ec410a09058991c7f3699
+            value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:63a95401b1d5cdf6d3843dad92eef72da21f483527e3f746b33ba8d8f8d71b12
           - name: name
             value: verify-enterprise-contract
           - name: kind
