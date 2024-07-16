@@ -410,7 +410,7 @@ spec:
       def get_identifier(component):
         return component["name"] + '@' + component.get("version", "")
 
-      image_sbom_components = image_sbom.get("components", [])
+      image_sbom_components = image_sbom.setdefault("components", [])
       existing_components = [get_identifier(component) for component in image_sbom_components]
 
       source_sbom_components = source_sbom.get("components", [])
