@@ -137,8 +137,6 @@ spec:
       params:
         - name: BINARY_IMAGE
           value: "$(params.output-image)"
-        - name: BASE_IMAGES
-          value: "$(tasks.build-container.results.BASE_IMAGES_DIGESTS)"
       workspaces:
         - name: workspace
           workspace: workspace
@@ -151,8 +149,6 @@ spec:
         name: deprecated-image-check
         version: "0.4"
       params:
-      - name: BASE_IMAGES_DIGESTS
-        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
       - name: IMAGE_URL
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
