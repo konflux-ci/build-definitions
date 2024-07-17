@@ -417,8 +417,7 @@ spec:
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman run $PODMAN_PORT_FORWARD \
-       # disable subscription-manager integration
-       --tmpfs /run/secrets \
+       --tmpfs "/run/secrets" \
        -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
