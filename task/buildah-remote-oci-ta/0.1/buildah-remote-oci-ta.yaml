@@ -380,10 +380,6 @@ spec:
         done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
       fi
 
-      # this prevents the container from using podman-subscripition-mananger magic,
-      # so that it will use certificates from /etc/pki/entitlements
-      # rm -f /usr/share/containers/mounts.conf
-
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
         "${BUILDAH_ARGS[@]}" \
