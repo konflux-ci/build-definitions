@@ -6,6 +6,9 @@ Version 0.2:
   result from your pipeline.
   * Base images and their digests can be found in the SBOM for the output image.
 * No longer writes the `base_images_from_dockerfile` file into the `source` workspace.
+* Removes the `BUILDER_IMAGE` and `DOCKER_AUTH` params. Neither one did anything
+  in the later releases of version 0.1. Please stop passing these params to the
+  buildah task if you used to do so with version 0.1.
 
 ## Konflux-specific
 

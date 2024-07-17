@@ -18,10 +18,6 @@ spec:
   - description: Reference of the image buildah will produce.
     name: IMAGE
     type: string
-  - default: ""
-    description: Deprecated. Has no effect. Will be removed in the future.
-    name: BUILDER_IMAGE
-    type: string
   - default: ./Dockerfile
     description: Path to the Dockerfile to build.
     name: DOCKERFILE
@@ -34,10 +30,6 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     name: TLSVERIFY
     type: string
-  - description: unused, should be removed in next task version
-    name: DOCKER_AUTH
-    type: string
-    default: ""
   - default: "false"
     description: Determines if build will be executed without network access.
     name: HERMETIC
@@ -151,8 +143,6 @@ spec:
       value: $(params.YUM_REPOS_D_TARGET)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
-    - name: PARAM_BUILDER_IMAGE
-      value: $(params.BUILDER_IMAGE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
     - name: ACTIVATION_KEY
@@ -183,10 +173,6 @@ spec:
     args:
       - $(params.BUILD_ARGS[*])
     script: |
-      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
-        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
-      fi
-
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -486,10 +472,6 @@ spec:
     image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     computeResources: {}
     script: |
-      if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
-        echo "WARNING: provided deprecated BUILDER_IMAGE parameter has no effect."
-      fi
-
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
