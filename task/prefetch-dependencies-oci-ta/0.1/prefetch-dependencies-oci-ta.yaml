@@ -28,6 +28,11 @@ spec:
       description: The name of the ConfigMap to read CA bundle data from.
       type: string
       default: trusted-ca
+    - name: config-file-content
+      description: |
+        Pass configuration to cachi2.
+        Note this needs to be passed as a YAML-formatted config dump, not as a file path!
+      default: ""
     - name: dev-package-managers
       description: |
         Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk.
@@ -56,6 +61,8 @@ spec:
         the application source code.
       type: string
   volumes:
+    - name: config
+      emptyDir: {}
     - name: trusted-ca
       configMap:
         items:
@@ -79,7 +86,12 @@ spec:
         performing http(s) requests.
       optional: true
   stepTemplate:
+    env:
+      - name: CONFIG_FILE_CONTENT
+        value: $(params.config-file-content)
     volumeMounts:
+      - mountPath: /mnt/config
+        name: config
       - mountPath: /var/workdir
         name: workdir
   steps:
@@ -104,6 +116,15 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: sanitize-cachi2-config-file-with-yq
+      image: quay.io/konflux-ci/yq@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
+      script: |
+        if [ -n "${CONFIG_FILE_CONTENT}" ]; then
+          # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
+          # impact of this configuration option will be:
+          # https://github.com/containerbuildsystem/cachi2/issues/577
+          yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}"  >/mnt/config/config.yaml
+        fi
     - name: prefetch-dependencies
       image: quay.io/redhat-appstudio/cachi2:0.8.0@sha256:5cf15d6f3fb151a3e12c8a17024062b7cc62b0c3e1b165e4a9fa5bf7a77bdc30
       volumeMounts:
@@ -130,6 +151,12 @@ spec:
           # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
           echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
           exit 0
+        fi
+
+        if [ -f /mnt/config/config.yaml ]; then
+          config_flag=--config-file=/mnt/config/config.yaml
+        else
+          config_flag=""
         fi
 
         if [ "$DEV_PACKAGE_MANAGERS" = "true" ]; then
@@ -167,7 +194,7 @@ spec:
           update-ca-trust
         fi
 
-        cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+        cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
           $dev_pacman_flag \
           --source=/var/workdir/source \
           --output=/var/workdir/cachi2/output \
