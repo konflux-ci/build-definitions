@@ -1,0 +1,69 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: opm-render-bundles
+spec:
+  description: Create a catalog index and render the provided bundles into it
+  params:
+    - name: binary-image
+      description: Base image in which to use for the catalog image
+      default: registry.redhat.io/openshift4/ose-operator-registry:latest
+    - name: bundle-images
+      description: Comma separated list of bundles to add
+    - name: operator-name
+      description: Name of the Operator
+    - name: operator-version
+      description: Version of the Operator
+    - name: default-channel
+      description: The channel that subscriptions will default to if unspecified
+      default: stable
+  workspaces:
+    - name: source
+      description: Workspace with the source code
+  steps:
+    - name: opm-render-bundles
+      image: "registry.redhat.io/openshift4/ose-operator-registry:latest"
+      workingDir: $(workspaces.source.path)/source
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: BINARY_IMAGE
+          value: $(params.binary-image)
+        - name: BUNDLE_IMAGES
+          value: $(params.bundle-images)
+        - name: OPERATOR_NAME
+          value: $(params.operator-name)
+        - name: OPERATOR_VERSION
+          value: $(params.operator-version)
+        - name: DEFAULT_CHANNEL
+          value: $(params.default-channel)
+      script: |
+        #!/usr/bin/env bash
+
+        set -xe
+
+        mkdir -p catalog/
+
+        opm generate dockerfile catalog/ --binary-image="${BINARY_IMAGE}"
+
+        opm init "${OPERATOR_NAME}" \
+          --default-channel="${DEFAULT_CHANNEL}" \
+          --description=./README.md \
+          --output=yaml > catalog/operator.yaml
+
+        opm render "${BUNDLE_IMAGES}" --output=yaml >> catalog/operator.yaml
+
+        cat << EOF >> catalog/operator.yaml
+        ---
+        schema: olm.channel
+        package: "${OPERATOR_NAME}"
+        name: "${DEFAULT_CHANNEL}"
+        entries:
+          - name: ${OPERATOR_NAME}.${OPERATOR_VERSION}
+            skipRange: ">=0.0.1 <${OPERATOR_VERSION}"
+        EOF
+
+        cat catalog/operator.yaml
+
+        opm validate catalog
