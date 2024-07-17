@@ -382,7 +382,7 @@ spec:
 
       # this prevents the container from using podman-subscripition-mananger magic,
       # so that it will use certificates from /etc/pki/entitlements
-      rm -f /usr/share/containers/mounts.conf
+      # rm -f /usr/share/containers/mounts.conf
 
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
@@ -416,7 +416,9 @@ spec:
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman run $PODMAN_PORT_FORWARD \
+       # disable subscription-manager integration
+       --tmpfs /run/secrets \
        -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
