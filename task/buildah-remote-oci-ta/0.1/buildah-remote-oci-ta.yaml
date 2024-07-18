@@ -59,6 +59,10 @@ spec:
     description: Name of secret which contains the entitlement certificates
     name: ENTITLEMENT_SECRET
     type: string
+  - default: activation-key
+    description: Name of secret which contains subscription activation key
+    name: ACTIVATION_KEY
+    type: string
   - default: "false"
     description: Determines if build will be executed without network access.
     name: HERMETIC
@@ -157,6 +161,8 @@ spec:
       value: $(params.DOCKERFILE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
     - name: HERMETIC
       value: $(params.HERMETIC)
     - name: IMAGE
@@ -238,6 +244,7 @@ spec:
       rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
       rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
       rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+      rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
       rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
       rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
       rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
@@ -370,6 +377,13 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
+      ACTIVATION_KEY_PATH="/activation-key"
+       if [ -d "$ACTIVATION_KEY_PATH" ]; then
+        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key"
+        echo "Adding activation key to the build"
+      fi
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -413,6 +427,7 @@ spec:
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       --tmpfs /run/secrets \
        -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
@@ -420,6 +435,7 @@ spec:
        -e CONTEXT="$CONTEXT" \
        -e DOCKERFILE="$DOCKERFILE" \
        -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
+       -e ACTIVATION_KEY="$ACTIVATION_KEY" \
        -e HERMETIC="$HERMETIC" \
        -e IMAGE="$IMAGE" \
        -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
@@ -435,6 +451,7 @@ spec:
        -v "$BUILD_DIR/volumes/shared:/shared:Z" \
        -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
        -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
+       -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
        -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
        -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
        -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
@@ -459,6 +476,8 @@ spec:
       name: varlibcontainers
     - mountPath: /entitlement
       name: etc-pki-entitlement
+    - mountPath: /activation-key
+      name: activation-key
     - mountPath: /additional-secret
       name: additional-secret
     - mountPath: /mnt/trusted-ca
@@ -644,6 +663,10 @@ spec:
     secret:
       optional: true
       secretName: $(params.ENTITLEMENT_SECRET)
+  - name: activation-key
+    secret:
+      optional: false
+      secretName: $(params.ACTIVATION_KEY)
   - emptyDir: {}
     name: shared
   - configMap:
