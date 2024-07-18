@@ -8,6 +8,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
+|ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
