@@ -16,6 +16,10 @@ spec:
     When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
     When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
   params:
+  - default: activation-key
+    description: Name of secret which contains subscription activation key
+    name: ACTIVATION_KEY
+    type: string
   - default: does-not-exist
     description: Name of a secret which will be made available to the build with 'buildah
       build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -58,10 +62,6 @@ spec:
   - default: etc-pki-entitlement
     description: Name of secret which contains the entitlement certificates
     name: ENTITLEMENT_SECRET
-    type: string
-  - default: activation-key
-    description: Name of secret which contains subscription activation key
-    name: ACTIVATION_KEY
     type: string
   - default: "false"
     description: Determines if build will be executed without network access.
@@ -147,6 +147,8 @@ spec:
   stepTemplate:
     computeResources: {}
     env:
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
@@ -161,8 +163,6 @@ spec:
       value: $(params.DOCKERFILE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
-    - name: ACTIVATION_KEY
-      value: $(params.ACTIVATION_KEY)
     - name: HERMETIC
       value: $(params.HERMETIC)
     - name: IMAGE
@@ -378,10 +378,10 @@ spec:
       fi
 
       ACTIVATION_KEY_PATH="/activation-key"
-       if [ -d "$ACTIVATION_KEY_PATH" ]; then
-        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
-        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key"
-        echo "Adding activation key to the build"
+         if [ -d "$ACTIVATION_KEY_PATH" ]; then
+          cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key"
+          echo "Adding activation key to the build"
       fi
 
       ADDITIONAL_SECRET_PATH="/additional-secret"
@@ -428,6 +428,7 @@ spec:
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
        --tmpfs /run/secrets \
+       -e ACTIVATION_KEY="$ACTIVATION_KEY" \
        -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
@@ -435,7 +436,6 @@ spec:
        -e CONTEXT="$CONTEXT" \
        -e DOCKERFILE="$DOCKERFILE" \
        -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-       -e ACTIVATION_KEY="$ACTIVATION_KEY" \
        -e HERMETIC="$HERMETIC" \
        -e IMAGE="$IMAGE" \
        -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
@@ -655,6 +655,10 @@ spec:
     name: upload-sbom
     workingDir: /var/workdir
   volumes:
+  - name: activation-key
+    secret:
+      optional: true
+      secretName: $(params.ACTIVATION_KEY)
   - name: additional-secret
     secret:
       optional: true
@@ -663,10 +667,6 @@ spec:
     secret:
       optional: true
       secretName: $(params.ENTITLEMENT_SECRET)
-  - name: activation-key
-    secret:
-      optional: false
-      secretName: $(params.ACTIVATION_KEY)
   - emptyDir: {}
     name: shared
   - configMap:
