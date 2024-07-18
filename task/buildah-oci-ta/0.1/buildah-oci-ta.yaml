@@ -59,10 +59,6 @@ spec:
       description: Name of secret which contains the entitlement certificates
       type: string
       default: etc-pki-entitlement
-    - name: ACTIVATION_KEY
-      default: activation-key
-      description: Name of secret which contains subscription activation key
-      type: string
     - name: HERMETIC
       description: Determines if build will be executed without network access.
       type: string
@@ -152,10 +148,7 @@ spec:
       secret:
         optional: true
         secretName: $(params.ENTITLEMENT_SECRET)
-    - name: activation-key
-      secret:
-        optional: true
-        secretName: $(params.ACTIVATION_KEY)
+
     - name: shared
       emptyDir: {}
     - name: trusted-ca
@@ -185,8 +178,6 @@ spec:
         value: $(params.DOCKERFILE)
       - name: ENTITLEMENT_SECRET
         value: $(params.ENTITLEMENT_SECRET)
-      - name: ACTIVATION_KEY
-        value: $(params.ACTIVATION_KEY)
       - name: HERMETIC
         value: $(params.HERMETIC)
       - name: IMAGE
@@ -231,8 +222,6 @@ spec:
           name: varlibcontainers
         - mountPath: /entitlement
           name: etc-pki-entitlement
-        - mountPath: /activation-key
-          name: activation-key
         - mountPath: /additional-secret
           name: additional-secret
         - mountPath: /mnt/trusted-ca
@@ -363,13 +352,6 @@ spec:
           cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
           VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
           echo "Adding the entitlement to the build"
-        fi
-
-        ACTIVATION_KEY_PATH="/activation-key"
-         if [ -d "$ACTIVATION_KEY_PATH" ]; then
-          cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
-          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key"
-          echo "Adding activation key to the build"
         fi
 
         ADDITIONAL_SECRET_PATH="/additional-secret"
