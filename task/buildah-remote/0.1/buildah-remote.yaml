@@ -405,6 +405,7 @@ spec:
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
       ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+       --tmpfs /run/secrets \
        -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
        -e STORAGE_DRIVER="$STORAGE_DRIVER" \
        -e HERMETIC="$HERMETIC" \
