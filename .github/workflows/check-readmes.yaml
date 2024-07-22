@@ -1,0 +1,24 @@
+name: Validate PR - check READMEs
+'on':
+  pull_request:
+    branches: [main]
+jobs:
+  check:
+    name: Check READMEs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Check pipeline READMEs
+        run: |
+          #!/bin/bash
+          set -e
+
+          ./hack/generate-pipelines-readme.py
+          if [[ -n $(git status -s) ]]
+          then
+            echo "pipeline READMEs are not up to date, run ./hack/generate-pipelines-readme.py and commit the resulting changes"
+            git status -s
+            exit 1
+          fi
