@@ -62,8 +62,6 @@ spec:
     name: IMAGE_URL
   - description: Image reference of the built image
     name: IMAGE_REF
-  - description: Digests of the base images used for build
-    name: BASE_IMAGES_DIGESTS
   - name: SBOM_BLOB_URL
     description: Reference, including digest to the SBOM blob
   stepTemplate:
@@ -234,9 +232,6 @@ spec:
     computeResources: {}
     script: |
       #!/bin/bash
-      # Expose base image digests
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
-
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
