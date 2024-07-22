@@ -123,6 +123,8 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
   - description: The counting of Java components by publisher in JSON format
     name: SBOM_JAVA_COMPONENTS_COUNT
     type: string
@@ -612,6 +614,10 @@ spec:
 
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF.path)"
     securityContext:
       capabilities:
         add:

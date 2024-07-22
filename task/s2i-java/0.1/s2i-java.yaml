@@ -56,6 +56,8 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
   - description: Digests of the base images used for build
     name: BASE_IMAGES_DIGESTS
   - name: SBOM_JAVA_COMPONENTS_COUNT
@@ -253,6 +255,10 @@ spec:
         docker://$IMAGE
       cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF.path)"
 
     securityContext:
       runAsUser: 0
