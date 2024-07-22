@@ -32,6 +32,8 @@ spec:
       name: IMAGE_URL
     - description: Link to the SBOM blob pushed to the registry.
       name: SBOM_BLOB_URL
+    - name: IMAGE_REF
+      description: Image reference of the built image
   stepTemplate:
     env:
       - name: OCI_COPY_FILE
@@ -178,6 +180,7 @@ spec:
         RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
         echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
