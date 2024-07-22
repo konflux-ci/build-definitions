@@ -3,13 +3,13 @@
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
 |build-source-image| Build a source image.| false| |
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.1:IMAGE_EXPIRES_AFTER|
 |java| Java build| false| |
 |output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; build-source-image:0.1:BINARY_IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:PATH_CONTEXT|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:PATH_CONTEXT ; push-dockerfile:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -35,7 +35,7 @@
 ### deprecated-image-check:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES_DIGESTS| Digests of base build images.| | '$(tasks.build-container.results.BASE_IMAGES_DIGESTS)'|
+|BASE_IMAGES_DIGESTS| Digests of base build images.| | |
 |IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
@@ -77,9 +77,19 @@
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|config-file-content| Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+### push-dockerfile:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ARTIFACT_TYPE| Artifact type of the Dockerfile image.| application/vnd.konflux.dockerfile| |
+|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
+|DOCKERFILE| Path to the Dockerfile.| ./Dockerfile| '$(params.dockerfile)'|
+|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
 ### s2i-nodejs:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -91,12 +101,15 @@
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
 |MAVEN_MIRROR_URL| The base URL of a mirror used for retrieving artifacts| | |
 |PATH_CONTEXT| The location of the path to run s2i from.| .| '$(params.path-context)'|
+|STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 ### sast-snyk-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| --all-projects --exclude=test*,vendor,deps| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
+|image-digest| Image digest to report findings for.| | '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| | '$(tasks.build-container.results.IMAGE_URL)'|
 ### sbom-json-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -110,7 +123,7 @@
 ### source-build:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES| Base images used to build the binary image. Each image per line in the same order of FROM instructions specified in a multistage Dockerfile. Default to an empty string, which means to skip handling a base image.| | '$(tasks.build-container.results.BASE_IMAGES_DIGESTS)'|
+|BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| | |
 |BINARY_IMAGE| Binary image name from which to generate the source image name.| None| '$(params.output-image)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
@@ -142,6 +155,7 @@
 ### deprecated-image-check:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### ecosystem-cert-preflight-checks:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -151,17 +165,22 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |commit| The precise commit SHA that was fetched by this Task.| build-container:0.1:COMMIT_SHA|
+|commit-timestamp| The commit timestamp of the checkout| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+### push-dockerfile:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
 ### s2i-nodejs:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|BASE_IMAGES_DIGESTS| Digests of the base images used for build| build-source-image:0.1:BASE_IMAGES ; deprecated-base-image-check:0.4:BASE_IMAGES_DIGESTS|
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE|
+|BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; sast-snyk-check:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 ### sast-snyk-check:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -182,7 +201,8 @@
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; build-source-image:0.1:workspace ; sast-snyk-check:0.1:workspace|
+|netrc| |True| prefetch-dependencies:0.1:netrc|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; build-source-image:0.1:workspace ; sast-snyk-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -194,7 +214,12 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
+|netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, cachi2 artifacts will be stored on the workspace as well| False| workspace|
+### push-dockerfile:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
 ### s2i-nodejs:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
