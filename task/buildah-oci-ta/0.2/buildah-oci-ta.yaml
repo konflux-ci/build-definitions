@@ -537,7 +537,6 @@ spec:
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
-          name: varlibcontainers
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
           readOnly: true
@@ -588,6 +587,7 @@ spec:
           echo -n "${IMAGE}@"
           cat "/var/workdir/image-digest"
         } >"$(results.IMAGE_REF.path)"
+        cp "$(results.IMAGE_REF.path)" /shared/image_ref
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"

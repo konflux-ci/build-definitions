@@ -534,6 +534,7 @@ spec:
         echo -n "${IMAGE}@"
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
+      cp "$(results.IMAGE_REF.path)" /shared/image_ref
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
