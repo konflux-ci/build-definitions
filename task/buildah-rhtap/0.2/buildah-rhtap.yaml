@@ -45,8 +45,6 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
-  - description: Digests of the base images used for build
-    name: BASE_IMAGES_DIGESTS
   - description: Link to the SBOM layer pushed to the registry as part of an OCI artifact.
     name: SBOM_BLOB_URL
   stepTemplate:
@@ -104,7 +102,6 @@ spec:
         docker://$IMAGE
 
       # Set task results
-      buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
       cat /tmp/files/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
 
