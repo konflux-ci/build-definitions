@@ -553,12 +553,12 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/redhat-appstudio/cachi2:0.8.0@sha256:5cf15d6f3fb151a3e12c8a17024062b7cc62b0c3e1b165e4a9fa5bf7a77bdc30
+    image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
     name: merge-cachi2-sbom
     script: |
       if [ -f "sbom-cachi2.json" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-        /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
+        merge_syft_sbom sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
