@@ -214,12 +214,12 @@ spec:
       - mountPath: /var/lib/containers
         name: varlibcontainers
   - name: merge-cachi2-sbom
-    image: quay.io/redhat-appstudio/cachi2:0.8.0@sha256:5cf15d6f3fb151a3e12c8a17024062b7cc62b0c3e1b165e4a9fa5bf7a77bdc30
+    image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
     script: |
       cachi2_sbom=./cachi2/output/bom.json
       if [ -f "$cachi2_sbom" ]; then
         echo "Merging contents of $cachi2_sbom into sbom-cyclonedx.json"
-        /src/utils/merge_syft_sbom.py "$cachi2_sbom" sbom-cyclonedx.json > sbom-temp.json
+        merge_syft_sbom "$cachi2_sbom" sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
