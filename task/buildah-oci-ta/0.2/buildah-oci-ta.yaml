@@ -242,6 +242,8 @@ spec:
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
       script: |
+        #!/bin/bash
+        set -e
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then
           echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -600,18 +602,18 @@ spec:
             - SETFCAP
         runAsUser: 0
     - name: upload-sbom
-      image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-      args:
-        - attach
-        - sbom
-        - --sbom
-        - sbom-cyclonedx.json
-        - --type
-        - cyclonedx
-        - $(params.IMAGE)
+      image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       workingDir: /var/workdir
       volumeMounts:
-        - mountPath: /etc/ssl/certs/ca-bundle.crt
+        - mountPath: /mnt/trusted-ca
           name: trusted-ca
           readOnly: true
-          subPath: ca-bundle.crt
+      script: |
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
