@@ -35,6 +35,8 @@ spec:
   results:
     - name: BUILD_RESULT
       description: Build result.
+    - name: IMAGE_REF
+      description: Image reference of the built image
     - name: SOURCE_IMAGE_DIGEST
       description: The source image digest.
     - name: SOURCE_IMAGE_URL
@@ -45,7 +47,7 @@ spec:
   stepTemplate:
     env:
       - name: BASE_IMAGES_FILE
-        value: /var/source-build/base-images.txt
+        value: /var/workdir/base-images.txt
       - name: BINARY_IMAGE
         value: $(params.BINARY_IMAGE)
     volumeMounts:
@@ -156,6 +158,7 @@ spec:
 
         cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
         cat "$RESULT_FILE" | jq -j ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"
+        jq -j '"\(.image_url)@\(.image_digest)"' "${RESULT_FILE}" >"$(results.IMAGE_REF.path)"
 
         cp "$RESULT_FILE" "$WS_BUILD_RESULT_FILE"
       computeResources:

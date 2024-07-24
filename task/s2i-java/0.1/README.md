@@ -12,15 +12,17 @@ When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup
 |PATH_CONTEXT|The location of the path to run s2i from|.|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 |IMAGE|Location of the repo where image has to be pushed||true|
-|BUILDER_IMAGE|The location of the buildah builder image.|registry.access.redhat.com/ubi9/buildah:9.1.0-5@sha256:30eac1803d669d58c033838076a946156e49018e0d4f066d94896f0cc32030af|false|
+|BUILDER_IMAGE|Deprecated. Has no effect. Will be removed in the future.|""|false|
 |DOCKER_AUTH|unused, should be removed in next task version|""|false|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
+|COMMIT_SHA|The image is built from this commit.|""|false|
 
 ## Results
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository where the built image was pushed|
+|IMAGE_REF|Image reference of the built image|
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
 |JAVA_COMMUNITY_DEPENDENCIES|The Java dependencies that came from community sources such as Maven central.|

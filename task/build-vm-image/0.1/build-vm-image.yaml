@@ -26,6 +26,10 @@ spec:
       default: bib.yaml
       type: string
       description: The config file specifying what to build and the builder to build it with
+    - name: CONFIG_TOML_FILE
+      default: ""
+      type: string
+      description: The path for the config.toml file within the source repository
     - default: etc-pki-entitlement
       description: Name of secret which contains the entitlement certificates
       name: ENTITLEMENT_SECRET
@@ -45,6 +49,8 @@ spec:
         value: $(params.OUTPUT_IMAGE)
       - name: BIB_CONFIG_FILE
         value: $(params.BIB_CONFIG_FILE)
+      - name: CONFIG_TOML_FILE
+        value: $(params.CONFIG_TOML_FILE)
       - name: IMAGE_TYPE
         value: $(params.IMAGE_TYPE)
       - name: ENTITLEMENT_SECRET
@@ -148,6 +154,22 @@ spec:
         echo "$BUILD_DIR"
         ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement"
 
+        if [ ! -n "${CONFIG_TOML_FILE}" ]; then
+          echo "No CONFIG_TOML_FILE specified"
+          export CONFIG_TOML_FILE=config.toml
+          if [ -f /var/workdir/source/config.toml ]; then
+            echo "Using the config.toml file found in the repository root!"
+            echo "  Remove the config.toml file or set params.CONFIG_TOML_FILE to another file to prevent using config.toml."
+          else
+            echo "No config.toml file found. Using an empty configuration."
+            touch /var/workdir/source/$CONFIG_TOML_FILE
+          fi
+        fi
+        echo "Using the following config.toml file $CONFIG_TOML_FILE:"
+        cat /var/workdir/source/$CONFIG_TOML_FILE
+
+
+        rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
 
@@ -175,12 +197,6 @@ spec:
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
-        echo >config.toml <<EOF
-        [[blueprint.customizations.user]]
-        name = "user"
-        password = "pass"
-        groups = ["wheel"]
-        EOF
 
         mkdir output
         echo "PULLING BUILDER IMAGE"
@@ -193,7 +209,7 @@ spec:
         echo -e "IMAGE_TYPE_ARGUMENT = $IMAGE_TYPE_ARGUMENT"
 
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
-          -v $(pwd)/config.toml:/config.toml -v $(pwd)/output:/output \
+          -v $BUILD_DIR/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS

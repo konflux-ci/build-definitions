@@ -16,6 +16,10 @@ package main
 import (
 	"bytes"
 	"flag"
+	"os"
+	"path/filepath"
+	"strings"
+
 	tektonapi "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,10 +27,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/cli-runtime/pkg/printers"
 	klog "k8s.io/klog/v2"
-	"os"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"strings"
 )
 
 func main() {
@@ -56,7 +57,11 @@ func main() {
 	y := printers.YAMLPrinter{}
 	b := bytes.Buffer{}
 	_ = y.PrintObj(&task, &b)
-	err := os.WriteFile(buildahRemoteTask, b.Bytes(), 0660) //#nosec
+	err := os.MkdirAll(filepath.Dir(buildahRemoteTask), 0755) //#nosec G301 -- all the dirs in the repo are 755
+	if err != nil {
+		panic(err)
+	}
+	err = os.WriteFile(buildahRemoteTask, b.Bytes(), 0660) //#nosec
 	if err != nil {
 		panic(err)
 	}
@@ -127,6 +132,10 @@ fi
 `
 
 		env := "$PODMAN_PORT_FORWARD \\\n"
+
+		// disable podman subscription-manager integration
+		env += " --tmpfs /run/secrets \\\n"
+
 		// Before the build we sync the contents of the workspace to the remote host
 		for _, workspace := range task.Spec.Workspaces {
 			ret += "\nrsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
