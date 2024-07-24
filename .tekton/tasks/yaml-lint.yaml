@@ -38,7 +38,7 @@ spec:
       script: |
         #!/bin/bash
         for task in $(find task -name '*.yaml'); do
-          if yq '.spec?.steps[] | .script' $task | grep -q 'params\.'; then
+          if yq '.spec?.steps[] | .script' $task | grep -q '\$(params\.'; then
             FAILED_TASKS="$FAILED_TASKS $task"
           fi
         done
