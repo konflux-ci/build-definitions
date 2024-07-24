@@ -6,12 +6,18 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: |
       (
-          // PR to "main" branch, not draft
-          event == "pull_request" && target_branch == "main"
-          && (!has(body.pull_request) || !body.pull_request.draft)
-      ) || (
-          // PR enters the merge queue
-          event == "push" && target_branch.startsWith("gh-readonly-queue/main/")
+          (
+              // PR to "main" branch, not draft
+              event == "pull_request" && target_branch == "main"
+              && (!has(body.pull_request) || !body.pull_request.draft)
+          ) || (
+              // PR enters the merge queue
+              event == "push" && target_branch.startsWith("gh-readonly-queue/main/")
+          )
+      ) && (
+          // Don't run pipeline if only these files changed. Note that 'files.all' is an object
+          // coming from PaC (list of all changed files) while the second 'all' is a CEL macro.
+          !files.all.all(x, x.matches(r"^(renovate\.json|.*\.md|\.github/.*)$"))
       )
     pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
