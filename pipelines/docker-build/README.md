@@ -164,6 +164,7 @@
 |IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
+|SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
 ### clair-scan:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
