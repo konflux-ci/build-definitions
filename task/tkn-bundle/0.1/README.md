@@ -45,7 +45,8 @@ Only the `0.1/tkn-bundle.yaml` file will be included in the bundle.
 
 The task emits the following results.
 
-| Name         | Example                 | Description                                                     |
-|--------------|-------------------------|-----------------------------------------------------------------|
-| IMAGE_URL    | registry.io/my-task:tag | Image repository where the built image was pushed with tag only |
-| IMAGE_DIGEST | abc...                  | Digest of the image just built                                  |
+| Name         | Example                               | Description                                                     |
+|--------------|---------------------------------------|-----------------------------------------------------------------|
+| IMAGE_URL    | registry.io/my-task:tag               | Image repository where the built image was pushed with tag only |
+| IMAGE_DIGEST | abc...                                | Digest of the image just built                                  |
+| IMAGE_REF    | registry.io/my-task:tag@sha256:abc... | Image reference of the built image                              |

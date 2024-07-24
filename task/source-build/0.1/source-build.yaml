@@ -29,6 +29,8 @@ spec:
       description: The source image url.
     - name: SOURCE_IMAGE_DIGEST
       description: The source image digest.
+    - name: IMAGE_REF
+      description: Image reference of the built image
   workspaces:
     - name: workspace
       description: The workspace where source code is included.
@@ -157,5 +159,6 @@ spec:
 
         cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
         cat "$RESULT_FILE" | jq -j ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"
+        jq -j '"\(.image_url)@\(.image_digest)"' "${RESULT_FILE}" >"$(results.IMAGE_REF.path)"
 
         cp "$RESULT_FILE" "$WS_BUILD_RESULT_FILE"

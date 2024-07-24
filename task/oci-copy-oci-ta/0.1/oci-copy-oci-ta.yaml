@@ -35,6 +35,8 @@ spec:
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
+    - name: IMAGE_REF
+      description: Image reference of the built image
     - name: IMAGE_URL
       description: Repository where the artifact was pushed
     - name: SBOM_BLOB_URL
@@ -193,6 +195,7 @@ spec:
         RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
         echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
       computeResources:
         limits:
           memory: 1Gi

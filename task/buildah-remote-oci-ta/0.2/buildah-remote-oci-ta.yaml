@@ -130,6 +130,8 @@ spec:
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
+  - description: Image reference of the built image
+    name: IMAGE_REF
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
   - description: The Java dependencies that came from community sources such as Maven
@@ -517,7 +519,7 @@ spec:
     - mountPath: /shared
       name: shared
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
+    image: registry.access.redhat.com/ubi9/python-39:1-192@sha256:01c9e53b32acd96f9fe7781727140df6868c91ebc916ed95dc58999fbf4d8ddd
     name: merge-syft-sboms
     script: |
       #!/bin/python3
@@ -566,7 +568,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:1-172.1712567222@sha256:c96f839e927c52990143df4efb2872946fcd5de9e1ed2014947bb2cf3084c27a
+    image: registry.access.redhat.com/ubi9/python-39:1-192@sha256:01c9e53b32acd96f9fe7781727140df6868c91ebc916ed95dc58999fbf4d8ddd
     name: create-purl-sbom
     script: |
       #!/bin/python3
@@ -630,6 +632,10 @@ spec:
 
       cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "/var/workdir/image-digest"
+      } >"$(results.IMAGE_REF.path)"
     securityContext:
       capabilities:
         add:
