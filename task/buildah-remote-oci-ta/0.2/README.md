@@ -1,4 +1,4 @@
-# buildah-oci-ta task
+# buildah-remote-oci-ta task
 
 Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
 In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
@@ -33,6 +33,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|PLATFORM|The platform to build on||true|
 
 ## Results
 |name|description|

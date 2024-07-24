@@ -125,6 +125,10 @@ spec:
     name: IMAGE_URL
   - description: Image reference of the built image
     name: IMAGE_REF
+  - description: Reference of SBOM blob digest to enable digest-based verification
+      from provenance
+    name: SBOM_BLOB_URL
+    type: string
   - description: The counting of Java components by publisher in JSON format
     name: SBOM_JAVA_COMPONENTS_COUNT
     type: string
@@ -582,6 +586,8 @@ spec:
     image: quay.io/konflux-ci/buildah:latest@sha256:9ef792d74bcc1d330de6be58b61f2cdbfa1c23b74a291eb2136ffd452d373050
     name: inject-sbom-and-push
     script: |
+      #!/bin/bash
+      set -e
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
@@ -618,6 +624,12 @@ spec:
         echo -n "${IMAGE}@"
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     securityContext:
       capabilities:
         add:

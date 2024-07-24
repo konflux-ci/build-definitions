@@ -136,6 +136,10 @@ spec:
     - name: JAVA_COMMUNITY_DEPENDENCIES
       description: The Java dependencies that came from community sources
         such as Maven central.
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification
+        from provenance
+      type: string
     - name: SBOM_JAVA_COMPONENTS_COUNT
       description: The counting of Java components by publisher in JSON format
       type: string
@@ -529,6 +533,8 @@ spec:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       script: |
+        #!/bin/bash
+        set -e
         base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
         base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
         container=$(buildah from --pull-never $IMAGE)
@@ -565,6 +571,12 @@ spec:
           echo -n "${IMAGE}@"
           cat "/var/workdir/image-digest"
         } >"$(results.IMAGE_REF.path)"
+
+        # Remove tag from IMAGE while allowing registry to contain a port number.
+        sbom_repo="${IMAGE%:*}"
+        sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+        # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+        echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
       securityContext:
         capabilities:
           add:
