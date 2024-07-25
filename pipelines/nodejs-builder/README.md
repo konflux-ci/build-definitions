@@ -180,6 +180,7 @@
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
 |IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; sast-snyk-check:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 ### sast-snyk-check:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -194,6 +195,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |BUILD_RESULT| Build result.| |
+|IMAGE_REF| Image reference of the built image| |
 |SOURCE_IMAGE_DIGEST| The source image digest.| |
 |SOURCE_IMAGE_URL| The source image url.| |
 

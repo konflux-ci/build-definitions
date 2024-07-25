@@ -148,6 +148,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| clair-scan:0.1:image-digest ; sast-snyk-check:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 
 ## Workspaces
