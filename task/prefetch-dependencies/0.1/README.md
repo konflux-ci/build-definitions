@@ -3,6 +3,23 @@
 Task that uses Cachi2 to prefetch build dependencies.
 See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
 
+## Configuration
+
+Config file must be passed as a YAML string. For all available config options please check [available configuration parameters] page.
+
+Example of setting timeouts:
+
+```yaml
+params:
+    - name: config-file-content
+      value: |
+         ---
+         requests_timeout: 300
+         subprocess_timeout: 3600
+```
+
+[available configuration parameters]: https://github.com/containerbuildsystem/cachi2?tab=readme-ov-file#available-configuration-parameters
+
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
