@@ -404,6 +404,7 @@ spec:
           cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
         fi
 
+        touch /shared/base_images_digests
         for image in $BASE_IMAGES; do
           if [ "${image}" != "scratch" ]; then
             buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >>/shared/base_images_digests
