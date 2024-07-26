@@ -88,6 +88,10 @@ spec:
           value: $(params.ec-tuf-mirror)
       runAfter:
         - get-images-to-verify
+      when:
+        - input: $(tasks.get-images-to-verify.results.IMAGES_TO_VERIFY)
+          operator: notin
+          values: [""]
       taskRef:
         name: verify-enterprise-contract
         version: "0.1"
@@ -110,6 +114,10 @@ spec:
     - name: download-sboms
       runAfter:
         - get-images-to-upload-sbom
+      when:
+        - input: $(tasks.get-images-to-upload-sbom.results.IMAGES_TO_VERIFY)
+          operator: notin
+          values: [""]
       params:
         - name: IMAGES
           value: $(tasks.get-images-to-upload-sbom.results.IMAGES_TO_VERIFY)
@@ -131,6 +139,10 @@ spec:
     - name: upload-sboms-to-trustification
       runAfter:
         - download-sboms
+      when:
+        - input: $(tasks.get-images-to-upload-sbom.results.IMAGES_TO_VERIFY)
+          operator: notin
+          values: [""]
       params:
         - name: SBOMS_DIR
           value: sboms
