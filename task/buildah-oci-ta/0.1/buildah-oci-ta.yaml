@@ -363,18 +363,21 @@ spec:
         [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
         [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+        ACTIVATION_KEY_PATH="/activation-key"
         ENTITLEMENT_PATH="/entitlement"
-        if [ -d "$ENTITLEMENT_PATH" ]; then
+
+        # do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+        # when activation keys are used, an empty directory on shared emptydir volume to /etc/pki/entitlement to prevent certificates from being included in the produced container.
+
+        if [ -d "$ACTIVATION_KEY_PATH" ]; then
+          cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+          mkdir /shared/rhsm-tmp
+          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z"
+          echo "Adding activation key to the build"
+        elif [ -d "$ENTITLEMENT_PATH" ]; then
           cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
           VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
           echo "Adding the entitlement to the build"
-        fi
-
-        ACTIVATION_KEY_PATH="/activation-key"
-           if [ -d "$ACTIVATION_KEY_PATH" ]; then
-            cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
-            VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key"
-            echo "Adding activation key to the build"
         fi
 
         ADDITIONAL_SECRET_PATH="/additional-secret"
