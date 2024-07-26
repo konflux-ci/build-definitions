@@ -39,6 +39,8 @@ spec:
     name: IMAGE_DIGEST
   - description: Image repository where the built image was pushed
     name: IMAGE_URL
+  - description: List of all referenced image manifests
+    name: IMAGES
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -72,6 +74,7 @@ spec:
 
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
+      image_manifests=""
       buildah manifest create "$IMAGE"
       for i in $@
       do
@@ -82,6 +85,7 @@ spec:
           TOADD="$(echo $i | cut -d: -f1)@sha256:$(echo $i | cut -d: -f3)"
         fi
         echo "Adding $TOADD"
+        image_manifests="${image_manifests} ${TOADD},"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
 
@@ -103,7 +107,8 @@ spec:
       fi
 
       cat image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+      echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
     securityContext:
       capabilities:
         add:
