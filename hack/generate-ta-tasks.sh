@@ -8,7 +8,8 @@ set -o posix
 shopt -s globstar nullglob
 
 HACK_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
-TASK_DIR="$(realpath "${HACK_DIR}/../task")"
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+TASK_DIR="$(realpath "${ROOT_DIR}/task")"
 
 if ! command -v tash &> /dev/null; then
   echo INFO: tash command is not available will download and use the latest version
@@ -56,6 +57,9 @@ done
 
 if [[ ${changes} -gt 0 ]]; then
   if [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
+    # shellcheck disable=SC2016
+    echo '::notice title=Apply the attached patch::Download the attached `ta.patch` file and run `git apply ta.patch`'
+    git diff -u | tee "${ROOT_DIR}/ta.patch"
     exit 1
   else
     printf "INFO: \033[1mMake sure to include the regenerated files in your changeset\033[0m\n"
