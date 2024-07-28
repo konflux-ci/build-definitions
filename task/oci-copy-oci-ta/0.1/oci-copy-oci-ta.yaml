@@ -13,6 +13,12 @@ spec:
   description: Given a file in the user's source directory, copy content from
     arbitrary urls into the OCI registry.
   params:
+    - name: AWS_SECRET_NAME
+      description: Name of a secret which will be made available to the build
+        to construct Authorization headers for requests to Amazon S3. If specified,
+        this will take precedence over BEARER_TOKEN_SECRET_NAME.
+      type: string
+      default: does-not-exist
     - name: BEARER_TOKEN_SECRET_NAME
       description: Name of a secret which will be made available to the build
         as an Authorization header. Note, the token will be sent to all servers
@@ -69,6 +75,7 @@ spec:
       image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       workingDir: /var/workdir
       script: |
+        #!/bin/bash
         set -eu
         set -o pipefail
 
@@ -104,17 +111,47 @@ spec:
               key: token
               name: $(params.BEARER_TOKEN_SECRET_NAME)
               optional: true
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: aws_access_key_id
+              name: $(params.AWS_SECRET_NAME)
+              optional: true
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: aws_secret_access_key
+              name: $(params.AWS_SECRET_NAME)
+              optional: true
       script: |
+        #!/bin/bash
         set -e
         set -o pipefail
 
-        CURL_ARGS=()
-        if [ -n "${BEARER_TOKEN}" ]; then
-          echo "Found bearer token. Using it for authentication."
-          CURL_ARGS+=(-H "Authorization: Bearer ${BEARER_TOKEN}")
-        else
-          echo "Proceeding with anonymous requests"
-        fi
+        download() {
+          url="$1"
+          file="$2"
+          method="GET"
+
+          curl_args=(--fail --silent --show-error)
+          if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
+            path=$(echo "$url" | cut -d/ -f4-)
+            echo "Bucket path is $path"
+            date="$(date -u '+%a, %e %b %Y %H:%M:%S +0000')"
+            printf -v string_to_sign "%s\n\n\n%s\n%s" "$method" "$date" "/$path"
+            echo "String to sign is $string_to_sign"
+            signature=$(echo -n "$string_to_sign" | openssl dgst -sha1 -binary -hmac "${AWS_SECRET_ACCESS_KEY}" | openssl base64)
+            authorization="AWS ${AWS_ACCESS_KEY_ID}:${signature}"
+            curl "${curl_args[@]}" -H "Date: ${date}" -H "Authorization: ${authorization}" --location "$url" -o "$file"
+          elif [ -n "${BEARER_TOKEN}" ]; then
+            echo "Found bearer token. Using it for authentication."
+            curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+          else
+            echo "Proceeding with anonymous requests"
+            curl "${curl_args[@]}" --location "$url" -o "$file"
+          fi
+        }
 
         set -u
 
@@ -154,6 +191,7 @@ spec:
         for varfile in /var/workdir/vars/*; do
           echo
           echo "Reading $varfile"
+          # shellcheck source=/dev/null
           source $varfile
 
           echo "Checking to see if blob $OCI_ARTIFACT_DIGEST exists"
@@ -162,7 +200,7 @@ spec:
           else
             echo "Blob for ${OCI_FILENAME} does not yet exist in the registry at ${REPO}@sha256:${OCI_ARTIFACT_DIGEST}."
             echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
-            curl "${CURL_ARGS[@]}" --fail --silent --show-error --location $OCI_SOURCE -o $OCI_FILENAME
+            download "$OCI_SOURCE" "$OCI_FILENAME"
 
             echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
             echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
@@ -210,6 +248,7 @@ spec:
       image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       workingDir: /var/workdir
       script: |
+        #!/bin/bash
         cat >sbom-cyclonedx.json <<EOL
         {
             "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
@@ -222,6 +261,7 @@ spec:
 
         for varfile in /var/workdir/vars/*; do
           echo "Reading $varfile"
+          # shellcheck source=/dev/null
           source $varfile
 
           ENCODED_URL=$(echo "${OCI_SOURCE}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
@@ -246,6 +286,7 @@ spec:
       image: quay.io/konflux-ci/yq:latest@sha256:974dea6375ee9df561ffd3baf994db2b61777a71f3bcf0050c5dca91ac9b3430
       workingDir: /var/workdir
       script: |
+        #!/bin/bash
         REPO=${IMAGE%:*}
         echo "Found that ${REPO} is the repository for ${IMAGE}"
         SBOM_DIGEST=$(sha256sum sbom-cyclonedx.json | awk '{ print $1 }')
