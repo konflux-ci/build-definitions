@@ -127,6 +127,11 @@ spec:
   - description: The platform to build on
     name: PLATFORM
     type: string
+  - default: "false"
+    description: Whether to append a sanitized platform architecture on the IMAGE
+      tag
+    name: IMAGE_APPEND_PLATFORM
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -189,6 +194,8 @@ spec:
       value: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
     - name: PLATFORM
       value: $(params.PLATFORM)
+    - name: IMAGE_APPEND_PLATFORM
+      value: $(params.IMAGE_APPEND_PLATFORM)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -225,38 +232,49 @@ spec:
         #no server could be provisioned
         cat /ssh/error
         exit 1
+      fi
+      export SSH_HOST=$(cat /ssh/host)
+
+      if [ "$SSH_HOST" == "localhost" ] ; then
+        IS_LOCALHOST=true
+        echo "Localhost detected; running build in cluster"
       elif [ -e "/ssh/otp" ]; then
-       curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
-       echo "" >> ~/.ssh/id_rsa
+        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+        echo "" >> ~/.ssh/id_rsa
       else
         cp /ssh/id_rsa ~/.ssh
       fi
-      chmod 0400 ~/.ssh/id_rsa
-      export SSH_HOST=$(cat /ssh/host)
-      export BUILD_DIR=$(cat /ssh/user-dir)
-      export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
+
       mkdir -p scripts
-      echo "$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
-      PORT_FORWARD=""
-      PODMAN_PORT_FORWARD=""
-      if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-      PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
-      PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
+      if ! [[ $IS_LOCALHOST ]]; then
+        chmod 0400 ~/.ssh/id_rsa
+        export BUILD_DIR=$(cat /ssh/user-dir)
+        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
+        echo "$BUILD_DIR"
+        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+
+        PORT_FORWARD=""
+        PODMAN_PORT_FORWARD=""
+        if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
+          PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
+          PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
+        fi
+
+        rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
+        rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
+        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+        rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
+        rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
+        rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
+        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
       fi
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
 
-      rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
-      rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
-      rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
-      rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
-      rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
-      rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
-      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-      rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/tekton-results/"
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
       #!/bin/bash
       set -e
@@ -441,45 +459,49 @@ spec:
       buildah push "$IMAGE" oci:rhtap-final-image
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
-      rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-      ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
-       --tmpfs /run/secrets \
-       -e ACTIVATION_KEY="$ACTIVATION_KEY" \
-       -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
-       -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
-       -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
-       -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
-       -e CONTEXT="$CONTEXT" \
-       -e DOCKERFILE="$DOCKERFILE" \
-       -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-       -e HERMETIC="$HERMETIC" \
-       -e IMAGE="$IMAGE" \
-       -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-       -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
-       -e SQUASH="$SQUASH" \
-       -e STORAGE_DRIVER="$STORAGE_DRIVER" \
-       -e TARGET_STAGE="$TARGET_STAGE" \
-       -e TLSVERIFY="$TLSVERIFY" \
-       -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
-       -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
-       -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
-       -e COMMIT_SHA="$COMMIT_SHA" \
-       -v "$BUILD_DIR/volumes/shared:/shared:Z" \
-       -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
-       -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
-       -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
-       -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
-       -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
-       -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-       -v "$BUILD_DIR/tekton-results/:/tekton/results:Z" \
-       -v $BUILD_DIR/scripts:/script:Z \
-      --user=0  --rm  "$BUILDER_IMAGE" /script/script-build.sh
-      rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
-      rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
-      rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
-      buildah pull oci:rhtap-final-image
+
+      if ! [[ $IS_LOCALHOST ]]; then
+        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+          --tmpfs /run/secrets \
+          -e ACTIVATION_KEY="$ACTIVATION_KEY" \
+          -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
+          -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
+          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
+          -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
+          -e CONTEXT="$CONTEXT" \
+          -e DOCKERFILE="$DOCKERFILE" \
+          -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
+          -e HERMETIC="$HERMETIC" \
+          -e IMAGE="$IMAGE" \
+          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+          -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
+          -e SQUASH="$SQUASH" \
+          -e STORAGE_DRIVER="$STORAGE_DRIVER" \
+          -e TARGET_STAGE="$TARGET_STAGE" \
+          -e TLSVERIFY="$TLSVERIFY" \
+          -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
+          -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
+          -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
+          -e COMMIT_SHA="$COMMIT_SHA" \
+          -v "$BUILD_DIR/volumes/shared:/shared:Z" \
+          -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
+          -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
+          -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
+          -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
+          -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+          -v "$BUILD_DIR/results/:/tekton/results:Z" \
+          -v "$BUILD_DIR/scripts:/scripts:Z" \
+          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh
+        rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
+        rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
+        rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        buildah pull oci:rhtap-final-image
+      else
+        bash scripts/script-build.sh
+      fi
       buildah images
-      buildah tag localhost/rhtap-final-image "$IMAGE"
       container=$(buildah from --pull-never "$IMAGE")
       buildah mount "$container" | tee /shared/container_path
       echo $container > /shared/container_name
@@ -515,8 +537,9 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
       echo "Running syft on the source directory"
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
@@ -541,8 +564,9 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -569,8 +593,9 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
@@ -604,8 +629,9 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
@@ -681,8 +707,9 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
-        export IMAGE="${IMAGE}-${PLATFORM##*/}"
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
       fi
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
