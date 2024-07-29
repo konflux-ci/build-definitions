@@ -16,9 +16,10 @@ spec:
     - name: AWS_SECRET_NAME
       description: 'Name of a secret which will be made available to the build
         to construct Authorization headers for requests to Amazon S3 using
-        https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html.
+        v2 auth https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAuthentication.html.
         If specified, this will take precedence over BEARER_TOKEN_SECRET_NAME.
-        The secret must contain two keys: `aws_access_key_id` and `aws_secret_access_key`.'
+        The secret must contain two keys: `aws_access_key_id` and `aws_secret_access_key`.
+        In the future, this will be reimplemented to use v4 auth: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html.'
       type: string
       default: does-not-exist
     - name: BEARER_TOKEN_SECRET_NAME
@@ -138,7 +139,8 @@ spec:
           curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
             echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
-            # This implements https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+            # This implements v2 auth https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAuthentication.html.
+            # TODO - port to v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
             path=$(echo "$url" | cut -d/ -f4-)
             echo "Bucket path is $path"
             date="$(date -u '+%a, %e %b %Y %H:%M:%S +0000')"
