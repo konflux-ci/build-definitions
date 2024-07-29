@@ -140,55 +140,61 @@ if [ -e "/ssh/error" ]; then
   #no server could be provisioned
   cat /ssh/error
   exit 1
+fi
+export SSH_HOST=$(cat /ssh/host)
+[ "$SSH_HOST" == "localhost" ] && IS_LOCALHOST=true
+
+if [[ $IS_LOCALHOST ]]; then
+  echo "Localhost detected; running build in cluster"
 elif [ -e "/ssh/otp" ]; then
- curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
- echo "" >> ~/.ssh/id_rsa
+  curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+  echo "" >> ~/.ssh/id_rsa
 else
   cp /ssh/id_rsa ~/.ssh
 fi
-chmod 0400 ~/.ssh/id_rsa
-export SSH_HOST=$(cat /ssh/host)
-export BUILD_DIR=$(cat /ssh/user-dir)
-export SSH_ARGS="-o StrictHostKeyChecking=no"
-mkdir -p scripts
-echo "$BUILD_DIR"
-ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
-PORT_FORWARD=""
-PODMAN_PORT_FORWARD=""
-if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
-PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
-fi
+mkdir -p scripts
+
+if ! [[ $IS_LOCALHOST ]]; then
+  chmod 0400 ~/.ssh/id_rsa
+  export BUILD_DIR=$(cat /ssh/user-dir)
+  export SSH_ARGS="-o StrictHostKeyChecking=no"
+  echo "$BUILD_DIR"
+  ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+
+  PORT_FORWARD=""
+  PODMAN_PORT_FORWARD=""
+  if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
+    PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
+    PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
+  fi
 `
-		if taskVersion == "0.2" {
-			ret += adjustRemoteImage
-		}
 		env := "$PODMAN_PORT_FORWARD \\\n"
 
 		// disable podman subscription-manager integration
-		env += " --tmpfs /run/secrets \\\n"
+		env += "    --tmpfs /run/secrets \\\n"
 
 		// Before the build we sync the contents of the workspace to the remote host
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\nrsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
-			podmanArgs += " -v \"$BUILD_DIR/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
+			ret += "\n  rsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
+			podmanArgs += "    -v \"$BUILD_DIR/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
 		}
 		// Also sync the volume mounts from the template
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\nrsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-			podmanArgs += " -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+			ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+			podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 		}
 		for _, volume := range step.VolumeMounts {
 			if syncVolumes[volume.Name] {
-				ret += "\nrsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-				podmanArgs += " -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+				ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+				podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 			}
 		}
-		ret += "\nrsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
-		podmanArgs += " -v \"$BUILD_DIR/.docker/:/root/.docker:Z\" \\\n"
-		ret += "\nrsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/tekton-results/\""
-		podmanArgs += " -v \"$BUILD_DIR/tekton-results/:/tekton/results:Z\" \\\n"
+		ret += "\n  rsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
+		podmanArgs += "    -v \"$BUILD_DIR/.docker/:/root/.docker:Z\" \\\n"
+		ret += "\n  rsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
+		podmanArgs += "    -v \"$BUILD_DIR/results/:/tekton/results:Z\" \\\n"
+		ret += "\nfi"
 
 		script := "scripts/script-" + step.Name + ".sh"
 
@@ -212,33 +218,40 @@ fi
 		ret += step.Script
 		ret += "\nbuildah push \"$IMAGE\" oci:rhtap-final-image"
 		ret += "\nREMOTESSHEOF"
-		ret += "\nchmod +x " + script
+		ret += "\nchmod +x " + script + "\n"
+
+		if taskVersion == "0.2" {
+			ret += adjustRemoteImage
+		}
 
 		if task.Spec.StepTemplate != nil {
 			for _, e := range task.Spec.StepTemplate.Env {
-				env += " -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+				env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 			}
 		}
-		ret += "\nrsync -ra scripts \"$SSH_HOST:$BUILD_DIR\""
+		ret += "\nif ! [[ $IS_LOCALHOST ]]; then"
+		ret += "\n  rsync -ra scripts \"$SSH_HOST:$BUILD_DIR\""
 		containerScript := "/script/script-" + step.Name + ".sh"
 		for _, e := range step.Env {
-			env += " -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
-		podmanArgs += " -v $BUILD_DIR/scripts:/script:Z \\\n"
-		ret += "\nssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "--user=0  --rm  \"$BUILDER_IMAGE\" " + containerScript
+		podmanArgs += "    -v $BUILD_DIR/scripts:/script:Z \\\n"
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" " + containerScript
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
+			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
 		}
 
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
+			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
 		}
 		//sync back results
-		ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/tekton-results/\" \"/tekton/results/\""
+		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
-		ret += "\nbuildah pull oci:rhtap-final-image"
+		ret += "\n  buildah pull oci:rhtap-final-image"
+		ret += "\nelse\n  bash " + containerScript
+		ret += "\nfi"
 		ret += "\nbuildah images"
 		ret += "\nbuildah tag localhost/rhtap-final-image \"$IMAGE\""
 		ret += "\ncontainer=$(buildah from --pull-never \"$IMAGE\")\nbuildah mount \"$container\" | tee /shared/container_path\necho $container > /shared/container_name"
