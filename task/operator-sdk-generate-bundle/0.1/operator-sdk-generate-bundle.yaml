@@ -23,6 +23,8 @@ spec:
     - name: operator-sdk-generate-bundle
       image: "registry.redhat.io/openshift4/ose-operator-sdk-rhel9:v4.16"
       workingDir: $(workspaces.source.path)/source
+      securityContext:
+        runAsUser: 0
       args:
         - generate
         - bundle
