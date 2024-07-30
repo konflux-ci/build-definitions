@@ -610,10 +610,14 @@ spec:
     script: |
       #!/bin/bash
       set -e
+      echo "Inspecting $IMAGE to find its base image name and digest"
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
+
       container=$(buildah from --pull-never $IMAGE)
+      echo "Injecting sbom files into /root/buildinfo/content_manifests/ of $IMAGE"
       buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
+      echo "Re-applying base image annotations and labels"
       buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
 
       BUILDAH_ARGS=()
@@ -621,6 +625,7 @@ spec:
         BUILDAH_ARGS+=("--squash")
       fi
 
+      echo "Committing that change..."
       buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
 
       status=-1
@@ -629,7 +634,7 @@ spec:
       for run in $(seq 1 $max_run); do
         status=0
         [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing sbom image to registry"
+        echo "Pushing modified image with sboms included in the filesystem back to the registry at $IMAGE"
         buildah push \
           --tls-verify=$TLSVERIFY \
           --digestfile /var/workdir/image-digest $IMAGE \
