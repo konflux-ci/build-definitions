@@ -154,18 +154,19 @@ spec:
         echo "$BUILD_DIR"
         ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement"
 
-        if [ ! -n "${CONFIG_TOML_FILE}" ]; then
+        if [! -n "${CONFIG_TOML_FILE}" ]; then
           echo "No CONFIG_TOML_FILE specified"
-          export CONFIG_TOML_FILE=config.toml
           if [ -f /var/workdir/source/config.toml ]; then
             echo "Using the config.toml file found in the repository root!"
-            echo "  Remove the config.toml file or set params.CONFIG_TOML_FILE to another file to prevent using config.toml."
+            echo "  Remove the config.toml file or set params.CONFIG_TOML_FILE to an invalid path to prevent its use."
           else
-            echo "No config.toml file found. Using an empty configuration."
-            touch /var/workdir/source/$CONFIG_TOML_FILE
+            echo "No config.toml file found. Set params.CONFIG_TOML_FILE to use one in the repository."
+            export CONFIG_TOML_FILE=config.toml
           fi
         fi
-        echo "Using the following config.toml file $CONFIG_TOML_FILE:"
+        # ensure that a config toml file is present in case one is not provided or the path is invalid
+        mkdir -p /var/workdir/source/$(dirname $CONFIG_TOML_FILE)
+        echo "Using the following config.toml file:"
         cat /var/workdir/source/$CONFIG_TOML_FILE
 
 
