@@ -117,6 +117,8 @@
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 |PLATFORM| Specific architecture to display the SBOM for. An example arch would be "linux/amd64". If IMAGE_URL refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".| linux/amd64| |
 ### source-build:0.1 task parameters
