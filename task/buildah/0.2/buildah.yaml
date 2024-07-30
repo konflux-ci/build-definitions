@@ -488,6 +488,14 @@ spec:
     script: |
       #!/bin/bash
       set -e
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
       base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
       container=$(buildah from --pull-never $IMAGE)
@@ -538,6 +546,9 @@ spec:
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
     workingDir: $(workspaces.source.path)
 
   - name: upload-sbom
@@ -550,6 +561,11 @@ spec:
       - --type
       - cyclonedx
       - $(params.IMAGE)
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /etc/ssl/certs/ca-bundle.crt
+      subPath: ca-bundle.crt
+      readOnly: true
     workingDir: $(workspaces.source.path)
 
   volumes:
