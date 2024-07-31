@@ -39,6 +39,12 @@ spec:
       name: trustification-secret-name
       type: string
       default: tpa-secret
+    - description: >-
+        Should the pipeline fail when there are SBOMs to upload but Trustification is not properly
+        configured (i.e. the secret is missing or doesn't have all the required keys)?
+      name: fail-if-trustification-not-configured
+      type: string
+      default: "true"
   tasks:
     - name: clone-repository
       params:
@@ -148,6 +154,8 @@ spec:
           value: sboms
         - name: TRUSTIFICATION_SECRET_NAME
           value: $(params.trustification-secret-name)
+        - name: FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED
+          value: $(params.fail-if-trustification-not-configured)
       workspaces:
         - name: sboms
           workspace: workspace
