@@ -7,6 +7,7 @@
 |ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.rhtap.svc| verify-enteprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
 |ec-strict| Should EC violations cause the pipeline to fail?| true| verify-enteprise-contract:0.1:STRICT|
 |ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.rhtap.svc| verify-enteprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
+|fail-if-trustification-not-configured| Should the pipeline fail when there are SBOMs to upload but Trustification is not properly configured (i.e. the secret is missing or doesn't have all the required keys)?| true| upload-sboms-to-trustification:0.1:FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED|
 |git-url| Gitops repo url| None| clone-repository:0.1:url|
 |revision| Gitops repo revision| | clone-repository:0.1:revision|
 |target-branch| The target branch for the pull request| main| get-images-to-verify:0.1:TARGET_BRANCH ; get-images-to-upload-sbom:0.1:TARGET_BRANCH|
@@ -57,7 +58,7 @@
 ### upload-sbom-to-trustification:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED| Should the task fail if the Secret does not contain the required keys? (Set "true" to fail, "false" to skip uploading and exit with success).| true| |
+|FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED| Should the task fail if the Secret does not contain the required keys? (Set "true" to fail, "false" to skip uploading and exit with success).| true| '$(params.fail-if-trustification-not-configured)'|
 |HTTP_RETRIES| Maximum number of retries for transient HTTP(S) errors| 3| |
 |SBOMS_DIR| Directory containing SBOM files. The task will search for CycloneDX JSON SBOMs recursively in this directory and upload them all to Trustification. The path is relative to the 'sboms' workspace.| .| 'sboms'|
 |TRUSTIFICATION_SECRET_NAME| Name of the Secret containing auth and configuration| trustification-secret| '$(params.trustification-secret-name)'|
