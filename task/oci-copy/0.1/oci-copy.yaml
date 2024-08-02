@@ -124,16 +124,57 @@ spec:
           curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
             echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
-            # This implements v2 auth https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAuthentication.html.
-            # TODO - port to v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+            # This implements v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
             path=$(echo "$url" | cut -d/ -f4-)
             echo "Bucket path is $path"
-            date="$(date -u '+%a, %e %b %Y %H:%M:%S +0000')"
-            printf -v string_to_sign "%s\n\n\n%s\n%s" "$method" "$date" "/$path"
-            echo "String to sign is $string_to_sign"
-            signature=$(echo -n "$string_to_sign" | openssl dgst -sha1 -binary -hmac "${AWS_SECRET_ACCESS_KEY}" | openssl base64)
-            authorization="AWS ${AWS_ACCESS_KEY_ID}:${signature}"
-            curl "${curl_args[@]}" -H "Date: ${date}" -H "Authorization: ${authorization}" --location "$url" -o "$file"
+            date="$(date -u '+%Y%m%dT%H%M%SZ')"
+            host=$(echo -n "$url" | awk -F '/' '{print $3}')
+            region=$(echo -n "$host" | awk -F '.' '{print $2}')
+
+            # This e3b0c44 digest is digest of the empty string. No request body.
+            payload_digest=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+            # Step 1: construct canonical request
+            IFS= read -r -d '' canonical_request <<EOF || true
+        $method
+        /$path
+
+        host:$host
+        x-amz-content-sha256:$payload_digest
+        x-amz-date:$date
+
+        host;x-amz-content-sha256;x-amz-date
+        $payload_digest
+        EOF
+            canonical_request=$(echo -n "$canonical_request" | head -c -1)  # Strip trailing newline
+            canonical_digest=$(echo -n "$canonical_request" | sha256sum | cut -d " " -f 1)
+
+            # Step 2: construct string to sign
+            IFS= read -r -d '' string_to_sign <<EOF || true
+        AWS4-HMAC-SHA256
+        $date
+        ${date%T*}/$region/s3/aws4_request
+        $canonical_digest
+        EOF
+            string_to_sign=$(echo -n "$string_to_sign" | head -c -1)  # Strip trailing newline
+
+            # Step 3: derive a signing key
+            startkey="AWS4${AWS_SECRET_ACCESS_KEY}"
+            datekey=$(echo -n "${date%T*}" | openssl dgst -sha256 -hex -hmac "${startkey}" | awk '{ print $2 }' | tr -d '\n')
+            dateregionkey=$(echo -n "${region}" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${datekey}" | awk '{ print $2 }' | tr -d '\n')
+            dateregionservicekey=$(echo -n "s3" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${dateregionkey}" | awk '{ print $2 }' | tr -d '\n')
+            signingkey=$(echo -n "aws4_request" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${dateregionservicekey}" | awk '{ print $2 }' | tr -d '\n')
+
+            # Step 4: use the signing key
+            signature=$(echo -n "$string_to_sign" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${signingkey}" | awk '{ print $2 }' | tr -d '\n')
+            authorization="AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${date%T*}/${region}/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}"
+
+            curl "${curl_args[@]}" \
+                -H "X-Amz-Date: ${date}" \
+                -H "X-Amz-Content-SHA256: $payload_digest" \
+                -H "Authorization: ${authorization}" \
+                --location "$url" \
+                -o "$file"
           elif [ -n "${BEARER_TOKEN}" ]; then
             echo "Found bearer token. Using it for authentication."
             curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
