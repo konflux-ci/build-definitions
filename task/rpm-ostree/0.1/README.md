@@ -20,7 +20,7 @@ RPM Ostree
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
-|IMAGE_URL|Image repository where the built image was pushed|
+|IMAGE_URL|Image repository and tag where the built image was pushed|
 |IMAGE_REF|Image reference of the built image|
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_BLOB_URL|Reference, including digest to the SBOM blob|

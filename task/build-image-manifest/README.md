@@ -16,6 +16,6 @@ This takes existing images and stiches them together into a multi platform image
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
-|IMAGE_URL|Image repository where the built image was pushed|
+|IMAGE_URL|Image repository and tag where the built image was pushed|
 |IMAGES|List of all referenced image manifests|
 

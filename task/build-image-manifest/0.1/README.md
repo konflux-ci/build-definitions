@@ -15,5 +15,5 @@ This task generates an image index from a collection of existing single platform
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
-|IMAGE_URL|Image repository where the built image was pushed|
+|IMAGE_URL|Image repository and tag where the built image was pushed|
 

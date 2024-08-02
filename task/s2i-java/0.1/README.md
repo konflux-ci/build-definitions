@@ -21,7 +21,7 @@ When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
-|IMAGE_URL|Image repository where the built image was pushed|
+|IMAGE_URL|Image repository and tag where the built image was pushed|
 |IMAGE_REF|Image reference of the built image|
 |BASE_IMAGES_DIGESTS|Digests of the base images used for build|
 |SBOM_JAVA_COMPONENTS_COUNT|The counting of Java components by publisher in JSON format|
