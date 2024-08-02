@@ -1,6 +1,4 @@
-# build-image-manifest task
-
-WARNING: Usage of this task is deprecated. You should use the `build-image-index` task instead.
+# build-image-index task
 
 This task generates an image index from a collection of existing single platform images to create a multi-platform image.
 
