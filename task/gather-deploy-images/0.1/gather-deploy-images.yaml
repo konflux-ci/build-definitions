@@ -40,6 +40,7 @@ spec:
       set -euo pipefail
 
       IMAGE_PATH='.spec.template.spec.containers[0].image'
+      IMAGES_FILE='/tmp/all-images.txt'
       component_name=$(yq .metadata.name application.yaml)
 
       for env in "$@"; do
@@ -55,9 +56,9 @@ spec:
         fi
 
         printf "%s\n" "$image"
-      done | sort -u > /tmp/all-images.txt
+      done | sort -u > $IMAGES_FILE
 
-      if [ ! -s /tmp/all-images.txt ]; then
+      if [ ! -s $IMAGES_FILE ]; then
         echo "No images to verify"
         touch $(results.IMAGES_TO_VERIFY.path)
         exit 0
@@ -66,7 +67,7 @@ spec:
       # TODO: each component needs a {"source": {"git": {"url": "...", "revision": "..."}}}
       #       will that be too large for Tekton results?
 
-      jq --compact-output --raw-input --slurp < /tmp/all-images.txt '
+      jq --compact-output --raw-input --slurp < $IMAGES_FILE '
         # split input file
         split("\n") |
         # drop empty lines
