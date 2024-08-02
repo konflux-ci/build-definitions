@@ -2,14 +2,15 @@
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:BUILD_IMAGE_INDEX|
 |build-source-image| Build a source image.| false| |
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.1:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| |
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.1:IMAGE_EXPIRES_AFTER|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.1:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
 |java| Java build| false| |
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT ; push-dockerfile:0.1:CONTEXT|
+|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; build-image-index:0.1:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | |
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -19,7 +20,17 @@
 |name|description|default value|already set by|
 |---|---|---|---|
 |ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
-|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### build-image-index:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|BUILD_IMAGE_INDEX| Create an OCI image index referencing all passed params.IMAGES. This allows us to always include this task for a consistent pipeline even if a user does not want to generate the image index. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*.| false| '$(params.build-image-index)'|
+|COMMIT_SHA| The commit the image is built from.| | '$(tasks.clone-repository.results.commit)'|
+|IMAGE| The target image and tag where the image will be pushed to.| None| '$(params.output-image)'|
+|IMAGES| List of Image Manifests to be referenced by the Image Index| None| '['$(tasks.build-container.results.IMAGE_REF)']'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
+|TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 ### buildah:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -52,16 +63,16 @@
 |name|description|default value|already set by|
 |---|---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of base build images.| | |
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
 |POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
 ### fbc-validation:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |BASE_IMAGE| Fully qualified base image name.| None| '$(tasks.inspect-image.results.BASE_IMAGE)'|
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -94,31 +105,17 @@
 |name|description|default value|already set by|
 |---|---|---|---|
 |DOCKER_AUTH| unused, should be removed in next task version| | |
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-container.results.IMAGE_URL)'|
-### push-dockerfile:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ARTIFACT_TYPE| Artifact type of the Dockerfile image.| application/vnd.konflux.dockerfile| |
-|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
-|DOCKERFILE| Path to the Dockerfile.| ./Dockerfile| '$(params.dockerfile)'|
-|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-container.results.IMAGE_URL)'|
-|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### sbom-json-check:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name to verify.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |PLATFORM| Specific architecture to display the SBOM for. An example arch would be "linux/amd64". If IMAGE_URL refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".| linux/amd64| |
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.status)'|
+|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-image-index.status)'|
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
@@ -128,15 +125,21 @@
 |---|---|---|
 |CHAINS-GIT_COMMIT| |$(tasks.clone-repository.results.commit)|
 |CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
-|IMAGE_DIGEST| |$(tasks.build-container.results.IMAGE_DIGEST)|
-|IMAGE_URL| |$(tasks.build-container.results.IMAGE_URL)|
+|IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
+|IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
+### build-image-index:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES| List of all referenced image manifests| |
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; inspect-image:0.1:IMAGE_DIGEST ; fbc-validate:0.1:IMAGE_DIGEST|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; apply-tags:0.1:IMAGE ; inspect-image:0.1:IMAGE_URL ; fbc-validate:0.1:IMAGE_URL|
 ### buildah:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST ; inspect-image:0.1:IMAGE_DIGEST ; fbc-validate:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; inspect-image:0.1:IMAGE_URL ; fbc-validate:0.1:IMAGE_URL|
+|IMAGE_DIGEST| Digest of the image just built| |
+|IMAGE_URL| Image repository where the built image was pushed| |
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
 ### deprecated-image-check:0.4 task results
@@ -155,7 +158,7 @@
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.1:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.1:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results
@@ -168,22 +171,13 @@
 |BASE_IMAGE| Base image source image is built from.| fbc-validate:0.1:BASE_IMAGE|
 |BASE_IMAGE_REPOSITORY| Base image repository URL.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### push-dockerfile:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### sbom-json-check:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|IMAGES_PROCESSED| Images processed in the task.| |
-|TEST_OUTPUT| Tekton task test output.| |
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth|
 |netrc| |True| |
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source ; push-dockerfile:0.1:workspace ; inspect-image:0.1:source ; fbc-validate:0.1:workspace ; fbc-related-image-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source ; inspect-image:0.1:source ; fbc-validate:0.1:workspace ; fbc-related-image-check:0.1:workspace|
 ## Available workspaces from tasks
 ### buildah:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -207,10 +201,6 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| | False| workspace|
-### push-dockerfile:0.1 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
