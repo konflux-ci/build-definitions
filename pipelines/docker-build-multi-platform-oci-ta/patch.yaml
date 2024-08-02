@@ -1,0 +1,87 @@
+---
+- op: replace
+  path: /metadata/name
+  value: docker-build-multi-platform-oci-ta
+# Order of Tasks from the base docker-build Pipeline:
+# $ kustomize build pipelines/docker-build-oci-ta | yq ".spec.tasks.[].name" | nl -v 0
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  build-source-image
+#      6  deprecated-base-image-check
+#      7  clair-scan
+#      8  ecosystem-cert-preflight-checks
+#      9  sast-snyk-check
+#     10  clamav-scan
+#     11  sbom-json-check
+#     12  apply-tags
+#     13  push-dockerfile
+
+# Order of pipeline parameters
+# $ kustomize build pipelines/docker-build-oci-ta | yq ".spec.params.[].name" | nl -v 0
+#      0  git-url
+#      1  revision
+#      2  output-image
+#      3  path-context
+#      4  dockerfile
+#      5  rebuild
+#      6  skip-checks
+#      7  hermetic
+#      8  prefetch-input
+#      9  java
+#     10  image-expires-after
+#     11  build-source-image
+#     12  build-image-index
+#     13  build-args
+#     14  build-args-file
+
+# build-container
+- op: replace
+  path: /spec/tasks/3/name
+  value: build-images
+- op: replace
+  path: /spec/tasks/3/taskRef/name
+  value: buildah-remote-oci-ta
+- op: add
+  path: /spec/tasks/3/matrix
+  value:
+    params:
+      - name: PLATFORM
+        value: ["$(params.build-platforms)"]
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: IMAGE_APPEND_PLATFORM
+    value: "true"
+
+# build-image-index
+- op: replace
+  path: /spec/tasks/4/params/4/value  # IMAGES
+  value:
+    - $(tasks.build-images.results.IMAGE_REF[*])
+- op: replace
+  path: /spec/tasks/4/runAfter
+  value:
+  - build-images
+# We want to always build the image index by default
+- op: replace
+  path: /spec/params/12/default  # build-image-index
+  value: "true"
+
+# Add a pipeline definition parameter to customize the build platforms
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-platforms
+    description: List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.
+    type: array
+    default:
+      - "linux/x86_64"
+      - "linux/arm64"
+
+# Just use the first container built for the JAVA_COMMUNITY_DEPENDENCIES result
+- op: replace
+  path: /spec/results/4/value
+  value: $(tasks.build-images.results.JAVA_COMMUNITY_DEPENDENCIES[0])
