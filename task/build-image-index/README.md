@@ -1,4 +1,4 @@
-# build-image-manifest task
+# build-image-index task
 
 This takes existing Image Manifests and combines them in an Image Index.
 
