@@ -8,6 +8,37 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
+# Remove unused parameters from the template
+# yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
+#      0  git-url
+#      1  revision
+#      2  output-image
+#      3  path-context
+#      4  dockerfile
+#      5  rebuild
+#      6  skip-checks
+#      7  hermetic
+#      8  prefetch-input
+#      9  java
+#     10  image-expires-after
+#     11  build-source-image
+#     12  build-image-index
+
+- op: remove
+  path: /spec/params/12  # build-image-index
+- op: remove
+  path: /spec/params/11  # build-source-image
+- op: remove
+  path: /spec/params/9  # java
+- op: remove
+  path: /spec/params/8  # prefetch-input
+- op: remove
+  path: /spec/params/7  # hermetic
+- op: remove
+  path: /spec/params/6  # skip-checks
+- op: remove
+  path: /spec/tasks/0/params/2  # remove the skip-checks param
+# Add additional parameters
 - op: add
   path: /spec/params/-
   value:
@@ -42,11 +73,13 @@
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     type: string
     default: ""
+# Add additional results
 - op: add
   path: /spec/results/-
   value:
     name: ACS_SCAN_OUTPUT
     value: $(tasks.acs-image-scan.results.SCAN_OUTPUT)
+# Configure build-container task
 - op: replace
   path: /spec/tasks/3/taskRef
   value:
@@ -70,43 +103,60 @@
         - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: "$(params.build-args-file)"
-# Remove tasks
+# Change references from build-image-index to build-container
+- op: replace
+  path: /spec/finally/0/params/0/value  # show-sbom.params.IMAGE_URL
+  value: $(tasks.build-container.results.IMAGE_URL)
+- op: replace
+  path: /spec/finally/1/params/3/value  # show-summary.params.build-task-status
+  value: $(tasks.build-container.results.status)
+- op: replace
+  path: /spec/results/0/value  # IMAGE_URL
+  value: $(tasks.build-container.results.IMAGE_URL)
+- op: replace
+  path: /spec/results/1/value  # IMAGE_DIGEST
+  value: $(tasks.build-container.results.IMAGE_DIGEST)
+
+# Remove unused tasks
 # Example - yq .spec.tasks.[].name ../build-definitions/pipelines/template-build/template-build.yaml | nl -v 0
 # to compute offsets
-#      0  init
-#      1  clone-repository
-#      2  prefetch-dependencies
-#      3  build-container
-#      4  build-source-image
-#      5  deprecated-base-image-check
-#      6  clair-scan
-#      7  ecosystem-cert-preflight-checks
-#      8  sast-snyk-check
-#      9  clamav-scan
-#      10 sbom-json-check
-#      11 apply-tags
-#      12 push-dockerfile
+# 0  init
+# 1  clone-repository
+# 2  prefetch-dependencies
+# 3  build-container
+# 4  build-image-index
+# 5  build-source-image
+# 6  deprecated-base-image-check
+# 7  clair-scan
+# 8  ecosystem-cert-preflight-checks
+# 9  sast-snyk-check
+# 10  clamav-scan
+# 11  sbom-json-check
+# 12  apply-tags
+# 13  push-dockerfile
 - op: replace
   path: /spec/tasks/3/runAfter/0
   value: clone-repository
 - op: remove
-  path: /spec/tasks/12 # push-dockerfile
+  path: /spec/tasks/13  # push-dockerfile
 - op: remove
-  path: /spec/tasks/11 # apply-tags
+  path: /spec/tasks/12  # apply-tags
 - op: remove
-  path: /spec/tasks/10 # sbom-json-check
+  path: /spec/tasks/11  # sbom-json-check
 - op: remove
-  path: /spec/tasks/9  # clamav-scan
+  path: /spec/tasks/10  # clamav-scan
 - op: remove
-  path: /spec/tasks/8  # sast-snyk-check
+  path: /spec/tasks/9  # sast-snyk-check
 - op: remove
-  path: /spec/tasks/7  # ecosystem-cert-preflight-checks
+  path: /spec/tasks/8  # ecosystem-cert-preflight-checks
 - op: remove
-  path: /spec/tasks/6  # clair-scan
+  path: /spec/tasks/7  # clair-scan
 - op: remove
-  path: /spec/tasks/5  # deprecated-base-image-check
+  path: /spec/tasks/6  # deprecated-base-image-check
 - op: remove
-  path: /spec/tasks/4  # build-source-image
+  path: /spec/tasks/5  # build-source-image
+- op: remove
+  path: /spec/tasks/4  # build-image-index
 - op: remove
   path: /spec/tasks/2  # prefetch-dependencies
 - op: remove

@@ -4,20 +4,15 @@
 |---|---|---|---|
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.1:BUILD_ARGS|
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.1:BUILD_ARGS_FILE|
-|build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.1:DOCKERFILE|
 |event-type| Event that triggered the pipeline run, e.g. push, pull_request| push| |
 |git-url| Source Repository URL| None| clone-repository:0.1:url ; acs-deploy-check:0.1:gitops-repo-url ; update-deployment:0.1:gitops-repo-url|
 |gitops-auth-secret-name| Secret name to enable this pipeline to update the gitops repo with the new image. | gitops-auth-secret| update-deployment:0.1:gitops-auth-secret-name|
-|hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.1:IMAGE_EXPIRES_AFTER|
-|java| Java build| false| |
 |output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; acs-image-check:0.1:image ; acs-image-scan:0.1:image|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | |
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
-|skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 |stackrox-secret| | rox-api-token| acs-image-check:0.1:rox-secret-name ; acs-image-scan:0.1:rox-secret-name ; acs-deploy-check:0.1:rox-secret-name|
 ## Available params from tasks
 ### acs-deploy-check:0.1 task parameters
@@ -78,7 +73,7 @@
 |---|---|---|---|
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
-|skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
+|skip-checks| Skip checks against built image| false| |
 ### show-sbom-rhdh:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -86,7 +81,7 @@
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.status)'|
+|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.results.status)'|
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
@@ -116,7 +111,7 @@
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
 |IMAGE_DIGEST| Digest of the image just built| acs-image-check:0.1:image-digest ; acs-image-scan:0.1:image-digest|
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; update-deployment:0.1:image|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; update-deployment:0.1:image|
 |SBOM_BLOB_URL| Link to the SBOM layer pushed to the registry as part of an OCI artifact.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

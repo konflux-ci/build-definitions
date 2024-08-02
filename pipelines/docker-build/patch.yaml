@@ -8,6 +8,23 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
+#  yq ".spec.tasks.[].name" pipelines/template-build/template-build.yaml | nl -v 0
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  build-source-image
+#      6  deprecated-base-image-check
+#      7  clair-scan
+#      8  ecosystem-cert-preflight-checks
+#      9  sast-snyk-check
+#     10  clamav-scan
+#     11  sbom-json-check
+#     12  apply-tags
+#     13  push-dockerfile
+
+# build-container
 - op: replace
   path: /spec/tasks/3/taskRef
   value:
@@ -49,6 +66,7 @@
       - $(params.build-args[*])
   - name: BUILD_ARGS_FILE
     value: "$(params.build-args-file)"
+
 - op: add
   path: /spec/results/-
   value:

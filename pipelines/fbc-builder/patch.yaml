@@ -12,7 +12,7 @@
   path: /spec/tasks/3/taskRef
   value:
     name: buildah
-    version: "0.1"
+    version: "0.2"
 - op: add
   path: /spec/tasks/3/params
   value:
@@ -29,32 +29,37 @@
   - name: COMMIT_SHA
     value: "$(tasks.clone-repository.results.commit)"
 # Remove tasks
-# Example - yq .spec.tasks.[].name ../build-definitions/pipelines/template-build/template-build.yaml | nl -v 0
+# yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
 # to compute offsets
-#      0  init
-#      1  clone-repository
-#      2  prefetch-dependencies
-#      3  build-container
-#      4  build-source-image
-#      5  deprecated-base-image-check
-#      6  clair-scan
-#      7  ecosystem-cert-preflight-checks
-#      8  sast-snyk-check
-#      9  clamav-scan
-#      10 sbom-json-check
+# 0  init
+# 1  clone-repository
+# 2  prefetch-dependencies
+# 3  build-container
+# 4  build-image-index
+# 5  build-source-image
+# 6  deprecated-base-image-check
+# 7  clair-scan
+# 8  ecosystem-cert-preflight-checks
+# 9  sast-snyk-check
+# 10  clamav-scan
+# 11  sbom-json-check
+# 12  apply-tags
+# 13  push-dockerfile
 - op: replace
   path: /spec/tasks/3/runAfter/0
   value: clone-repository
 - op: remove
-  path: /spec/tasks/9  # clamav-scan
+  path: /spec/tasks/13  # push-dockerfile
 - op: remove
-  path: /spec/tasks/8  # sast-snyk-check
+  path: /spec/tasks/10  # clamav-scan
 - op: remove
-  path: /spec/tasks/7  # ecosystem-cert-preflight-checks
+  path: /spec/tasks/9  # sast-snyk-check
 - op: remove
-  path: /spec/tasks/6  # clair-scan
+  path: /spec/tasks/8  # ecosystem-cert-preflight-checks
 - op: remove
-  path: /spec/tasks/4  # build-source-image
+  path: /spec/tasks/7  # clair-scan
+- op: remove
+  path: /spec/tasks/5  # build-source-image
 - op: remove
   path: /spec/tasks/2  # prefetch-dependencies
 - op: add
@@ -66,15 +71,15 @@
       operator: in
       values: ["false"]
     runAfter:
-      - build-container
+      - build-image-index
     taskRef:
       name: inspect-image
       version: "0.1"
     params:
     - name: IMAGE_URL
-      value: $(tasks.build-container.results.IMAGE_URL)
+      value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE_DIGEST
-      value: $(tasks.build-container.results.IMAGE_DIGEST)
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     workspaces:
     - name: source
       workspace: workspace
@@ -93,9 +98,9 @@
       version: "0.1"
     params:
     - name: IMAGE_URL
-      value: $(tasks.build-container.results.IMAGE_URL)
+      value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE_DIGEST
-      value: $(tasks.build-container.results.IMAGE_DIGEST)
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: BASE_IMAGE
       value: $(tasks.inspect-image.results.BASE_IMAGE)
     workspaces:
