@@ -93,7 +93,7 @@ spec:
         skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT || status=$?
 
         if [ "$status" -eq 0 ] && [ "$(jq 'has("manifests")' ${RAW_IMAGE_INSPECT})" = "true" ]; then
-            echo "Found an index image, lookup for amd64 manifest"
+            echo "Found an image index, lookup for amd64 manifest"
             INDEX_IMAGE_MANIFESTS=$(jq ' .manifests | map ( {(.platform.architecture|tostring|ascii_downcase):  .digest} ) | add'  "${RAW_IMAGE_INSPECT}" || true)
 
             AMD64_MANIFEST_DIGEST=$(jq -r '.amd64' <<< "${INDEX_IMAGE_MANIFESTS}" || true )

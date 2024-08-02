@@ -79,7 +79,7 @@ spec:
 
         raw_inspect=$(skopeo inspect --raw "docker://$BINARY_IMAGE")
         if manifest_digest=$(jq -e -r '.manifests[0].digest' <<<"$raw_inspect"); then
-            # The BINARY_IMAGE is an index image, each manifest in the list has its own SBOM.
+            # The BINARY_IMAGE is an image index, each manifest in the list has its own SBOM.
             # We're gonna assume the base images are the same or similar enough in all the SBOMs.
             echo "BINARY_IMAGE ($BINARY_IMAGE) is a manifest list, picking an arbitrary image from the list"
             image_without_digest=${BINARY_IMAGE%@*}
