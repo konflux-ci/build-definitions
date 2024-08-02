@@ -2,6 +2,7 @@
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
+|build-image-index| Add built image into an OCI image index| false| |
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
@@ -21,21 +22,39 @@
 |ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
 |CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### clair-scan:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |docker-auth| unused, should be removed in next task version.| | |
-|image-digest| Image digest to scan.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### clamav-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|docker-auth| unused| | |
+|image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### deprecated-image-check:0.4 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|BASE_IMAGES_DIGESTS| Digests of base build images.| | |
+|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
+|POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
 ### ecosystem-cert-preflight-checks:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image url to scan.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -79,27 +98,20 @@
 |ARTIFACT_TYPE| Artifact type of the Dockerfile image.| application/vnd.konflux.dockerfile| |
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |DOCKERFILE| Path to the Dockerfile.| ./Dockerfile| '$(params.dockerfile)'|
-|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-container.results.IMAGE_URL)'|
-|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### sast-snyk-check:0.2 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ARGS| Append arguments.| --all-projects --exclude=test*,vendor,deps| |
-|SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
-|image-digest| Image digest to report findings for.| | '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| | '$(tasks.build-container.results.IMAGE_URL)'|
 ### sbom-json-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name to verify.| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name to verify.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.status)'|
+|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-image-index.status)'|
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
@@ -116,13 +128,23 @@
 |---|---|---|
 |CHAINS-GIT_COMMIT| |$(tasks.clone-repository.results.commit)|
 |CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
-|IMAGE_DIGEST| |$(tasks.build-container.results.IMAGE_DIGEST)|
-|IMAGE_URL| |$(tasks.build-container.results.IMAGE_URL)|
+|IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
+|IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
 ### clair-scan:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CLAIR_SCAN_RESULT| Clair scan result.| |
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### clamav-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### deprecated-image-check:0.4 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### ecosystem-cert-preflight-checks:0.1 task results
@@ -143,10 +165,6 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### sast-snyk-check:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|TEST_OUTPUT| Tekton task test output.| |
 ### sbom-json-check:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -155,16 +173,16 @@
 ### tkn-bundle:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| clair-scan:0.1:image-digest ; sast-snyk-check:0.2:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
+|IMAGE_URL| Image repository and tag where the built image was pushed with tag only| |
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-snyk-check:0.2:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -182,10 +200,6 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
-### sast-snyk-check:0.2 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| | False| workspace|
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|

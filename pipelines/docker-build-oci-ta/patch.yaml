@@ -12,19 +12,20 @@
   path: /spec/workspaces/0
 # Order of Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.tasks.[].name | nl -v 0
-#  0  init
-#  1  clone-repository
-#  2  prefetch-dependencies
-#  3  build-container
-#  4  build-source-image
-#  5  deprecated-base-image-check
-#  6  clair-scan
-#  7  ecosystem-cert-preflight-checks
-#  8  sast-snyk-check
-#  9  clamav-scan
-# 10  sbom-json-check
-# 11  apply-tags
-# 12  push-dockerfile
+#   0  init
+#   1  clone-repository
+#   2  prefetch-dependencies
+#   3  build-container
+#   4  build-image-index
+#   5  build-source-image
+#   6  deprecated-base-image-check
+#   7  clair-scan
+#   8  ecosystem-cert-preflight-checks
+#   9  sast-snyk-check
+#  10  clamav-scan
+#  11  sbom-json-check
+#  12  apply-tags
+#  13  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -86,29 +87,29 @@
 
 # build-source-image
 - op: replace
-  path: /spec/tasks/4/taskRef/name
+  path: /spec/tasks/5/taskRef/name
   value: source-build-oci-ta
 - op: add
-  path: /spec/tasks/4/params/-
+  path: /spec/tasks/5/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: add
-  path: /spec/tasks/4/params/-
+  path: /spec/tasks/5/params/-
   value:
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
-  path: /spec/tasks/4/workspaces/0
+  path: /spec/tasks/5/workspaces/0
 
 # sast-snyk-check
 - op: replace
-  path: /spec/tasks/8/taskRef/name
+  path: /spec/tasks/9/taskRef/name
   value: sast-snyk-check-oci-ta
 - op: add
   # In the docker-build Pipeline, the snyk Task does not receive any parameters, so we cannot
   # append to it.
-  path: /spec/tasks/8/params/-
+  path: /spec/tasks/9/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
@@ -118,19 +119,19 @@
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
-  path: /spec/tasks/8/workspaces/0
+  path: /spec/tasks/9/workspaces/0
 
 # push-dockerfile
 - op: replace
-  path: /spec/tasks/12/taskRef/name
+  path: /spec/tasks/13/taskRef/name
   value: push-dockerfile-oci-ta
 - op: add
-  path: /spec/tasks/12/params/-
+  path: /spec/tasks/13/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: remove
-  path: /spec/tasks/12/workspaces/0
+  path: /spec/tasks/13/workspaces/0
 
 # Order of finally Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0
