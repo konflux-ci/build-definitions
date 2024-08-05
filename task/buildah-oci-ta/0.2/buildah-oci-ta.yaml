@@ -422,10 +422,11 @@ spec:
         echo "$BASE_IMAGES" >/shared/base_images_from_dockerfile
       computeResources:
         limits:
-          memory: 4Gi
+          cpu: "4"
+          memory: 8Gi
         requests:
-          cpu: 250m
-          memory: 512Mi
+          cpu: "1"
+          memory: 2Gi
       securityContext:
         capabilities:
           add:
@@ -444,6 +445,13 @@ spec:
         find $(cat /shared/container_path) -xtype l -delete
         echo "Running syft on the image filesystem"
         syft dir:$(cat /shared/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
+      computeResources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
     - name: analyse-dependencies-java-sbom
       image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
       volumeMounts:
@@ -458,6 +466,13 @@ spec:
         else
           touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
         fi
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       securityContext:
         runAsUser: 0
     - name: merge-syft-sboms
@@ -492,6 +507,13 @@ spec:
         # write the CycloneDX unified SBOM
         with open("./sbom-cyclonedx.json", "w") as f:
           json.dump(image_sbom, f, indent=4)
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       securityContext:
         runAsUser: 0
     - name: merge-cachi2-sbom
@@ -505,6 +527,13 @@ spec:
         else
           echo "Skipping step since no Cachi2 SBOM was produced"
         fi
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       securityContext:
         runAsUser: 0
     - name: create-purl-sbom
@@ -522,6 +551,13 @@ spec:
 
         with open("sbom-purl.json", "w") as output_file:
           json.dump(purl_content, output_file, indent=4)
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       securityContext:
         runAsUser: 0
     - name: create-base-images-sbom
@@ -532,6 +568,13 @@ spec:
           --sbom=sbom-cyclonedx.json \
           --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
           --base-images-digests=/shared/base_images_digests
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       securityContext:
         runAsUser: 0
     - name: inject-sbom-and-push
@@ -596,6 +639,13 @@ spec:
         sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
         echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+      computeResources:
+        limits:
+          cpu: "4"
+          memory: 4Gi
+        requests:
+          cpu: "1"
+          memory: 1Gi
       securityContext:
         capabilities:
           add:
@@ -617,3 +667,10 @@ spec:
         fi
 
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
