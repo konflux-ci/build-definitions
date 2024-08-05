@@ -206,10 +206,11 @@ spec:
     - $(params.BUILD_ARGS[*])
     computeResources:
       limits:
-        memory: 4Gi
+        cpu: "4"
+        memory: 8Gi
       requests:
-        cpu: 250m
-        memory: 512Mi
+        cpu: "1"
+        memory: 2Gi
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -502,7 +503,13 @@ spec:
       name: ssh
       readOnly: true
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
     image: quay.io/redhat-appstudio/syft:v0.105.1@sha256:1910b829997650c696881e5fc2fc654ddf3184c27edb1b2024e9cb2ba51ac431
     name: sbom-syft-generate
     script: |
@@ -522,7 +529,13 @@ spec:
     - mountPath: /shared
       name: shared
     workingDir: /var/workdir/source
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
     name: analyse-dependencies-java-sbom
     script: |
@@ -544,7 +557,13 @@ spec:
       name: varlibcontainers
     - mountPath: /shared
       name: shared
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
     name: merge-syft-sboms
     script: |
@@ -579,7 +598,13 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
     name: merge-cachi2-sbom
     script: |
@@ -598,7 +623,13 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
     name: create-purl-sbom
     script: |
@@ -616,7 +647,13 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
     name: create-base-images-sbom
     script: |
@@ -632,7 +669,13 @@ spec:
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
     image: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
     name: inject-sbom-and-push
     script: |
@@ -703,7 +746,13 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     name: upload-sbom
     script: |
