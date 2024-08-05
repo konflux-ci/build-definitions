@@ -168,10 +168,11 @@ spec:
     name: build
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 8Gi
+        cpu: '4'
       requests:
-        memory: 512Mi
-        cpu: 250m
+        memory: 2Gi
+        cpu: '1'
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -380,6 +381,13 @@ spec:
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: '2'
+      requests:
+        memory: 1Gi
+        cpu: 500m
     script: |
       echo "Running syft on the source directory"
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -393,6 +401,13 @@ spec:
       name: shared
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -410,6 +425,13 @@ spec:
 
   - name: merge-syft-sboms
     image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       #!/bin/python3
       import json
@@ -445,6 +467,13 @@ spec:
 
   - name: merge-cachi2-sbom
     image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       if [ -f "sbom-cachi2.json" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
@@ -459,6 +488,13 @@ spec:
 
   - name: create-purl-sbom
     image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       #!/bin/python3
       import json
@@ -477,6 +513,13 @@ spec:
 
   - name: create-base-images-sbom
     image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       python3 /app/base_images_sbom_script.py \
         --sbom=sbom-cyclonedx.json \
@@ -488,7 +531,13 @@ spec:
 
   - name: inject-sbom-and-push
     image: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
-    computeResources: {}
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: '4'
+      requests:
+        memory: 1Gi
+        cpu: '1'
     script: |
       #!/bin/bash
       set -e
@@ -566,6 +615,13 @@ spec:
       fi
 
       cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
