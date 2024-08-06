@@ -20,6 +20,14 @@ spec:
         refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".
       type: string
       default: "linux/amd64"
+    - name: CA_TRUST_CONFIG_MAP_NAME
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   steps:
   - name: show-sbom
     image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
@@ -68,3 +76,16 @@ spec:
       else
         download_sbom_with_retry " --platform=$PLATFORM "
       fi
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      subPath: ca-bundle.crt
+      readOnly: true
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true
