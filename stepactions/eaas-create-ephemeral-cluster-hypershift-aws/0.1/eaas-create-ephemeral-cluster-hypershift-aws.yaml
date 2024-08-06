@@ -80,11 +80,11 @@ spec:
     echo -n $CTI_NAME > $(step.results.clusterName.path)
 
     echo "Waiting for ClusterTemplateInstance to be ready ($TIMEOUT timeout)"
-    if "${OC[@]}" wait cti $CTI_NAME --for=jsonpath='{.status.phase}'=Ready --timeout="$TIMEOUT"; then
+    if "${OC[@]}" wait cti "$CTI_NAME" --for=jsonpath='{.status.phase}'=Ready --timeout="$TIMEOUT"; then
       echo "Successfully provisioned $CTI_NAME"
       exit 0
     else
-      "${OC[@]}" get cti $CTI_NAME -o yaml
+      "${OC[@]}" get cti "$CTI_NAME" -o yaml
       echo "Failed to provision $CTI_NAME"
       exit 1
     fi
