@@ -224,7 +224,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 			ret += "cd " + step.WorkingDir + "\n"
 		}
 		ret += step.Script
-		ret += "\nbuildah push \"$IMAGE\" oci:rhtap-final-image"
+		ret += "\nbuildah push \"$IMAGE\" \"oci:konflux-final-image:$IMAGE\""
 		ret += "\nREMOTESSHEOF"
 		ret += "\nchmod +x " + script + "\n"
 
@@ -253,7 +253,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		//sync back results
 		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
-		ret += "\n  buildah pull oci:rhtap-final-image"
+		ret += "\n  buildah pull \"oci:konflux-final-image:$IMAGE\""
 		ret += "\nelse\n  bash " + containerScript
 		ret += "\nfi"
 		ret += "\nbuildah images"
@@ -266,7 +266,6 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		step.Script = ret
 		builderImage = step.Image
-		step.Image = "quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44"
 		step.VolumeMounts = append(step.VolumeMounts, v1.VolumeMount{
 			Name:      "ssh",
 			ReadOnly:  true,

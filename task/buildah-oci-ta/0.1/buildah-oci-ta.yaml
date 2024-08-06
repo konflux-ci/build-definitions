@@ -220,7 +220,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: build
-      image: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
       args:
         - $(params.BUILD_ARGS[*])
       workingDir: /var/workdir
@@ -528,7 +528,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: inject-sbom-and-push
-      image: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
