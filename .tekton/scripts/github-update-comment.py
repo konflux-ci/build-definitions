@@ -75,10 +75,8 @@ def main():
     owner = os.environ["REPO_OWNER"]
     repo = os.environ["REPO_NAME"]
     pull_request = os.environ["PULL_REQUEST_NUMBER"]
-    with open(sys.argv[1], 'r') as comment_file:
-        comment = comment_file.read()
-    with open(os.environ['GITHUBAPP_KEY_PATH'], 'rb') as key_file:
-        key = key_file.read()
+    comment = "hi"
+    key = "🔑"
     app_id = os.environ['GITHUBAPP_APP_ID']
     print(f"Getting user token for application_id: {app_id}")
     github_app = GitHub(
