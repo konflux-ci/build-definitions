@@ -181,7 +181,7 @@ spec:
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -197,7 +197,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     name: build
     script: |-
       #!/bin/bash
@@ -430,7 +430,7 @@ spec:
       # Needed to generate base images SBOM
       echo "$BASE_IMAGES" > $(workspaces.source.path)/base_images_from_dockerfile
 
-      buildah push "$IMAGE" oci:rhtap-final-image
+      buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -471,7 +471,7 @@ spec:
         rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
-        buildah pull oci:rhtap-final-image
+        buildah pull "oci:konflux-final-image:$IMAGE"
       else
         bash scripts/script-build.sh
       fi
@@ -610,7 +610,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah:latest@sha256:7cb5a35b7fe44e397fbf3b834f3bd8dcd9403a7c0a0b51469e6ec75b107d0846
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     name: inject-sbom-and-push
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
