@@ -1,0 +1,38 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: opm-get-bundle-version
+spec:
+  description: Fetch the current version of the provided OLM bundle image
+  params:
+    - name: bundle-image
+      description: OLM bundle image to query
+  results:
+    - name: bundle-version
+      description: olm.package version
+  workspaces:
+    - name: workspace
+      description: The shared workspace between steps
+  steps:
+    - name: opm-render-bundle
+      image: "registry.redhat.io/openshift4/ose-operator-registry:latest"
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: BUNDLE_IMAGE
+          value: $(params.bundle-image)
+      script: |
+        #!/usr/bin/env bash
+        set -xe
+        opm render "${BUNDLE_IMAGE}" > "$(workspaces.workspace.path)/bundle.json"
+    - name: jq-get-olm-package-version
+      image: "quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14"
+      script: |
+        #!/usr/bin/env bash
+        set -xe
+
+        jq -jr \
+          '.properties | .[] | select(.type == "olm.package") | .value.version' \
+          "$(workspaces.workspace.path)/bundle.json" \
+          > "$(results.bundle-version.path)"
