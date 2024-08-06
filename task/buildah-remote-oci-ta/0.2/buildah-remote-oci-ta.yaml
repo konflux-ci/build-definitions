@@ -186,7 +186,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah:latest@sha256:3fe211715717eca9eca1f19d326e19dd052c92fc6eb4f2434d8f903fe5b9aeb7
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     - name: PLATFORM
       value: $(params.PLATFORM)
     volumeMounts:
@@ -213,7 +213,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     name: build
     script: |-
       #!/bin/bash
@@ -645,7 +645,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah:latest@sha256:3fe211715717eca9eca1f19d326e19dd052c92fc6eb4f2434d8f903fe5b9aeb7
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5d933087a49a6e0b959b9a9fa5a91d545380217e565d7be7cc74a9588f64c314
     name: inject-sbom-and-push
     script: |
       #!/bin/bash

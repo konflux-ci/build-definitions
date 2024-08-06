@@ -263,7 +263,6 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		step.Script = ret
 		builderImage = step.Image
-		step.Image = "quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44"
 		step.VolumeMounts = append(step.VolumeMounts, v1.VolumeMount{
 			Name:      "ssh",
 			ReadOnly:  true,
