@@ -18,6 +18,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	tektonapi "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -33,9 +34,11 @@ import (
 func main() {
 	var buildahTask string
 	var buildahRemoteTask string
+	var taskVersion string
 
 	flag.StringVar(&buildahTask, "buildah-task", "", "The location of the buildah task")
 	flag.StringVar(&buildahRemoteTask, "remote-task", "", "The location of the buildah-remote task to overwrite")
+	flag.StringVar(&taskVersion, "task-version", "", "The version of the task to overwrite")
 
 	opts := zap.Options{
 		Development: true,
@@ -43,8 +46,8 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
-	if buildahTask == "" || buildahRemoteTask == "" {
-		println("Must specify both buildah-task and remote-task params")
+	if buildahTask == "" || buildahRemoteTask == "" || taskVersion == "" {
+		println("Must specify both buildah-task, remote-task, and task-version params")
 		os.Exit(1)
 	}
 
@@ -53,7 +56,7 @@ func main() {
 
 	decodingScheme := runtime.NewScheme()
 	utilruntime.Must(tektonapi.AddToScheme(decodingScheme))
-	convertToSsh(&task)
+	convertToSsh(&task, taskVersion)
 	y := printers.YAMLPrinter{}
 	b := bytes.Buffer{}
 	_ = y.PrintObj(&task, &b)
@@ -87,7 +90,7 @@ func streamFileYamlToTektonObj(path string, obj runtime.Object) runtime.Object {
 	return decodeBytesToTektonObjbytes(bytes, obj)
 }
 
-func convertToSsh(task *tektonapi.Task) {
+func convertToSsh(task *tektonapi.Task, taskVersion string) {
 
 	builderImage := ""
 	syncVolumes := map[string]bool{}
@@ -96,106 +99,159 @@ func convertToSsh(task *tektonapi.Task) {
 			syncVolumes[i.Name] = true
 		}
 	}
+	// The images produced in multi-platform builds need to have unique tags in order
+	// to prevent them from getting garbage collected before generating the image index.
+	// We can simplify this process, preventing the need for users to manually specify
+	// the image by auto-appending the architecture from the PLATFORM parameter. For
+	// example, this will append -arm64 if PLATFORM is linux/arm64 if not present. Since
+	// we cannot modify the parameter itself, this replacement needs to happen in any task
+	// step where the IMAGE parameter is used.
+	// If a user defines the IMAGE parameter with an -arm64 suffix, the arm64 suffix will
+	// not be appended again based on the PLATFORM.
+	adjustRemoteImage := "if [[ \"${IMAGE##*-}\" != \"${PLATFORM##*/}\" ]]; then"
+	adjustRemoteImage += "\n  export IMAGE=\"${IMAGE}-${PLATFORM##*/}\"\nfi\n"
+
 	for stepPod := range task.Spec.Steps {
+		ret := ""
 		step := &task.Spec.Steps[stepPod]
-		if step.Name != "build" {
+		if step.Script != "" && taskVersion == "0.2" && step.Name != "build" {
+			scriptHeaderRE := regexp.MustCompile(`#!/bin/bash\nset -e\n`)
+			if scriptHeaderRE.FindString(step.Script) != "" {
+				ret = scriptHeaderRE.ReplaceAllString(step.Script, "")
+			} else {
+				ret = step.Script
+			}
+			if !strings.HasPrefix(ret, "#!") {
+				// If there is a shebang, it is explicitly non-bash, so don't adjust the image
+				ret = "#!/bin/bash\nset -e\n" + adjustRemoteImage + ret
+			}
+			step.Script = ret
+			continue
+		} else if step.Name != "build" {
 			continue
 		}
 		podmanArgs := ""
 
-		ret := `set -o verbose
+		ret = `#!/bin/bash
+set -e
+set -o verbose
 mkdir -p ~/.ssh
 if [ -e "/ssh/error" ]; then
   #no server could be provisioned
   cat /ssh/error
   exit 1
+fi
+export SSH_HOST=$(cat /ssh/host)
+[ "$SSH_HOST" == "localhost" ] && IS_LOCALHOST=true
+
+if [[ $IS_LOCALHOST ]]; then
+  echo "Localhost detected; running build in cluster"
 elif [ -e "/ssh/otp" ]; then
- curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
- echo "" >> ~/.ssh/id_rsa
+  curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+  echo "" >> ~/.ssh/id_rsa
 else
   cp /ssh/id_rsa ~/.ssh
 fi
-chmod 0400 ~/.ssh/id_rsa
-export SSH_HOST=$(cat /ssh/host)
-export BUILD_DIR=$(cat /ssh/user-dir)
-export SSH_ARGS="-o StrictHostKeyChecking=no"
+
 mkdir -p scripts
-echo "$BUILD_DIR"
-ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
-PORT_FORWARD=""
-PODMAN_PORT_FORWARD=""
-if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
-PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
-fi
+if ! [[ $IS_LOCALHOST ]]; then
+  chmod 0400 ~/.ssh/id_rsa
+  export BUILD_DIR=$(cat /ssh/user-dir)
+  export SSH_ARGS="-o StrictHostKeyChecking=no"
+  echo "$BUILD_DIR"
+  ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+
+  PORT_FORWARD=""
+  PODMAN_PORT_FORWARD=""
+  if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
+    PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
+    PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
+  fi
 `
-
 		env := "$PODMAN_PORT_FORWARD \\\n"
 
 		// disable podman subscription-manager integration
-		env += " --tmpfs /run/secrets \\\n"
+		env += "    --tmpfs /run/secrets \\\n"
 
 		// Before the build we sync the contents of the workspace to the remote host
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\nrsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
-			podmanArgs += " -v \"$BUILD_DIR/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
+			ret += "\n  rsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
+			podmanArgs += "    -v \"$BUILD_DIR/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
 		}
 		// Also sync the volume mounts from the template
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\nrsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-			podmanArgs += " -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+			ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+			podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 		}
 		for _, volume := range step.VolumeMounts {
 			if syncVolumes[volume.Name] {
-				ret += "\nrsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-				podmanArgs += " -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+				ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+				podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 			}
 		}
-		ret += "\nrsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
-		podmanArgs += " -v \"$BUILD_DIR/.docker/:/root/.docker:Z\" \\\n"
-		ret += "\nrsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/tekton-results/\""
-		podmanArgs += " -v \"$BUILD_DIR/tekton-results/:/tekton/results:Z\" \\\n"
+		ret += "\n  rsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
+		podmanArgs += "    -v \"$BUILD_DIR/.docker/:/root/.docker:Z\" \\\n"
+		ret += "\n  rsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
+		podmanArgs += "    -v \"$BUILD_DIR/results/:/tekton/results:Z\" \\\n"
+		ret += "\nfi"
 
 		script := "scripts/script-" + step.Name + ".sh"
 
 		ret += "\ncat >" + script + " <<'REMOTESSHEOF'\n"
-		if !strings.HasPrefix(step.Script, "#!") {
+
+		// The base task might now be using a bash shell, so we need to make sure
+		// that we only have one shebang declaration. If there is a shebang declaration,
+		// we should also consolidate the set declarations.
+		reShebang := regexp.MustCompile(`(#!.*\n)(set -.*\n)*`)
+		shebangMatch := reShebang.FindString(step.Script)
+		if shebangMatch != "" {
+			ret += shebangMatch
+			step.Script = strings.TrimPrefix(step.Script, shebangMatch)
+		} else {
 			ret += "#!/bin/bash\nset -o verbose\nset -e\n"
 		}
+
 		if step.WorkingDir != "" {
 			ret += "cd " + step.WorkingDir + "\n"
 		}
 		ret += step.Script
 		ret += "\nbuildah push \"$IMAGE\" oci:rhtap-final-image"
 		ret += "\nREMOTESSHEOF"
-		ret += "\nchmod +x " + script
+		ret += "\nchmod +x " + script + "\n"
+
+		if taskVersion == "0.2" {
+			ret += adjustRemoteImage
+		}
 
 		if task.Spec.StepTemplate != nil {
 			for _, e := range task.Spec.StepTemplate.Env {
-				env += " -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+				env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 			}
 		}
-		ret += "\nrsync -ra scripts \"$SSH_HOST:$BUILD_DIR\""
+		ret += "\nif ! [[ $IS_LOCALHOST ]]; then"
+		ret += "\n  rsync -ra scripts \"$SSH_HOST:$BUILD_DIR\""
 		containerScript := "/script/script-" + step.Name + ".sh"
 		for _, e := range step.Env {
-			env += " -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
-		podmanArgs += " -v $BUILD_DIR/scripts:/script:Z \\\n"
-		ret += "\nssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "--user=0  --rm  \"$BUILDER_IMAGE\" " + containerScript
+		podmanArgs += "    -v $BUILD_DIR/scripts:/script:Z \\\n"
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" " + containerScript
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
+			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
 		}
 
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
+			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
 		}
 		//sync back results
-		ret += "\nrsync -ra \"$SSH_HOST:$BUILD_DIR/tekton-results/\" \"/tekton/results/\""
+		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
-		ret += "\nbuildah pull oci:rhtap-final-image"
+		ret += "\n  buildah pull oci:rhtap-final-image"
+		ret += "\nelse\n  bash " + containerScript
+		ret += "\nfi"
 		ret += "\nbuildah images"
 		ret += "\nbuildah tag localhost/rhtap-final-image \"$IMAGE\""
 		ret += "\ncontainer=$(buildah from --pull-never \"$IMAGE\")\nbuildah mount \"$container\" | tee /shared/container_path\necho $container > /shared/container_name"
@@ -229,4 +285,7 @@ fi
 		},
 	})
 	task.Spec.StepTemplate.Env = append(task.Spec.StepTemplate.Env, v1.EnvVar{Name: "BUILDER_IMAGE", Value: builderImage})
+	if taskVersion == "0.2" {
+		task.Spec.StepTemplate.Env = append(task.Spec.StepTemplate.Env, v1.EnvVar{Name: "PLATFORM", Value: "$(params.PLATFORM)"})
+	}
 }
