@@ -28,6 +28,10 @@ spec:
       description: >-
         Skip TLS verification when accessing the EaaS hub cluster.
         This should not be set to "true" in a production environment.
+    - name: timeout
+      type: string
+      default: 30m
+      description: How long to wait for cluster provisioning to complete.
   results:
     - name: clusterName
       description: The name of the generated ClusterTemplateInstance resource.
@@ -45,6 +49,8 @@ spec:
           key: kubeconfig
     - name: INSECURE_SKIP_TLS_VERIFY
       value: "$(params.insecureSkipTLSVerify)"
+    - name: TIMEOUT
+      value: "$(params.timeout)"
   script: |
     #!/bin/bash
     set -eo pipefail
@@ -61,6 +67,8 @@ spec:
           value: $INSTANCE_TYPE
         - name: version
           value: $VERSION
+        - name: timeout
+          value: $TIMEOUT
     EOF
 
     trap 'rm -f "$KUBECONFIG"' EXIT
@@ -71,8 +79,8 @@ spec:
     echo "Created ClusterTemplateInstance $CTI_NAME"
     echo -n $CTI_NAME > $(step.results.clusterName.path)
 
-    echo "Waiting for ClusterTemplateInstance to be ready (20m timeout)"
-    if "${OC[@]}" wait cti $CTI_NAME --for=jsonpath='{.status.phase}'=Ready --timeout=20m; then
+    echo "Waiting for ClusterTemplateInstance to be ready ($TIMEOUT timeout)"
+    if "${OC[@]}" wait cti $CTI_NAME --for=jsonpath='{.status.phase}'=Ready --timeout="$TIMEOUT"; then
       echo "Successfully provisioned $CTI_NAME"
       exit 0
     else
