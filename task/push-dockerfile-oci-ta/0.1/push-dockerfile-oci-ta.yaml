@@ -47,6 +47,10 @@ spec:
   volumes:
     - name: workdir
       emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
   steps:
     - name: use-trusted-artifact
       image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:601e0999ae062e5ee666538d651af7893a75e415b7952c85caa8a4452501029a
@@ -56,9 +60,6 @@ spec:
     - name: push
       image: quay.io/konflux-ci/oras@sha256:ecf9ba09b3a194a32ad82fe6e29ef7391cbc008e23d8d79698386d817a5572b3
       workingDir: /var/workdir
-      volumeMounts:
-        - mountPath: /var/workdir
-          name: workdir
       env:
         - name: IMAGE
           value: $(params.IMAGE)
