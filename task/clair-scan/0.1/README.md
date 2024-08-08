@@ -7,11 +7,13 @@ analyzing the components of a container image and comparing them against Clair's
 
 ## Params:
 
-| name         | description                                                    |
-|--------------|----------------------------------------------------------------|
-| image-digest | Image digest to scan.                                          |
-| image-url    | Image URL.                                                     |
-| docker-auth  | unused, should be removed in next task version                 |
+| name         | description                                                     | default |
+|--------------|-----------------------------------------------------------------|-|
+| image-digest | Image digest to scan.                                           | None |
+| image-url    | Image URL.                                                      | None |
+| docker-auth  | unused, should be removed in next task version                  | |
+| ca-trust-config-map-name|The name of the ConfigMap to read CA bundle data from.| trusted-ca |
+| ca-trust-config-map-key |The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt |
 
 ## Results:
 
