@@ -155,19 +155,19 @@ spec:
         ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement"
 
         if [ ! -n "${CONFIG_TOML_FILE}" ]; then
-          echo "No CONFIG_TOML_FILE specified"
+          echo "No CONFIG_TOML_FILE specified. Assuming config.toml"
           export CONFIG_TOML_FILE=config.toml
-          if [ -f /var/workdir/source/config.toml ]; then
-            echo "Using the config.toml file found in the repository root!"
-            echo "  Remove the config.toml file or set params.CONFIG_TOML_FILE to another file to prevent using config.toml."
-          else
-            echo "No config.toml file found. Using an empty configuration."
-            touch /var/workdir/source/$CONFIG_TOML_FILE
-          fi
         fi
-        echo "Using the following config.toml file $CONFIG_TOML_FILE:"
-        cat /var/workdir/source/$CONFIG_TOML_FILE
 
+        if [ -f "/var/workdir/source/${CONFIG_TOML_FILE}" ]; then
+          echo "Using the ${CONFIG_TOML_FILE} file found in the repository."
+        else
+          echo "No ${CONFIG_TOML_FILE} file found. Using an empty configuration."
+          touch "/var/workdir/source/${CONFIG_TOML_FILE}"
+        fi
+
+        echo "Using the following ${CONFIG_TOML_FILE} file:"
+        cat /var/workdir/source/$CONFIG_TOML_FILE
 
         rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
