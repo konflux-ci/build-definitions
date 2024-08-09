@@ -7,6 +7,7 @@ Generate an OLM bundle using the operator-sdk
 |---|---|---|---|
 |input-dir|Directory to read cluster-ready operator manifests from|deploy|false|
 |channels|Comma-separated list of channels the bundle belongs to|alpha|false|
+|kustomize-dir|Directory containing kustomize bases in a "bases" dir and a kustomization.yaml for operator-framework manifests |""|false|
 |version|Semantic version of the operator in the generated bundle||true|
 |package-name|Bundle's package name||true|
 
