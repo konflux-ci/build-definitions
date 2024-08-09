@@ -30,6 +30,13 @@ spec:
     - name: get-image-manifests
       image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
       # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
+      computeResources:
+        limits:
+          memory: 512Mi
+          cpu: 200m
+        requests:
+          memory: 256Mi
+          cpu: 100m
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -58,6 +65,13 @@ spec:
         fi
     - name: get-vulnerabilities
       image: quay.io/redhat-appstudio/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
+      computeResources:
+        limits:
+          memory: 4Gi
+          cpu: '2'
+        requests:
+          memory: 1Gi
+          cpu: 500m
       imagePullPolicy: Always
       env:
         - name: IMAGE_URL
@@ -94,6 +108,13 @@ spec:
       image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
+      computeResources:
+        limits:
+          memory: 2Gi
+          cpu: 500m
+        requests:
+          memory: 256Mi
+          cpu: 100m
       securityContext:
         capabilities:
           add:
