@@ -10,13 +10,15 @@ in a high-level declarative language called Rego.
 
 ## Params
 
-| name                | description                                     |
-|---------------------|-------------------------------------------------|
-| POLICY_DIR          | Path to directory containing Conftest policies. |
-| POLICY_NAMESPACE    | Namespace for Conftest policy.                  |
-| BASE_IMAGES_DIGESTS | (Optional) Digests of base build images.        |
-| IMAGE_DIGEST        | Image digest.                                   |
-| IMAGE_URL           | Fully qualified image name.                     |
+| name                    | description                                     | default |
+|-------------------------|-------------------------------------------------|-|
+| POLICY_DIR              | Path to directory containing Conftest policies. | /project/repository/ |
+| POLICY_NAMESPACE        | Namespace for Conftest policy.                  | required_checks |
+| BASE_IMAGES_DIGESTS     | (Optional) Digests of base build images.        | |
+| IMAGE_DIGEST            | Image digest.                                   | None |
+| IMAGE_URL               | Fully qualified image name.                     | None |
+| CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read CA bundle data from.| trusted-ca |
+| CA_TRUST_CONFIG_MAP_KEY |The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt |
 
 ## Results
 
