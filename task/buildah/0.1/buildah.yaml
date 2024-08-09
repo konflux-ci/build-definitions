@@ -157,8 +157,6 @@ spec:
       value: $(params.BUILDER_IMAGE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
-    - name: ACTIVATION_KEY
-      value: $(params.ACTIVATION_KEY)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: BUILD_ARGS_FILE
@@ -313,15 +311,13 @@ spec:
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
-      # do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
-      # when activation keys are used, an empty directory on shared emptydir volume to /etc/pki/entitlement to prevent certificates from being included in the produced container.
-
-      if [ -d "$ACTIVATION_KEY_PATH" ]; then
+      if [ -e /activation-key/org ]; then
         cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
         mkdir /shared/rhsm-tmp
         VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z"
         echo "Adding activation key to the build"
-      elif [ -d "$ENTITLEMENT_PATH" ]; then
+
+      elif find /entitlement -name "*.pem" >> null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
         echo "Adding the entitlement to the build"
