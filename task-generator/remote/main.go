@@ -18,6 +18,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	tektonapi "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -33,9 +34,11 @@ import (
 func main() {
 	var buildahTask string
 	var buildahRemoteTask string
+	var taskVersion string
 
 	flag.StringVar(&buildahTask, "buildah-task", "", "The location of the buildah task")
 	flag.StringVar(&buildahRemoteTask, "remote-task", "", "The location of the buildah-remote task to overwrite")
+	flag.StringVar(&taskVersion, "task-version", "", "The version of the task to overwrite")
 
 	opts := zap.Options{
 		Development: true,
@@ -43,8 +46,8 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	klog.InitFlags(flag.CommandLine)
 	flag.Parse()
-	if buildahTask == "" || buildahRemoteTask == "" {
-		println("Must specify both buildah-task and remote-task params")
+	if buildahTask == "" || buildahRemoteTask == "" || taskVersion == "" {
+		println("Must specify both buildah-task, remote-task, and task-version params")
 		os.Exit(1)
 	}
 
@@ -53,7 +56,7 @@ func main() {
 
 	decodingScheme := runtime.NewScheme()
 	utilruntime.Must(tektonapi.AddToScheme(decodingScheme))
-	convertToSsh(&task)
+	convertToSsh(&task, taskVersion)
 	y := printers.YAMLPrinter{}
 	b := bytes.Buffer{}
 	_ = y.PrintObj(&task, &b)
@@ -87,7 +90,7 @@ func streamFileYamlToTektonObj(path string, obj runtime.Object) runtime.Object {
 	return decodeBytesToTektonObjbytes(bytes, obj)
 }
 
-func convertToSsh(task *tektonapi.Task) {
+func convertToSsh(task *tektonapi.Task, taskVersion string) {
 
 	builderImage := ""
 	syncVolumes := map[string]bool{}
@@ -96,14 +99,44 @@ func convertToSsh(task *tektonapi.Task) {
 			syncVolumes[i.Name] = true
 		}
 	}
+	// The images produced in multi-platform builds need to have unique tags in order
+	// to prevent them from getting garbage collected before generating the image index.
+	// We can simplify this process, preventing the need for users to manually specify
+	// the image by auto-appending the architecture from the PLATFORM parameter. For
+	// example, this will append -arm64 if PLATFORM is linux/arm64 if not present. Since
+	// we cannot modify the parameter itself, this replacement needs to happen in any task
+	// step where the IMAGE parameter is used.
+	// If a user defines the IMAGE parameter with an -arm64 suffix, the arm64 suffix will
+	// not be appended again based on the PLATFORM.
+	adjustRemoteImage := `if [[ "${IMAGE##*-}" != "${PLATFORM##*/}" ]]; then
+  export IMAGE="${IMAGE}-${PLATFORM##*/}"
+fi
+`
+
 	for stepPod := range task.Spec.Steps {
+		ret := ""
 		step := &task.Spec.Steps[stepPod]
-		if step.Name != "build" {
+		if step.Script != "" && taskVersion != "0.1" && step.Name != "build" {
+			scriptHeaderRE := regexp.MustCompile(`^#!/bin/bash\nset -e\n`)
+			if scriptHeaderRE.FindString(step.Script) != "" {
+				ret = scriptHeaderRE.ReplaceAllString(step.Script, "")
+			} else {
+				ret = step.Script
+			}
+			if !strings.HasPrefix(ret, "#!") {
+				// If there is a shebang, it is explicitly non-bash, so don't adjust the image
+				ret = "#!/bin/bash\nset -e\n" + adjustRemoteImage + ret
+			}
+			step.Script = ret
+			continue
+		} else if step.Name != "build" {
 			continue
 		}
 		podmanArgs := ""
 
-		ret := `set -o verbose
+		ret = `#!/bin/bash
+set -e
+set -o verbose
 mkdir -p ~/.ssh
 if [ -e "/ssh/error" ]; then
   #no server could be provisioned
@@ -130,7 +163,9 @@ PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
 PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
 fi
 `
-
+		if taskVersion != "0.1" {
+			ret += adjustRemoteImage
+		}
 		env := "$PODMAN_PORT_FORWARD \\\n"
 
 		// disable podman subscription-manager integration
@@ -160,9 +195,19 @@ fi
 		script := "scripts/script-" + step.Name + ".sh"
 
 		ret += "\ncat >" + script + " <<'REMOTESSHEOF'\n"
-		if !strings.HasPrefix(step.Script, "#!") {
+
+		// The base task might now be using a bash shell, so we need to make sure
+		// that we only have one shebang declaration. If there is a shebang declaration,
+		// we should also consolidate the set declarations.
+		reShebang := regexp.MustCompile(`(#!.*\n)(set -.*\n)*`)
+		shebangMatch := reShebang.FindString(step.Script)
+		if shebangMatch != "" {
+			ret += shebangMatch
+			step.Script = strings.TrimPrefix(step.Script, shebangMatch)
+		} else {
 			ret += "#!/bin/bash\nset -o verbose\nset -e\n"
 		}
+
 		if step.WorkingDir != "" {
 			ret += "cd " + step.WorkingDir + "\n"
 		}
@@ -229,4 +274,7 @@ fi
 		},
 	})
 	task.Spec.StepTemplate.Env = append(task.Spec.StepTemplate.Env, v1.EnvVar{Name: "BUILDER_IMAGE", Value: builderImage})
+	if taskVersion != "0.1" {
+		task.Spec.StepTemplate.Env = append(task.Spec.StepTemplate.Env, v1.EnvVar{Name: "PLATFORM", Value: "$(params.PLATFORM)"})
+	}
 }
