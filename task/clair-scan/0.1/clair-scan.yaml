@@ -19,6 +19,14 @@ spec:
     - name: docker-auth
       description: unused, should be removed in next task version.
       default: ""
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -56,6 +64,11 @@ spec:
             echo "$arch_sha" > /tekton/home/image-manifest-$arch.sha
           done
         fi
+      volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
     - name: get-vulnerabilities
       image: quay.io/redhat-appstudio/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
       imagePullPolicy: Always
@@ -90,6 +103,11 @@ spec:
         # add the image_index to the processed digests list and store the result in a file
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
         echo "$images_processed" > /tekton/home/images-processed.json
+      volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -175,3 +193,11 @@ spec:
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
         TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
         echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.ca-trust-config-map-name)
+      items:
+        - key: $(params.ca-trust-config-map-key)
+          path: ca-bundle.crt
+      optional: true
