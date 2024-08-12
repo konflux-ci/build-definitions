@@ -170,8 +170,6 @@ spec:
       value: $(params.BUILDER_IMAGE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
-    - name: ACTIVATION_KEY
-      value: $(params.ACTIVATION_KEY)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: BUILD_ARGS_FILE
@@ -202,6 +200,8 @@ spec:
     image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
     name: build
     script: |-
+      #!/bin/bash
+      set -e
       set -o verbose
       mkdir -p ~/.ssh
       if [ -e "/ssh/error" ]; then
@@ -370,15 +370,13 @@ spec:
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
-      # do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
-      # when activation keys are used, an empty directory on shared emptydir volume to /etc/pki/entitlement to prevent certificates from being included in the produced container.
-
-      if [ -d "$ACTIVATION_KEY_PATH" ]; then
+      if [ -e /activation-key/org ]; then
         cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
         mkdir /shared/rhsm-tmp
         VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z"
         echo "Adding activation key to the build"
-      elif [ -d "$ENTITLEMENT_PATH" ]; then
+
+      elif find /entitlement -name "*.pem" >> null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
         echo "Adding the entitlement to the build"
@@ -442,7 +440,6 @@ spec:
        -e TARGET_STAGE="$TARGET_STAGE" \
        -e PARAM_BUILDER_IMAGE="$PARAM_BUILDER_IMAGE" \
        -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-       -e ACTIVATION_KEY="$ACTIVATION_KEY" \
        -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
        -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
        -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
