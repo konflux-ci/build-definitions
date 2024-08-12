@@ -13,6 +13,14 @@ spec:
     - name: IMAGE_DIGEST
       description: Image digest.
       type: string
+    - name: CA_TRUST_CONFIG_MAP_NAME
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   results:
     - description: Tekton task test output.
       name: TEST_OUTPUT
@@ -31,6 +39,10 @@ spec:
     volumeMounts:
       - mountPath: /shared
         name: shared
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
     env:
       - name: IMAGE_URL
         value: $(params.IMAGE_URL)
@@ -114,3 +126,10 @@ spec:
   volumes:
   - name: shared
     emptyDir: {}
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true
