@@ -205,7 +205,8 @@ spec:
         # ->  https://registry.com/v2/namespace/repo/blobs/sha256:digest
         blob_url=$(sed -E 's;([^/]*)/(.*)@(.*);https://\1/v2/\2/blobs/\3;' <<< "$blob_ref")
 
-        local tmp_dest=$(mktemp --tmpdir)
+        local tmp_dest
+        tmp_dest=$(mktemp --tmpdir download-sbom-task.out.XXXXXX)
 
         local headers_file
         headers_file=$(mktemp --tmpdir download-sbom-task.headers.XXXXXX)
