@@ -51,6 +51,14 @@ spec:
       type: string
       description: Timeout setting for `ec validate`.
       default: "5m0s"
+    - name: CA_TRUST_CONFIGMAP_NAME
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: "trusted-ca"
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: "ca-bundle.crt"
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
@@ -75,6 +83,10 @@ spec:
           value: "true"
         - name: TIMEOUT
           value: "$(params.TIMEOUT)"
+        - name: CA_TRUST_CONFIGMAP_NAME
+          value: "$(params.CA_TRUST_CONFIGMAP_NAME)"
+        - name: CA_TRUST_CONFIG_MAP_KEY
+          value: "$(params.CA_TRUST_CONFIG_MAP_KEY)"
       taskRef:
         resolver: bundles
         params:
