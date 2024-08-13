@@ -108,10 +108,15 @@
 - op: add
   # In the docker-build Pipeline, the snyk Task does not receive any parameters, so we cannot
   # append to it.
-  path: /spec/tasks/8/params
+  path: /spec/tasks/8/params/-
   value:
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/8/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/8/workspaces/0
 

@@ -1,4 +1,3 @@
----
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -6,37 +5,15 @@ metadata:
     app.kubernetes.io/version: "0.2"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "appstudio, hacbs"
-  name: sast-snyk-check-oci-ta
+    tekton.dev/tags: "konflux"
+  name: sast-snyk-check
 spec:
   description: >-
-    Scans source code for security vulnerabilities, including common issues such as SQL injection,
-    cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application
-    Security Testing (SAST) tool.
-
-
-    Follow the steps given
-    [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)
-    to obtain a snyk-token and to enable the snyk task in a Pipeline.
-
-
-    The snyk binary used in this Task comes from a container image defined in
-    https://github.com/konflux-ci/konflux-test
-
-
-    See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information about the snyk
-    tool.
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
   results:
     - description: Tekton task test output.
       name: TEST_OUTPUT
   params:
-    - name: SOURCE_ARTIFACT
-      type: string
-      description: The Trusted Artifact URI pointing to the artifact with the application source code.
-    - name: CACHI2_ARTIFACT
-      description: The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.
-      type: string
-      default: ""
     - name: SNYK_SECRET
       description: Name of secret which contains Snyk token.
       default: snyk-secret
@@ -44,27 +21,27 @@ spec:
       type: string
       description: Append arguments.
       default: "--all-projects --exclude=test*,vendor,deps"
+    - description: Image URL.
+      name: image-url
+      type: string
+      # In a future 0.2 version of the task, drop the default to make this required
+      default: ""
+    - description: Image digest to report findings for.
+      name: image-digest
+      type: string
+      # In a future 0.2 version of the task, drop the default to make this required
+      default: ""
   volumes:
     - name: snyk-secret
       secret:
         secretName: $(params.SNYK_SECRET)
         optional: true
-    - name: workdir
-      emptyDir: {}
-  stepTemplate:
-    volumeMounts:
-      - mountPath: /var/workdir
-        name: workdir
   steps:
-    - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:placeholder
-      args:
-        - use
-        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: sast-snyk-check
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.0@sha256:54d49b37c9a2e280d42961a57e4f7a16c171d6b065559f1329b548db85300bea
-      workingDir: /var/workdir/source
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       volumeMounts:
         - name: snyk-secret
           mountPath: "/etc/secrets"
@@ -95,7 +72,9 @@ spec:
         fi
 
         SNYK_EXIT_CODE=0
-        SOURCE_CODE_DIR=/var/workdir/source
+        SOURCE_CODE_DIR=$(workspaces.workspace.path)
+        # shellcheck disable=SC2086
+        # We do want to expand ARGS (it can be multiple CLI flags, not just one)
         snyk code test $ARGS "$SOURCE_CODE_DIR" --max-depth=1 --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
@@ -117,3 +96,35 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:f4b891ee3038a5f13cd92ff4f473faad5601c2434d1c6b9bccdfc134d9d5f820
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      script: |
+        #!/usr/bin/env bash
+
+        UPLOAD_FILE=sast_snyk_check_out.json
+        MEDIA_TYPE=application/sarif+json
+
+        if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}"  ]; then
+          echo 'No image-url or image-digest param provided. Skipping upload.'
+          exit 0;
+        fi
+
+        if [ ! -f "${UPLOAD_FILE}" ]; then
+          echo "No ${UPLOAD_FILE} exists. Skipping upload."
+          exit 0;
+        fi
+
+        echo "Selecting auth"
+        select-oci-auth $IMAGE_URL > $HOME/auth.json
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-api --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers Tag"
+        oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-tag --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+  workspaces:
+  - name: workspace
