@@ -2,7 +2,7 @@ module github.com/konflux-ci/build-definitions/task-generator
 
 go 1.22.0
 
-toolchain go1.22.6
+toolchain go1.23.0
 
 require (
 	github.com/tektoncd/pipeline v0.62.1
