@@ -19,6 +19,14 @@ spec:
     - name: docker-auth
       description: unused, should be removed in next task version.
       default: ""
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -26,6 +34,12 @@ spec:
       description: Clair scan result.
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
   steps:
     - name: get-image-manifests
       image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
@@ -196,3 +210,11 @@ spec:
         note="Task $(context.task.name) completed: Refer to Tekton task result CLAIR_SCAN_RESULT for vulnerabilities scanned by Clair."
         TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
         echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.ca-trust-config-map-name)
+      items:
+        - key: $(params.ca-trust-config-map-key)
+          path: ca-bundle.crt
+      optional: true

@@ -151,7 +151,7 @@ fi
 chmod 0400 ~/.ssh/id_rsa
 export SSH_HOST=$(cat /ssh/host)
 export BUILD_DIR=$(cat /ssh/user-dir)
-export SSH_ARGS="-o StrictHostKeyChecking=no"
+export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
 mkdir -p scripts
 echo "$BUILD_DIR"
 ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"

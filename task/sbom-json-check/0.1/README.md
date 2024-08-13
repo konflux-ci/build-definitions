@@ -8,10 +8,12 @@ The syntax of the sbom-cyclonedx.json file (found in the `/root/buildinfo/conten
 
 ## Params:
 
-| name         | description                           |
-|--------------|---------------------------------------|
-| IMAGE_URL    | Fully qualified image name to verify. |
-| IMAGE_DIGEST | Image digest.                         |
+| name                     | description                                                            | default       |
+|--------------------------|------------------------------------------------------------------------|---------------|
+| IMAGE_URL                | Fully qualified image name to verify.                                  | None          |
+| IMAGE_DIGEST             | Image digest.                                                          | None          |
+| CA_TRUST_CONFIG_MAP_NAME | The name of the ConfigMap to read CA bundle data from.                 | trusted-ca    |
+| CA_TRUST_CONFIG_MAP_KEY  | The name of the key in the ConfigMap that contains the CA bundle data. | ca-bundle.crt |
 
 ## Results:
 
