@@ -423,8 +423,8 @@ spec:
     securityContext:
       runAsUser: 0
 
-  - name: merge-syft-sboms
-    image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
+  - name: prepare-sboms
+    image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:064eeec1cfb75abd21b533bf0d9870a7a3fb138f30192596dce28061798cbf06
     computeResources:
       limits:
         memory: 512Mi
@@ -433,95 +433,20 @@ spec:
         memory: 256Mi
         cpu: 100m
     script: |
-      #!/bin/python3
-      import json
+      echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
+      python3 /scripts/merge_syft_sboms.py
 
-      # load SBOMs
-      with open("./sbom-image.json") as f:
-        image_sbom = json.load(f)
-
-      with open("./sbom-source.json") as f:
-        source_sbom = json.load(f)
-
-      # fetch unique components from available SBOMs
-      def get_identifier(component):
-        return component["name"] + '@' + component.get("version", "")
-
-      image_sbom_components = image_sbom.setdefault("components", [])
-      existing_components = [get_identifier(component) for component in image_sbom_components]
-
-      source_sbom_components = source_sbom.get("components", [])
-      for component in source_sbom_components:
-        if get_identifier(component) not in existing_components:
-          image_sbom_components.append(component)
-          existing_components.append(get_identifier(component))
-
-      image_sbom_components.sort(key=lambda c: get_identifier(c))
-
-      # write the CycloneDX unified SBOM
-      with open("./sbom-cyclonedx.json", "w") as f:
-        json.dump(image_sbom, f, indent=4)
-    workingDir: $(workspaces.source.path)
-    securityContext:
-      runAsUser: 0
-
-  - name: merge-cachi2-sbom
-    image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
-    script: |
       if [ -f "sbom-cachi2.json" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-        merge_syft_sbom sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
+        python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
-      else
-        echo "Skipping step since no Cachi2 SBOM was produced"
       fi
-    workingDir: $(workspaces.source.path)
-    securityContext:
-      runAsUser: 0
 
-  - name: create-purl-sbom
-    image: registry.access.redhat.com/ubi9/python-39:1-192.1722518946@sha256:0176b477075984d5a502253f951d2502f0763c551275f9585ac515b9f241d73d
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
-    script: |
-      #!/bin/python3
-      import json
+      echo "Creating sbom-purl.json"
+      python3 /scripts/create_purl_sbom.py
 
-      with open("./sbom-cyclonedx.json") as f:
-        cyclonedx_sbom = json.load(f)
-
-      purls = [{"purl": component["purl"]} for component in cyclonedx_sbom.get("components", []) if "purl" in component]
-      purl_content = {"image_contents": {"dependencies": purls}}
-
-      with open("sbom-purl.json", "w") as output_file:
-        json.dump(purl_content, output_file, indent=4)
-    workingDir: $(workspaces.source.path)
-    securityContext:
-      runAsUser: 0
-
-  - name: create-base-images-sbom
-    image: quay.io/redhat-appstudio/base-images-sbom-script@sha256:667669e3def018f9dbb8eaf8868887a40bc07842221e9a98f6787edcff021840
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
-    script: |
-      python3 /app/base_images_sbom_script.py \
+      echo "Adding base images data to sbom-cyclonedx.json"
+      python3 /scripts/base_images_sbom_script.py \
         --sbom=sbom-cyclonedx.json \
         --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
         --base-images-digests=/shared/base_images_digests
