@@ -82,7 +82,7 @@
 |IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 |IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### sast-snyk-check:0.1 task parameters
+### sast-snyk-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| --all-projects --exclude=test*,vendor,deps| |
@@ -143,7 +143,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### sast-snyk-check:0.1 task results
+### sast-snyk-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -155,16 +155,16 @@
 ### tkn-bundle:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| clair-scan:0.1:image-digest ; sast-snyk-check:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| clair-scan:0.1:image-digest ; sast-snyk-check:0.2:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
+|IMAGE_URL| Image repository where the built image was pushed with tag only| clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-snyk-check:0.1:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-snyk-check:0.2:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -182,7 +182,7 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
-### sast-snyk-check:0.1 task workspaces
+### sast-snyk-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|

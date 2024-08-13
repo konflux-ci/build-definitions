@@ -133,14 +133,15 @@
 |IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### sast-snyk-check-oci-ta:0.1 task parameters
+### sast-snyk-check-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| --all-projects --exclude=test*,vendor,deps| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|image-digest| Image digest to report findings for.| | |
-|image-url| Image URL.| | |
+|image-digest| Image digest to report findings for.| | '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| | '$(tasks.build-container.results.IMAGE_URL)'|
 ### sbom-json-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -175,9 +176,9 @@
 ### buildah-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; sbom-json-check:0.1:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST|
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
+|IMAGE_URL| Image repository where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; sbom-json-check:0.1:IMAGE_URL ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
@@ -215,13 +216,13 @@
 ### prefetch-dependencies-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.2:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.1:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.2:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.2:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.2:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
 ### push-dockerfile-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### sast-snyk-check-oci-ta:0.1 task results
+### sast-snyk-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
