@@ -17,6 +17,12 @@ spec:
         Directory containing kustomize bases in a "bases" dir and a
         kustomization.yaml for operator-framework manifests
       default: ""
+    - name: extra-service-accounts
+      description: >
+        Comma-seperated list of service account names, outside of the
+        operator's Deployment account, that have bindings to {Cluster}Roles
+        that should be added to the CSV
+      default: ""
     - name: version
       description: Semantic version of the operator in the generated bundle
     - name: package-name
@@ -44,3 +50,5 @@ spec:
         - $(params.package-name)
         - --kustomize-dir
         - $(params.kustomize-dir)
+        - --extra-service-accounts
+        - $(params.extra-service-accounts)
