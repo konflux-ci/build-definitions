@@ -1,0 +1,15 @@
+name: Validate PR - check task owners
+'on':
+  pull_request:
+    branches: [main]
+jobs:
+  check:
+    name: Check Task OWNERS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Check task owners
+        run: |
+          ./hack/check-task-owners.sh
