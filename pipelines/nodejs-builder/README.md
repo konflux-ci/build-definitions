@@ -47,6 +47,8 @@
 ### ecosystem-cert-preflight-checks:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|

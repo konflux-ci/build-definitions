@@ -6,9 +6,11 @@ The ecosystem-cert-preflight-checks task checks an image for certification readi
 
 ## Params:
 
-| name         | description                                                    |
-|--------------|----------------------------------------------------------------|
-| image-url    | Image URL.                                                     |
+| name                     | description                                                            | default       |
+|--------------------------|------------------------------------------------------------------------|---------------|
+| image-url                | Image URL.                                                             | None          |
+| ca-trust-config-map-name | The name of the ConfigMap to read CA bundle data from.                 | trusted-ca    |
+| ca-trust-config-map-key  | The name of the key in the ConfigMap that contains the CA bundle data. | ca-bundle.crt |
 
 ## Results:
 
