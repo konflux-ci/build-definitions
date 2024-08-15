@@ -288,14 +288,12 @@ spec:
 
         BUILDAH_ARGS=()
 
-        BASE_IMAGES=$(grep -i '^\s*FROM' "$dockerfile_path" | sed 's/--platform=\S*//' | awk '{print $2}' | (grep -v ^oci-archive: || true))
+        BASE_IMAGES=$(dockerfile-json "$dockerfile_path" | jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName')
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
           UNSHARE_ARGS="--net"
           for image in $BASE_IMAGES; do
-            if [ "${image}" != "scratch" ]; then
-              unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
-            fi
+            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
           done
           echo "Build will be executed with network isolation"
         fi
@@ -415,9 +413,7 @@ spec:
 
         touch /shared/base_images_digests
         for image in $BASE_IMAGES; do
-          if [ "${image}" != "scratch" ]; then
-            buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >>/shared/base_images_digests
-          fi
+          buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >>/shared/base_images_digests
         done
 
         # Needed to generate base images SBOM
