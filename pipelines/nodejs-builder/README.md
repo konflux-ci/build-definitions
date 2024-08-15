@@ -31,6 +31,8 @@
 ### clamav-scan:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |docker-auth| unused| | |
 |image-digest| Image digest to scan.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
