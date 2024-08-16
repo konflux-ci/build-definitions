@@ -1,29 +1,26 @@
 #!/usr/bin/env bash
 
 set -o errexit
+set -o errtrace
 set -o nounset
 set -o pipefail
 set -o posix
 
 shopt -s globstar nullglob
 
+command -v go &> /dev/null || { echo Please install golang to run this tool; exit 1; }
+[[ "$(go env GOVERSION)" == @(go1|go1.[1-9]+(|.*|rc*|beta*)|go1.1[0-9]+(|.*|rc*|beta*)|go1.20*) ]] && { echo Please install golang 1.21.0 or newer; exit 1; }
+
 HACK_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 TASK_DIR="$(realpath "${ROOT_DIR}/task")"
 
-if ! command -v tash &> /dev/null; then
-  echo INFO: tash command is not available will download and use the latest version
-  tash_dir="$(mktemp -d)"
-  trap 'rm -rf ${tash_dir}' EXIT
-  tash_url=https://github.com/enterprise-contract/hacks/releases/download/latest/tash
-  echo INFO: downloading from ${tash_url} to "${tash_dir}"
-  curl --no-progress-meter --location --output "${tash_dir}/tash" "${tash_url}"
-  echo INFO: SHA256: "$(sha256sum "${tash_dir}/tash")"
-  chmod +x "${tash_dir}/tash"
-  tash() {
-    "${tash_dir}/tash" "$@"
-  }
-fi
+tashbin="$(mktemp --dry-run)"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${ROOT_DIR}/ta-generator/" -o "${tashbin}"
+trap 'rm "${tashbin}"' EXIT
+tash() {
+  "${tashbin}" "$@"
+}
 
 declare -i changes=0
 emit() {
@@ -44,7 +41,8 @@ fi
 cd "${TASK_DIR}"
 for recipe_path in **/recipe.yaml; do
     task_path="${recipe_path%/recipe.yaml}/$(basename "${recipe_path%/*/*}").yaml"
-    cat <<< "$(tash "${recipe_path}")" > "${task_path}"
+    sponge=$(tash "${TASK_DIR}/${recipe_path}")
+    echo "${sponge}" > "${task_path}"
     readme_path="${recipe_path%/recipe.yaml}/README.md"
     "${HACK_DIR}/generate-readme.sh" "${task_path}" > "${readme_path}"
     if ! git diff --quiet HEAD "${task_path}"; then

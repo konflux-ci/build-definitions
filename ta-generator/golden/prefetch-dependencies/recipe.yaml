@@ -1,0 +1,33 @@
+---
+add:
+  - use-source
+  - create-source
+  - create-cachi2
+additionalSteps:
+  - at: 0
+    name: skip-ta
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.3-1612@sha256:119ac25920c8bb50c8b5fd75dcbca369bf7d1f702b82f3d39663307890f0bf26
+    env:
+    - name: INPUT
+      value: $(params.input)
+    - name: SOURCE_ARTIFACT
+      value: $(params.SOURCE_ARTIFACT)
+    script: |
+      if [ -z "${INPUT}" ]; then
+        mkdir -p /var/workdir/source
+        mkdir -p /var/workdir/cachi2
+        echo "true" > /var/workdir/source/.skip-trusted-artifacts
+        echo "true" > /var/workdir/cachi2/.skip-trusted-artifacts
+        echo -n "${SOURCE_ARTIFACT}" > $(results.SOURCE_ARTIFACT.path)
+        echo -n "" > $(results.CACHI2_ARTIFACT.path)
+      fi
+description: |-
+    Task that uses Cachi2 to prefetch build dependencies. The fetched dependencies and the
+    application source code are stored as a trusted artifact in the provided OCI repository.
+    For additional info on Cachi2, see docs at
+    https://github.com/containerbuildsystem/cachi2#basic-usage.
+preferStepTemplate: true
+removeWorkspaces:
+  - source
+replacements:
+  workspaces.source.path: /var/workdir

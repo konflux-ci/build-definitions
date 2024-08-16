@@ -6,27 +6,39 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path:
+          - task-generator
+          - ta-generator
     steps:
       - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
         with:
-          go-version-file: './task-generator/go.mod'
+          go-version-file: './${{matrix.path}}/go.mod'
+          cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
         uses: golangci/golangci-lint-action@e13590484647602042886c51e2a8e43a670a22b7
         with:
-          working-directory: task-generator
+          working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
   go:
     name: Check sources
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path:
+          - task-generator
+          - ta-generator
     steps:
       - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - name: Install Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
         with:
-          go-version-file: './task-generator/go.mod'
+          go-version-file: './${{matrix.path}}/go.mod'
+          cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: Check go mod status
-        working-directory: task-generator
+        working-directory: ${{matrix.path}}
         run: |
           go mod tidy
           if [[ ! -z $(git status -s) ]]
@@ -36,7 +48,7 @@ jobs:
             exit 1
           fi
       - name: Check format
-        working-directory: task-generator
+        working-directory: ${{matrix.path}}
         run: |
           go fmt ./...
 
@@ -46,21 +58,31 @@ jobs:
             git --no-pager diff
             exit 1
           fi
+      - name: Tests
+        working-directory: ${{matrix.path}}
+        run: |
+          go test ./...
 
   security_scan:
     name: Security scan
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        path:
+          - task-generator
+          - ta-generator
     steps:
       - uses: actions/checkout@9a9194f87191a7e9055e3e9b95b8cfb13023bb08
       - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
         with:
-          go-version-file: './task-generator/go.mod'
+          go-version-file: './${{matrix.path}}/go.mod'
+          cache-dependency-path: ./${{matrix.path}}/go.sum
       # https://github.com/securego/gosec/blob/12be14859bc7d4b956b71bef0b443694aa519d8a/README.md#integrating-with-code-scanning
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
           # we let the report trigger content trigger a failure using the GitHub Security features.
-          args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ./...'
+          args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@9c646c24a4c8410122b0d6a1311088e9377eea95
         with:
