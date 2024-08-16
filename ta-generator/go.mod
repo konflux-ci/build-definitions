@@ -4,7 +4,7 @@ go 1.22.3
 
 require (
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.19.1
+	github.com/google/go-containerregistry v0.20.2
 	github.com/tektoncd/pipeline v0.60.1
 	github.com/zregvart/tkn-fmt v0.0.0-20240613172239-ba04662da674
 	k8s.io/api v0.30.1
@@ -23,9 +23,8 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/cli v24.0.7+incompatible // indirect
+	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
-	github.com/docker/docker v26.0.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
