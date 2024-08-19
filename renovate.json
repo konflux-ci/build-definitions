@@ -84,7 +84,7 @@
       "customType": "regex",
       "fileMatch": ["^task/[\\w-]+/[0-9.]+/[\\w-]\\.yaml$"],
       "matchStrings": [
-        "value: (?<depName>quay\\.io/konflux-ci/buildah):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})"
+        "value: (?<depName>quay\\.io/konflux-ci/buildah[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "value: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
