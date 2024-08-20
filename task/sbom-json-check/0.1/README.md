@@ -1,5 +1,9 @@
 # sbom-json-check task
 
+## Deprecation notice
+
+This task is deprecated, please remove it from you pipeline.
+
 ## Description:
 
 The sbom-json-check task verifies the integrity and security of a Software Bill of Materials (SBOM) file in JSON format using the CyloneDX tool.
