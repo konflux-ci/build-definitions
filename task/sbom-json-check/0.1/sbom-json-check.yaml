@@ -3,6 +3,8 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: sbom-json-check
+  annotations:
+    build.appstudio.redhat.com/expires-on: 2025-09-30T00:00:00Z
 spec:
   description: >-
     Verifies the integrity and security of the Software Bill of Materials (SBOM) file in JSON format using CyloneDX tool.
@@ -52,6 +54,7 @@ spec:
       #!/usr/bin/env bash
       set -euo pipefail
       source /utils.sh
+      echo "[WARNING]: !!!DEPRECATED!!! - sbom-json-check task is going to be removed in near future, please remove it from your pipeline. (Deprecation date: 2024-09-30)"
       trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
       images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
