@@ -1,11 +1,11 @@
 # fbc-validation task
 
 ## Description:
-The fbc-validation task will ensure FBC (File based catalog) components uniquely linted to ensure they're properly
-constructed as part of the build pipeline. To validate the image in build pipeline, Skopeo is used to extract
-information from the image itself and then contents are checked using the OpenShift Operator Framework.  The binary
-used to run the validation is extracted from the base image for the component being tested.  Because of this, the
-base image must come from a trusted source.  Trusted sources are declared in `ALLOWED_BASE_IMAGES` in fbc-validation.yaml.
+Ensures file-based catalog (FBC) components are uniquely linted for proper construction as part of build pipeline.
+
+For further information on how to use the task, see the USAGE.md file.
+
+For troubleshooting assistance, see the TROUBLESHOOTING.md file.
 
 ## Params:
 
