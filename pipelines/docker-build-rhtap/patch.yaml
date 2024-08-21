@@ -9,7 +9,7 @@
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
 # Remove unused parameters from the template
-# yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
+# $ yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
 #      0  git-url
 #      1  revision
 #      2  output-image
@@ -19,17 +19,14 @@
 #      6  skip-checks
 #      7  hermetic
 #      8  prefetch-input
-#      9  java
-#     10  image-expires-after
-#     11  build-source-image
-#     12  build-image-index
+#      9  image-expires-after
+#     10  build-source-image
+#     11  build-image-index
 
 - op: remove
-  path: /spec/params/12  # build-image-index
+  path: /spec/params/11  # build-image-index
 - op: remove
-  path: /spec/params/11  # build-source-image
-- op: remove
-  path: /spec/params/9  # java
+  path: /spec/params/10  # build-source-image
 - op: remove
   path: /spec/params/8  # prefetch-input
 - op: remove
