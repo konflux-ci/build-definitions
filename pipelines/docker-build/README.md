@@ -10,7 +10,6 @@
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.2:HERMETIC|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.2:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|java| Java build| false| |
 |output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.2:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.1:BINARY_IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT ; push-dockerfile:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input ; build-container:0.2:PREFETCH_INPUT|
@@ -180,7 +179,6 @@
 |CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
-|JAVA_COMMUNITY_DEPENDENCIES| |$(tasks.build-container.results.JAVA_COMMUNITY_DEPENDENCIES)|
 ## Available results from tasks
 ### build-image-index:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
