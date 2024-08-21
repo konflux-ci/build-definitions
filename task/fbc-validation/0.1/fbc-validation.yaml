@@ -10,8 +10,6 @@ metadata:
 spec:
   description: >-
     Ensures file-based catalog (FBC) components are uniquely linted for proper construction as part of build pipeline.
-    The manifest data of container images obtained previously (via Skopeo) from inspect-image task is checked using OpenShift Operator Framework's opm CLI tool.
-    The opm binary is extracted from the container's base image, which must come from a trusted source.
   params:
     - name: IMAGE_URL
       description: Fully qualified image name.
@@ -62,7 +60,7 @@ spec:
 
         ### FBC base image check
         if [ -z "${BASE_IMAGE}" ]; then
-          echo "Base image is uknown. The file-based catalog must have base image defined. Check inspect-image task log."
+          echo "Base image is unknown. The file-based catalog must have base image defined. Check inspect-image task log."
           note="Task $(context.task.name) failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
@@ -87,7 +85,6 @@ spec:
           echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
           exit 0
         fi
-
 
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         if [ ! -s ../inspect-image/image_inspect.json ]; then
@@ -152,29 +149,85 @@ spec:
         echo "OPM_BINARY: '${OPM_BINARY}'"
         chmod 775 "$OPM_BINARY"
 
-        # We have totally 3 checks here currently
-        check_num=3
+        # We have 6 total checks
+        check_num=6
         failure_num=0
         TESTPASSED=true
 
         if [[ ! $(find . -name "grpc_health_probe") ]]; then
           echo "!FAILURE! - grpc_health_probe binary presence check failed."
-          failure_num=`expr $failure_num + 1`
+          failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
+
         if ! ${OPM_BINARY} validate ."${conffolder}"; then
           echo "!FAILURE! - opm validate check failed."
-          failure_num=`expr $failure_num + 1`
+          failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
-        if ${OPM_BINARY} render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1'; then
+
+        OPM_RENDERED_CATALOG=/tmp/catalog.json
+        ${OPM_BINARY} render ."${conffolder}" > ${OPM_RENDERED_CATALOG}
+        if [ ! -f ${OPM_RENDERED_CATALOG} ]; then
+          echo "!FAILURE! - unable to render the fragment FBC."
+          failure_num=$((failure_num + 1))
+          TESTPASSED=false
+        fi
+
+        if jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1' ${OPM_RENDERED_CATALOG}; then
           echo "!FAILURE! - There are no olm package entries defined in this FBC fragment."
-          failure_num=`expr $failure_num + 1`
+          failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
+
+        OCP_VER_FROM_BASE=$(echo "${BASE_IMAGE}" | sed "s/@.*$//" | sed "s/^.*://")   # strips hash first due to greedy match
+        OCP_VER_MAJOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 1)
+        OCP_VER_MINOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 2)
+        OCP_BUNDLE_METADATA_THRESHOLD_MAJOR=4
+        OCP_BUNDLE_METADATA_THRESHOLD_MINOR=17
+        OCP_BUNDLE_METADATA_FORMAT="olm.bundle.object"
+
+        if [[ "${OCP_VER_MAJOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MAJOR}" ]] && [[ "${OCP_VER_MINOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MINOR}" ]]; then
+           OCP_BUNDLE_METADATA_FORMAT="olm.csv.metadata"
+        fi
+
+        # enforce the presence of either olm.csv.metadata or olm.bundle.object based on OCP version
+        if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
+          if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
+            echo "!FAILURE! - olm.bundle.object bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must move to olm.csv.metadata bundle metadata."
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        else
+          if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
+            echo "!FAILURE! - olm.csv.metadata bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must only use olm.bundle.object bundle metadata."
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        fi
+
+        # enforce that each bundle has the OCP-version-appropriate bundle metadata.
+        BUNDLE_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema=="olm.bundle"))' ${OPM_RENDERED_CATALOG})
+        BUNDLE_BO_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object"))' ${OPM_RENDERED_CATALOG})
+        BUNDLE_CM_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata"))' ${OPM_RENDERED_CATALOG})
+
+        if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
+          if [[ "${BUNDLE_COUNT}" -ne "${BUNDLE_CM_COUNT}" ]]; then
+            echo "!FAILURE! - every olm.bundle object in the fragment must have a corresponding olm.csv.metadata bundle property"
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        else
+          if [[ "${BUNDLE_BO_COUNT}" -lt "${BUNDLE_COUNT}" ]]; then
+            echo "!FAILURE! - every olm.bundle object in the fragment must have at least one olm.bundle.object bundle property"
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        fi
+
         note="Task $(context.task.name) completed: Check result for task result."
         if [ $TESTPASSED == false ]; then
-          ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s `expr $check_num - $failure_num` -t "$note")
+          ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
           echo "${ERROR_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
         else
           TEST_OUTPUT=$(make_result_json -r SUCCESS -s $check_num -t "$note")
