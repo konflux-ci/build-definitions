@@ -74,7 +74,7 @@ spec:
         yq 'del(.goproxy_url)' <<< "${CONFIG_FILE_CONTENT}" > /mnt/config/config.yaml
       fi
 
-  - image: quay.io/redhat-appstudio/cachi2:0.9.1@sha256:df67f9e063b544a8c49a271359377fed560562615e0278f6d0b9a3485f3f8fad
+  - image: quay.io/bcook/cachi2@sha256:cd0ee8284eb41838071e7987644fcfe05cef77f89ac426c14a2fa4ed5bd1b5ac
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: prefetch-dependencies
@@ -146,7 +146,27 @@ spec:
         update-ca-trust
       fi
 
-      cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+      cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+      ACTIVATION_KEY_PATH="/activation-key"
+      if [ -d "$ACTIVATION_KEY_PATH" ]; then
+          echo "Detected activation key, registering with RHSM."
+        
+          # todo: make sure orgid key is consistent with buildah task and docs
+          subscription-manager register \
+            --org $(cat "/activation-key/orgid") \
+            --activationkey $(cat "/activation-key/activationkey")
+
+          # detect entitlement certs and setup environment variables
+          ls /etc/pki/entitlement/
+
+          export RHSM_ID=$(ls /etc/pki/entitlement/ | grep key | cut -d - -f 1)
+          echo $RHSM_ID
+          export C2_CLIENT_CERT="/etc/pki/entitlement/$RHSM_ID.pem"
+          export C2_CLIENT_KEY="/etc/pki/entitlement/$RHSM_ID-key.pem"
+          echo "Using client certificate $C2_CLIENT_CERT and key $C2_CLIENT_KEY."
+        fi
+
+      
       $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
       --output=$(workspaces.source.path)/cachi2/output \
