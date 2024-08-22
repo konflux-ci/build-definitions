@@ -23,9 +23,8 @@
 #   8  ecosystem-cert-preflight-checks
 #   9  sast-snyk-check
 #  10  clamav-scan
-#  11  sbom-json-check
-#  12  apply-tags
-#  13  push-dockerfile
+#  11  apply-tags
+#  12  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -114,7 +113,7 @@
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: add
-  path: /spec/tasks/8/params/-
+  path: /spec/tasks/9/params/-
   value:
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
@@ -123,15 +122,15 @@
 
 # push-dockerfile
 - op: replace
-  path: /spec/tasks/13/taskRef/name
+  path: /spec/tasks/12/taskRef/name
   value: push-dockerfile-oci-ta
 - op: add
-  path: /spec/tasks/13/params/-
+  path: /spec/tasks/12/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: remove
-  path: /spec/tasks/13/workspaces/0
+  path: /spec/tasks/12/workspaces/0
 
 # Order of finally Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0
