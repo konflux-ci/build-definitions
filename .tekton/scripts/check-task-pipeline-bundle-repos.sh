@@ -59,7 +59,7 @@ done
 # pipelines
 pl_names=($(oc kustomize pipelines/ | yq -o json '.metadata.name' | jq -r))
 # Currently, only one pipeline for core services CI
-pl_names=($(oc kustomize pipelines/core-services/ | yq -o json '"core-services-" + .metadata.name' | jq -r))
+pl_names+=($(oc kustomize pipelines/core-services/ | yq -o json '"core-services-" + .metadata.name' | jq -r))
 for pl_name in ${pl_names[@]}; do
     if ! locate_in_all_namespaces pipeline "$pl_name"; then
         has_missing_repo=yes
