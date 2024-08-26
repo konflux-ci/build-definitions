@@ -59,16 +59,41 @@ spec:
       type: string
       description: The name of the key in the ConfigMap that contains the CA bundle data.
       default: "ca-bundle.crt"
+    - name: SINGLE_COMPONENT
+      type: string
+      description: Reduce the Snapshot to only the component whose build caused the Snapshot to be created
+      default: "false"
+    - name: PIPELINERUN_ID
+      type: string
+      description: PipelineRun ID
+      default: "$(context.pipelineRun.name)"
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
   tasks:
+    - name: reduce-snapshot-to-single-component
+      params:
+        - name: SNAPSHOT
+          value: "$(params.SNAPSHOT)"
+        - name: SINGLE_COMPONENT
+          value: "$(params.SINGLE_COMPONENT)"
+        - name: PIPELINERUN_ID
+          value: "$(params.PIPELINERUN_ID)"
+      taskRef:
+        resolver: bundles
+        params:
+          - name: bundle
+            value: quay.io/redhat-appstudio-tekton-catalog/task-reduce-snapshot-to-single-component:0.1@sha256:6a21312aba4d8df712b5b91d9971f8528fd4716e190969e38549c84a235c364f
+          - name: name
+            value: reduce-snapshot-to-single-component
+          - name: kind
+            value: task
     - name: verify
       params:
         - name: POLICY_CONFIGURATION
           value: "$(params.POLICY_CONFIGURATION)"
         - name: IMAGES
-          value: "$(params.SNAPSHOT)"
+          value: "$(tasks.reduce-snapshot-to-single-component.results.SNAPSHOT)"
         - name: SSL_CERT_DIR
           value: "$(params.SSL_CERT_DIR)"
         # It's confusing for users to see a passing taskrun that represents a failing EC test.
@@ -96,3 +121,5 @@ spec:
             value: verify-enterprise-contract
           - name: kind
             value: task
+      runAfter:
+        - reduce-snapshot-to-single-component
