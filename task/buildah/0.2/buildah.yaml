@@ -168,11 +168,9 @@ spec:
     name: build
     computeResources:
       limits:
-        memory: 8Gi
-        cpu: '4'
+        memory: 4Gi
       requests:
         memory: 2Gi
-        cpu: '1'
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -379,13 +377,6 @@ spec:
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
-    computeResources:
-      limits:
-        memory: 4Gi
-        cpu: '2'
-      requests:
-        memory: 1Gi
-        cpu: 500m
     script: |
       echo "Running syft on the source directory"
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
@@ -398,13 +389,6 @@ spec:
       name: shared
   - name: analyse-dependencies-java-sbom
     image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
     script: |
       if [ -f /var/lib/containers/java ]; then
         /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
@@ -422,13 +406,6 @@ spec:
 
   - name: prepare-sboms
     image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:53a3041dff341b7fd1765b9cc2c324625d19e804b2eaff10a6e6d9dcdbde3a91
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
     script: |
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
@@ -453,13 +430,6 @@ spec:
 
   - name: inject-sbom-and-push
     image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
-    computeResources:
-      limits:
-        memory: 4Gi
-        cpu: '4'
-      requests:
-        memory: 1Gi
-        cpu: '1'
     script: |
       #!/bin/bash
       set -e
@@ -537,13 +507,6 @@ spec:
       fi
 
       cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
