@@ -253,11 +253,15 @@ if ! [[ $IS_LOCALHOST ]]; then
 		//sync back results
 		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
-		ret += "\n  buildah pull \"oci:konflux-final-image:$IMAGE\""
-		ret += "\nelse\n  bash " + containerScript
-		ret += "\nfi"
-		ret += "\nbuildah images"
-		ret += "\ncontainer=$(buildah from --pull-never \"$IMAGE\")\nbuildah mount \"$container\" | tee /shared/container_path\necho $container > /shared/container_name"
+		ret += `
+  buildah pull "oci:konflux-final-image:$IMAGE"
+else
+  bash ` + containerScript + `
+fi
+buildah images
+container=$(buildah from --pull-never "$IMAGE")
+buildah mount "$container" | tee /shared/container_path
+echo $container > /shared/container_name`
 
 		for _, i := range strings.Split(ret, "\n") {
 			if strings.HasSuffix(i, " ") {
