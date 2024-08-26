@@ -396,6 +396,8 @@ spec:
 
         container=$(buildah from --pull-never $IMAGE)
         buildah mount $container | tee /shared/container_path
+        # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+        find $(cat /shared/container_path) -xtype l -delete
         echo $container >/shared/container_name
 
         # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
@@ -434,7 +436,6 @@ spec:
       script: |
         echo "Running syft on the source directory"
         syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
-        find $(cat /shared/container_path) -xtype l -delete
         echo "Running syft on the image filesystem"
         syft dir:$(cat /shared/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
     - name: analyse-dependencies-java-sbom
