@@ -167,8 +167,8 @@ spec:
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
-        if ! ${OPM_BINARY} render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) == 1'; then
-          echo "!FAILURE! - More than one olm.packages is not permitted in a FBC fragment."
+        if ${OPM_BINARY} render ."${conffolder}" | jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1'; then
+          echo "!FAILURE! - There are no olm package entries defined in this FBC fragment."
           failure_num=`expr $failure_num + 1`
           TESTPASSED=false
         fi
