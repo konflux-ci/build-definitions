@@ -30,12 +30,21 @@ spec:
       default: 'false'
       description: |
         When set to `"true"`, skip verifying the TLS certs of the Central endpoint. Defaults to `"false"`.
+    - name: gitops-auth-secret-name
+      type: string
+      default: gitops-auth-secret
+      description: |
+        Secret of basic-auth type containing credentials to clone the gitops repository.
   volumes:
     - name: repository
       emptyDir: {}
     - name: rox-secret
       secret:
         secretName: $(params.rox-secret-name)
+        optional: true
+    - name: gitops-auth-secret
+      secret:
+        secretName: $(params.gitops-auth-secret-name)
         optional: true
   steps:
     - name: annotate-task
@@ -55,6 +64,8 @@ spec:
           mountPath: /workspace/repository
         - name: rox-secret
           mountPath: /rox-secret
+        - name: gitops-auth-secret
+          mountPath: /gitops-auth-secret
       workingDir: /workspace/repository
       env:
         - name: PARAM_INSECURE_SKIP_TLS_VERIFY
@@ -64,6 +75,18 @@ spec:
       script: |
         #!/usr/bin/env bash
         set +x
+
+        # Check if credentials for cloning private repo are provided. Do nothing otherwise - probably public repo
+        if test -f /gitops-auth-secret/password ; then
+
+          password=$(cat /gitops-auth-secret/password)
+          if test -f /gitops-auth-secret/username ; then
+            username=$(cat /gitops-auth-secret/username)
+            HOSTNAME=$(echo "${PARAM_GITOPS_REPO_URL}" | awk -F/ '{print $3}')
+            echo "https://${username}:${password}@${HOSTNAME}" > "${HOME}/.git-credentials"
+          fi
+          echo -e "[credential \"https://${HOSTNAME}\"]\n  helper = store" > "${HOME}/.gitconfig"
+        fi
 
         # Check if rox API enpoint is configured
         if test -f /rox-secret/rox-api-endpoint ; then
