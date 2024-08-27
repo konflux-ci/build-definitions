@@ -420,6 +420,8 @@ spec:
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
       echo $container >/shared/container_name
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
@@ -485,6 +487,8 @@ spec:
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
       buildah mount "$container" | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
     securityContext:
       capabilities:
@@ -507,12 +511,11 @@ spec:
       readOnly: true
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/redhat-appstudio/syft:v0.105.1@sha256:1910b829997650c696881e5fc2fc654ddf3184c27edb1b2024e9cb2ba51ac431
+    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
     name: sbom-syft-generate
     script: |
       echo "Running syft on the source directory"
       syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
-      find $(cat /shared/container_path) -xtype l -delete
       echo "Running syft on the image filesystem"
       syft dir:$(cat /shared/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
     volumeMounts:
