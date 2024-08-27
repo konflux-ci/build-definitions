@@ -18,6 +18,7 @@
 ### acs-deploy-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|gitops-auth-secret-name| Secret of basic-auth type containing credentials to clone the gitops repository. | gitops-auth-secret| |
 |gitops-repo-url| URL of gitops repository to check.| None| '$(params.git-url)-gitops'|
 |insecure-skip-tls-verify| When set to `"true"`, skip verifying the TLS certs of the Central endpoint. Defaults to `"false"`. | false| 'true'|
 |rox-secret-name| Secret containing the StackRox server endpoint and API token with CI permissions under rox-api-endpoint and rox-api-token keys. For example: rox-api-endpoint: rox.stackrox.io:443 ; rox-api-token: eyJhbGciOiJS... | None| '$(params.stackrox-secret)'|
