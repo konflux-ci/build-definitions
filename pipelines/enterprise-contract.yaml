@@ -67,10 +67,10 @@ spec:
       type: string
       description: Reduce the Snapshot to only the component whose build caused the Snapshot to be created
       default: "false"
-    - name: PIPELINERUN_ID
+    - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
       type: string
       description: PipelineRun ID
-      default: "$(context.pipelineRun.name)"
+      default: "pr/$(context.pipelineRun.name)"
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
@@ -101,6 +101,10 @@ spec:
           value: "$(params.CA_TRUST_CONFIGMAP_NAME)"
         - name: CA_TRUST_CONFIG_MAP_KEY
           value: "$(params.CA_TRUST_CONFIG_MAP_KEY)"
+        - name: SINGLE_COMPONENT
+          value: "$(params.SINGLE_COMPONENT)"
+        - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
+          value: "$(params.SINGLE_COMPONENT_CUSTOM_RESOURCE)"
       taskRef:
         resolver: bundles
         params:
