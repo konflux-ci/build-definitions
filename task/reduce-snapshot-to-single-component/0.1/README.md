@@ -8,13 +8,13 @@ The use case for this reduction is based on the desire to have components that a
 regardless of any other Components within the Snapshot and Application. 
 
 ## Parameters
-| name            | description                                                                              | default value | required   |
-|-----------------|------------------------------------------------------------------------------------------|---------------|------------|
-| SNAPSHOT        | Snapshot to possibly reduce                                                              |               | true       |
-| SINGLE_COMPONENT | Reduce the Snapshot to only the component whose build caused the Snapshot to be created  | false         | false      |
-| PIPELINERUN_ID  | Name of current PipelineRun.                                                             |               | true       |
+| name              | description                                                                              | default value | required   |
+|-------------------|------------------------------------------------------------------------------------------|---------------|------------|
+| SNAPSHOT          | Snapshot to possibly reduce                                                              |               | true       |
+| SINGLE_COMPONENT  | Reduce the Snapshot to only the component whose build caused the Snapshot to be created  | false         | false      |
+| PIPELINERUN_ID    | Name of current PipelineRun.                                                             |               | true       |
 
 ## Results
-| name     | description        |
-|----------|--------------------|
-| SNAPSHOT | Resulting Snapshot |
+| name          | description                                  |
+|---------------|----------------------------------------------|
+| SNAPSHOT_PATH | Location in workspace for Resulting Snapshot |

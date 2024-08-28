@@ -23,8 +23,11 @@ spec:
       description: Name of current PipelineRun.
       type: string
   results:
-    - name: SNAPSHOT
-      description: Reduced Snapshot if SINGLE_COMPONENT == true otherwise the original Snapshot
+    - name: SNAPSHOT_PATH
+      description: Path to Reduced Snapshot if SINGLE_COMPONENT == true otherwise the original Snapshot
+  workspaces:
+    - name: data
+      description: Workspace where snapshot json file will be placed.
   steps:
     - name: reduce-snapshot-to-single-component
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
@@ -37,7 +40,10 @@ spec:
           value: $(params.PIPELINERUN_ID)
       script: |
         #!/usr/bin/env bash
-        set -eu
+        set -eux
+
+        mkdir -p "$(workspaces.data.path)/${PIPELINERUN_ID}"
+        SNAPSHOT_PATH="$(workspaces.data.path)/${PIPELINERUN_ID}/snapshot.json"
 
         echo "Single Component mode? ${SINGLE_COMPONENT}"
         if [ "${SINGLE_COMPONENT}" == "true" ]; then
@@ -50,10 +56,21 @@ spec:
             echo "Single Component mode is ${SINGLE_COMPONENT} and Snapshot type is component"
             REDUCED_SNAPSHOT=$(echo "${SNAPSHOT}" | jq --arg component "${SNAPSHOT_CREATION_COMPONENT}" \
                 'del(.components[] | select(.name != $component))')
+
+            ## make sure we still have 1 component
+            COMPONENT_COUNT=$(echo "$REDUCED_SNAPSHOT" | jq -r '[ .components[] ] | length')
+            echo "COMPONENT_COUNT: ${COMPONENT_COUNT}"
+            if [ "${COMPONENT_COUNT}" != "1" ] ; then
+              echo "Error: Reduced Snapshot has ${COMPONENT_COUNT} components. It should contain 1"
+              echo "       Verify that the Snapshot contains the built component: ${SNAPSHOT_CREATION_COMPONENT}"
+              exit 1
+            fi
+
             echo "Reducing Snapshot to:"
             echo "$REDUCED_SNAPSHOT" | jq .
             SNAPSHOT=$(echo "$REDUCED_SNAPSHOT" | tr -d ' ' | tr -d '\n')
           fi
         fi
 
-        echo "$SNAPSHOT" | tee -a "$(results.SNAPSHOT.path)"
+        echo "$SNAPSHOT" > "${SNAPSHOT_PATH}"
+        echo -n "${SNAPSHOT_PATH}" > "$(results.SNAPSHOT_PATH.path)"
