@@ -87,7 +87,7 @@ spec:
   - env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:1301e1a87a44898ab73e5dff8f6ac7499be4cb64eb7300e25d7a20ae266c87d3
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: build
@@ -225,7 +225,7 @@ spec:
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
-  - image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:1301e1a87a44898ab73e5dff8f6ac7499be4cb64eb7300e25d7a20ae266c87d3
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: inject-sbom-and-push
