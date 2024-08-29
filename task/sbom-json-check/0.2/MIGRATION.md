@@ -15,7 +15,7 @@ To remove this task from your pipeline please follow these steps:
 
 1. Remove sbom-json-check definition from pipelines/template-build/template-build.yaml
 
-diff
+```diff
 --- a/pipelines/template-build/template-build.yaml
 +++ b/pipelines/template-build/template-build.yaml
 @@ -242,21 +242,6 @@ spec:
@@ -40,3 +40,4 @@ diff
      - name: apply-tags
        runAfter:
          - build-image-index
+```
