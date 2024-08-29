@@ -84,8 +84,8 @@ spec:
             cp "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/.gitconfig" "${HOME}/.gitconfig"
           # Compatibility with kubernetes.io/basic-auth secrets
           elif [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/password" ]; then
-            HOSTNAME=$(echo $PARAM_GITOPS_REPO_URL | awk -F/ '{print $3}')
-            echo "https://$(cat ${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/username):$(cat ${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/password)@$HOSTNAME" > "${HOME}/.git-credentials"
+            HOSTNAME=$(echo "${PARAM_GITOPS_REPO_URL}" | awk -F/ '{print $3}')
+            echo "https://$(cat "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/username"):$(cat "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/password")@$HOSTNAME" > "${HOME}/.git-credentials"
             echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" > "${HOME}/.gitconfig"
           else
             echo "Unknown basic-auth workspace format"
