@@ -184,7 +184,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:1301e1a87a44898ab73e5dff8f6ac7499be4cb64eb7300e25d7a20ae266c87d3
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -209,7 +209,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:1301e1a87a44898ab73e5dff8f6ac7499be4cb64eb7300e25d7a20ae266c87d3
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
     name: build
     script: |-
       #!/bin/bash
@@ -620,7 +620,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:1301e1a87a44898ab73e5dff8f6ac7499be4cb64eb7300e25d7a20ae266c87d3
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
     name: inject-sbom-and-push
     script: |
       base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
