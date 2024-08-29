@@ -51,6 +51,10 @@ spec:
       type: string
       description: Timeout setting for `ec validate`.
       default: "5m0s"
+    - name: WORKERS
+      type: string
+      description: Number of parallel workers to use for policy evaluation.
+      default: "1"
     - name: CA_TRUST_CONFIGMAP_NAME
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
@@ -91,6 +95,8 @@ spec:
           value: "true"
         - name: TIMEOUT
           value: "$(params.TIMEOUT)"
+        - name: WORKERS
+          value: "$(params.WORKERS)"
         - name: CA_TRUST_CONFIGMAP_NAME
           value: "$(params.CA_TRUST_CONFIGMAP_NAME)"
         - name: CA_TRUST_CONFIG_MAP_KEY
