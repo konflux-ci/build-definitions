@@ -82,7 +82,7 @@
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.results.status)'|
+|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-container.status)'|
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
@@ -135,6 +135,10 @@
 |git-auth| |True| clone-repository:0.1:basic-auth|
 |workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source|
 ## Available workspaces from tasks
+### acs-deploy-check:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|gitops-auth| | True| |
 ### buildah-rhtap:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
@@ -149,3 +153,7 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| The workspace where source code is included.| True| workspace|
+### update-deployment:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|gitops-auth| | True| |
