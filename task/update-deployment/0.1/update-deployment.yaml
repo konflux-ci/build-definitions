@@ -16,35 +16,38 @@ spec:
       default: gitops-auth-secret
       description: |
         Secret of basic-auth type containing credentials to commit into gitops repository.
-  volumes:
-    - name: gitops-auth-secret
-      secret:
-        secretName: $(params.gitops-auth-secret-name)
-        optional: true
+  workspaces:
+    - name: gitops-auth
+      optional: true
   steps:
     - name: patch-gitops
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
-      volumeMounts:
-        - name: gitops-auth-secret
-          mountPath: /gitops-auth-secret
       env:
         - name: PARAM_GITOPS_REPO_URL
           value: $(params.gitops-repo-url)
         - name: PARAM_IMAGE
           value: $(params.image)
+        - name: WORKSPACE_GITOPS_AUTH_DIRECTORY_BOUND
+          value: $(workspaces.gitops-auth.bound)
+        - name: WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH
+          value: $(workspaces.gitops-auth.path)
       script: |
-        if test -f /gitops-auth-secret/password ; then
-          gitops_repo_url=${PARAM_GITOPS_REPO_URL%'.git'}
-          remote_without_protocol=${gitops_repo_url#'https://'}
 
-          password=$(cat /gitops-auth-secret/password)
-          if test -f /gitops-auth-secret/username ; then
-            username=$(cat /gitops-auth-secret/username)
-            echo "https://${username}:${password})@${hostname}" > "${HOME}/.git-credentials"
-            origin_with_auth=https://${username}:${password}@${remote_without_protocol}.git
+        if [ "${WORKSPACE_GITOPS_AUTH_DIRECTORY_BOUND}" = "true" ] ; then
+          if [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/.gitconfig" ]; then
+            cp "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/.git-credentials" "${HOME}/.git-credentials"
+            cp "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/.gitconfig" "${HOME}/.gitconfig"
+          # Compatibility with kubernetes.io/basic-auth secrets
+          elif [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/password" ]; then
+            HOSTNAME=$(echo "${PARAM_GITOPS_REPO_URL}" | awk -F/ '{print $3}')
+            echo "https://$(cat "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/username"):$(cat "${WORKSPACE_GITOPS_AUTH_DIRECTORY_PATH}/password")@$HOSTNAME" > "${HOME}/.git-credentials"
+            printf "[credential \"https://%s\"]\n helper = store" "${HOSTNAME}" > "${HOME}/.gitconfig"
           else
-            origin_with_auth=https://${password}@${remote_without_protocol}.git
+            echo "Unknown basic-auth workspace format"
+            exit 1
           fi
+          chmod 400 "${HOME}/.git-credentials"
+          chmod 400 "${HOME}/.gitconfig"
         else
           echo "git credentials to push into gitops repository ${PARAM_GITOPS_REPO_URL} is not configured."
           echo "gitops repository is not updated automatically."
@@ -57,6 +60,7 @@ spec:
         git config --global user.name "gitops-update"
 
         git clone ${PARAM_GITOPS_REPO_URL}
+        gitops_repo_url=${PARAM_GITOPS_REPO_URL%'.git'}
         gitops_repo_name=$(basename ${gitops_repo_url})
         cd ${gitops_repo_name}
 
@@ -68,7 +72,6 @@ spec:
 
         git add .
         git commit -m "Update '${component_name}' component image to: ${PARAM_IMAGE}"
-        git remote set-url origin $origin_with_auth
         git push 2> /dev/null || \
         {
           echo "Failed to push update to gitops repository: ${PARAM_GITOPS_REPO_URL}"
