@@ -281,20 +281,11 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
-  - args:
-    - attach
-    - sbom
-    - --sbom
-    - sbom-cyclonedx.json
-    - --type
-    - cyclonedx
-    - $(params.IMAGE)
-    image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-    # the cluster will set imagePullPolicy to IfNotPresent
-    name: upload-sbom
-    computeResources: {}
+  - name: upload-sbom
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     workingDir: $(workspaces.source.path)
+    script: |
+      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
   volumes:
   - emptyDir: {}
     name: varlibcontainers

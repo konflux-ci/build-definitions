@@ -315,16 +315,10 @@ spec:
           yq -oj -i '.components += [ {"purl": "'$purl'", "type": "file", "name": "'$OCI_FILENAME'", "hashes": [{"alg": "SHA-256", "content": "'$OCI_ARTIFACT_DIGEST'"}], "externalReferences": [{"type": "distribution", "url": "'$OCI_SOURCE'"}]} ]' sbom-cyclonedx.json
         done
     - name: upload-sbom
-      image: quay.io/redhat-appstudio/cosign:v2.1.1@sha256:c883d6f8d39148f2cea71bff4622d196d89df3e510f36c140c097b932f0dd5d5
-      args:
-        - attach
-        - sbom
-        - --sbom
-        - sbom-cyclonedx.json
-        - --type
-        - cyclonedx
-        - $(params.IMAGE)
+      image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       workingDir: /var/workdir
+      script: |
+        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
       workingDir: /var/workdir
