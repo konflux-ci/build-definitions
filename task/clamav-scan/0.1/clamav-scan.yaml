@@ -105,7 +105,8 @@ spec:
               --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
               --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
               | tee /work/logs/clamscan-result-$arch.log || true
-            echo "Executed-on: Scan was executed on version - $(clamscan --version)" | tee -a /work/logs/clamscan-result-$arch.log
+            db_version=$(sigtool --info /var/lib/clamav/daily.cvd | grep 'Version')
+            echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
 
             digests_processed+=("\"$arch_sha\"")
 
