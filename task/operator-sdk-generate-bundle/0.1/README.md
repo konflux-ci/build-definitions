@@ -11,6 +11,7 @@ Generate an OLM bundle using the operator-sdk
 |extra-service-accounts|Comma-seperated list of service account names, outside of the operator's Deployment account, that have bindings to {Cluster}Roles that should be added to the CSV |""|false|
 |version|Semantic version of the operator in the generated bundle||true|
 |package-name|Bundle's package name||true|
+|additional-labels-file|A plain text file containing additional labels to append to the generated Dockerfile |""|false|
 
 ## Workspaces
 |name|description|optional|
