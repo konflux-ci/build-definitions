@@ -27,6 +27,11 @@ spec:
       description: Semantic version of the operator in the generated bundle
     - name: package-name
       description: Bundle's package name
+    - name: additional-labels-file
+      description: >
+        A plain text file containing additional labels to append to the
+        generated Dockerfile
+      default: ""
   workspaces:
     - name: source
       description: Workspace with the source code
@@ -36,19 +41,35 @@ spec:
       workingDir: $(workspaces.source.path)/source
       securityContext:
         runAsUser: 0
-      args:
-        - generate
-        - bundle
-        - --overwrite
-        - --channels
-        - $(params.channels)
-        - --input-dir
-        - $(params.input-dir)
-        - --version
-        - $(params.version)
-        - --package
-        - $(params.package-name)
-        - --kustomize-dir
-        - $(params.kustomize-dir)
-        - --extra-service-accounts
-        - $(params.extra-service-accounts)
+      env:
+        - name: CHANNELS
+          value: $(params.channels)
+        - name: INPUT_DIR
+          value: $(params.input-dir)
+        - name: VERSION
+          value: $(params.version)
+        - name: PACKAGE_NAME
+          value: $(params.package-name)
+        - name: KUSTOMIZE_DIR
+          value: $(params.kustomize-dir)
+        - name: EXTRA_SERVICE_ACCOUNTS
+          value: $(params.extra-service-accounts)
+        - name: ADDITIONAL_LABELS_FILE
+          value: $(params.additional-labels-file)
+      script: |
+        #!/usr/bin/env bash
+
+        set -xe
+
+        operator-sdk generate bundle \
+          --overwrite \
+          --channels "${CHANNELS}" \
+          --input-dir "${INPUT_DIR}" \
+          --version "${VERSION}" \
+          --package "${PACKAGE_NAME}" \
+          --kustomize-dir "${KUSTOMIZE_DIR}" \
+          --extra-service-accounts "${EXTRA_SERVICE_ACCOUNTS}"
+
+        if [ -f "${ADDITIONAL_LABELS_FILE}" ]; then
+          cat "${ADDITIONAL_LABELS_FILE}" >> bundle.Dockerfile
+        fi
