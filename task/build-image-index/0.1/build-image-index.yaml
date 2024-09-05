@@ -85,7 +85,6 @@ spec:
         exit 2
       fi
 
-      image_manifests=""
       buildah manifest create "$IMAGE"
       for i in $@
       do
@@ -107,7 +106,6 @@ spec:
           exit 0
         fi
         echo "Adding $TOADD"
-        image_manifests="${image_manifests} ${TOADD},"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
 
@@ -127,6 +125,14 @@ spec:
           echo "Failed to push image to registry after ${max_run} tries"
           exit 1
       fi
+
+      INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
+      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
+      image_manifests=""
+      for i in $MANIFEST_DIGESTS
+      do
+        image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
+      done
 
       cat image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
