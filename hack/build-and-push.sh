@@ -2,6 +2,9 @@
 
 set -e -o pipefail
 
+VCS_URL=https://github.com/konflux-ci/build-definitions
+VCS_REF=$(git rev-parse HEAD)
+
 function is_official_repo() {
     # match e.g.
     #   redhat-appstudio-tekton-catalog
@@ -121,7 +124,21 @@ do
     if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}-${task_file_sha}" 2>/dev/null); then
       task_bundle_with_digest=${task_bundle}@${digest}
     else
-      output=$(tkn_bundle_push -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
+      ANNOTATIONS=()
+      ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
+      ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
+      ANNOTATIONS+=("--annotate" "org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
+      if [ -f "${task_dir}/README.md" ]; then
+          ANNOTATIONS+=("--annotate" "org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
+      fi
+      if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
+          ANNOTATIONS+=("--annotate" "dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
+      fi
+      if [ -f "${task_dir}/USAGE.md" ]; then
+          ANNOTATIONS+=("--annotate" "dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
+      fi
+
+      output=$(tkn_bundle_push "${ANNOTATIONS[@]}" -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
       echo "$output"
       task_bundle_with_digest="${output##*$'\n'}"
 
@@ -168,7 +185,11 @@ do
     tag=${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG
     pipeline_bundle=quay.io/${QUAY_NAMESPACE}/${repository}:${tag}
 
-    tkn_bundle_push "$pipeline_bundle" -f "${pipeline_yaml}" | \
+    ANNOTATIONS=()
+    ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
+    ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
+
+    tkn_bundle_push "${ANNOTATIONS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
     [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
