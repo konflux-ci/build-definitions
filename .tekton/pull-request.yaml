@@ -265,24 +265,6 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-    finally:
-      # TODO: Clean up the ephemeral namespace?
-      # - name: e2e-cleanup
-      #   params:
-      #     - name: e2e_test_namespace
-      #       value: $(params.e2e_test_namespace)
-      #   taskSpec:
-      #     params:
-      #       - name: e2e_test_namespace
-      #         type: string
-      #     steps:
-      #       - name: e2e-cleanup
-      #         image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
-      #         script: |
-      #           #!/usr/bin/env bash
-      #           # Perform cleanup of resources created by gitops service
-      #           oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
-      #           oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
   timeouts:
     pipeline: "2h"
