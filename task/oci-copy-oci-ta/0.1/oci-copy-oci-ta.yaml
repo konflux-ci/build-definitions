@@ -82,7 +82,7 @@ spec:
 
         oci_copy_file_path="$(pwd)/source/$OCI_COPY_FILE"
 
-        mkdir -p /var/workdir/vars/
+        mkdir -p "/var/workdir/vars/"
 
         for entry in $(cat $oci_copy_file_path | yq '.artifacts[] | @json | @base64'); do
           entry=$(echo $entry | base64 -d)
@@ -91,13 +91,15 @@ spec:
           artifact_type=$(echo $entry | yq .type)
           artifact_digest=$(echo $entry | yq .sha256sum)
 
-          echo "declare OCI_SOURCE=${source}" >/var/workdir/vars/$filename
-          echo "declare OCI_FILENAME=${filename}" >>/var/workdir/vars/$filename
-          echo "declare OCI_ARTIFACT_TYPE=${artifact_type}" >>/var/workdir/vars/$filename
-          echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}" >>/var/workdir/vars/$filename
+          {
+            echo "declare OCI_SOURCE=${source}"
+            echo "declare OCI_FILENAME=${filename}"
+            echo "declare OCI_ARTIFACT_TYPE=${artifact_type}"
+            echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}"
+          } >"/var/workdir/vars/$filename"
 
           echo "Wrote /var/workdir/vars/$filename with contents:"
-          cat /var/workdir/vars/$filename
+          cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
       image: quay.io/konflux-ci/oras:latest@sha256:99737f436051e6d3866eb8a8706463c35abf72c87f05090ff42ff642f6729661
@@ -232,8 +234,7 @@ spec:
                 ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a \
                 --media-type application/vnd.oci.empty.v1+json --size 2 -
 
-        for varfile in /var/workdir/vars/*; do
-          echo
+        for varfile in "/var/workdir"/vars/*; do
           echo "Reading $varfile"
           # shellcheck source=/dev/null
           source $varfile
@@ -303,7 +304,7 @@ spec:
         }
         EOL
 
-        for varfile in /var/workdir/vars/*; do
+        for varfile in "/var/workdir"/vars/*; do
           echo "Reading $varfile"
           # shellcheck source=/dev/null
           source $varfile
