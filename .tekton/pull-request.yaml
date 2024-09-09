@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/"))
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml, task/provision-env-with-ephemeral-namespace/0.1/provision-env-with-ephemeral-namespace.yaml]"
     pipelinesascode.tekton.dev/task-2: "yaml-lint"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
@@ -14,13 +14,10 @@ spec:
       value: "{{ repo_url }}"
     - name: revision
       value: "{{ revision }}"
-    - name: e2e_test_namespace
-      value: build-templates-e2e
   pipelineSpec:
     params:
       - name: repo_url
       - name: revision
-      - name: e2e_test_namespace
     workspaces:
       - name: workspace
     tasks:
@@ -123,22 +120,53 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
+      - name: provision-env
+        params:
+          - name: KONFLUXNAMESPACE
+            value: $(context.pipelineRun.namespace)
+          - name: PIPELINERUN_NAME
+            value: $(context.pipelineRun.name)
+          - name: PIPELINERUN_UID
+            value: $(context.pipelineRun.uid)
+        taskRef:
+          name: provision-env-with-ephemeral-namespace
+      - name: inspect-env
+        runAfter:
+          - provision-env
+        taskSpec:
+          env:
+            - name: KUBECONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: $(tasks.provision-env.results.secretRef)
+                  key: kubeconfig
+          results:
+            - name: namespace
+          steps:
+            - name: get-namespace
+              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              script: |
+                #!/usr/bin/env bash
+                oc whoami -c
+                oc get sa -o json | jq -r '.items[0].metadata.namespace' | tee '$(results.namespace.path)'
       - name: build-bundles
         params:
           - name: revision
             value: "{{ revision }}"
-          - name: e2e_test_namespace
-            value: $(params.e2e_test_namespace)
         runAfter:
           - build-container
         workspaces:
           - name: source
             workspace: workspace
         taskSpec:
+          env:
+            - name: KUBECONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: $(tasks.provision-env.results.secretRef)
+                  key: kubeconfig
           params:
             - name: revision
-              type: string
-            - name: e2e_test_namespace
               type: string
           results:
           - name: custom-docker-build-bundle
@@ -155,7 +183,6 @@ spec:
                 TEST_REPO_NAME=pull-request-builds \
                 BUILD_TAG=$(params.revision) \
                 SKIP_BUILD=1 \
-                INSTALL_BUNDLE_NS=$(params.e2e_test_namespace) \
                 ENABLE_SOURCE_BUILD=1 \
                 ENABLE_HERMETIC_BUILD=1 \
                 hack/build-and-push.sh
@@ -167,7 +194,7 @@ spec:
       - name: e2e-tests
         params:
           - name: e2e_test_namespace
-            value: $(params.e2e_test_namespace)
+            value: $(tasks.inspect-env.results.namespace)
           - name: app_suffix
             value: "ref-{{ revision }}"
           - name: ec_pipelines_repo_url
@@ -178,8 +205,11 @@ spec:
             value: "$(tasks.build-bundles.results.custom-docker-build-bundle)"
           - name: fbc-builder-bundle
             value: "$(tasks.build-bundles.results.custom-fbc-builder-bundle)"
+          - name: kubeconfig
+            value: $(tasks.provision-env.results.secretRef)
         runAfter:
           - build-bundles
+          - inspect-env
         taskRef:
           name: e2e-test
         # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
@@ -236,22 +266,23 @@ spec:
           - name: source
             workspace: workspace
     finally:
-      - name: e2e-cleanup
-        params:
-          - name: e2e_test_namespace
-            value: $(params.e2e_test_namespace)
-        taskSpec:
-          params:
-            - name: e2e_test_namespace
-              type: string
-          steps:
-            - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
-              script: |
-                #!/usr/bin/env bash
-                # Perform cleanup of resources created by gitops service
-                oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
-                oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
+      # TODO: Clean up the ephemeral namespace?
+      # - name: e2e-cleanup
+      #   params:
+      #     - name: e2e_test_namespace
+      #       value: $(params.e2e_test_namespace)
+      #   taskSpec:
+      #     params:
+      #       - name: e2e_test_namespace
+      #         type: string
+      #     steps:
+      #       - name: e2e-cleanup
+      #         image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
+      #         script: |
+      #           #!/usr/bin/env bash
+      #           # Perform cleanup of resources created by gitops service
+      #           oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
+      #           oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
   timeouts:
     pipeline: "2h"

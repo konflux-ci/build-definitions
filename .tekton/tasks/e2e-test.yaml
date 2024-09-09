@@ -24,6 +24,8 @@ spec:
       type: string
     - name: fbc-builder-bundle
       type: string
+    - name: kubeconfig
+      type: string
   steps:
     - name: e2e-test
       image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:11620c8abd291b7f6b44b110a67121dd0a55106c
@@ -69,3 +71,8 @@ spec:
         value: "$(params.docker-build-bundle)"
       - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
         value: "$(params.fbc-builder-bundle)"
+      - name: KUBECONFIG
+        valueFrom:
+          secretKeyRef:
+            name: "$(params.kubeconfig)"
+            key: kubeconfig
