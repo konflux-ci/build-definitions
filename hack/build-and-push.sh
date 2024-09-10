@@ -91,6 +91,15 @@ if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
     docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
     docker push "$APPSTUDIO_UTILS_IMG"
+    
+    # This isn't needed during PR testing
+    if [[ "$BUILD_TAG" != "latest" && -z "$TEST_REPO_NAME" ]]; then
+        # tag with latest
+        IMAGE_NAME="${APPSTUDIO_UTILS_IMG%:*}:latest"
+        docker tag "$APPSTUDIO_UTILS_IMG" "$IMAGE_NAME"
+        docker push "$IMAGE_NAME"
+    fi
+
 fi
 
 generated_pipelines_dir=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
