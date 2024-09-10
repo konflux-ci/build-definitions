@@ -1,4 +1,9 @@
 # "docker-build pipeline"
+This pipeline is ideal for building container images from a Containerfile while reducing network traffic.
+
+_Uses `buildah` to create a container image. It also optionally creates a source image and runs some build-time tests. EC will flag a violation for [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) if any tasks are added to the pipeline.
+This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build?tab=tags)_
+
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
@@ -16,6 +21,7 @@
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+
 ## Available params from tasks
 ### apply-tags:0.1 task parameters
 |name|description|default value|already set by|

@@ -1,4 +1,9 @@
 # "docker-build-multi-platform-oci-ta pipeline"
+This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
+
+_Uses `buildah` to create a multi-platform container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. This pipeline requires that the [multi platform controller](https://github.com/konflux-ci/multi-platform-controller) is deployed and configured on your Konflux instance. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
+This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-multi-platform-oci-ta?tab=tags)_
+
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
@@ -17,6 +22,7 @@
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+
 ## Available params from tasks
 ### apply-tags:0.1 task parameters
 |name|description|default value|already set by|
