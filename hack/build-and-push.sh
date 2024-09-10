@@ -129,6 +129,7 @@ do
     repository=${TEST_REPO_NAME:-task-${task_name}}
     tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
     task_bundle=quay.io/$QUAY_NAMESPACE/${repository}:${tag}
+    task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
     if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}-${task_file_sha}" 2>/dev/null); then
       task_bundle_with_digest=${task_bundle}@${digest}
@@ -137,6 +138,10 @@ do
       ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
       ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
       ANNOTATIONS+=("--annotate" "org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
+      # yq will return null if the element is missing.
+      if [[ "${task_description}" != "null" ]]; then
+          ANNOTATIONS+=("--annotate" "org.opencontainers.image.description=${task_description}")
+      fi
       if [ -f "${task_dir}/README.md" ]; then
           ANNOTATIONS+=("--annotate" "org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
       fi
@@ -184,6 +189,8 @@ fi
 for pipeline_yaml in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
 do
     pipeline_name=$(yq e '.metadata.name' "$pipeline_yaml")
+    pipeline_description=$(yq e '.spec.description' "$pipeline_yaml" | head -n 1)
+    pipeline_dir="pipelines/${pipeline_name}/"
     core_services_ci=$(yq e '.metadata.annotations."appstudio.openshift.io/core-services-ci" // ""' "$pipeline_yaml")
     if [ "$core_services_ci" == "1" ]; then
         pipeline_name="core-services-${pipeline_name}"
@@ -197,6 +204,20 @@ do
     ANNOTATIONS=()
     ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
     ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
+    ANNOTATIONS+=("--annotate" "org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}")
+    # yq will return null if the element is missing.
+    if [[ "${pipeline_description}" != "null" ]]; then
+        ANNOTATIONS+=("--annotate" "org.opencontainers.image.description=${pipeline_description}")
+    fi
+    if [ -f "${pipeline_dir}README.md" ]; then
+        ANNOTATIONS+=("--annotate" "org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}README.md")
+    fi
+    if [ -f "${pipeline_dir}/TROUBLESHOOTING.md" ]; then
+        ANNOTATIONS+=("--annotate" "dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}TROUBLESHOOTING.md")
+    fi
+    if [ -f "${pipeline_dir}/USAGE.md" ]; then
+        ANNOTATIONS+=("--annotate" "dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}USAGE.md")
+    fi
 
     tkn_bundle_push "${ANNOTATIONS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
