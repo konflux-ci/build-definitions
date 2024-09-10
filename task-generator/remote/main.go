@@ -240,7 +240,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
 		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
-		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" /" + containerScript
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		for _, workspace := range task.Spec.Workspaces {
@@ -256,7 +256,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += `
   buildah pull "oci:konflux-final-image:$IMAGE"
 else
-  bash ` + containerScript + `
+  bash ` + containerScript + ` "$@"
 fi
 buildah images
 container=$(buildah from --pull-never "$IMAGE")

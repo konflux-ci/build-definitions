@@ -491,13 +491,13 @@ spec:
           -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
           -v "$BUILD_DIR/results/:/tekton/results:Z" \
           -v "$BUILD_DIR/scripts:/scripts:Z" \
-          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh
+          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
         buildah pull "oci:konflux-final-image:$IMAGE"
       else
-        bash scripts/script-build.sh
+        bash scripts/script-build.sh "$@"
       fi
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
