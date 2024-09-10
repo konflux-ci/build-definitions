@@ -1,4 +1,9 @@
 # "fbc-builder pipeline"
+This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/advanced-how-tos/building-olm.adoc#building-the-file-based-catalog).
+
+_Uses `buildah` to create a container image. Its build-time tests are limited to verifying the included catalog and do not scan the image.
+This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-fbc-builder?tab=tags)_
+
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
@@ -14,6 +19,7 @@
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+
 ## Available params from tasks
 ### apply-tags:0.1 task parameters
 |name|description|default value|already set by|

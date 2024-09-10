@@ -1,4 +1,5 @@
 # "gitops-pull-request pipeline"
+
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
@@ -12,6 +13,7 @@
 |revision| Gitops repo revision| | clone-repository:0.1:revision|
 |target-branch| The target branch for the pull request| main| get-images-to-verify:0.1:TARGET_BRANCH ; get-images-to-upload-sbom:0.1:TARGET_BRANCH|
 |trustification-secret-name| The name of the Secret that contains Trustification (TPA) configuration| tpa-secret| upload-sboms-to-trustification:0.1:TRUSTIFICATION_SECRET_NAME|
+
 ## Available params from tasks
 ### download-sbom-from-url-in-attestation:0.1 task parameters
 |name|description|default value|already set by|

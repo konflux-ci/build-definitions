@@ -78,6 +78,7 @@ def main():
             continue
 
         pipeline_name = pipeline_data['metadata']['name']
+        pipeline_description = pipeline_data['spec'].get('description', '')
         pipelines_info[pipeline_name] = {'params': [], 'results': [], 'workspaces': [], 'tasks': []}
 
         for param in pipeline_data['spec'].get('params', []):
@@ -181,7 +182,9 @@ def main():
             for name, items in pipelines_info.items():
                 # print pipeline params
                 f.write(f"# \"{name} pipeline\"\n")
-                f.write(f"## Parameters\n")
+                if pipeline_description:
+                    f.write(f"{pipeline_description}")
+                f.write(f"\n## Parameters\n")
                 f.write("|name|description|default value|used in (taskname:taskrefversion:taskparam)|\n")
                 f.write("|---|---|---|---|\n")
                 for param in sorted(items['params'], key=lambda x: x['name']):
@@ -190,7 +193,7 @@ def main():
                     f.write(f"|{param['name']}| {desc}| {param['default']}| {used}|\n")
 
                 # print task params
-                f.write(f"## Available params from tasks\n")
+                f.write(f"\n## Available params from tasks\n")
                 for task in sorted(all_tasks, key=lambda x: x['name']):
                     if not task['params']:
                         continue

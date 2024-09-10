@@ -1,4 +1,5 @@
 # "docker-build-rhtap pipeline"
+
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
@@ -14,6 +15,7 @@
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |stackrox-secret| | rox-api-token| acs-image-check:0.1:rox-secret-name ; acs-image-scan:0.1:rox-secret-name ; acs-deploy-check:0.1:rox-secret-name|
+
 ## Available params from tasks
 ### acs-deploy-check:0.1 task parameters
 |name|description|default value|already set by|
