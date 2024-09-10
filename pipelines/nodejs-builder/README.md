@@ -34,7 +34,7 @@
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
 |STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
-### clair-scan:0.1 task parameters
+### clair-scan:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -164,13 +164,13 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
-### clair-scan:0.1 task results
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
+### clair-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CLAIR_SCAN_RESULT| Clair scan result.| |
 |IMAGES_PROCESSED| Images processed in the task.| |
+|SCAN_OUTPUT| Clair scan result.| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### clamav-scan:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
