@@ -1,0 +1,217 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: sast-shell-check
+spec:
+  description: >-
+    The sast-shell-check task uses [shellcheck](https://www.shellcheck.net/) tool to perform Static Application Security Testing (SAST), a popular cloud-native application security platform. This task leverages the shellcheck wrapper (csmock-plugin-shellcheck-core) to run shellcheck on a directory tree.
+
+    ShellCheck is a static analysis tool, gives warnings and suggestions for bash/sh shell scripts.
+  results:
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+  params:
+    - name: image-url
+      description: Image URL.
+      type: string
+      default: ""
+    - name: image-digest
+      description: Image digest to report findings for.
+      type: string
+      default: ""
+    - name: KFP_GIT_URL
+      description: git repository to download known false positives files from
+      type: string
+      # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git
+      # when KONFLUX-4530 is resolved
+      default: ""
+    - name: PROJECT_NAME
+      description: Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.
+      type: string
+      default: ""
+    - name: RECORD_EXCLUDED
+      type: string
+      description: |
+        Whether to record the excluded findings (default to false).
+        If `true`, the excluded findings will be stored in `excluded-findings.json`.
+      default: "false"
+    - name: IMP_FINDINGS_ONLY
+      type: string
+      description: Whether to include important findings only
+      default: "true"
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+  steps:
+    - name: sast-shell-check
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:57816753b74ed989771b7cddc1994bc1fa9f4fd454b08bcc97acf2fa718e8c1b
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: KFP_GIT_URL
+          value: $(params.KFP_GIT_URL)
+        - name: PROJECT_NAME
+          value: $(params.PROJECT_NAME)
+        - name: RECORD_EXCLUDED
+          value: $(params.RECORD_EXCLUDED)
+        - name: IMP_FINDINGS_ONLY
+          value: $(params.IMP_FINDINGS_ONLY)
+        - name: COMPONENT_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['appstudio.openshift.io/component']
+      script: |
+        #!/usr/bin/env bash
+        set -x
+        # shellcheck source=/dev/null
+        source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        if [[ -z "${PROJECT_NAME}" ]]; then
+            PROJECT_NAME=${COMPONENT_LABEL}
+        fi
+
+        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        PACKAGE_VERSION=$(rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}\n' ShellCheck)
+
+        OUTPUT_FILE="shellcheck-results.json"
+        SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
+
+        # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
+        /usr/share/csmock/scripts/run-shellcheck.sh "$SOURCE_CODE_DIR"
+
+        CSGREP_OPTS=(
+            --mode=json
+            --strip-path-prefix="$SOURCE_CODE_DIR"/
+            --remove-duplicates
+            --embed-context=3
+            --set-scan-prop="ShellCheck:${PACKAGE_VERSION}"
+        )
+        if [[ "$IMP_FINDINGS_ONLY" == "true" ]]; then
+            # predefined list of shellcheck important findings
+            CSGREP_EVENT_FILTER='\[SC(1020|1035|1054|1066|1068|1073|1080|1083|1099|1113|1115|1127|1128|1143|2043|2050|'
+            CSGREP_EVENT_FILTER+='2055|2057|2066|2069|2071|2077|2078|2091|2092|2157|2171|2193|2194|2195|2215|2216|'
+            CSGREP_EVENT_FILTER+='2218|2224|2225|2242|2256|2258|2261)\]$'
+            CSGREP_OPTS+=(
+                --event="$CSGREP_EVENT_FILTER"
+            )
+        else
+            CSGREP_OPTS+=(
+                --event="error|warning"
+            )
+        fi
+
+        if ! csgrep "${CSGREP_OPTS[@]}" ./shellcheck-results/*.json > "$OUTPUT_FILE"; then
+            echo "Error occurred while running 'run-shellcheck.sh'"
+            note="Task $(context.task.name) failed: For details, check Tekton task log."
+            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 1
+        fi
+
+        # Filter known false positives if KFP_GIT_URL is set
+        if [ -n "${KFP_GIT_URL}" ]; then
+            echo "Filtering known false positives using ${KFP_GIT_URL}"
+
+            # build initial csfilter-kfp command
+            csfilter_kfp_cmd=(
+                csfilter-kfp
+                --verbose
+                --kfp-git-url="${KFP_GIT_URL}"
+                --project-nvr="${PROJECT_NAME}"
+            )
+
+            if [[ "${RECORD_EXCLUDED}" == "true" ]]; then
+                csfilter_kfp_cmd+=(--record-excluded="excluded-findings.json")
+            fi
+
+            # Execute the command and capture any errors
+            if ! "${csfilter_kfp_cmd[@]}" "${OUTPUT_FILE}" > "${OUTPUT_FILE}.filtered" 2> "${OUTPUT_FILE}.error"; then
+                echo "Error occurred while filtering known false positives:"
+                cat "${OUTPUT_FILE}.error"
+                note="Task $(context.task.name) failed: For details, check Tekton task log."
+                ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+                echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+                exit 1
+            else
+                mv "${OUTPUT_FILE}.filtered" "$OUTPUT_FILE"
+                echo "Filtered results saved back to $OUTPUT_FILE"
+            fi
+        else
+            echo "KFP_GIT_URL is not set. Skipping false positive filtering."
+        fi
+
+        echo "ShellCheck results have been saved to $OUTPUT_FILE"
+
+        csgrep --mode=evtstat "$OUTPUT_FILE"
+        csgrep --mode=sarif "$OUTPUT_FILE" > shellcheck-results.sarif
+
+        note="Task $(context.task.name) completed successfully."
+        TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:f4b891ee3038a5f13cd92ff4f473faad5601c2434d1c6b9bccdfc134d9d5f820
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      script: |
+        #!/usr/bin/env bash
+        set -e
+
+        if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}" ]; then
+            echo 'No image-url or image-digest param provided. Skipping upload.'
+            exit 0
+        fi
+
+        UPLOAD_FILES="shellcheck-results.sarif excluded-findings.json"
+
+        for UPLOAD_FILE in ${UPLOAD_FILES}; do
+            if [ ! -f "${UPLOAD_FILE}" ]; then
+                echo "No ${UPLOAD_FILE} exists. Skipping upload."
+                continue
+            fi
+
+            # Determine the media type based on the file extension
+            if [[ "${UPLOAD_FILE}" == *.json ]]; then
+                MEDIA_TYPE="application/json"
+            else
+                MEDIA_TYPE="application/sarif+json"
+            fi
+
+            echo "Selecting auth"
+            select-oci-auth "$IMAGE_URL" > "$HOME/auth.json"
+            echo "Attaching to ${IMAGE_URL}"
+            oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        done
+  workspaces:
+  - name: workspace
