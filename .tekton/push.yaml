@@ -64,6 +64,17 @@ spec:
           - name: source
             workspace: workspace
 
+      - name: apply-additional-image-tags
+        params:
+          - name: IMAGE
+            value: $(tasks.build-container.results.IMAGE_REF)
+          - name: ADDITIONAL_TAGS
+            value: ["latest"]
+        runAfter:
+          - build-container
+        taskRef:
+          name: apply-tags
+
       - name: build-bundles
         params:
           - name: revision
