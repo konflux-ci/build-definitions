@@ -141,8 +141,8 @@ spec:
         import time
         import base64
         import subprocess
-
-        import requests
+        import urllib.error
+        import urllib.request
 
         logging.basicConfig(level=logging.DEBUG, format="%(asctime)s:%(name)s:%(levelname)s:%(message)s")
         logger = logging.getLogger("updater")
@@ -153,6 +153,15 @@ spec:
 
         ORIGIN_REPO = os.environ["ORIGIN_REPO"]
         TARGET_GH_REPO = os.environ["TARGET_GH_REPO"]
+
+
+        class Response:
+            def __init__(self, content, status):
+                self.content = content
+                self.status = status
+
+            def json(self):
+                return json.loads(self.content)
 
 
         class GitHub():
@@ -209,10 +218,14 @@ spec:
                     headers.update({"Authorization": "Bearer " + self.token})
                 if not url.startswith("http"):
                     url = f"{GITHUB_API_URL}{url}"
-                return requests.request(method,
-                                        url,
-                                        headers=headers,
-                                        data=json.dumps(data))
+                req = urllib.request.Request(
+                    url, method=method, headers=headers, data=json.dumps(data).encode()
+                )
+                try:
+                    with urllib.request.urlopen(req) as resp:
+                        return Response(resp.read(), resp.status)
+                except urllib.error.HTTPError as e:
+                    return Response(e.read(), e.code)
 
             def create_mr(self):
                 repo_name = ORIGIN_REPO.split('/')[-1]
