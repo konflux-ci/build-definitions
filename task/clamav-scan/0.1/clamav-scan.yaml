@@ -145,6 +145,11 @@ spec:
             "note" : (if .result == "" or ($item.result == "SKIPPED" and .result == "SUCCESS") or ($item.result == "WARNING" and (.result == "SUCCESS" or .result == "SKIPPED")) or ($item.result == "FAILURE" and .result != "ERROR") or $item.result == "ERROR" then $item.note else .note end)
             })' /work/logs/clamscan-ec-test-*.json | tee $(results.TEST_OUTPUT.path)
 
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
+
         digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee $(results.IMAGES_PROCESSED.path)
       volumeMounts:
