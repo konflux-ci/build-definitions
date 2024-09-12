@@ -84,6 +84,11 @@ spec:
         done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
       fi
 
+      # If the image is an Image Index, also add the Image Index digest to the list.
+      if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+        digests_processed+=("\"$IMAGE_DIGEST\"")
+      fi
+
       # arrays to keep count of successful and failed checks
       successes=()
       failures=()
