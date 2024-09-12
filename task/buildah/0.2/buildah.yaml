@@ -223,8 +223,25 @@ spec:
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
+      build_args=()
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        # Parse BUILD_ARGS_FILE ourselves because dockerfile-json doesn't support it
+        echo "Parsing ARGs from $BUILD_ARGS_FILE"
+        mapfile -t build_args < <(
+          # https://www.mankier.com/1/buildah-build#--build-arg-file
+          # delete lines that start with #
+          # delete blank lines
+          sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
+        )
+      fi
+      # Append BUILD_ARGS
+      # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+      # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+      # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
+      build_args+=("$@")
+
       BUILD_ARG_FLAGS=()
-      for build_arg in "$@"; do
+      for build_arg in "${build_args[@]}"; do
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
       done
 
@@ -246,10 +263,6 @@ spec:
 
       if [ -n "${TARGET_STAGE}" ]; then
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
-      fi
-
-      if [ -n "${BUILD_ARGS_FILE}" ]; then
-        BUILDAH_ARGS+=("--build-arg-file=$(pwd)/$SOURCE_CODE_DIR/${BUILD_ARGS_FILE}")
       fi
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
