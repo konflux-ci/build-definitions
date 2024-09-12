@@ -140,9 +140,9 @@ spec:
         import os
         import time
         import base64
+        import subprocess
 
         import requests
-        from jwcrypto import jwk, jwt
 
         logging.basicConfig(level=logging.DEBUG, format="%(asctime)s:%(name)s:%(levelname)s:%(message)s")
         logger = logging.getLogger("updater")
@@ -158,30 +158,32 @@ spec:
         class GitHub():
             token = None
 
-            def __init__(self, private_key, app_id=None, installation_id=None):
-                if not isinstance(private_key, bytes):
-                    raise ValueError(f'"{private_key}" parameter must be byte-string')
-                self._private_key = private_key
+            def __init__(self, private_key_path, app_id=None, installation_id=None):
+                self._private_key_path = private_key_path
                 self.app_id = app_id
                 self.token = self._get_token(installation_id)
 
-            def _load_private_key(self, pem_key_bytes):
-                return jwk.JWK.from_pem(pem_key_bytes)
-
             def _app_token(self, expire_in=EXPIRE_MINUTES_AS_SECONDS):
-                key = self._load_private_key(self._private_key)
+                # based on https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app#example-using-bash-to-generate-a-jwt
                 now = int(time.time())
-                token = jwt.JWT(
-                    header={"alg": "RS256"},
-                    claims={
-                        "iat": now,
-                        "exp": now + expire_in,
-                        "iss": self.app_id
-                    },
-                    algs=["RS256"],
+
+                header_ = {"typ": "JWT", "alg": "RS256"}
+                header = base64.b64encode(json.dumps(header_).encode())
+
+                payload_ = {"iat": now, "exp": now + expire_in, "iss": self.app_id}
+                payload = base64.b64encode(json.dumps(payload_).encode())
+
+                header_payload = header + b"." + payload
+                proc = subprocess.run(
+                    ["openssl", "dgst", "-sha256", "-sign", self._private_key_path],
+                    input=header_payload,
+                    check=True,
+                    stdout=subprocess.PIPE,
                 )
-                token.make_signed_token(key)
-                return token.serialize()
+                signature = base64.b64encode(proc.stdout)
+
+                token = header_payload + b"." + signature
+                return token.decode()
 
             def _get_token(self, installation_id=None):
                 app_token = self._app_token()
@@ -301,8 +303,7 @@ spec:
 
 
         def main():
-            with open(os.environ['GITHUBAPP_KEY_PATH'], 'rb') as key_file:
-                key = key_file.read()
+            key_path = os.environ['GITHUBAPP_KEY_PATH']
 
             if os.environ.get('GITHUBAPP_APP_ID'):
                 app_id = os.environ['GITHUBAPP_APP_ID']
@@ -311,7 +312,7 @@ spec:
 
             print(f"Getting user token for application_id: {app_id}")
             github_app = GitHub(
-                key,
+                key_path,
                 app_id=app_id,
                 installation_id=os.environ.get('GITHUBAPP_INSTALLATION_ID'))
 
