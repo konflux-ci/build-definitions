@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e -o pipefail
+set -x
 
 VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
