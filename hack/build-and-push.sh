@@ -58,6 +58,17 @@ function save_ref() {
     echo "${tagRef}@${digest}"
 }
 
+function escape_tkn_bundle_arg() {
+    # the arguments to `tkn bundle --annotate` need to be escaped in a curious way
+    # see https://github.com/tektoncd/cli/issues/2402 for details
+
+    local arg=$1
+    # replace single double-quotes with double double-quotes (this escapes the double-quotes)
+    local escaped_arg=${arg//\"/\"\"}
+    # wrap the whole thing in double-quotes (this escapes commas)
+    printf '"%s"' "$escaped_arg"
+}
+
 # NOTE: the "namespace" here can be ${organization}/${subpath}, e.g. konflux-ci/tekton-catalog
 # That will result in bundles being pushed to quay.io/konflux-ci/tekton-catalog/* repos
 if [ -z "$QUAY_NAMESPACE" ]; then
@@ -135,24 +146,29 @@ do
       task_bundle_with_digest=${task_bundle}@${digest}
     else
       ANNOTATIONS=()
-      ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
-      ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
-      ANNOTATIONS+=("--annotate" "org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
+      ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
+      ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
+      ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
       # yq will return null if the element is missing.
       if [[ "${task_description}" != "null" ]]; then
-          ANNOTATIONS+=("--annotate" "org.opencontainers.image.description=${task_description}")
+          ANNOTATIONS+=("org.opencontainers.image.description=${task_description}")
       fi
       if [ -f "${task_dir}/README.md" ]; then
-          ANNOTATIONS+=("--annotate" "org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
+          ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
       fi
       if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
-          ANNOTATIONS+=("--annotate" "dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
+          ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
       fi
       if [ -f "${task_dir}/USAGE.md" ]; then
-          ANNOTATIONS+=("--annotate" "dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
+          ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
       fi
 
-      output=$(tkn_bundle_push "${ANNOTATIONS[@]}" -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
+      ANNOTATION_FLAGS=()
+      for annotation in "${ANNOTATIONS[@]}"; do
+          ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
+      done
+
+      output=$(tkn_bundle_push "${ANNOTATION_FLAGS[@]}" -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
       echo "$output"
       task_bundle_with_digest="${output##*$'\n'}"
 
@@ -202,24 +218,29 @@ do
     pipeline_bundle=quay.io/${QUAY_NAMESPACE}/${repository}:${tag}
 
     ANNOTATIONS=()
-    ANNOTATIONS+=("--annotate" "org.opencontainers.image.source=${VCS_URL}")
-    ANNOTATIONS+=("--annotate" "org.opencontainers.image.revision=${VCS_REF}")
-    ANNOTATIONS+=("--annotate" "org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}")
+    ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
+    ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
+    ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}")
     # yq will return null if the element is missing.
     if [[ "${pipeline_description}" != "null" ]]; then
-        ANNOTATIONS+=("--annotate" "org.opencontainers.image.description=${pipeline_description}")
+        ANNOTATIONS+=("org.opencontainers.image.description=${pipeline_description}")
     fi
     if [ -f "${pipeline_dir}README.md" ]; then
-        ANNOTATIONS+=("--annotate" "org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}README.md")
+        ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}README.md")
     fi
     if [ -f "${pipeline_dir}/TROUBLESHOOTING.md" ]; then
-        ANNOTATIONS+=("--annotate" "dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}TROUBLESHOOTING.md")
+        ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}TROUBLESHOOTING.md")
     fi
     if [ -f "${pipeline_dir}/USAGE.md" ]; then
-        ANNOTATIONS+=("--annotate" "dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}USAGE.md")
+        ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${pipeline_dir}USAGE.md")
     fi
 
-    tkn_bundle_push "${ANNOTATIONS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
+    ANNOTATION_FLAGS=()
+    for annotation in "${ANNOTATIONS[@]}"; do
+        ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
+    done
+
+    tkn_bundle_push "${ANNOTATION_FLAGS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
     [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
