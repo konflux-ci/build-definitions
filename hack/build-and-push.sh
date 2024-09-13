@@ -91,7 +91,7 @@ if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
     docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
     docker push "$APPSTUDIO_UTILS_IMG"
-    
+
     # This isn't needed during PR testing
     if [[ "$BUILD_TAG" != "latest" && -z "$TEST_REPO_NAME" ]]; then
         # tag with latest
@@ -223,6 +223,8 @@ do
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
     [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
+    [ "$pipeline_name" == "docker-build-oci-ta" ] && docker_oci_ta_pipeline_bundle=$pipeline_bundle
+    [ "$pipeline_name" == "docker-build-multi-platform-oci-ta" ] && docker_multi_platform_oci_ta_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "nodejs-builder" ] && nodejs_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "java-builder" ] && java_pipeline_bundle=$pipeline_bundle
@@ -233,5 +235,10 @@ do
 done
 
 if [ "$SKIP_INSTALL" == "" ]; then
-    printf "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$docker_pipeline_bundle\nexport CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" > bundle_values.env
+    rm -f bundle_values.env
+
+    echo "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$docker_pipeline_bundle" >> bundle_values.env
+    echo "export CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE=$docker_oci_ta_pipeline_bundle" >> bundle_values.env
+    echo "export CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE=$docker_multi_platform_oci_ta_pipeline_bundle" >> bundle_values.env
+    echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" >> bundle_values.env
 fi
