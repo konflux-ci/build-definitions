@@ -316,7 +316,11 @@ spec:
 
 
         def main():
-            key_path = os.environ['GITHUBAPP_KEY_PATH']
+            key_path = os.environ.get('GITHUBAPP_KEY_PATH')
+            if key_path is None:
+                raise ValueError("The GITHUBAPP_KEY_PATH environment variable is not set")
+            if not os.path.exists(key_path):
+                raise ValueError(f"The GITHUBAPP_KEY_PATH file ({key_path!r}) does not exist")
 
             if os.environ.get('GITHUBAPP_APP_ID'):
                 app_id = os.environ['GITHUBAPP_APP_ID']
