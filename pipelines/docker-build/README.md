@@ -66,7 +66,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-### clair-scan:0.1 task parameters
+### clair-scan:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -183,8 +183,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.1:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 ### buildah:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -194,11 +194,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
-### clair-scan:0.1 task results
+### clair-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CLAIR_SCAN_RESULT| Clair scan result.| |
 |IMAGES_PROCESSED| Images processed in the task.| |
+|SCAN_OUTPUT| Clair scan result.| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### clamav-scan:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

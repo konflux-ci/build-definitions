@@ -49,9 +49,6 @@ spec:
         - name: args
           value: [".", "-c", "/workspace/shared-workspace/source/.yamllint"]
       - name: sast-snyk-check
-        params:
-          - name: SNYK_SECRET
-            value: snyk-shared-secret
         runAfter:
           - fetch-repository
         taskRef:
@@ -155,6 +152,8 @@ spec:
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
+                set -e
+
                 QUAY_NAMESPACE=konflux-ci \
                 TEST_REPO_NAME=pull-request-builds \
                 BUILD_TAG=$(params.revision) \
