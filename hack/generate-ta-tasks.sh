@@ -16,7 +16,7 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 TASK_DIR="$(realpath "${ROOT_DIR}/task")"
 
 tashbin="$(mktemp --dry-run)"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${ROOT_DIR}/ta-generator/" -o "${tashbin}"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${ROOT_DIR}/task-generator/trusted-artifacts" -o "${tashbin}"
 trap 'rm "${tashbin}"' EXIT
 tash() {
   "${tashbin}" "$@"

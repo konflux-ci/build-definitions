@@ -1,4 +1,4 @@
-module github.com/konflux-ci/build-definitions/task-generator
+module github.com/konflux-ci/build-definitions/task-generator/remote
 
 go 1.22.0
 
