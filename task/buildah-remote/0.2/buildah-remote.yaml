@@ -327,7 +327,7 @@ spec:
 
       BASE_IMAGES=$(
         dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_path" |
-          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName'
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)'
       )
 
       BUILDAH_ARGS=()
