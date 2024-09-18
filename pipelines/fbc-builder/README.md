@@ -53,6 +53,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|LABELS| Additional key=value labels that should be applied to the image| []| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
