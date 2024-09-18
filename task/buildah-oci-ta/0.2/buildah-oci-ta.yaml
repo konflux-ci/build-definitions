@@ -72,6 +72,11 @@ spec:
         hours, days, and weeks, respectively.
       type: string
       default: ""
+    - name: LABELS
+      description: Additional key=value labels that should be applied to the
+        image
+      type: array
+      default: []
     - name: PREFETCH_INPUT
       description: In case it is not empty, the prefetched content should
         be made available to the build.
@@ -226,7 +231,10 @@ spec:
     - name: build
       image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
       args:
+        - --build-args
         - $(params.BUILD_ARGS[*])
+        - --labels
+        - $(params.LABELS[*])
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -302,11 +310,34 @@ spec:
             sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
           )
         fi
-        # Append BUILD_ARGS
-        # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
-        # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-        # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
-        build_args+=("$@")
+
+        LABELS=()
+        # Split `args` into two sets of arguments.
+        while [[ $# -gt 0 ]]; do
+            case $1 in
+                --build-args)
+                    shift
+                    # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+                    # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+                    # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
+                    while [[ $# -gt 0 && $1 != --* ]]; do
+                                                          build_args+=("$1")
+                                                                              shift
+            done
+                    ;;
+                --labels)
+                    shift
+                    while [[ $# -gt 0 && $1 != --* ]]; do
+                                                          LABELS+=("--label" "$1")
+                                                                                    shift
+            done
+                    ;;
+                *)
+                    echo "unexpected argument: $1" >&2
+                    exit 2
+                    ;;
+          esac
+        done
 
         BUILD_ARG_FLAGS=()
         for build_arg in "${build_args[@]}"; do
@@ -380,13 +411,16 @@ spec:
           VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
         fi
 
-        LABELS=(
+        DEFAULT_LABELS=(
           "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
           "--label" "architecture=$(uname -m)"
           "--label" "vcs-type=git"
         )
-        [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
-        [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+        [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+        [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
+        # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
+        LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
 
         ACTIVATION_KEY_PATH="/activation-key"
         ENTITLEMENT_PATH="/entitlement"
