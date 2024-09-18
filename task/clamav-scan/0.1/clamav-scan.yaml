@@ -60,7 +60,7 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
         . /utils.sh
-        trap 'handle_error' EXIT
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
         imagewithouttag=$(echo $IMAGE_URL | sed "s/\(.*\):.*/\1/" | tr -d '\n')
 
@@ -96,6 +96,23 @@ spec:
               exit 0
             fi
 
+            timeout=1200  # 20 minutes
+            interval=20  # interval between checks in seconds
+            elapsed=0
+
+            until [ -f /var/lib/clamav/daily.cvd ] || [ "$elapsed" -ge "$timeout" ]; do
+              if (( elapsed % 60 == 0 )) && [ $elapsed -ne 0 ]; then
+                echo "Waiting for database to be downloaded... Elapsed time: $((elapsed / 60)) minute(s)"
+              fi
+              sleep $interval
+              elapsed=$((elapsed + interval))
+            done
+
+            if [ ! -f /var/lib/clamav/daily.cvd ]; then
+              echo "Error: Timed out waiting for daily.cvd after $((elapsed / 60)) minute(s)."
+              exit 1
+            fi
+
             echo "Scanning image for arch $arch. This operation may take a while."
             clamscan $destination -ri --max-scansize=4095M --max-filesize=4095M \
               --max-scantime=0 --max-files=0 --max-recursion=1000 --max-dir-recursion=20000 --max-embeddedpe=4095M \
@@ -105,6 +122,7 @@ spec:
               --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
               --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
               | tee /work/logs/clamscan-result-$arch.log || true
+
             db_version=$(sigtool --info /var/lib/clamav/daily.cvd | grep 'Version')
             echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
 
