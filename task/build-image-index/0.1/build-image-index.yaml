@@ -45,6 +45,8 @@ spec:
     name: IMAGE_URL
   - description: List of all referenced image manifests
     name: IMAGES
+  - description: Image reference of the built image containing both the repository and the digest
+    name: IMAGE_REF
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -136,6 +138,10 @@ spec:
 
       cat image-digest | tee $(results.IMAGE_DIGEST.path)
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+      {
+        echo -n "${IMAGE}@"
+        cat "image-digest"
+      } > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
     securityContext:
       capabilities:
