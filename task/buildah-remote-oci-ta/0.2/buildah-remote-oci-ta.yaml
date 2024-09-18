@@ -20,6 +20,10 @@ spec:
     description: Name of secret which contains subscription activation key
     name: ACTIVATION_KEY
     type: string
+  - default: '[]'
+    description: Additional key=value labels that should be applied to the image
+    name: ADDITIONAL_LABELS
+    type: string
   - default: does-not-exist
     description: Name of a secret which will be made available to the build with 'buildah
       build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -154,6 +158,8 @@ spec:
     env:
     - name: ACTIVATION_KEY
       value: $(params.ACTIVATION_KEY)
+    - name: ADDITIONAL_LABELS
+      value: $(params.ADDITIONAL_LABELS)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
@@ -423,6 +429,10 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      for label in $(echo "${ADDITIONAL_LABELS}" | jq -r '.[]'); do
+        LABELS+=("--label" "$label")
+      done
+
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
@@ -491,6 +501,7 @@ spec:
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
           -e ACTIVATION_KEY="$ACTIVATION_KEY" \
+          -e ADDITIONAL_LABELS="$ADDITIONAL_LABELS" \
           -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
           -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
           -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \

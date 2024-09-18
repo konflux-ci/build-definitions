@@ -115,6 +115,10 @@ spec:
       stages
     name: SKIP_UNUSED_STAGES
     type: string
+  - default: '[]'
+    description: Additional key=value labels that should be applied to the image
+    name: ADDITIONAL_LABELS
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -183,6 +187,8 @@ spec:
       value: $(params.SQUASH)
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
+    - name: ADDITIONAL_LABELS
+      value: $(params.ADDITIONAL_LABELS)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
     - name: PLATFORM
@@ -405,6 +411,10 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      for label in $(echo "${ADDITIONAL_LABELS}" | jq -r '.[]'); do
+        LABELS+=("--label" "$label")
+      done
+
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
@@ -492,6 +502,7 @@ spec:
           -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
           -e SQUASH="$SQUASH" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
+          -e ADDITIONAL_LABELS="$ADDITIONAL_LABELS" \
           -e COMMIT_SHA="$COMMIT_SHA" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v "$BUILD_DIR/volumes/shared:/shared:Z" \
