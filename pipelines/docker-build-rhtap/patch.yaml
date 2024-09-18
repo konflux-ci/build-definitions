@@ -205,8 +205,10 @@
       - update-deployment
     when:
       - input: "$(params.event-type)"
-        operator: notin
-        values: ["pull_request", "Merge Request"]
+        operator: in
+        values:
+          - "push"  # all providers other than gitlab
+          - "Push"  # gitlab
     taskRef:
       kind: Task
       name: acs-deploy-check
