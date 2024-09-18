@@ -17,6 +17,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
 |refspec|Refspec to fetch before checking out revision.|""|false|
 |revision|Revision to checkout. (branch, tag, sha, ref, etc...)|""|false|
+|shortCommitLength|Length of short commit SHA|7|false|
 |sparseCheckoutDirectories|Define the directory patterns to match or exclude when performing a sparse checkout.|""|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
 |submodules|Initialize and fetch git submodules.|true|false|
@@ -30,6 +31,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.|
 |commit|The precise commit SHA that was fetched by this Task.|
 |commit-timestamp|The commit timestamp of the checkout|
+|short-commit|The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters|
 |url|The precise URL that was fetched by this Task.|
 
 ## Workspaces
