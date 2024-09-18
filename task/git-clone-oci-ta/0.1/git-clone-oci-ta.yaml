@@ -66,6 +66,10 @@ spec:
       description: Revision to checkout. (branch, tag, sha, ref, etc...)
       type: string
       default: ""
+    - name: shortCommitLength
+      description: Length of short commit SHA
+      type: string
+      default: "7"
     - name: sparseCheckoutDirectories
       description: Define the directory patterns to match or exclude when
         performing a sparse checkout.
@@ -103,6 +107,9 @@ spec:
       description: The precise commit SHA that was fetched by this Task.
     - name: commit-timestamp
       description: The commit timestamp of the checkout
+    - name: short-commit
+      description: The commit SHA that was fetched by this Task limited to
+        params.shortCommitLength number of characters
     - name: url
       description: The precise URL that was fetched by this Task.
   volumes:
@@ -153,6 +160,8 @@ spec:
           value: $(params.submodules)
         - name: PARAM_DEPTH
           value: $(params.depth)
+        - name: PARAM_SHORT_COMMIT_LENGTH
+          value: $(params.shortCommitLength)
         - name: PARAM_SSL_VERIFY
           value: $(params.sslVerify)
         - name: PARAM_HTTP_PROXY
@@ -232,11 +241,13 @@ spec:
           -sparseCheckoutDirectories="${PARAM_SPARSE_CHECKOUT_DIRECTORIES}"
         cd "${CHECKOUT_DIR}"
         RESULT_SHA="$(git rev-parse HEAD)"
+        RESULT_SHA_SHORT="$(git rev-parse --short="${PARAM_SHORT_COMMIT_LENGTH}" HEAD)"
         EXIT_CODE="$?"
         if [ "${EXIT_CODE}" != 0 ]; then
           exit "${EXIT_CODE}"
         fi
         printf "%s" "${RESULT_SHA}" >"$(results.commit.path)"
+        printf "%s" "${RESULT_SHA_SHORT}" >"$(results.short-commit.path)"
         printf "%s" "${PARAM_URL}" >"$(results.url.path)"
         printf "%s" "$(git log -1 --pretty=%ct)" >"$(results.commit-timestamp.path)"
 
