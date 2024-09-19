@@ -5,19 +5,27 @@ metadata:
   name: rpms-signature-scan
 spec:
   params:
-    - name: INPUT
+    - name: image-url
       type: string
-      description: "AppStudio snapshot or a reference to a container image"
-    - name: FAIL_UNSIGNED
+      description: "AppStudio container image"
+    - name: fail-unsigned
       type: string
       description: "[true | false] If true fail if unsigned RPMs were found"
       default: "false"
-    - name: WORKDIR
+    - name: workdir
       type: string
       default: /tmp
       description: |
         Directory that will be used for storing temporary
         files produced by this task.
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -26,36 +34,47 @@ spec:
   volumes:
     - name: workdir
       emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/redhat-appstudio/tools@sha256:463b8b97125285e93201a2c858bdf1fb1a3f4f6b23247ff44bec3f6fb926fdbb
+      image: quay.io/redhat-appstudio/tools@sha256:130dbe49cc76ff4457cb53916a32b6b1330d86feeb95beaa3b443fd8ac5b47fa
       volumeMounts:
         - name: workdir
-          mountPath: "$(params.WORKDIR)"
+          mountPath: "$(params.workdir)"
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
       env:
-        - name: INPUT
-          value: "$(params.INPUT)"
+        - name: IMAGE_URL
+          value: "$(params.image-url)"
         - name: FAIL_UNSIGNED
-          value: "$(params.FAIL_UNSIGNED)"
+          value: "$(params.fail-unsigned)"
         - name: WORKDIR
-          value: "$(params.WORKDIR)"
+          value: "$(params.workdir)"
       script: |
         #!/bin/bash
         set -ex
         set -o pipefail
 
         rpm_verifier \
-          --input "${INPUT}" \
+          --input "${IMAGE_URL}" \
           --fail-unsigned "${FAIL_UNSIGNED}" \
           --workdir "${WORKDIR}" \
     - name: output-results
       image: quay.io/redhat-appstudio/konflux-test:v1.4.6@sha256:5f298d8d990dfa82023e50029b71b08e19c3c9cedb181dfc4bc86c9ecad8700c
       volumeMounts:
         - name: workdir
-          mountPath: "$(params.WORKDIR)"
+          mountPath: "$(params.workdir)"
       env:
         - name: WORKDIR
-          value: "$(params.WORKDIR)"
+          value: "$(params.workdir)"
       script: |
         #!/bin/bash
         set -ex
