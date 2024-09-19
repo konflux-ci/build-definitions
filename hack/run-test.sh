@@ -46,8 +46,9 @@ if [[ ! -d ${resourcedir}/tests ]];then
     exit 1
 fi
 
-#Need to link appstudio-pipeline SA with the TEST_NS namespace if not already
-#${KUBECTL_CMD} create sa appstudio-pipeline -n $TEST_NS
+#create appstudio-pipeline SA in the TEST_NS namespace if not already
+if ! ${KUBECTL_CMD} get sa appstudio-pipeline -n $TEST_NS | grep 'appstudio-pipeline'; then
+   $KUBECTL_CMD create sa appstudio-pipeline -n $TEST_NS
+fi
 
-#test_resource_creation ${RESOURCE}/${NAME}/${VERSION}/tests $TEST_NS
 test_resource_creation ${RESOURCE}/${NAME}/${VERSION}/tests

@@ -1,12 +1,28 @@
 
 #!/bin/bash
 
+CATALOG_TEST_SKIP_CLEANUP=true
+TEST_NS=${TEST_NS:-"konflux-ci"}
+
 # Define a custom kubectl path if you like
 KUBECTL_CMD=${KUBECTL_CMD:-kubectl}
+
+TEST_RESULT_FILE=/tmp/test-result
 
 # Checks whether the given function exists.
 function function_exists() {
   [[ "$(type -t $1)" == "function" ]]
+}
+
+# Set the return code that the test script will return.
+# Parameters: $1 - return code (0-255)
+function set_test_return_code() {
+  # kubetest teardown might fail and thus incorrectly report failure of the
+  # script, even if the tests pass.
+  # We store the real test result to return it later, ignoring any teardown
+  # failure in kubetest.
+  # TODO(adrcunha): Get rid of this workaround.
+  echo -n "$1"> ${TEST_RESULT_FILE}
 }
 
 function detect_changed_e2e_test() {
@@ -63,9 +79,9 @@ function show_failure() {
 
 function test_yaml_can_install() {
     # Validate that all the StepAction/Task CRDs in this repo are valid by creating them in a NS.
-    ns="test-ns"
+    ns=${TEST_NS}
     all_tasks="$*"
-    ${KUBECTL_CMD} create ns "${ns}" || true
+    #${KUBECTL_CMD} create ns "${ns}" || true
     local runtest
     for runtest in ${all_tasks}; do
         # remove task/ or stepaction/ from beginning
@@ -112,7 +128,7 @@ function test_resource_creation() {
         version="$( echo $version | tr '.' '-' )"
 
         #local tns="${testname}-${version}"
-        local tns="build-templates-e2e"
+        local tns=${TEST_NS}
         local skipit=
 
         for ignore in ${TEST_TASKRUN_IGNORES};do
