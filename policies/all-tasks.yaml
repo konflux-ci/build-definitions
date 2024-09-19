@@ -13,12 +13,14 @@ sources:
         - ssh-directory
         - netrc
       required_task_results:
-        # Certain EC rules rely on the presence of this result when validating an image.
+        # Certain EC rules rely on the presence of these results when validating an image.
         - task: clair-scan
           result: CLAIR_SCAN_RESULT
           version: "0.1"
         - task: clair-scan
           result: SCAN_OUTPUT
+        - task: rpms-signature-scan
+          result: RPMS_DATA
     config:
       include:
         - kind
