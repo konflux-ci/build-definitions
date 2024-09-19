@@ -40,12 +40,14 @@ VERSION=${3}
 resourcedir=${RESOURCE}/${NAME}/${VERSION}
 
 #${KUBECTL_CMD} get ns ${RESOURCE}-${NAME}-${VERSION//./-} >/dev/null 2>/dev/null && ${KUBECTL_CMD} delete ns ${RESOURCE}-${NAME}-${VERSION//./-}
-# TODO: Need to link appstudio-pipeline SA with the TEST_NS namespace if not already
 
 if [[ ! -d ${resourcedir}/tests ]];then
     echo "No 'tests' directory is located in ${resourcedir}"
     exit 1
 fi
+
+#Need to link appstudio-pipeline SA with the TEST_NS namespace if not already
+#${KUBECTL_CMD} create sa appstudio-pipeline -n $TEST_NS
 
 #test_resource_creation ${RESOURCE}/${NAME}/${VERSION}/tests $TEST_NS
 test_resource_creation ${RESOURCE}/${NAME}/${VERSION}/tests
