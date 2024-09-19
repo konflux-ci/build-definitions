@@ -112,7 +112,7 @@ function test_resource_creation() {
         version="$( echo $version | tr '.' '-' )"
 
         #local tns="${testname}-${version}"
-        local tns=$2
+        local tns="build-templates-e2e"
         local skipit=
 
         for ignore in ${TEST_TASKRUN_IGNORES};do
