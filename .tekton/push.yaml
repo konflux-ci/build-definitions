@@ -169,28 +169,6 @@ spec:
                 - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
                 - $(workspaces.source.path)/task-bundle-list-appstudio
                 - $(workspaces.source.path)/pipeline-bundle-list-appstudio
-            - name: copy-acceptable-bundle-to-appstudio
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-              workingDir: $(workspaces.source.path)/source
-              script: |
-                #!/bin/bash
-                set -euo pipefail
-
-                DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
-                DATA_BUNDLE_TAG=$(<acceptable_bundle_tag)
-                DATA_BUNDLE_RH_APPSTUDIO=quay.io/redhat-appstudio-tekton-catalog/data-acceptable-bundles
-
-                skopeo copy \
-                  "docker://$DATA_BUNDLE_REPO:$DATA_BUNDLE_TAG" \
-                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:$DATA_BUNDLE_TAG"
-
-                skopeo copy \
-                  "docker://$DATA_BUNDLE_REPO:$DATA_BUNDLE_TAG" \
-                  "docker://$DATA_BUNDLE_RH_APPSTUDIO:latest"
-              volumeMounts:
-                - mountPath: /root/.docker/config.json
-                  subPath: .dockerconfigjson
-                  name: quay-secret
           volumes:
           - name: quay-secret
             secret:
