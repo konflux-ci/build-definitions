@@ -170,6 +170,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |commit| The precise commit SHA that was fetched by this Task.| build-container:0.2:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
+|commit-short| The short commit SHA of the checkout| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results

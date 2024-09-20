@@ -98,6 +98,8 @@ spec:
     name: url
   - description: The commit timestamp of the checkout
     name: commit-timestamp
+  - description: The short commit SHA of the checkout
+    name: commit-short
   steps:
   - name: clone
     env:
@@ -238,6 +240,7 @@ spec:
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
       printf "%s" "$(git log -1 --pretty=%ct)" > "$(results.commit-timestamp.path)"
+      printf "%s" "$(git rev-parse --short HEAD)" > "$(results.commit-short.path)"
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"

@@ -95,6 +95,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |commit| The precise commit SHA that was fetched by this Task.| |
+|commit-short| The short commit SHA of the checkout| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |url| The precise URL that was fetched by this Task.| |
 ### verify-enterprise-contract:0.1 task results

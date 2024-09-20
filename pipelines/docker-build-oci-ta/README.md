@@ -222,6 +222,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.1:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| build-container:0.2:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
+|commit-short| The short commit SHA of the checkout| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |url| The precise URL that was fetched by this Task.| |
 ### init:0.2 task results
