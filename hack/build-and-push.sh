@@ -14,6 +14,24 @@ function is_official_repo() {
     grep -Eq '^(quay\.io/)?(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)(/.*)?$' <<< "$1"
 }
 
+function should_skip_repo() {
+    local -r quay_namespace="$1"
+    local -r repo_name="$2"
+
+    # only skip repos in the redhat-appstudio-tekton-catalog namespace
+    if [ "$quay_namespace" != redhat-appstudio-tekton-catalog ]; then
+        return 1
+    fi
+
+    local http_code
+    http_code=$(
+        curl -I -s -L -w "%{http_code}\n" -o /dev/null "https://quay.io/v2/${quay_namespace}/${repo_name}/tags/list"
+    )
+
+    # and only skip them if they don't already exist
+    [ "$http_code" != "200" ]
+}
+
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
@@ -126,6 +144,11 @@ cd "$SCRIPTDIR/.."
 find task/*/*/ -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_dir task_name task_version
 do
+    if should_skip_repo "$QUAY_NAMESPACE" "task-$task_name"; then
+        echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated"
+        continue
+    fi
+
     prepared_task_file="${WORKDIR}/$task_name-${task_version}.yaml"
     if [ -f "$task_dir/$task_name.yaml" ]; then
         cp "$task_dir/$task_name.yaml" "$prepared_task_file"
