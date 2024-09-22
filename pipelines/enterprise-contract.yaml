@@ -67,10 +67,10 @@ spec:
       type: string
       description: Reduce the Snapshot to only the component whose build caused the Snapshot to be created
       default: "false"
-    - name: PIPELINERUN_ID
+    - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
       type: string
       description: PipelineRun ID
-      default: "$(context.pipelineRun.name)"
+      default: "pr/$(context.pipelineRun.name)"
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
@@ -101,11 +101,15 @@ spec:
           value: "$(params.CA_TRUST_CONFIGMAP_NAME)"
         - name: CA_TRUST_CONFIG_MAP_KEY
           value: "$(params.CA_TRUST_CONFIG_MAP_KEY)"
+        - name: SINGLE_COMPONENT
+          value: "$(params.SINGLE_COMPONENT)"
+        - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
+          value: "$(params.SINGLE_COMPONENT_CUSTOM_RESOURCE)"
       taskRef:
         resolver: bundles
         params:
           - name: bundle
-            value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:e8674b532948899e1121b3627672b2bcd722402b58a4fda76d7c72fcf5afff8a
+            value: quay.io/enterprise-contract/ec-task-bundle:snapshot@sha256:77614bf616ebf481d6d704a0295d89f6d8fbbd74feecb7ce5394a60633bf22a3
           - name: name
             value: verify-enterprise-contract
           - name: kind

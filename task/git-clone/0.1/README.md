@@ -22,11 +22,13 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden the gitInitImage param with an image containing custom user configuration. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.|true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
+|shortCommitLength|Length of the returned short-commit|7|false|
 
 ## Results
 |name|description|
 |---|---|
 |commit|The precise commit SHA that was fetched by this Task.|
+|short-commit|The commit SHA that was fetched by this Task shortened to `shortCommitLength` number of characters||
 |url|The precise URL that was fetched by this Task.|
 
 ## Workspaces

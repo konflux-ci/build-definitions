@@ -53,12 +53,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:a390d28f69d61ab38aadf78b7c9b21ed09b79687bddae4cf1d02616bef5d7da7
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:c91de1771397c5a6fde3cf0c642dd3478af5409e2d1980a3402f32b395f2d2a7
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sast-snyk-check
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.6@sha256:5f298d8d990dfa82023e50029b71b08e19c3c9cedb181dfc4bc86c9ecad8700c
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/secrets

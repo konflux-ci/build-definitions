@@ -71,6 +71,7 @@
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
+|shortCommitLength| Length of short commit SHA| 7| |
 |sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| | |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
@@ -137,6 +138,7 @@
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
 |IMAGE_DIGEST| Digest of the image just built| clair-scan:0.2:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 ### clair-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -158,6 +160,7 @@
 |---|---|---|
 |commit| The precise commit SHA that was fetched by this Task.| build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
+|short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

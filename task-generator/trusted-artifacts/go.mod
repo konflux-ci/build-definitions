@@ -1,4 +1,4 @@
-module github.com/konflux-ci/build-definitions/ta-generator
+module github.com/konflux-ci/build-definitions/task-generator/trusted-artifacts
 
 go 1.22.3
 

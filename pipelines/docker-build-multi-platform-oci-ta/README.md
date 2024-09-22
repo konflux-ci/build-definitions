@@ -118,6 +118,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).git'|
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
+|shortCommitLength| Length of short commit SHA| 7| |
 |sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| | |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |submodules| Initialize and fetch git submodules.| true| |
@@ -189,6 +190,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
 |IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.2:image-digest ; clamav-scan:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST|
+|IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.2:image-url ; clamav-scan:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE|
 ### buildah-remote-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -225,6 +227,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.1:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| build-images:0.2:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
+|short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| |
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
