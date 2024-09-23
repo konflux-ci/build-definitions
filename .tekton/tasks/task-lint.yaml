@@ -1,18 +1,18 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: yaml-lint
+  name: task-lint
   labels:
     app.kubernetes.io/version: "0.1"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/categories: Code Quality
     tekton.dev/tags: linter
-    tekton.dev/displayName: "YAML linter"
+    tekton.dev/displayName: "Task Linter"
     tekton.dev/platforms: "linux/amd64"
 spec:
   description: >-
-    This task can be used to perform lint check on YAML files
+    A task for performing static analysis on Tekton tasks
   workspaces:
     - name: shared-workspace
       description: A workspace that contains the fetched git repository.
@@ -22,15 +22,6 @@ spec:
       description: extra args needs to append
       default: ["--help"]
   steps:
-    - name: lint-yaml-files
-      image: docker.io/cytopia/yamllint:1.26@sha256:1bf8270a671a2e5f2fea8ac2e80164d627e0c5fa083759862bbde80628f942b2  # tag: 1.23
-      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-      # the cluster will set imagePullPolicy to IfNotPresent
-      workingDir: $(workspaces.shared-workspace.path)/source
-      command:
-        - yamllint
-      args:
-        - $(params.args)
     - name: ensure-params-not-in-script
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting

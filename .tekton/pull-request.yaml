@@ -5,8 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/"))
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/yaml-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml]"
-    pipelinesascode.tekton.dev/task-2: "yaml-lint"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -37,17 +36,14 @@ spec:
             value: $(params.revision)
           - name: depth
             value: "0"
-      - name: yaml-lint-check
+      - name: task-lint-check
         runAfter:
           - fetch-repository
         taskRef:
-          name: yaml-lint
+          name: task-lint
         workspaces:
           - name: shared-workspace
             workspace: workspace
-        params:
-        - name: args
-          value: [".", "-c", "/workspace/shared-workspace/source/.yamllint"]
       - name: sast-snyk-check
         runAfter:
           - fetch-repository
@@ -58,7 +54,7 @@ spec:
             workspace: workspace
       - name: build-container
         runAfter:
-          - yaml-lint-check
+          - task-lint-check
         params:
           - name: IMAGE
             value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
