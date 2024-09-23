@@ -20,7 +20,6 @@ Send a pull request to the [build-definitions](https://github.com/konflux-ci/bui
 ### How to debug the CI failures in my submitted Task?
 
 Check the logs of the `check-partner-tasks` Task in the `build-definitions-pull-request` PR check.
-If you see the Task `yaml-lint-check` has failed, then your Task YAML contains yaml-lint errors.
 
 ### Checks
 
