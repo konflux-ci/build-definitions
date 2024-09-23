@@ -224,6 +224,11 @@ if [ -n "$ENABLE_SOURCE_BUILD" ]; then
     done
 fi
 
+if [ "$QUAY_NAMESPACE" == redhat-appstudio-tekton-catalog ]; then
+    echo "NOTE: not pushing any pipelines to $QUAY_NAMESPACE; the namespace is deprecated"
+    exit 0
+fi
+
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
 for pipeline_yaml in "$generated_pipelines_dir"/*.yaml "$core_services_pipelines_dir"/*.yaml
 do
