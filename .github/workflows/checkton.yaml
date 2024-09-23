@@ -1,5 +1,5 @@
 name: Checkton
-on:
+"on":
   pull_request:
     branches: [main]
 
@@ -23,12 +23,12 @@ jobs:
           find-copies-harder: true
           exclude-regex: ^task-generator
 
-      # Currently, code scanning alerts annoyingly stay open even if you fix them.
-      # Don't upload SARIF until https://github.com/orgs/community/discussions/132787 is resolved.
+          # Currently, code scanning alerts annoyingly stay open even if you fix them.
+          # Don't upload SARIF until https://github.com/orgs/community/discussions/132787 is resolved.
 
-      # - name: Upload SARIF file
-      #   uses: github/codeql-action/upload-sarif@v3
-      #   with:
-      #     sarif_file: ${{ steps.checkton.outputs.sarif }}
-      #     # Avoid clashing with ShellCheck
-      #     category: checkton
+          # - name: Upload SARIF file
+          #   uses: github/codeql-action/upload-sarif@v3
+          #   with:
+          #     sarif_file: ${{ steps.checkton.outputs.sarif }}
+          #     # Avoid clashing with ShellCheck
+          #     category: checkton
