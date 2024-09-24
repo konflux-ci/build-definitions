@@ -309,8 +309,12 @@ spec:
         echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
       fi
-      if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_path"; then
-        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\)\(.*\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml \3|g" "$dockerfile_path"
+
+      dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
+      cp "$dockerfile_path" "$dockerfile_copy"
+
+      if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_copy"; then
+        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\)\(.*\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml \3|g" "$dockerfile_copy"
         touch /var/lib/containers/java
       fi
 
@@ -345,7 +349,7 @@ spec:
       done
 
       BASE_IMAGES=$(
-        dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_path" |
+        dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" |
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)'
       )
 
@@ -387,7 +391,7 @@ spec:
         sed -E -i \
             -e 'H;1h;$!d;x' \
             -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
-            "$dockerfile_path"
+            "$dockerfile_copy"
         echo "Prefetched content will be made available"
 
         prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
@@ -454,7 +458,7 @@ spec:
         "${LABELS[@]}" \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
-        -f "$dockerfile_path" -t $IMAGE .
+        -f "$dockerfile_copy" -t $IMAGE .
 
       container=$(buildah from --pull-never $IMAGE)
       buildah mount $container | tee /shared/container_path
