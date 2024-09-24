@@ -417,15 +417,18 @@ spec:
           done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
         fi
 
+        # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
+        declare IMAGE
+
         unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
           $VOLUME_MOUNTS \
           "${BUILDAH_ARGS[@]}" \
           "${LABELS[@]}" \
           --tls-verify=$TLSVERIFY --no-cache \
           --ulimit nofile=4096:4096 \
-          -f "$dockerfile_copy" -t $IMAGE .
+          -f "$dockerfile_copy" -t "$IMAGE" .
 
-        container=$(buildah from --pull-never $IMAGE)
+        container=$(buildah from --pull-never "$IMAGE")
         buildah mount $container | tee /shared/container_path
         # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
         find $(cat /shared/container_path) -xtype l -delete
