@@ -95,10 +95,18 @@ spec:
           exit 0
         fi
 
+        if [ ! -s ../inspect-image/raw_image_inspect.json ]; then
+          echo "File $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. Check inspect-image task log."
+          note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+        fi
+
         status=0
-        base_image_name=$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" ../inspect-image/image_inspect.json) || status=$?
+        base_image_name=$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" ../inspect-image/raw_image_inspect.json) || status=$?
         if [ $status -ne 0 ]; then
-          echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: org.opencontainers.image.base.name"
+          echo "Could not get annotations from inspect-image/raw_image_inspect.json. Make sure file exists and it contains this annotation: org.opencontainers.image.base.name"
           TEST_OUTPUT="$(make_result_json -r ERROR)"
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
