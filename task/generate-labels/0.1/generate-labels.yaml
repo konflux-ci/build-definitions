@@ -47,15 +47,14 @@ spec:
           #!/bin/bash
 
           ACTUAL_DATE_EPOCH=$(date -u +'%s')
-          # shellcheck disable=SC2034  # Unused variable used implicitly in envsubst
           ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%S')
 
           if [ "$SOURCE_DATE_EPOCH" == "" ]; then
             SOURCE_DATE_EPOCH="$ACTUAL_DATE_EPOCH"
           fi
-          # shellcheck disable=SC2034  # Unused variable used implicitly in envsubst
           SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%S')
 
+          # Export, so that these are available to the subshell below
           export ACTUAL_DATE
           export ACTUAL_DATE_EPOCH
           export SOURCE_DATE
