@@ -96,6 +96,15 @@ spec:
         fi
 
         status=0
+        base_image_name=$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" ../inspect-image/image_inspect.json) || status=$?
+        if [ $status -ne 0 ]; then
+          echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: org.opencontainers.image.base.name"
+          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        status=0
         conffolder=$(jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"' ../inspect-image/image_inspect.json) || status=$?
         if [ $status -ne 0 ]; then
           echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: operators.operatorframework.io.index.configs.v1."
@@ -183,14 +192,6 @@ spec:
         # examines the base_image_name tag to derive the target OCP version
         # assumes this is in the form
         # image-path:[v]major-digits.minor-digits[@sha...]
-        status=0
-        base_image_name=$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" ../inspect-image/image_inspect.json) || status=$?
-        if [ $status -ne 0 ]; then
-          echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: org.opencontainers.image.base.name"
-          TEST_OUTPUT="$(make_result_json -r ERROR)"
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-          exit 0
-        fi
         OCP_VER_FROM_BASE=$(echo "${base_image_name}" | sed -e "s/@.*$//" -e "s/^.*://")   # strips hash first due to greedy match
         # extracts major digits and filters out any leading alphabetic characters, for e.g. 'v4' --> '4'
         OCP_VER_MAJOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 1 | sed "s/^[a-zA-Z]*//")
