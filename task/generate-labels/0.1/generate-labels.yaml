@@ -20,9 +20,9 @@ spec:
 
     The following environment variables are defined for use in LABEL_TEMPLATES
 
-    * ACTUAL_DATE - a date time string containing the time this task runs, formatted +'%Y-%m-%dT%H:%M:%S'
+    * ACTUAL_DATE - a date time string containing the time this task runs, formatted +'%Y-%m-%dT%H:%M:%SZ'
     * ACTUAL_DATE_EPOCH - the timestamp at the time this task runs
-    * SOURCE_DATE - a date time string containing the provided source timestamp, formatted +'%Y-%m-%dT%H:%M:%S'
+    * SOURCE_DATE - a date time string containing the provided source timestamp, formatted +'%Y-%m-%dT%H:%M:%SZ'
     * SOURCE_DATE_EPOCH - the timestamp provided as a param meant to represent the timestamp at which the source was last modified
 
   params:
@@ -47,12 +47,12 @@ spec:
           #!/bin/bash
 
           ACTUAL_DATE_EPOCH=$(date -u +'%s')
-          ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%S')
+          ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
 
           if [ "$SOURCE_DATE_EPOCH" == "" ]; then
             SOURCE_DATE_EPOCH="$ACTUAL_DATE_EPOCH"
           fi
-          SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%S')
+          SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
 
           # Export, so that these are available to the subshell below
           export ACTUAL_DATE
