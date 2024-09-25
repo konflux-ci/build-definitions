@@ -47,7 +47,7 @@ spec:
           IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
           for tag in "$@"; do
             echo "Applying tag $tag"
-            skopeo copy docker://$IMAGE docker://$IMAGE_WITHOUT_TAG:$tag
+            skopeo copy --multi-arch all docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
           done
         else
           echo "No additional tags parameter specified"
@@ -70,7 +70,7 @@ spec:
           for tag in "${tags_array[@]}"
           do
               echo "Applying tag $tag"
-              skopeo copy docker://$IMAGE docker://$IMAGE_WITHOUT_TAG:$tag
+              skopeo copy --multi-arch all docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
           done
         else
           echo "No additional tags specified in the image labels"
