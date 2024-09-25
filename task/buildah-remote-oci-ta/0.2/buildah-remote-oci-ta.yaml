@@ -20,10 +20,10 @@ spec:
     description: Name of secret which contains subscription activation key
     name: ACTIVATION_KEY
     type: string
-  - default: '[]'
+  - default: []
     description: Additional key=value labels that should be applied to the image
     name: ADDITIONAL_LABELS
-    type: string
+    type: array
   - default: does-not-exist
     description: Name of a secret which will be made available to the build with 'buildah
       build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -158,8 +158,6 @@ spec:
     env:
     - name: ACTIVATION_KEY
       value: $(params.ACTIVATION_KEY)
-    - name: ADDITIONAL_LABELS
-      value: $(params.ADDITIONAL_LABELS)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
@@ -218,7 +216,10 @@ spec:
     image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
     name: use-trusted-artifact
   - args:
+    - --build-args
     - $(params.BUILD_ARGS[*])
+    - --labels
+    - $(params.ADDITIONAL_LABELS[*])
     computeResources:
       limits:
         cpu: "4"
@@ -343,12 +344,36 @@ spec:
           sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
         )
       fi
+
+      ADDITIONAL_LABELS=()
+      # Split `args` into two sets of arguments.
+      while [[ $# -gt 0 ]]; do
+          case $1 in
+              --build-args)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do
+                                                        build_args+=("$1")
+                                                                            shift
+          done
+                  ;;
+              --labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do
+                                                        ADDITIONAL_LABELS+=("$1")
+                                                                                   shift
+          done
+                  ;;
+              *)
+                  echo "unexpected argument: $1" >&2
+                  exit 2
+                  ;;
+        esac
+      done
+
       # Append BUILD_ARGS
       # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
       # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
       # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
-      build_args+=("$@")
-
       BUILD_ARG_FLAGS=()
       for build_arg in "${build_args[@]}"; do
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
@@ -429,7 +454,7 @@ spec:
       [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
-      for label in $(echo "${ADDITIONAL_LABELS}" | jq -r '.[]'); do
+      for label in "${ADDITIONAL_LABELS[@]}"; do
         LABELS+=("--label" "$label")
       done
 
@@ -501,7 +526,6 @@ spec:
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
           -e ACTIVATION_KEY="$ACTIVATION_KEY" \
-          -e ADDITIONAL_LABELS="$ADDITIONAL_LABELS" \
           -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
           -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
           -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
