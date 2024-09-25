@@ -63,7 +63,7 @@ spec:
           echo "Base image is unknown. The file-based catalog must have base image defined. Check inspect-image task log."
           note="Task $(context.task.name) failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
@@ -82,7 +82,7 @@ spec:
           echo "Base image ${BASE_IMAGE} is not allowed for the file based catalog image. Allowed images: ${ALLOWED_BASE_IMAGES}"
           note="Task $(context.task.name) failed: Base image ${BASE_IMAGE} is not allowed for the file based catalog image. For details, check Tekton task logs"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
@@ -91,7 +91,7 @@ spec:
           echo "File $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
           note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
@@ -99,14 +99,25 @@ spec:
           echo "File $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. Check inspect-image task log."
           note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
-        status=0
-        base_image_name=$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" ../inspect-image/raw_image_inspect.json) || status=$?
-        if [ $status -ne 0 ]; then
+        echo "Getting base image for source image ${IMAGE_URL}."
+        base_image_name="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" ../inspect-image/raw_image_inspect.json)" || status=$?
+        if [ "$base_image_name" == 'null' ]; then
           echo "Could not get annotations from inspect-image/raw_image_inspect.json. Make sure file exists and it contains this annotation: org.opencontainers.image.base.name"
+          echo "Try to get base image from label..."
+          base_image_name="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" ../inspect-image/image_inspect.json)" || status=$?
+          if [ "$base_image_name" == 'null' ]; then
+            echo "Cannot get base image info from Labels. For details, check source image ../inspect-image/image_inspect.json."
+            TEST_OUTPUT="$(make_result_json -r ERROR)"
+            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 0
+          fi
+        fi
+        if [ -z "$base_image_name" ]; then
+          echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
           TEST_OUTPUT="$(make_result_json -r ERROR)"
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
@@ -128,7 +139,7 @@ spec:
           echo "Unable to extract or validate extracted binaries."
           note="Task $(context.task.name) failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           popd
           exit 0
         fi
@@ -260,9 +271,9 @@ spec:
         note="Task $(context.task.name) completed: Check result for task result."
         if [ $TESTPASSED == false ]; then
           ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
-          echo "${ERROR_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         else
           TEST_OUTPUT=$(make_result_json -r SUCCESS -s $check_num -t "$note")
-          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         fi
         popd
