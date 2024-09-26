@@ -7,7 +7,10 @@ spec:
   params:
     - name: image-url
       type: string
-      description: "AppStudio container image"
+      description: Image URL
+    - name: image-digest
+      type: string
+      description: Image digest to scan
     - name: fail-unsigned
       type: string
       description: "[true | false] If true fail if unsigned RPMs were found"
@@ -31,6 +34,8 @@ spec:
       description: Tekton task test output.
     - name: RPMS_DATA
       description: Information about signed and unsigned RPMs
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task.
   volumes:
     - name: workdir
       emptyDir: {}
@@ -43,7 +48,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/redhat-appstudio/tools@sha256:130dbe49cc76ff4457cb53916a32b6b1330d86feeb95beaa3b443fd8ac5b47fa
+      image: quay.io/redhat-appstudio/tools@sha256:2ae975e79742691d678292a676715ed7ef48b0ee37c5725eea30bc8ae0a7a9af
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -54,6 +59,8 @@ spec:
       env:
         - name: IMAGE_URL
           value: "$(params.image-url)"
+        - name: IMAGE_DIGEST
+          value: "$(params.image-digest)"
         - name: FAIL_UNSIGNED
           value: "$(params.fail-unsigned)"
         - name: WORKDIR
@@ -64,7 +71,8 @@ spec:
         set -o pipefail
 
         rpm_verifier \
-          --input "${IMAGE_URL}" \
+          --image-url "${IMAGE_URL}" \
+          --image-digest "${IMAGE_DIGEST}" \
           --fail-unsigned "${FAIL_UNSIGNED}" \
           --workdir "${WORKDIR}" \
     - name: output-results
@@ -82,6 +90,7 @@ spec:
         source /utils.sh
         status=$(cat "${WORKDIR}"/status)
         rpms_data=$(cat "${WORKDIR}"/results)
+        images_processed=$(cat "${WORKDIR}"/images_processed)
         if [ "$status" == "ERROR" ]; then
           note="Task $(context.task.name) completed: Not all RPMs were confirmed to be signed. Refer to Tekton task output for details"
         else
@@ -91,3 +100,4 @@ spec:
         TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         echo "${rpms_data}" | tee "$(results.RPMS_DATA.path)"
+        echo "${images_processed}" | tee "$(results.IMAGES_PROCESSED.path)"
