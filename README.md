@@ -30,7 +30,7 @@ There is an option to push all bundles to a single quay.io repository (this meth
 The pipelines can be found in the `pipelines` directory.
 
 - `core-services`: contains pipelines for the CI of Konflux core services e.g., `application-service` and `build-service`.
-- `template-build`: contains common template used to generate `docker-build`, `fbc-builder`, `java-builder` and `nodejs-builder` pipelines.
+- `template-build`: contains common template used to generate `docker-build`, `fbc-builder` and other pipelines.
 
 ### Tasks
 
@@ -67,11 +67,11 @@ Buildah also has a remote version, which can be generated with:
 
 ### Prerequisites
 - Provisioned cluster with sufficient resources
-- Deployed Konflux on the cluster (see [infra-deployments](https://github.com/redhat-appstudio/infra-deployments)) 
+- Deployed Konflux on the cluster (see [infra-deployments](https://github.com/redhat-appstudio/infra-deployments))
 
 1. Set up the image repository
-PipelineRuns attempt to push to cluster-internal registry `image-registry.openshift-image-registry.svc:5000` by default. 
-For testing, you will likely want to use your own Quay repository. 
+PipelineRuns attempt to push to cluster-internal registry `image-registry.openshift-image-registry.svc:5000` by default.
+For testing, you will likely want to use your own Quay repository.
 Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in the format `OWNER/REPOSITORY_NAME`.
 2. Set up the `redhat-appstudio-staginguser-pull-secret`
    - Log in to `quay.io` using your credentials:
@@ -89,8 +89,8 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
      ```
 3. Run the tests
 
-- To test a custom Git repository and pipeline, use `./hack/test-build.sh`. 
-  
+- To test a custom Git repository and pipeline, use `./hack/test-build.sh`.
+
   Usage example:
   ```
   QUAY_NAMESPACE=OWNER/REPOSITORY_NAME ./hack/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder`.
@@ -107,11 +107,11 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
 ### Compliance
 
 Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.
-Currently, there are two policy configurations. 
+Currently, there are two policy configurations.
 - The [all-tasks](./policies/all-tasks.yaml) policy
-configuration applies to all Task definitions 
+configuration applies to all Task definitions
 - The [build-tasks](./policies/build-tasks.yaml)
-policy configuration applies only to build Task definitions. 
+policy configuration applies only to build Task definitions.
 
 A build Task, i.e., one that produces a
 container image, must abide by both policy configurations.

@@ -24,7 +24,5 @@ oc apply -k $SCRIPTDIR/../pipelines/ -o yaml --dry-run=client | \
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/redhat-appstudio/infra-deployments/main/hack/build/setup-namespace.sh)"
 
 [ "$1" == "skip_checks" ] && export SKIP_CHECKS=1
-$SCRIPTDIR/test-build.sh https://github.com/jduimovich/spring-petclinic java-builder
-$SCRIPTDIR/test-build.sh https://github.com/jduimovich/single-nodejs-app nodejs-builder
 $SCRIPTDIR/test-build.sh https://github.com/jduimovich/single-container-app docker-build
 $SCRIPTDIR/test-build.sh https://github.com/Michkov/simple-fbc fbc-builder

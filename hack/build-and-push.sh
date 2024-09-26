@@ -275,8 +275,6 @@ do
     [ "$pipeline_name" == "docker-build-oci-ta" ] && docker_oci_ta_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "docker-build-multi-platform-oci-ta" ] && docker_multi_platform_oci_ta_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
-    [ "$pipeline_name" == "nodejs-builder" ] && nodejs_pipeline_bundle=$pipeline_bundle
-    [ "$pipeline_name" == "java-builder" ] && java_pipeline_bundle=$pipeline_bundle
     if [ "$SKIP_DEVEL_TAG" == "" ] && is_official_repo "$QUAY_NAMESPACE" && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"

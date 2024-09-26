@@ -24,6 +24,7 @@ def run(cmd):
         failed = 0
     except subprocess.CalledProcessError as e:
         print(f"{cmd[0]} failed:\nSTDOUT:\n{e.stdout.decode()}\nSTDERR:\n{e.stderr.decode()}")
+        return "", "", failed
     except FileNotFoundError:
         print(f"command: {cmd[0]} doesn't exist")
         return "", "", failed
