@@ -130,6 +130,8 @@ spec:
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
       value: $(params.HERMETIC)
+    - name: SOURCE_CODE_DIR
+      value: source
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: DOCKERFILE
@@ -188,7 +190,6 @@ spec:
         update-ca-trust
       fi
 
-      SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
@@ -408,9 +409,9 @@ spec:
         cpu: 500m
     script: |
       echo "Running syft on the source directory"
-      syft dir:$(workspaces.source.path)/source --output cyclonedx-json=$(workspaces.source.path)/sbom-source.json
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
-      syft dir:$(cat /shared/container_path) --output cyclonedx-json=$(workspaces.source.path)/sbom-image.json
+      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="$(workspaces.source.path)/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers

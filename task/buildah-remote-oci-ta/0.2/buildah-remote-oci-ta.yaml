@@ -176,6 +176,8 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
+    - name: SOURCE_CODE_DIR
+      value: source
     - name: SQUASH
       value: $(params.SQUASH)
     - name: STORAGE_DRIVER
@@ -286,7 +288,6 @@ spec:
         update-ca-trust
       fi
 
-      SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
@@ -494,6 +495,7 @@ spec:
           -e IMAGE="$IMAGE" \
           -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
+          -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
           -e SQUASH="$SQUASH" \
           -e STORAGE_DRIVER="$STORAGE_DRIVER" \
           -e TARGET_STAGE="$TARGET_STAGE" \
@@ -562,9 +564,9 @@ spec:
         export IMAGE
       fi
       echo "Running syft on the source directory"
-      syft dir:/var/workdir/source --output cyclonedx-json=/var/workdir/sbom-source.json
+      syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
-      syft dir:$(cat /shared/container_path) --output cyclonedx-json=/var/workdir/sbom-image.json
+      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
