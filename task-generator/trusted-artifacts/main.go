@@ -17,7 +17,7 @@ func main() {
 
 	recipe := expectValue(readRecipe(recipePath))
 
-	task := expectValue(readTask(recipe.Base))
+	task := expectValue(loadTask(recipe.Base))
 
 	taDir := path.Dir(recipePath)
 
