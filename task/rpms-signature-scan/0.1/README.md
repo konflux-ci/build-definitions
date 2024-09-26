@@ -11,7 +11,8 @@ failing (the latter is useful when running inside a build pipeline which tests t
 
 | Name                     | Description                                                            | Defaults      | Required |
 |--------------------------|------------------------------------------------------------------------|---------------|----------|
-| image-url                | A reference to a container image                                       |               | true     |
+| image-url                | Image URL                                                              |               | true     |
+| image-digest             | Image digest to scan.                                                  |               | true     |
 | fail-unsigned            | [true \| false] If true fail if unsigned RPMs were found               | false         | false    |
 | workdir                  | Directory for storing temporary files                                  | /tmp          | false    |
 | ca-trust-config-map-name | The name of the ConfigMap to read CA bundle data from.                 | trusted-ca    | false    |
@@ -19,10 +20,11 @@ failing (the latter is useful when running inside a build pipeline which tests t
 
 ## Results:
 
-| Name              | Description              |
-|-------------------|--------------------------|
-| TEST_OUTPUT       | Tekton task test output  |
-| RPMS_DATA         | RPMs scanner results     |
+| Name              | Description                  |
+|-------------------|------------------------------|
+| TEST_OUTPUT       | Tekton task test output      |
+| RPMS_DATA         | RPMs scanner results         |
+| IMAGES_PROCESSED  | Images processed in the task |
 
 ## Source repository for image:
 https://github.com/redhat-appstudio/tools
