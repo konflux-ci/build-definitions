@@ -34,6 +34,8 @@ spec:
       description: Clair scan result.
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
+    - name: REPORTS
+      description: Mapping of image digests to report digests
   stepTemplate:
     volumeMounts:
       - name: trusted-ca
@@ -92,14 +94,28 @@ spec:
           value: $(params.image-url)
         - name: IMAGE_DIGEST
           value: $(params.image-digest)
+      workingDir: /tekton/home
       script: |
         #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
 
         imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
         digests_processed=()
 
-        for sha_file in /tekton/home/image-manifest-*.sha; do
+        # the quay report format used by the Conftest rules in the
+        # conftest-vulnerabilities step doesn't contain the "issued" date which
+        # we require in the policy rules, so we resort to running clair-action
+        # twice to produce both quay and clair formatted output
+        clair_report() {
+          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=quay | tee "clair-result-$2.json"; } && \
+          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair > "clair-report-$2.json"; }
+        }
+
+        for sha_file in image-manifest-*.sha; do
           if [ -e "$sha_file" ]; then
             arch_sha=$(cat "$sha_file")
             arch=$(basename "$sha_file" | sed 's/image-manifest-//;s/.sha//')
@@ -107,7 +123,7 @@ spec:
 
             echo "Running clair-action on $arch image manifest."
             # run the scan for each image manifest in the image index
-            clair-action report --image-ref=$arch_specific_digest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result-$arch.json || true
+            clair_report "${arch_specific_digest}" "${arch}" || true
 
             digests_processed+=("\"$arch_sha\"")
           fi
@@ -117,7 +133,48 @@ spec:
 
         # add the image_index to the processed digests list and store the result in a file
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
-        echo "$images_processed" > /tekton/home/images-processed.json
+        echo "$images_processed" > images-processed.json
+    - name: oci-attach-report
+      image: quay.io/konflux-ci/oras:latest@sha256:56589c1c9132aeaccffad2fc2fd1c3b612741b961e177a91abeb81cb0d859ff2
+      workingDir: /tekton/home
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        if ! compgen -G "clair-report-*.json" > /dev/null; then
+          echo 'No Clair reports generated. Skipping upload.'
+          exit 0
+        fi
+
+        echo "Selecting auth"
+        select-oci-auth "$IMAGE_URL" > "$HOME/auth.json"
+
+        repository="${IMAGE_URL/:*/}"
+
+        arch() {
+          report_file="$1"
+          arch="${report_file/*-}"
+          echo "${arch/.json/}"
+        }
+
+        MEDIA_TYPE='application/vnd.redhat.clair-report+json'
+
+        reports_json=""
+        for f in clair-report-*.json; do
+          digest=$(cat "image-manifest-$(arch "$f").sha")
+          image_ref="${repository}@${digest}"
+          echo "Attaching $f to ${image_ref}"
+          report_digest="$(oras attach --no-tty --format go-template='{{.digest}}' --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          # shellcheck disable=SC2016
+          reports_json="$(yq --output-format json --indent=0 eval-all '. as $i ireduce ({}; . * $i)' <(echo "${reports_json}") <(echo "${digest}: ${report_digest}"))"
+        done
+        echo "${reports_json}" > reports.json
     - name: conftest-vulnerabilities
       image: quay.io/redhat-appstudio/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -206,6 +263,8 @@ spec:
         echo "$scan_result" | tee "$(results.SCAN_OUTPUT.path)"
 
         cat /tekton/home/images-processed.json | tee $(results.IMAGES_PROCESSED.path)
+        # shellcheck disable=SC2154
+        cat /tekton/home/reports.json > "$(results.REPORTS.path)"
 
         note="Task $(context.task.name) completed: Refer to Tekton task result SCAN_OUTPUT for vulnerabilities scanned by Clair."
         TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
