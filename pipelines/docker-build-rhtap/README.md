@@ -78,6 +78,15 @@
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| |
+### rpms-signature-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|fail-unsigned| [true \ false] If true fail if unsigned RPMs were found| false| |
+|image-digest| Image digest to scan| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL| None| '$(tasks.build-container.results.IMAGE_URL)'|
+|workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
 ### show-sbom-rhdh:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -114,8 +123,8 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of the base images used for build| |
-|IMAGE_DIGEST| Digest of the image just built| acs-image-check:0.1:image-digest ; acs-image-scan:0.1:image-digest|
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; update-deployment:0.1:image|
+|IMAGE_DIGEST| Digest of the image just built| rpms-signature-scan:0.1:image-digest ; acs-image-check:0.1:image-digest ; acs-image-scan:0.1:image-digest|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; rpms-signature-scan:0.1:image-url ; update-deployment:0.1:image|
 |SBOM_BLOB_URL| Link to the SBOM layer pushed to the registry as part of an OCI artifact.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -128,6 +137,12 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+### rpms-signature-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|RPMS_DATA| Information about signed and unsigned RPMs| |
+|TEST_OUTPUT| Tekton task test output.| |
 ### show-sbom-rhdh:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
