@@ -552,6 +552,11 @@ spec:
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
+      PODMAN_NVIDIA_ARGS=()
+      if [[ "$PLATFORM" == "linux-g"* ]]; then
+          PODMAN_NVIDIA_ARGS+=("--device=nvidia.com/gpu=all" "--security-opt=label=disable")
+      fi
+
       if ! [[ $IS_LOCALHOST ]]; then
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
@@ -586,7 +591,7 @@ spec:
           -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
           -v "$BUILD_DIR/results/:/tekton/results:Z" \
           -v "$BUILD_DIR/scripts:/scripts:Z" \
-          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
         rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
