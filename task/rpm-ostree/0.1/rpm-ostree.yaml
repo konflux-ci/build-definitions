@@ -168,7 +168,6 @@ spec:
           $network_opt \
           --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared \
           --privileged \
-          --tmpfs /run/secrets \
           -e CONTEXT="$CONTEXT" \
           -e IMAGE_FILE="$IMAGE_FILE" \
           -e CONFIG_FILE="$CONFIG_FILE" \
@@ -178,6 +177,7 @@ spec:
           --rm \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v $BUILD_DIR/scripts:/script:Z \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
           --user=0 \
           --entrypoint bash \
           "$BUILDER_IMAGE" \
