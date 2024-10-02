@@ -163,6 +163,7 @@ spec:
 
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       ssh $SSH_ARGS "$SSH_HOST" \
         podman run \
           $network_opt \
