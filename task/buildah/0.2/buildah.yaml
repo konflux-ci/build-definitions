@@ -343,15 +343,25 @@ spec:
         VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
       fi
 
-      LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
-        "--label" "architecture=$(uname -m)"
-        "--label" "vcs-type=git"
+      DEFAULT_LABELS=(
+        "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "architecture=$(uname -m)"
+        "vcs-type=git"
       )
-      [ -n "$COMMIT_SHA" ] && LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
+      LABELS=()
       for label in "${ADDITIONAL_LABELS[@]}"; do
+        echo "Adding label from param $label"
+        LABELS+=("--label" "$label")
+      done
+      for label in "${DEFAULT_LABELS[@]}"; do
+        if [[ ${ADDITIONAL_LABELS[*]} =~ ${label//=*} ]]; then
+          echo "Dropping default label $label"
+          continue
+        fi
+        echo "Adding default label $label"
         LABELS+=("--label" "$label")
       done
 
