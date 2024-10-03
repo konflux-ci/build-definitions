@@ -157,8 +157,6 @@ spec:
       value: source
     - name: CONTEXT
       value: $(params.CONTEXT)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
     - name: IMAGE
       value: $(params.IMAGE)
     - name: TLSVERIFY
@@ -212,6 +210,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     name: build
     script: |-
@@ -281,6 +281,8 @@ spec:
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -388,10 +390,12 @@ spec:
         BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
+      VOLUME_MOUNTS="$VOLUME_MOUNTS_FROM_ENV"
+
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
-        VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
+        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/cachi2:/cachi2"
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount
         sed -E -i \
@@ -504,7 +508,6 @@ spec:
           -e HERMETIC="$HERMETIC" \
           -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
           -e CONTEXT="$CONTEXT" \
-          -e DOCKERFILE="$DOCKERFILE" \
           -e IMAGE="$IMAGE" \
           -e TLSVERIFY="$TLSVERIFY" \
           -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
@@ -520,6 +523,7 @@ spec:
           -e SQUASH="$SQUASH" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e COMMIT_SHA="$COMMIT_SHA" \
+          -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v "$BUILD_DIR/volumes/shared:/shared:Z" \
           -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
