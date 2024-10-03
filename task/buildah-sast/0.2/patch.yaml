@@ -1,0 +1,129 @@
+# Task name
+- op: replace
+  path: /metadata/name
+  value: buildah-sast
+
+# Task description
+- op: replace
+  path: /spec/description
+  value: |-
+    Buildah sast task builds source code to do SAST analysis.
+
+# Replace task results
+- op: replace
+  path: /spec/results
+  value:
+    - description: Short summary of SAST scan results.
+      name: SCAN_OUTPUT
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+    - description: SAST scanning results artifact URL.
+      name: SAST_RESULT_URL
+
+###################
+# Task steps
+###################
+
+# Remove all buildah task steps except build
+- op: remove
+  path: /spec/steps/5  # upload-sbom
+- op: remove
+  path: /spec/steps/4  # inject-sbom-and-push
+- op: remove
+  path: /spec/steps/3  # prepare-sboms
+- op: remove
+  path: /spec/steps/2  # analyse-dependencies-java-sbom
+- op: remove
+  path: /spec/steps/1  # sbom-syft-generate
+
+# Tune the build step (the only one left).
+
+# Change build step image
+- op: replace
+  path: /spec/steps/0/image
+  # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
+  value: quay.io/konflux-ci/buildah-task:latest
+
+# Change build step resources
+- op: replace
+  path: /spec/steps/0/computeResources/limits/memory
+  value: 10Gi
+- op: replace
+  path: /spec/steps/0/computeResources/requests/memory
+  value: 5Gi
+
+# Additional volumes
+- op: add
+  path: /spec/steps/0/env/-
+  value:
+    name: VOLUME_MOUNTS_FROM_ENV
+    value: >-
+      --volume /tmp/sast-scan-results:/sast-scan-results
+
+# Add prepare and postprocess steps
+
+# Prepare step
+- op: add
+  path: /spec/steps/0
+  value:
+    name: prepare
+    image: quay.io/konflux-ci/buildah-task:latest
+    computeResources:
+      limits:
+        memory: 1Gi
+        cpu: '1'
+      requests:
+        memory: 0.5Gi
+        cpu: '0.5'
+    workingDir: $(workspaces.source.path)
+    script: |
+      # Dockerfile discovery logic is copied from buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      # Modify Dockerfile
+      sed -i '1 i\ARG NEW_ARG=default-value' $dockerfile_path
+
+      echo 'Modified Dockerfile:'
+      cat $dockerfile_path
+
+# Postprocess step
+- op: add
+  path: /spec/steps/2
+  value:
+    name: postprocess
+    image: quay.io/konflux-ci/buildah-task:latest
+    computeResources:
+      limits:
+        memory: 1Gi
+        cpu: '1'
+      requests:
+        memory: 0.5Gi
+        cpu: '0.5'
+    workingDir: $(workspaces.source.path)
+    script: |
+      ls -l /shared
+      echo 'Postprocessing SAST results'
+
+      # buildah push quay.io/results-image
+      echo "buildah push quay.io/results-image"
