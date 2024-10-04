@@ -121,7 +121,7 @@ spec:
           method="GET"
 
           curl_args=(--fail --silent --show-error)
-          if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+          if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
             echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
             # This implements v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
             path=$(echo "$url" | cut -d/ -f4-)
@@ -174,7 +174,7 @@ spec:
                 -H "Authorization: ${authorization}" \
                 --location "$url" \
                 -o "$file"
-          elif [ -n "${BEARER_TOKEN}" ]; then
+          elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
             curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
           else
