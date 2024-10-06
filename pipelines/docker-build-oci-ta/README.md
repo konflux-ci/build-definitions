@@ -150,12 +150,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### rpms-signature-scan:0.1 task parameters
+### rpms-signature-scan:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|fail-unsigned| [true \ false] If true fail if unsigned RPMs were found| false| |
 |image-digest| Image digest to scan| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-container.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
@@ -201,9 +200,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### buildah-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| rpms-signature-scan:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.1:IMAGES ; rpms-signature-scan:0.1:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.1:IMAGES ; rpms-signature-scan:0.2:image-url|
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
@@ -249,7 +248,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### rpms-signature-scan:0.1 task results
+### rpms-signature-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
