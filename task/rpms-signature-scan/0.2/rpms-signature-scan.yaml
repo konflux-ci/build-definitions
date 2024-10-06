@@ -1,0 +1,96 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: rpms-signature-scan
+spec:
+  params:
+    - name: image-url
+      type: string
+      description: Image URL
+    - name: image-digest
+      type: string
+      description: Image digest to scan
+    - name: workdir
+      type: string
+      default: /tmp
+      description: |
+        Directory that will be used for storing temporary
+        files produced by this task.
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+    - name: RPMS_DATA
+      description: Information about signed and unsigned RPMs
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
+  steps:
+    - name: rpms-signature-scan
+      image: quay.io/redhat-appstudio/tools@sha256:ee86a2f62b9a20cabba648e26dd972bd679a1e7f9ea6725943316a24d218899f
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.workdir)"
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
+      env:
+        - name: IMAGE_URL
+          value: "$(params.image-url)"
+        - name: IMAGE_DIGEST
+          value: "$(params.image-digest)"
+        - name: WORKDIR
+          value: "$(params.workdir)"
+      script: |
+        #!/bin/bash
+        set -ex
+        set -o pipefail
+
+        rpm_verifier \
+          --image-url "${IMAGE_URL}" \
+          --image-digest "${IMAGE_DIGEST}" \
+          --workdir "${WORKDIR}" \
+    - name: output-results
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.workdir)"
+      env:
+        - name: WORKDIR
+          value: "$(params.workdir)"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        source /utils.sh
+        status=$(cat "${WORKDIR}"/status)
+        rpms_data=$(cat "${WORKDIR}"/results)
+        images_processed=$(cat "${WORKDIR}"/images_processed)
+        if [ "$status" == "ERROR" ]; then
+          note="Task $(context.task.name) failed to scan images. Refer to Tekton task output for details"
+        else
+          note="Task $(context.task.name) completed successfully"
+        fi
+
+        TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        echo "${rpms_data}" | tee "$(results.RPMS_DATA.path)"
+        echo "${images_processed}" | tee "$(results.IMAGES_PROCESSED.path)"
