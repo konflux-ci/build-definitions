@@ -124,6 +124,8 @@ spec:
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
       #!/bin/sh
       set -o verbose
+      set -eu
+      set -o pipefail
       cd $(workspaces.source.path)
       if [ -z "$CONFIG_FILE" ] ; then
         CONFIG_FILE_ARG=""
