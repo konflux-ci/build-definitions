@@ -271,15 +271,15 @@ spec:
         operator: in
         values: ["false"]
       runAfter:
-        - build-container
+        - build-image-index
       taskRef:
         name: rpms-signature-scan
         version: "0.2"
       params:
       - name: image-url
-        value: $(tasks.build-container.results.IMAGE_URL)
+        value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: image-digest
-        value: $(tasks.build-container.results.IMAGE_DIGEST)
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
   finally:
     - name: show-sbom
       taskRef:
