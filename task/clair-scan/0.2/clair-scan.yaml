@@ -129,9 +129,12 @@ spec:
           fi
         done
 
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
         digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
 
-        # add the image_index to the processed digests list and store the result in a file
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
         echo "$images_processed" > images-processed.json
     - name: oci-attach-report
