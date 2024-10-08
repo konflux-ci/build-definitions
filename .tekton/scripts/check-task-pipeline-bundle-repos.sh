@@ -66,7 +66,7 @@ for pl_name in ${pl_names[@]}; do
 done
 
 if [ -n "$has_missing_repo" ]; then
-    echo "Please contact Build team - #forum-stonesoup-build that the missing repos should be created in:"
+    echo "Please contact Build team - #forum-konflux-build that the missing repos should be created in:"
     echo "- https://quay.io/organization/redhat-appstudio-tekton-catalog"
     echo "- https://quay.io/organization/konflux-ci"
     exit 1
