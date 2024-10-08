@@ -254,6 +254,9 @@ spec:
           case $1 in
               --build-args)
                   shift
+                  # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+                  # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
                   while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
                   ;;
               --labels)
@@ -267,10 +270,6 @@ spec:
           esac
       done
 
-      # Append BUILD_ARGS
-      # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
-      # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-      # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
       BUILD_ARG_FLAGS=()
       for build_arg in "${build_args[@]}"; do
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
