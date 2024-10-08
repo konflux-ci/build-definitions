@@ -117,7 +117,7 @@ spec:
     type: string
   - default: []
     description: Additional key=value labels that should be applied to the image
-    name: ADDITIONAL_LABELS
+    name: LABELS
     type: array
   - description: The platform to build on
     name: PLATFORM
@@ -201,7 +201,7 @@ spec:
     - --build-args
     - $(params.BUILD_ARGS[*])
     - --labels
-    - $(params.ADDITIONAL_LABELS[*])
+    - $(params.LABELS[*])
     computeResources:
       limits:
         cpu: "4"
@@ -327,17 +327,20 @@ spec:
         )
       fi
 
-      ADDITIONAL_LABELS=()
+      LABELS=()
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
               --build-args)
                   shift
+                  # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+                  # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
                   while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
                   ;;
               --labels)
                   shift
-                  while [[ $# -gt 0 && $1 != --* ]]; do ADDITIONAL_LABELS+=("$1"); shift; done
+                  while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label $1"); shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2
@@ -346,10 +349,6 @@ spec:
           esac
       done
 
-      # Append BUILD_ARGS
-      # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
-      # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-      # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
       BUILD_ARG_FLAGS=()
       for build_arg in "${build_args[@]}"; do
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
@@ -423,26 +422,12 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
-        "architecture=$(uname -m)"
-        "vcs-type=git"
+        "--label build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label architecture=$(uname -m)"
+        "--label vcs-type=git"
       )
-      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("vcs-ref=$COMMIT_SHA")
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("quay.expires-after=$IMAGE_EXPIRES_AFTER")
-
-      LABELS=()
-      for label in "${ADDITIONAL_LABELS[@]}"; do
-        echo "Adding label from param $label"
-        LABELS+=("--label" "$label")
-      done
-      for label in "${DEFAULT_LABELS[@]}"; do
-        if [[ ${ADDITIONAL_LABELS[*]} =~ ${label//=*} ]]; then
-          echo "Dropping default label $label"
-          continue
-        fi
-        echo "Adding default label $label"
-        LABELS+=("--label" "$label")
-      done
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -479,6 +464,7 @@ spec:
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
         "${BUILDAH_ARGS[@]}" \
+        "${DEFAULT_LABELS[@]}" \
         "${LABELS[@]}" \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
