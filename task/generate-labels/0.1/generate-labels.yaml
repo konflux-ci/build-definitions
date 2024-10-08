@@ -80,8 +80,9 @@ spec:
 
           for template in "${templates[@]}"; do
             echo "Processing template $template"
-            label=$(echo "$template" | envsubst)
-            yq -oj -i '. += ["'"$label"'"]' result.json
+            export label=$(echo "$template" | envsubst)
+            echo "Yielding label $label"
+            yq -oj -i '. += [strenv(label)]' result.json
           done
 
           echo "Created the following labels:"
