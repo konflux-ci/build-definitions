@@ -16,7 +16,7 @@ spec:
     > - name: generate-labels
     >   params:
     >   - name: label-templates
-    >     value: '["release=$SOURCE_DATE_EPOCH", "build-date=$SOURCE_DATE"]'
+    >     value: ["release=$SOURCE_DATE_EPOCH", "build-date=$SOURCE_DATE"]
 
     The following environment variables are defined for use in LABEL_TEMPLATES
 
@@ -27,8 +27,8 @@ spec:
 
   params:
   - name: label-templates
-    description: A json array of templates that should be rendered and exposed as a list of labels
-    type: string
+    description: An array of templates that should be rendered and exposed as an array of labels
+    type: array
   - name: source-date-epoch
     description: A standardised environment variable for build tools to consume in order to produce reproducible output.
     default: ""
@@ -40,12 +40,27 @@ spec:
     - name: render
       image: quay.io/konflux-ci/yq:latest@sha256:91a7fe73fd28bbfd93ebdcc68cdfd7087d4f2612c627ccd0d5f984190eb7dba6
       env:
-      - name: LABEL_TEMPLATES
-        value: "$(params.label-templates)"
       - name: SOURCE_DATE_EPOCH
         value: "$(params.source-date-epoch)"
+      args:
+      - --templates
+      - $(params.label-templates[*])
       script: |
           #!/bin/bash
+
+          templates=()
+          while [[ $# -gt 0 ]]; do
+              case $1 in
+                  --templates)
+                      shift
+                      while [[ $# -gt 0 && $1 != --* ]]; do templates+=("$1"); shift; done
+                      ;;
+                  *)
+                      echo "unexpected argument: $1" >&2
+                      exit 2
+                      ;;
+              esac
+          done
 
           ACTUAL_DATE_EPOCH=$(date -u +'%s')
           ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
@@ -63,7 +78,7 @@ spec:
 
           printf "[]" > result.json
 
-          for template in $(echo "${LABEL_TEMPLATES}" | yq -r '.[]'); do
+          for template in "${templates[@]}"; do
             echo "Processing template $template"
             label=$(echo "$template" | envsubst)
             yq -oj -i '. += ["'"$label"'"]' result.json
