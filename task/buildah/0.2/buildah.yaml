@@ -103,7 +103,7 @@ spec:
     description: Whether to skip stages in Containerfile that seem unused by subsequent stages
     type: string
     default: "true"
-  - name: ADDITIONAL_LABELS
+  - name: LABELS
     description: Additional key=value labels that should be applied to the image
     type: array
     default: []
@@ -186,7 +186,7 @@ spec:
       - --build-args
       - $(params.BUILD_ARGS[*])
       - --labels
-      - $(params.ADDITIONAL_LABELS[*])
+      - $(params.LABELS[*])
 
     script: |
       #!/bin/bash
@@ -248,7 +248,7 @@ spec:
         )
       fi
 
-      ADDITIONAL_LABELS=()
+      LABELS=()
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
@@ -261,7 +261,7 @@ spec:
                   ;;
               --labels)
                   shift
-                  while [[ $# -gt 0 && $1 != --* ]]; do ADDITIONAL_LABELS+=("$1"); shift; done
+                  while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label $1"); shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2
@@ -343,26 +343,12 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
-        "architecture=$(uname -m)"
-        "vcs-type=git"
+        "--label build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label architecture=$(uname -m)"
+        "--label vcs-type=git"
       )
-      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("vcs-ref=$COMMIT_SHA")
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("quay.expires-after=$IMAGE_EXPIRES_AFTER")
-
-      LABELS=()
-      for label in "${ADDITIONAL_LABELS[@]}"; do
-        echo "Adding label from param $label"
-        LABELS+=("--label" "$label")
-      done
-      for label in "${DEFAULT_LABELS[@]}"; do
-        if [[ ${ADDITIONAL_LABELS[*]} =~ ${label//=*} ]]; then
-          echo "Dropping default label $label"
-          continue
-        fi
-        echo "Adding default label $label"
-        LABELS+=("--label" "$label")
-      done
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -399,6 +385,7 @@ spec:
       unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
         $VOLUME_MOUNTS \
         "${BUILDAH_ARGS[@]}" \
+        "${DEFAULT_LABELS[@]}" \
         "${LABELS[@]}" \
         --tls-verify=$TLSVERIFY --no-cache \
         --ulimit nofile=4096:4096 \
