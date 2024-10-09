@@ -362,8 +362,8 @@ spec:
               --labels)
                   shift
                   while [[ $# -gt 0 && $1 != --* ]]; do
-                                                        LABELS+=("--label $1")
-                                                                                shift
+                                                        LABELS+=("--label" "$1")
+                                                                                  shift
           done
                   ;;
               *)
@@ -446,12 +446,12 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "--label build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
-        "--label architecture=$(uname -m)"
-        "--label vcs-type=git"
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
       )
-      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label vcs-ref=$COMMIT_SHA")
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
