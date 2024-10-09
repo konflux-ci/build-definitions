@@ -78,9 +78,10 @@ spec:
 
           printf "[]" > result.json
 
+          export label
           for template in "${templates[@]}"; do
             echo "Processing template $template"
-            export label=$(echo "$template" | envsubst)
+            label=$(echo "$template" | envsubst)
             echo "Yielding label $label"
             yq -oj -i '. += [strenv(label)]' result.json
           done
