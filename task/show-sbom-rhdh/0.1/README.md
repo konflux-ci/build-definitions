@@ -1,6 +1,6 @@
 # show-sbom-rhdh task
 
-Shows the Software Bill of Materials (SBOM) generated for the built image in CyloneDX JSON format.
+Shows the Software Bill of Materials (SBOM) generated for the built image in CycloneDX/SPDX JSON format.
 The 'task.*' annotations are processed by Red Hat Developer Hub (RHDH) so that the log content can be rendered in its UI.
 
 ## Parameters
