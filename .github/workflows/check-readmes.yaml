@@ -10,6 +10,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Install oc
+        run: |
+          set -euo pipefail
+          url=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.17/openshift-client-linux.tar.gz
+          if ! which oc; then
+            curl --fail --no-progress-meter -L "$url" | gzip -cd | sudo -- tar -x -C /usr/bin oc
+          fi
+
       - name: Check pipeline READMEs
         run: |
           #!/bin/bash
