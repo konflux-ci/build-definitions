@@ -52,6 +52,7 @@ def main():
 
     for input_pipeline_dir in PIPELINE_GENERATE_INPUT_DIRS:
         generate_pipelines_cmd = ["oc", "kustomize", "--output", temp_dir, input_pipeline_dir]
+        print("command:", generate_pipelines_cmd)
         _, _, failed = run(generate_pipelines_cmd)
         if failed:
             shutil.rmtree(temp_dir)
