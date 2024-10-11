@@ -11,10 +11,6 @@ spec:
     - name: image-digest
       type: string
       description: Image digest to scan
-    - name: fail-unsigned
-      type: string
-      description: "[true \\ false] If true fail if unsigned RPMs were found"
-      default: "false"
     - name: workdir
       type: string
       default: /tmp
@@ -48,7 +44,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/redhat-appstudio/tools@sha256:0017579adfc3156490713b05134ce10606bc18256b25065ed049aa7d094161da
+      image: quay.io/redhat-appstudio/tools@sha256:ee86a2f62b9a20cabba648e26dd972bd679a1e7f9ea6725943316a24d218899f
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -61,8 +57,6 @@ spec:
           value: "$(params.image-url)"
         - name: IMAGE_DIGEST
           value: "$(params.image-digest)"
-        - name: FAIL_UNSIGNED
-          value: "$(params.fail-unsigned)"
         - name: WORKDIR
           value: "$(params.workdir)"
       script: |
@@ -73,7 +67,6 @@ spec:
         rpm_verifier \
           --image-url "${IMAGE_URL}" \
           --image-digest "${IMAGE_DIGEST}" \
-          --fail-unsigned "${FAIL_UNSIGNED}" \
           --workdir "${WORKDIR}" \
     - name: output-results
       image: quay.io/redhat-appstudio/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
@@ -92,9 +85,9 @@ spec:
         rpms_data=$(cat "${WORKDIR}"/results)
         images_processed=$(cat "${WORKDIR}"/images_processed)
         if [ "$status" == "ERROR" ]; then
-          note="Task $(context.task.name) completed: Not all RPMs were confirmed to be signed. Refer to Tekton task output for details"
+          note="Task $(context.task.name) failed to scan images. Refer to Tekton task output for details"
         else
-          note="Task $(context.task.name) completed: No unsigned RPMs"
+          note="Task $(context.task.name) completed successfully"
         fi
 
         TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")

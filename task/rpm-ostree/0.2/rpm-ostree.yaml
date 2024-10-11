@@ -124,6 +124,8 @@ spec:
       cat >scripts/script-build.sh <<'REMOTESSHEOF'
       #!/bin/sh
       set -o verbose
+      set -eu
+      set -o pipefail
       cd $(workspaces.source.path)
       if [ -z "$CONFIG_FILE" ] ; then
         CONFIG_FILE_ARG=""
@@ -160,6 +162,7 @@ spec:
 
       chmod +x scripts/script-build.sh
       rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+      rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
       ssh $SSH_ARGS "$SSH_HOST" \
         podman run \
           $network_opt \
@@ -174,6 +177,7 @@ spec:
           --rm \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v $BUILD_DIR/scripts:/script:Z \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
           --user=0 \
           --entrypoint bash \
           "$BUILDER_IMAGE" \

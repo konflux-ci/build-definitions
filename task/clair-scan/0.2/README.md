@@ -17,10 +17,11 @@ analyzing the components of a container image and comparing them against Clair's
 
 ## Results:
 
-| name              | description              |
-|-------------------|--------------------------|
-| TEST_OUTPUT | Tekton task test output. |
-| SCAN_OUTPUT | Clair scan result.       |
+| name              | description                              |
+|-------------------|------------------------------------------|
+| TEST_OUTPUT       | Tekton task test output.                 |
+| SCAN_OUTPUT       | Clair scan result.                       |
+| REPORTS           |Mapping of image digests to report digests|
 
 ## Clair-action repository:
 https://github.com/quay/clair-action

@@ -66,7 +66,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:c91de1771397c5a6fde3cf0c642dd3478af5409e2d1980a3402f32b395f2d2a7
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -100,7 +100,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:56589c1c9132aeaccffad2fc2fd1c3b612741b961e177a91abeb81cb0d859ff2
+      image: quay.io/konflux-ci/oras:latest@sha256:0fdcb8ad0528042006457e57281532409a4d6e891f61208f96ab2b7b7b1746b6
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -135,7 +135,7 @@ spec:
           method="GET"
 
           curl_args=(--fail --silent --show-error)
-          if [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+          if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
             echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
             # This implements v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
             path=$(echo "$url" | cut -d/ -f4-)
@@ -188,7 +188,7 @@ spec:
                 -H "Authorization: ${authorization}" \
                 --location "$url" \
                 -o "$file"
-          elif [ -n "${BEARER_TOKEN}" ]; then
+          elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
             curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
           else

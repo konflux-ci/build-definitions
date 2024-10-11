@@ -58,7 +58,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:c91de1771397c5a6fde3cf0c642dd3478af5409e2d1980a3402f32b395f2d2a7
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -121,7 +121,7 @@ spec:
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:56589c1c9132aeaccffad2fc2fd1c3b612741b961e177a91abeb81cb0d859ff2
+      image: quay.io/konflux-ci/oras:latest@sha256:0fdcb8ad0528042006457e57281532409a4d6e891f61208f96ab2b7b7b1746b6
       workingDir: /var/workdir/source
       env:
         - name: IMAGE_URL
