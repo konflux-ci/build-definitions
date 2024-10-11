@@ -172,6 +172,9 @@ do
       ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
       ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
       ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
+      # Ensure an empty string is set rather than string "null" if the version label is not present
+      concrete_task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "$prepared_task_file" | sed '/null/d')
+      ANNOTATIONS+=("org.opencontainers.image.version=${concrete_task_version}")
       # yq will return null if the element is missing.
       if [[ "${task_description}" != "null" ]]; then
           ANNOTATIONS+=("org.opencontainers.image.description=${task_description}")
