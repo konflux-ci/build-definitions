@@ -116,6 +116,7 @@ spec:
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
       script: |
+        #!/bin/bash
         set -o verbose
         set -eu
         set -o pipefail
@@ -125,17 +126,21 @@ spec:
           cat /ssh/error
           exit 1
         elif [ -e "/ssh/otp" ]; then
-          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa
           echo "" >>~/.ssh/id_rsa
         else
           cp /ssh/id_rsa ~/.ssh
         fi
         chmod 0400 ~/.ssh/id_rsa
-        export SSH_HOST=$(cat /ssh/host)
-        export BUILD_DIR=$(cat /ssh/user-dir)
-        export SSH_ARGS="-o StrictHostKeyChecking=no"
+        SSH_HOST="$(cat /ssh/host)"
+        export SSH_HOST
+        BUILD_DIR="$(cat /ssh/user-dir)"
+        export BUILD_DIR
+        SSH_ARGS="-o StrictHostKeyChecking=no"
+        export SSH_ARGS
         mkdir -p scripts
         echo "$BUILD_DIR"
+        # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp"
 
         rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
@@ -181,10 +186,11 @@ spec:
         chmod +x scripts/script-build.sh
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST" \
           podman run \
             $network_opt \
-            --mount type=bind,source=$BUILD_DIR/tmp,target=/var/tmp,relabel=shared \
+            --mount type=bind,source="${BUILD_DIR}/tmp,target=/var/tmp,relabel=shared" \
             --privileged \
             -e CONTEXT="$CONTEXT" \
             -e IMAGE_FILE="$IMAGE_FILE" \
@@ -194,7 +200,7 @@ spec:
             -e COMMIT_SHA="$COMMIT_SHA" \
             --rm \
             -v "$BUILD_DIR/workspaces/source:/var/workdir/source:Z" \
-            -v $BUILD_DIR/scripts:/script:Z \
+            -v "${BUILD_DIR}/scripts":/script:Z \
             -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
             --user=0 \
             --entrypoint bash \
@@ -250,11 +256,11 @@ spec:
           name: varlibcontainers
       script: |
         #!/bin/bash
-        base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
-        base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
-        container=$(buildah from --pull-never $IMAGE)
-        buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-        buildah commit $container $IMAGE
+        base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' "${IMAGE}" | cut -f1 -d'@')
+        base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' "${IMAGE}")
+        container=$(buildah from --pull-never "${IMAGE}")
+        buildah config -a org.opencontainers.image.base.name="${base_image_name}" -a org.opencontainers.image.base.digest="${base_image_digest}" "${container}"
+        buildah commit "${container}" "${IMAGE}"
 
         status=-1
         max_run=5
@@ -264,17 +270,17 @@ spec:
           [ "$run" -gt 1 ] && sleep $sleep_sec
           echo "Pushing sbom image to registry"
           buildah push \
-            --tls-verify=$TLSVERIFY \
-            --digestfile /var/workdir/source/image-digest $IMAGE \
-            docker://$IMAGE && break || status=$?
+            --tls-verify="${TLSVERIFY}" \
+            --digestfile "/var/workdir/source/image-digest" "${IMAGE}" \
+            "docker://${IMAGE}" && break || status=$?
         done
         if [ "$status" -ne 0 ]; then
             echo "Failed to push sbom image to registry after ${max_run} tries"
             exit 1
         fi
 
-        cat "/var/workdir/source"/image-digest | tee $(results.IMAGE_DIGEST.path)
-        echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+                                                                                 <"/var/workdir/source"/image-digest tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         {
           echo -n "${IMAGE}@"
           cat "/var/workdir/source/image-digest"
@@ -284,7 +290,7 @@ spec:
         sbom_repo="${IMAGE%:*}"
         sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
-        echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee $(results.SBOM_BLOB_URL.path)
+        echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
       securityContext:
         capabilities:
           add:
