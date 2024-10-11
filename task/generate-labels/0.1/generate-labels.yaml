@@ -1,0 +1,90 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: generate-labels
+spec:
+  description: |
+    Generate labels based on templates.
+
+    Usage may look like the following.
+
+    > - name: generate-labels
+    >   params:
+    >   - name: label-templates
+    >     value: ["release=$SOURCE_DATE_EPOCH", "build-date=$SOURCE_DATE"]
+
+    The following environment variables are defined for use in label-templates
+
+    * ACTUAL_DATE - a date time string containing the time this task runs, formatted +'%Y-%m-%dT%H:%M:%SZ'
+    * ACTUAL_DATE_EPOCH - the timestamp at the time this task runs
+    * SOURCE_DATE - a date time string containing the provided source timestamp, formatted +'%Y-%m-%dT%H:%M:%SZ'
+    * SOURCE_DATE_EPOCH - the timestamp provided as a param meant to represent the timestamp at which the source was last modified
+
+  params:
+  - name: label-templates
+    description: An array of templates that should be rendered and exposed as an array of labels
+    type: array
+  - name: source-date-epoch
+    description: A standardised environment variable for build tools to consume in order to produce reproducible output.
+    default: ""
+  results:
+    - name: labels
+      description: The rendered labels, rendered from the provided templates
+      type: array
+  steps:
+    - name: render
+      image: quay.io/konflux-ci/yq:latest@sha256:91a7fe73fd28bbfd93ebdcc68cdfd7087d4f2612c627ccd0d5f984190eb7dba6
+      env:
+      - name: SOURCE_DATE_EPOCH
+        value: "$(params.source-date-epoch)"
+      args:
+      - --templates
+      - $(params.label-templates[*])
+      script: |
+          #!/bin/bash
+
+          templates=()
+          while [[ $# -gt 0 ]]; do
+              case $1 in
+                  --templates)
+                      shift
+                      while [[ $# -gt 0 && $1 != --* ]]; do templates+=("$1"); shift; done
+                      ;;
+                  *)
+                      echo "unexpected argument: $1" >&2
+                      exit 2
+                      ;;
+              esac
+          done
+
+          ACTUAL_DATE_EPOCH=$(date -u +'%s')
+          ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+
+          if [ "$SOURCE_DATE_EPOCH" == "" ]; then
+            SOURCE_DATE_EPOCH="$ACTUAL_DATE_EPOCH"
+          fi
+          SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+
+          # Export, so that these are available to the subshell below
+          export ACTUAL_DATE
+          export ACTUAL_DATE_EPOCH
+          export SOURCE_DATE
+          export SOURCE_DATE_EPOCH
+
+          printf "[]" > result.json
+
+          export label
+          for template in "${templates[@]}"; do
+            echo "Processing template $template"
+            label=$(echo "$template" | envsubst)
+            echo "Yielding label $label"
+            yq -oj -i '. += [strenv(label)]' result.json
+          done
+
+          echo "Created the following labels:"
+          tee "$(results.labels.path)" < result.json
