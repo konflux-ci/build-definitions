@@ -21,7 +21,7 @@ spec:
       type: string
     - name: IMAGE_TYPE
       type: string
-      description: The type of VM image to build, valid values are iso, qcow2 and raw
+      description: The type of VM image to build, valid values are iso, qcow2, raw and vhd
     - name: BIB_CONFIG_FILE
       default: bib.yaml
       type: string
@@ -257,6 +257,10 @@ spec:
           echo -e "Found iso image."
           pigz /output/bootiso/install.iso
           buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+        elif [ -f "/output/vpc/disk.vhd" ]; then
+          echo -e "Found vhd image."
+          pigz /output/vpc/disk.vhd
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
         fi
         buildah manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
 
