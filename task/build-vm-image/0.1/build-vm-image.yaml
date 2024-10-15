@@ -21,7 +21,7 @@ spec:
       type: string
     - name: IMAGE_TYPE
       type: string
-      description: The type of VM image to build, valid values are iso, qcow2, raw and vhd
+      description: The type of VM image to build, valid values are iso, qcow2, gce, vhd and raw
     - name: BIB_CONFIG_FILE
       default: bib.yaml
       type: string
@@ -261,6 +261,10 @@ spec:
           echo -e "Found vhd image."
           pigz /output/vpc/disk.vhd
           buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
+        elif [ -f "/output/gce/image.tar.gz" ]; then
+          echo -e "Found gce image."
+          # already compressed.
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
         fi
         buildah manifest push --digestfile image-digest --authfile /.docker/config.json --all $OUTPUT_IMAGE
 
