@@ -467,8 +467,6 @@ spec:
             -f "$dockerfile_path" -t "$IMAGE" .
         )
         buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
-        
-        # enable loopback in the network restrcited environment. This is needed for hermetic bazel builds.
         command="ip link set lo up && $buildah_cmd"
 
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
