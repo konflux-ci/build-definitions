@@ -38,6 +38,18 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
+  - name: SQUASH
+    description: Squash all new and previous layers added as a part of this build, as per --squash
+    type: string
+    default: "false"
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -47,6 +59,12 @@ spec:
     name: IMAGES
   - description: Image reference of the built image containing both the repository and the digest
     name: IMAGE_REF
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST_SBOM
+  - description: Image repository and tag where the built image was pushed
+    name: IMAGE_URL_SBOM
+  - description: Image reference of the built image
+    name: IMAGE_REF_SBOM
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -147,3 +165,142 @@ spec:
       capabilities:
         add:
           - SETFCAP
+
+  - image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:53a3041dff341b7fd1765b9cc2c324625d19e804b2eaff10a6e6d9dcdbde3a91
+    name: create-sbom
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    args:  ["$(params.IMAGES[*])"]
+    script: |
+      for i in $@
+      do
+        TOADD="$i"
+        TOADD_URL="$(echo "$i" | cut -d@ -f1)"
+        TOADD_DIGEST="$(echo "$i" | cut -d@ -f2)"
+        if [[ $(echo "$i" | tr -cd ":" | wc -c) == 2 ]]; then
+          #format is repository:tag@sha256:digest
+          #we need to remove the tag, and just reference the digest
+          #as tag + digest is not supported
+          TOADD_REPOSITORY="$(echo "$i" | cut -d: -f1)"
+          TOADD="${TOADD_REPOSITORY}@${TOADD_DIGEST}"
+        fi
+        buildah manifest inspect "$TOADD" > manifest_data.json
+        python3 /scripts/index-image-sbom-script.py \
+          --image-index-url "$TOADD_URL" \
+          --image-index-digest "$TOADD_DIGEST" \
+          --inspect-input-file manifest_data.json
+          --output-path sbom-results.json
+      done
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+  - name: inject-sbom-and-push
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: '4'
+      requests:
+        memory: 1Gi
+        cpu: '1'
+    script: |
+      #!/bin/bash
+      set -e
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
+      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
+      container=$(buildah from --pull-never $IMAGE)
+      buildah copy $container sbom-results.json /root/buildinfo/content_manifests/
+      buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
+
+      BUILDAH_ARGS=()
+      if [ "${SQUASH}" == "true" ]; then
+        BUILDAH_ARGS+=("--squash")
+      fi
+
+      buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
+
+      status=-1
+      max_run=5
+      sleep_sec=10
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec
+        echo "Pushing sbom image to registry"
+        buildah push \
+          --tls-verify=$TLSVERIFY \
+          --digestfile $(workspaces.source.path)/image-digest $IMAGE \
+          docker://$IMAGE && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to push sbom image to registry after ${max_run} tries"
+          exit 1
+      fi
+
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST_SBOM.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL_SBOM.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF_SBOM.path)"
+
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+
+  - name: upload-sbom
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
+    script: |
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF_SBOM.path)")"
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  
+  volumes:
+  - name: trusted-ca
+  configMap:
+    name: $(params.caTrustConfigMapName)
+    items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+    optional: true
+
+    
