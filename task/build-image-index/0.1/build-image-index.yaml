@@ -47,6 +47,13 @@ spec:
     name: IMAGES
   - description: Image reference of the built image containing both the repository and the digest
     name: IMAGE_REF
+  - name: SBOM_BLOB_URL
+    description: Reference of SBOM blob digest to enable digest-based verification from provenance
+    type: string
+  volumes:
+    - name: shared-dir
+      emptyDir: {}
+
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -61,6 +68,9 @@ spec:
       value: $(params.ALWAYS_BUILD_INDEX)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
+    volumeMounts:
+      - name: shared-dir
+        mountPath: /index-build-data
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
@@ -143,7 +153,67 @@ spec:
         cat "image-digest"
       } > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
+
+      IMAGE_DIGEST=$(cat image-digest)
+
+      INDEX_IMAGE_PULLSPEC="${IMAGE}@${IMAGE_DIGEST}"
+      buildah manifest inspect "$INDEX_IMAGE_PULLSPEC" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
           - SETFCAP
+
+  - image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:3b219e0610c06401bb5bd355a4bdfeb7f6700f2bef66f89316739d4aae96c89d
+    name: create-sbom
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    script: |
+      #!/bin/bash
+      set -e
+
+      MANIFEST_DATA_FILE="/index-build-data/manifest_data.json"
+      if [ ! -f "$MANIFEST_DATA_FILE" ]; then
+        echo "The manifest_data.json file does not exist. Skipping the SBOM creation..."
+        exit 0
+      fi
+
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+      echo "Creating SBOM result file..."
+      python3 index_image_sbom_script.py \
+        --image-index-url "$IMAGE_URL" \
+        --image-index-digest "$IMAGE_DIGEST" \
+        --inspect-input-file "$MANIFEST_DATA_FILE" \
+        --output-path /index-build-data/sbom-results.json
+
+  - name: upload-sbom
+    image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
+    script: |
+      #!/bin/bash
+      set -e
+
+      SBOM_RESULT_FILE="/index-build-data/sbom-results.json"
+      if [ ! -f "$SBOM_RESULT_FILE" ]; then
+        echo "The sbom_results.json file does not exists. Skipping the SBOM upload..."
+        exit 0
+      fi
+
+      cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum "$SBOM_RESULT_FILE" | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+    computeResources:
+      limits:
+        memory: 512Mi
+        cpu: 200m
+      requests:
+        memory: 256Mi
+        cpu: 100m
