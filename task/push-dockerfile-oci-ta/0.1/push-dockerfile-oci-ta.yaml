@@ -104,10 +104,12 @@ spec:
 
         dockerfile_image=${IMAGE%:*}:${IMAGE_DIGEST/:/-}${TAG_SUFFIX}
 
-        cd "$(dirname $dockerfile_path)"
+        dockerfile_for_upload_path=/tmp/Dockerfile
+        cp "$dockerfile_path" "$dockerfile_for_upload_path"
+        cd "$(dirname $dockerfile_for_upload_path)"
         retry oras push --no-tty \
           --format json \
           --registry-config "$auth_json" \
           --artifact-type "$ARTIFACT_TYPE" \
-          "$dockerfile_image" "$(basename $dockerfile_path)" |
+          "$dockerfile_image" "$(basename $dockerfile_for_upload_path)" |
             yq '.reference' | tr -d '\r\n' >"$IMAGE_REF_RESULT"

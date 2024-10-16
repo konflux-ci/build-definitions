@@ -182,7 +182,7 @@ spec:
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -198,7 +198,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     name: build
     script: |-
       #!/bin/bash
@@ -614,7 +614,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     name: inject-sbom-and-push
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then
