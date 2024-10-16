@@ -65,6 +65,13 @@
       /usr/lib64/cswrap:/usr/lib64/cswrap
       /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
 
+  # Additional parameter
+- op: add
+  path: /spec/params/-
+  value:
+    name: IMAGE_URL
+    type: string
+
 # Add prepare and postprocess steps
 
 # Prepare step
@@ -151,6 +158,9 @@
       requests:
         memory: 0.5Gi
         cpu: '0.5'
+    env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
     workingDir: $(workspaces.source.path)
     script: |
       set -x
@@ -158,8 +168,13 @@
       ls -l "$sast_dir"
 
       # read the collected SAST scanning results
+      UPLOAD_FILE=gcc-analyzer.sarif
       (set -x && cd "$sast_dir" && csgrep --mode=sarif --event=^warning --remove-duplicates ./*) \
-        | tee sast.sarif | csgrep
+        | tee "${UPLOAD_FILE}" | csgrep
 
-      # buildah push quay.io/results-image
-      echo "buildah push quay.io/results-image"
+      # upload scan results
+      MEDIA_TYPE=application/sarif+json
+      echo "Selecting auth"
+      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+      echo "Attaching to ${IMAGE_URL}"
+      oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
