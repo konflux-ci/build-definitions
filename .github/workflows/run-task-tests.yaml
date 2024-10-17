@@ -1,0 +1,69 @@
+name: Run Task Tests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  run-task-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          docker-images: false
+
+      - name: Checkout build-defintions Repository
+        uses: actions/checkout@v3
+        with:
+          ref: "${{ github.event.pull_request.head.sha }}"
+          path: build-definitions
+
+      - name: Checkout konflux-ci/konflux-ci Repository
+        uses: actions/checkout@v3
+        with:
+          repository: 'konflux-ci/konflux-ci'
+          path: konflux-ci
+      
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          config: konflux-ci/kind-config.yaml
+      
+      - name: Show version information
+        run: |
+          kubectl version
+          kind version
+
+      - name: List namespaces
+        run: |
+          kubectl get namespace
+
+      - name: Deploying Dependencies
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-deps.sh
+
+      - name: List namespaces
+        run: |
+          kubectl get namespace
+
+      - name: Wait for the dependencies to be ready
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./wait-for-all.sh
+      
+      - name: Deploying Konflux
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-konflux.sh
+
+      - name: List namespaces
+        run: |
+          kubectl get namespace
+
+      - name: Deploy test resources
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-test-resources.sh
