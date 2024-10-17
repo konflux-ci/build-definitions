@@ -1,6 +1,6 @@
 # show-sbom task
 
-Shows the Software Bill of Materials (SBOM) generated for the built image in CyloneDX JSON format.
+Shows the Software Bill of Materials (SBOM) generated for the built image.
 
 The parameter named PLATFORM can be used to specify the arch to display the sbom for in the case of a multi-arch image. 
 In the case of a single arch image, the parameter is ignored. 
