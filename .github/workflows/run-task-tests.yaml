@@ -1,8 +1,7 @@
 name: Run Task Tests
 
-on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, labeled]
+"on":
+  pull_request:
 
 jobs:
   run-task-tests:
@@ -25,12 +24,12 @@ jobs:
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci
-      
+
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1
         with:
           config: konflux-ci/kind-config.yaml
-      
+          
       - name: Show version information
         run: |
           kubectl version
@@ -53,7 +52,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./wait-for-all.sh
-      
+
       - name: Deploying Konflux
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
