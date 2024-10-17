@@ -105,7 +105,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: build
       image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
@@ -143,13 +143,13 @@ spec:
         # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp"
 
-        rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+        rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
         cat >scripts/script-build.sh <<'REMOTESSHEOF'
         #!/bin/sh
         set -o verbose
         set -eu
         set -o pipefail
-        cd /var/workdir/source
+        cd /var/workdir
         if [ -z "$CONFIG_FILE" ] ; then
           CONFIG_FILE_ARG=""
         else
@@ -199,14 +199,14 @@ spec:
             -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
             -e COMMIT_SHA="$COMMIT_SHA" \
             --rm \
-            -v "$BUILD_DIR/workspaces/source:/var/workdir/source:Z" \
+            -v "$BUILD_DIR/workspaces/source:/var/workdir:Z" \
             -v "${BUILD_DIR}/scripts":/script:Z \
             -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
             --user=0 \
             --entrypoint bash \
             "$BUILDER_IMAGE" \
             /script/script-build.sh
-        rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "/var/workdir/source/"
+        rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "/var/workdir/"
         cp -r rhtap-final-image /var/lib/containers/rhtap-final-image
         buildah pull oci:rhtap-final-image
         buildah images
@@ -223,12 +223,12 @@ spec:
             - SETFCAP
     - name: sbom-syft-generate
       image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
-      workingDir: /var/workdir/source/source
+      workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       script: |
-        syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=/var/workdir/source/sbom-cyclonedx.json
+        syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=/var/workdir/sbom-cyclonedx.json
       computeResources:
         limits:
           memory: 6Gi
@@ -236,7 +236,7 @@ spec:
           memory: 6Gi
     - name: merge-cachi2-sbom
       image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:53a3041dff341b7fd1765b9cc2c324625d19e804b2eaff10a6e6d9dcdbde3a91
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       script: |
         cachi2_sbom=./cachi2/output/bom.json
         if [ -f "$cachi2_sbom" ]; then
@@ -250,7 +250,7 @@ spec:
         runAsUser: 0
     - name: inject-sbom-and-push
       image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
@@ -271,7 +271,7 @@ spec:
           echo "Pushing sbom image to registry"
           buildah push \
             --tls-verify="${TLSVERIFY}" \
-            --digestfile "/var/workdir/source/image-digest" "${IMAGE}" \
+            --digestfile "/var/workdir/image-digest" "${IMAGE}" \
             "docker://${IMAGE}" && break || status=$?
         done
         if [ "$status" -ne 0 ]; then
@@ -279,11 +279,11 @@ spec:
             exit 1
         fi
 
-                                                                                 <"/var/workdir/source"/image-digest tee "$(results.IMAGE_DIGEST.path)"
+                                                                   <"/var/workdir"/image-digest tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         {
           echo -n "${IMAGE}@"
-          cat "/var/workdir/source/image-digest"
+          cat "/var/workdir/image-digest"
         } >"$(results.IMAGE_REF.path)"
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
@@ -298,6 +298,6 @@ spec:
         runAsUser: 0
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
