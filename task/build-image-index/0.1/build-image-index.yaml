@@ -38,18 +38,6 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
-  - name: SQUASH
-    description: Squash all new and previous layers added as a part of this build, as per --squash
-    type: string
-    default: "false"
-  - name: caTrustConfigMapName
-    type: string
-    description: The name of the ConfigMap to read CA bundle data from.
-    default: trusted-ca
-  - name: caTrustConfigMapKey
-    type: string
-    description: The name of the key in the ConfigMap that contains the CA bundle data.
-    default: ca-bundle.crt
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -189,82 +177,6 @@ spec:
     securityContext:
       runAsUser: 0
 
-  - name: inject-sbom-and-push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
-    computeResources:
-      limits:
-        memory: 4Gi
-        cpu: '4'
-      requests:
-        memory: 1Gi
-        cpu: '1'
-    script: |
-      #!/bin/bash
-      set -e
-
-      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
-      if [ -f "$ca_bundle" ]; then
-        echo "INFO: Using mounted CA bundle: $ca_bundle"
-        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
-        update-ca-trust
-      fi
-
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
-      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
-      container=$(buildah from --pull-never $IMAGE)
-      buildah copy $container sbom-results.json /root/buildinfo/content_manifests/
-      buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-
-      BUILDAH_ARGS=()
-      if [ "${SQUASH}" == "true" ]; then
-        BUILDAH_ARGS+=("--squash")
-      fi
-
-      buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
-
-      status=-1
-      max_run=5
-      sleep_sec=10
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing sbom image to registry"
-        buildah push \
-          --tls-verify=$TLSVERIFY \
-          --digestfile $(workspaces.source.path)/image-digest $IMAGE \
-          docker://$IMAGE && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push sbom image to registry after ${max_run} tries"
-          exit 1
-      fi
-
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
-      {
-        echo -n "${IMAGE}@"
-        cat "$(workspaces.source.path)/image-digest"
-      } > "$(results.IMAGE.path)"
-
-      # Remove tag from IMAGE while allowing registry to contain a port number.
-      sbom_repo="${IMAGE%:*}"
-      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
-      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
-      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
-
-    securityContext:
-      runAsUser: 0
-      capabilities:
-        add:
-          - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    - name: trusted-ca
-      mountPath: /mnt/trusted-ca
-      readOnly: true
-    workingDir: $(workspaces.source.path)
-
   - name: upload-sbom
     image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
     script: |
@@ -276,6 +188,12 @@ spec:
       fi
 
       cosign attach sbom --sbom sbom-results.json --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-results.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     computeResources:
       limits:
         memory: 512Mi
@@ -288,12 +206,3 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-
-  volumes:
-  - name: trusted-ca
-  configMap:
-    name: $(params.caTrustConfigMapName)
-    items:
-      - key: $(params.caTrustConfigMapKey)
-        path: ca-bundle.crt
-    optional: true
