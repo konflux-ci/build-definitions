@@ -1,0 +1,57 @@
+---
+- op: replace
+  path: /metadata/name
+  value: tekton-bundle-builder
+- op: replace
+  path: /spec/tasks/3/taskRef
+  value:
+    name: tkn-bundle
+    version: "0.1"
+# Use the template-build as a template replacing the Pipeline name and the
+# `build-container` step's task reference
+# Order of Tasks from the base template:
+# kustomize build pipelines/template-build/ | yq ".spec.tasks.[].name" | nl -v 0
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  build-source-image
+#      6  deprecated-base-image-check
+#      7  clair-scan
+#      8  ecosystem-cert-preflight-checks
+#      9  sast-snyk-check
+#     10  clamav-scan
+#     11  apply-tags
+#     12  push-dockerfile
+#     13  rpms-signature-scan
+# Order of finally tasks from the base template:
+# kustomize build pipelines/template-build/ | yq ".spec.finally.[].name" | nl -v 0
+#      0  show-sbom
+#      1  show-summary
+- op: add
+  path: /spec/tasks/3/params
+  value:
+  - name: IMAGE
+    value: $(params.output-image)
+  - name: CONTEXT
+    value: $(params.path-context)
+# Remove tasks that assume a binary image
+- op: remove
+  path: /spec/tasks/13  # rpms-signature-scan
+- op: remove
+  path: /spec/tasks/12  # push-dockerfile
+- op: remove
+  path: /spec/tasks/10  # clamav-scan
+- op: remove
+  path: /spec/tasks/9   # sast-snyk-check
+- op: remove
+  path: /spec/tasks/8   # ecosystem-cert-preflight-checks
+- op: remove
+  path: /spec/tasks/7   # clair-scan
+- op: remove
+  path: /spec/tasks/6   # deprecated-base-image-check
+- op: remove
+  path: /spec/tasks/5   # build-source-image
+- op: remove
+  path: /spec/finally/0  # show-sbom
