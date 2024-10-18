@@ -178,8 +178,8 @@ spec:
     - name: IMAGE_DIGEST
       value: $(results.IMAGE_DIGEST.path)
     script: |
-      TOADD="${IMAGE_URL}@${IMAGE_DIGEST}"
-      buildah manifest inspect "$TOADD" > manifest_data.json
+      INDEX_IMAGE_PULLSPEC="${IMAGE_URL}@${IMAGE_DIGEST}"
+      buildah manifest inspect "$INDEX_IMAGE_PULLSPEC" > manifest_data.json
       python3 /scripts/index-image-sbom-script.py \
         --image-index-url "$IMAGE_URL" \
         --image-index-digest "$IMAGE_DIGEST" \
@@ -275,7 +275,7 @@ spec:
         update-ca-trust
       fi
 
-      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+      cosign attach sbom --sbom sbom-results.json --type spdx "$(cat "$(results.IMAGE_REF.path)")"
     computeResources:
       limits:
         memory: 512Mi
@@ -288,7 +288,7 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  
+
   volumes:
   - name: trusted-ca
   configMap:
@@ -297,5 +297,3 @@ spec:
       - key: $(params.caTrustConfigMapKey)
         path: ca-bundle.crt
     optional: true
-
-    
