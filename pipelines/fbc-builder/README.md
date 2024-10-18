@@ -116,14 +116,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |DOCKER_AUTH| unused, should be removed in next task version| | |
 |IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### rpms-signature-scan:0.2 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -151,9 +143,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest ; inspect-image:0.1:IMAGE_DIGEST ; fbc-validate:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; inspect-image:0.1:IMAGE_DIGEST ; fbc-validate:0.1:IMAGE_DIGEST|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; apply-tags:0.1:IMAGE ; rpms-signature-scan:0.2:image-url ; inspect-image:0.1:IMAGE_URL ; fbc-validate:0.1:IMAGE_URL|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; apply-tags:0.1:IMAGE ; inspect-image:0.1:IMAGE_URL ; fbc-validate:0.1:IMAGE_URL|
 ### buildah:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -192,12 +184,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |BASE_IMAGE| Base image source image is built from.| fbc-validate:0.1:BASE_IMAGE|
 |BASE_IMAGE_REPOSITORY| Base image repository URL.| |
-|TEST_OUTPUT| Tekton task test output.| |
-### rpms-signature-scan:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|IMAGES_PROCESSED| Images processed in the task.| |
-|RPMS_DATA| Information about signed and unsigned RPMs| |
 |TEST_OUTPUT| Tekton task test output.| |
 
 ## Workspaces

@@ -39,24 +39,26 @@
   - name: COMMIT_SHA
     value: "$(tasks.clone-repository.results.commit)"
 # Remove tasks
-# yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
-# to compute offsets
-# 0  init
-# 1  clone-repository
-# 2  prefetch-dependencies
-# 3  build-container
-# 4  build-image-index
-# 5  build-source-image
-# 6  deprecated-base-image-check
-# 7  clair-scan
-# 8  ecosystem-cert-preflight-checks
-# 9  sast-snyk-check
-# 10  clamav-scan
-# 11  apply-tags
-# 12  push-dockerfile
+# yq ".spec.tasks.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  build-source-image
+#      6  deprecated-base-image-check
+#      7  clair-scan
+#      8  ecosystem-cert-preflight-checks
+#      9  sast-snyk-check
+#     10  clamav-scan
+#     11  apply-tags
+#     12  push-dockerfile
+#     13  rpms-signature-scan
 - op: replace
   path: /spec/tasks/3/runAfter/0
   value: clone-repository
+- op: remove
+  path: /spec/tasks/13  # rpms-signature-scan
 - op: remove
   path: /spec/tasks/12  # push-dockerfile
 - op: remove
