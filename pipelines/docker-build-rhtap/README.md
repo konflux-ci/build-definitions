@@ -78,14 +78,6 @@
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| |
-### rpms-signature-scan:0.2 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
 ### show-sbom-rhdh:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -136,12 +128,6 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### rpms-signature-scan:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|IMAGES_PROCESSED| Images processed in the task.| |
-|RPMS_DATA| Information about signed and unsigned RPMs| |
-|TEST_OUTPUT| Tekton task test output.| |
 ### show-sbom-rhdh:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
