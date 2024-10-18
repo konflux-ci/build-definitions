@@ -1,0 +1,15 @@
+---
+base: ../../buildah-sast/0.2/kustomization.yaml
+removeParams:
+  - BUILDER_IMAGE
+add:
+  - use-source
+  - use-cachi2
+removeWorkspaces:
+  - source
+replacements:
+  workspaces.source.path: /var/workdir
+regexReplacements:
+  "/workspace(/.*)": /var/workdir$1
+description: |-
+    Buildah SAST scanning task
