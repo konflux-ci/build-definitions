@@ -1,0 +1,287 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sast-unicode-check-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: Scans source code for non-printable unicode characters in all
+    text files.
+  params:
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
+    - name: FIND_UNICODE_CONTROL_ARGS
+      description: arguments for find-unicode-control command.
+      type: string
+      default: -p bidi -v -d -t
+    - name: FIND_UNICODE_CONTROL_GIT_URL
+      description: URL from repository to find unicode control.
+      type: string
+      default: https://github.com/siddhesh/find-unicode-control.git#c2accbfbba7553a8bc1ebd97089ae08ad8347e58
+    - name: KFP_GIT_URL
+      description: URL from repository to download known false positives files.
+      type: string
+      default: ""
+    - name: PROJECT_NAME
+      description: Name of the scanned project, used to find path exclusions.
+        By default, the Konflux component name will be used.
+      type: string
+      default: ""
+    - name: RECORD_EXCLUDED
+      description: |
+        Whether to record the excluded findings (defaults to false).
+        If `true`, the excluded findings will be stored in `excluded-findings.json`.
+      type: string
+      default: "false"
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+    - name: image-url
+      description: Image URL.
+      type: string
+      default: ""
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:a83c92fc0a1e2c785937c6612dc8c8237818535543f00ecaf6b3b77a35f76259
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+    - name: sast-unicode-check
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+      env:
+        - name: KFP_GIT_URL
+          value: $(params.KFP_GIT_URL)
+        - name: PROJECT_NAME
+          value: $(params.PROJECT_NAME)
+        - name: FIND_UNICODE_CONTROL_GIT_URL
+          value: $(params.FIND_UNICODE_CONTROL_GIT_URL)
+        - name: FIND_UNICODE_CONTROL_ARGS
+          value: $(params.FIND_UNICODE_CONTROL_ARGS)
+        - name: RECORD_EXCLUDED
+          value: $(params.RECORD_EXCLUDED)
+        - name: SOURCE_CODE_DIR
+          value: /var/workdir
+        - name: COMPONENT_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['appstudio.openshift.io/component']
+      script: |
+        #!/usr/bin/env bash
+        set -exuo pipefail
+
+        # shellcheck source=/dev/null
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        if [[ -z "${PROJECT_NAME}" ]]; then
+          PROJECT_NAME=${COMPONENT_LABEL}
+        fi
+
+        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+        SCAN_PROP=""
+
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        # Clone the source code from upstream repo
+        GIT_URL=$(echo "${FIND_UNICODE_CONTROL_GIT_URL}" | awk -F'#' '{print $1}')
+        REV=$(echo "${FIND_UNICODE_CONTROL_GIT_URL}" | awk -F'#' '{print $2}')
+
+        # Clone find-unicode-control repository
+        if ! git clone "${GIT_URL}" find-unicode-control; then
+          echo "Failed to clone the repository: ${GIT_URL}" >&2
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 1
+        fi
+
+        if [[ -n "${REV}" ]]; then
+          if ! git -C ./find-unicode-control/ checkout "${REV}"; then
+            echo "Failed to checkout the repository: ${GIT_URL} to ${REV}" >&2
+            note="Task $(context.task.name) failed: For details, check Tekton task log."
+            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 1
+          fi
+          SCAN_PROP="find-unicode-control-git-url:${FIND_UNICODE_CONTROL_GIT_URL}"
+        else
+          git_url_suffix=$(git -C ./find-unicode-control/ rev-parse HEAD)
+          SCAN_PROP="find-unicode-control-git-url:${FIND_UNICODE_CONTROL_GIT_URL}#${git_url_suffix}"
+        fi
+
+        # Find unicode control
+        FUC_EXIT_CODE=0
+
+        # shellcheck disable=SC2086
+        LANG=en_US.utf8 ./find-unicode-control/find_unicode_control.py ${FIND_UNICODE_CONTROL_ARGS} "${SOURCE_CODE_DIR}/source" \
+          >raw_sast_unicode_check_out.txt \
+          2>raw_sast_unicode_check_out.log ||
+          FUC_EXIT_CODE=$?
+        if [[ "${FUC_EXIT_CODE}" -ne 0 ]] && [[ "${FUC_EXIT_CODE}" -ne 1 ]]; then
+          echo "Failed to run find-unicode-control command" >&2
+          cat raw_sast_unicode_check_out.log
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 1
+        fi
+
+        # Translate the output format
+        if ! sed -i raw_sast_unicode_check_out.txt -E -e 's|(.*:[0-9]+)(.*)|\1: warning:\2|' -e 's|^|Error: UNICONTROL_WARNING:\n|'; then
+          echo "Error: failed to translate the unicontrol output format" >&2
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 1
+        fi
+
+        # Process all results as configured with CSGERP_OPTS
+        CSGERP_OPTS=(
+          --mode=json
+          --remove-duplicates
+          --embed-context=3
+          --set-scan-prop="${SCAN_PROP}"
+          --strip-path-prefix="${SOURCE_CODE_DIR}"/source/
+        )
+        # In order to generate csdiff/v1, we need to add the whole path of the source code as
+        # sast-unicode-check only provides an URI to embed the context
+        if ! csgrep "${CSGERP_OPTS[@]}" raw_sast_unicode_check_out.txt >processed_sast_unicode_check_out.json 2>processed_sast_unicode_check_out.err; then
+          echo "Error occurred while running csgrep with CSGERP_OPTS:"
+          cat processed_sast_unicode_check_out.err
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 1
+        fi
+
+        csgrep --mode=evtstat processed_sast_unicode_check_out.json
+
+        # Filter known false positives if KFP_GIT_URL is set
+        if [ -n "${KFP_GIT_URL}" ]; then
+          echo "Filtering false positives in results files using ${KFP_GIT_URL}..." >&2
+
+          # Build initial csfilter-kfp command
+          csfilter_kfp_cmd=(
+            csfilter-kfp
+            --verbose
+            --kfp-git-url="${KFP_GIT_URL}"
+          )
+
+          # Append --project-nvr option if PROJECT_NVR is set
+          if [[ -n "${PROJECT_NAME}" ]]; then
+            csfilter_kfp_cmd+=(--project-nvr="${PROJECT_NAME}")
+          fi
+
+          # Append --record-excluded option if RECORD_EXCLUDED is true
+          if [[ "${RECORD_EXCLUDED}" == "true" ]]; then
+            csfilter_kfp_cmd+=(--record-excluded="excluded-findings.json")
+          fi
+
+          if ! "${csfilter_kfp_cmd[@]}" processed_sast_unicode_check_out.json >sast_unicode_check_out.json 2>sast_unicode_check_out.error; then
+            echo "Failed to filter known false positives" >&2
+            cat sast_unicode_check_out.error
+            note="Task $(context.task.name) failed: For details, check Tekton task log."
+            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 1
+          fi
+        else
+          echo "KFP_GIT_URL is not set. Skipping false positive filtering." >&2
+          mv processed_sast_unicode_check_out.json sast_unicode_check_out.json
+        fi
+
+        # Generate sarif report
+        csgrep --mode=sarif sast_unicode_check_out.json >sast_unicode_check_out.sarif
+        if [[ "${FUC_EXIT_CODE}" -eq 0 ]]; then
+          note="Task $(context.task.name) success: No finding was detected"
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        elif [[ "${FUC_EXIT_CODE}" -eq 1 ]] && [[ ! -s sast_unicode_check_out.sarif ]]; then
+          note="Task $(context.task.name) success: Some findings were detected, but filtered by known false positive"
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        else
+          echo "sast-unicode-check test failed because of the following issues:"
+          cat sast_unicode_check_out.json
+          TEST_OUTPUT=
+          parse_test_output "$(context.task.name)" sarif sast_unicode_check_out.sarif || true
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        fi
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:7a85f12b14b9122df29450dfa60c6d035b04db1a7372f7b606a0fb74ed716844
+      workingDir: /var/workdir/source
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        if [ -z "${IMAGE_URL}" ]; then
+          echo 'No image-url param provided. Skipping upload.'
+          exit 0
+        fi
+
+        UPLOAD_FILES="sast_unicode_check_out.sarif excluded-findings.json"
+        for UPLOAD_FILE in ${UPLOAD_FILES}; do
+          if [ ! -f "${UPLOAD_FILE}" ]; then
+            echo "No ${UPLOAD_FILE} exists. Skipping upload."
+            continue
+          fi
+
+          if [ "${UPLOAD_FILES}" == "excluded-findings.json" ]; then
+            MEDIA_TYPE=application/json
+          else
+            MEDIA_TYPE=application/sarif+json
+          fi
+
+          echo "Selecting auth"
+          select-oci-auth "${IMAGE_URL}" >"${HOME}/auth.json"
+          echo "Attaching to ${IMAGE_URL}"
+          oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        done
