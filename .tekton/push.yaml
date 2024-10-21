@@ -62,7 +62,7 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-      - name: build-container
+      - name: build-appstudio-utils
         params:
           - name: IMAGE
             value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
@@ -79,11 +79,11 @@ spec:
       - name: apply-additional-image-tags
         params:
           - name: IMAGE
-            value: $(tasks.build-container.results.IMAGE_URL)
+            value: $(tasks.build-appstudio-utils.results.IMAGE_URL)
           - name: ADDITIONAL_TAGS
             value: ["latest"]
         runAfter:
-          - build-container
+          - build-appstudio-utils
         taskRef:
           name: apply-tags
 
@@ -92,7 +92,7 @@ spec:
           - name: revision
             value: "$(params.revision)"
         runAfter:
-          - build-container
+          - build-appstudio-utils
           - ec-task-checks
         workspaces:
           - name: source
