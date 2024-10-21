@@ -14,6 +14,7 @@ RUN dnf -y --setopt=tsflags=nodocs install \
     skopeo \
     make \
     golang \
+    zip \
     && dnf clean all
 
 COPY util-scripts /appstudio-utils/util-scripts
