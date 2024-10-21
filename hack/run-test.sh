@@ -47,8 +47,9 @@ fi
 tns=${NAME}-${VERSION//./-}
 
 # Delete the tns if already exists
-#${KUBECTL_CMD} get ns ${tns} >/dev/null 2>/dev/null && ${KUBECTL_CMD} delete ns ${tns}
-${KUBECTL_CMD} create namespace ${tns} >/dev/null 2>/dev/null || :
+${KUBECTL_CMD} delete ns ${tns} >/dev/null 2>/dev/null || :
+
+${KUBECTL_CMD} create namespace ${tns}
 
 #create appstudio-pipeline SA in the test namespace if not already
 if ! ${KUBECTL_CMD} get sa appstudio-pipeline -n ${tns} | grep 'appstudio-pipeline'; then

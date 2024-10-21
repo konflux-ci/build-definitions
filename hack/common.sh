@@ -2,7 +2,6 @@
 #!/bin/bash
 
 CATALOG_TEST_SKIP_CLEANUP=true
-#TEST_NS=${TEST_NS:-"konflux-ci"}
 
 # Define a custom kubectl path if you like
 KUBECTL_CMD=${KUBECTL_CMD:-kubectl}
@@ -129,7 +128,6 @@ function test_resource_creation() {
         version="$( echo $version | tr '.' '-' )"
 
         local tns="${testname}-${version}"
-        #local tns=${TEST_NS}
         local skipit=
 
         for ignore in ${TEST_TASKRUN_IGNORES};do

@@ -35,18 +35,10 @@ jobs:
           kubectl version
           kind version
 
-      - name: List namespaces
-        run: |
-          kubectl get namespace
-
       - name: Deploying Dependencies
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./deploy-deps.sh
-
-      - name: List namespaces
-        run: |
-          kubectl get namespace
 
       - name: Wait for the dependencies to be ready
         run: |
@@ -66,3 +58,8 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./deploy-test-resources.sh
+
+      - name: Run git-clone task test
+        run: |
+          cd $GITHUB_WORKSPACE/build-definitions
+          ./hack/run-test.sh task git-clone 0.1
