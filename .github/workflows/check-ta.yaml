@@ -12,6 +12,9 @@ jobs:
       - name: Check Trusted Artifact variants
         id: check
         run: hack/generate-ta-tasks.sh
+      - name: Check missing Trusted Artifact variants
+        id: missing
+        run: hack/missing-ta-tasks.sh
       - name: Attach patch
         if: ${{ always() && steps.check.conclusion == 'failure' }}
         uses: actions/upload-artifact@v4
