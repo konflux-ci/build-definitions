@@ -37,8 +37,36 @@ The pipelines can be found in the `pipelines` directory.
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the cluster.
 For quick local inner-loop-style task development, you may install new Tasks in your local namespace manually and create your pipelines, as well as the base task image, to test new functionality. Tasks can be installed into the local namespace using `oc apply -k tasks/appstudio-utils/util-tasks`.
 
-There is a container used to support multiple sets of tasks called `quay.io/konflux-ci/appstudio-utils:GIT_SHA`. This is a single container used by multiple tasks. Tasks may also be in their own containers as well. However, many simple tasks are utilities and will be packaged for Konflux in a single container. Tasks can rely on other tasks in the system, which are co-packed in a container, allowing combined tasks (build-only vs. build-deploy) that use the same core implementations.
+There is a container used to support multiple sets of tasks called
+`quay.io/konflux-ci/appstudio-utils:GIT_SHA`. This is a single container used by
+multiple tasks. Tasks may also be in their own containers as well. However, many
+simple tasks are utilities and will be packaged for Konflux in a single
+container. Tasks can rely on other tasks in the system, which are co-packed in a
+container, allowing combined tasks (build-only vs. build-deploy) that use the
+same core implementations.
 
+#### Trusted Artifact Task variants
+
+With Trusted Artifacts (TA) Tasks share files via the use of archives stored in
+a image repository and not using attached storage (PersistantVolumeClaims). This
+has performance and usability benefits. Details can be found in
+[ADR36](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html).
+
+When authoring a Task that needs to share or use files from another Task the
+task author can opt to include the Trusted Artifact variant, by convention in
+the `${task_name}-oci-ta` directory. Inclusion of the TA variant is mandatory
+for Tasks that are part of the Trusted Artifact Pipeline variants, i.e.
+Pipelines defined in the `pipelines/*-oci-ta` directories.
+
+Authoring of a TA Task variant can be automated using the
+[trusted-artifacts](task-generator/trusted-artifacts/) tool. For details on how
+to use the tool consult the [it's
+README](task-generator/trusted-artifacts/README.md) document.
+
+When making changes to an existing Task that has a Trusted Artifacts variant,
+make sure to run the `hack/generate-ta-tasks.sh` script to update the
+`${task_name}-oci-ta` Task definition. Not doing so will fail the
+[`.github/workflows/check-ta.yaml`](.github/workflows/check-ta.yaml) workflow.
 
 ### StepActions
 
