@@ -297,69 +297,71 @@ spec:
       script: |
         #!/bin/bash
         if [ $(params.sbomType) == "cyclonedx" ]; then
-          SBOM_SCRIPT = $(cat << EOS
-          import sys
-          import json
-          sbom = {
-            "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
-            "bomFormat": "CycloneDX",
-            "specVersion": "1.5",
-            "version": 1,
-            "components": []
-          }
-          for data in sys.stdin:
-            parsed_data = json.loads(data)
-            sbom["components"].append({
-              "purl": data["purl"],
-              "type": "file",
-              "name": data["name"],
-              "hashes": [{"alg": "SHA-256", "content": data["hash"]}],
-              "externalReferences": [{"type": "distribution", "url": data["url"]}]
-            })
-          json.dump(sbom, sys.stdout)
-          EOS
+        SBOM_SCRIPT=$(cat << EOS
+        import sys
+        import json
+        sbom = {
+          "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+          "bomFormat": "CycloneDX",
+          "specVersion": "1.5",
+          "version": 1,
+          "components": []
+        }
+        for data in sys.stdin:
+          parsed_data = json.loads(data)
+          sbom["components"].append({
+            "purl": parsed_data["purl"],
+            "type": "file",
+            "name": parsed_data["name"],
+            "hashes": [{"alg": "SHA-256", "content": parsed_data["digest"]}],
+            "externalReferences": [{"type": "distribution", "url": parsed_data["source"]}]
+          })
+        json.dump(sbom, sys.stdout)
+        EOS
+        )
         else
-          SBOM_SCRIPT = $(cat << EOS
-          import sys
-          import json
-          import hashlib
-          sbom = {
-            "spdxVersion": "SPDX-2.3",
-            "dataLicense": "CC0-1.0",
-            "SPDXID": "SPDXRef-DOCUMENT",
-            "packages": [{
-              "SPDXID": "SPDXRef-DocumentRoot-File-",
-              "name": ""
+        SBOM_SCRIPT=$(cat << EOS
+        import sys
+        import json
+        import hashlib
+        sbom = {
+          "spdxVersion": "SPDX-2.3",
+          "dataLicense": "CC0-1.0",
+          "SPDXID": "SPDXRef-DOCUMENT",
+          "packages": [{
+            "SPDXID": "SPDXRef-DocumentRoot-File-",
+            "name": ""
+          }],
+          "relationships": [{
+            "SPDXElementID": "SPDXRef-DOCUMENT",
+            "relatedSpdxElement": "SPDXRef-DocumentRoot-File-",
+            "relationshipType": "DESCRIBES"
+          }]
+        }
+        for data in sys.stdin:
+          parsed_data = json.loads(data)
+          package_dict = {"name": parsed_data['name'],
+                          "version": "",
+                          "purls": [parsed_data['purl']]}
+          package_hash = hashlib.sha256(json.dumps(package_dict, sort_keys=True)].encode()).hexdigest()
+          sbom['packages'].append({
+            "SPDXID": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash,
+            "name": parsed_data["name"],
+            "versionInfo": "",
+            "externalRefs": [{
+              "referenceLocator": parsed_data["purl"],
+              "referenceCategory": "PACKAGE-MANAGER",
+              "referenceType": "purl"
             }],
-            "relationships": [{
-              "SPDXElementID": "SPDXRef-DOCUMENT",
-              "relatedSpdxElement": "SPDXRef-DocumentRoot-File-",
-              "relationshipType": "DESCRIBES"
-            }]
-          }
-          for data in sys.stdin:
-            parsed_data = json.loads(data)
-            package_dict = {"name": parsed_data['name'],
-                            "version": "",
-                            "purls": [parsed_data['purl']]}
-            package_hash = hashlib.sha256(json.dumps(package_dict, sort_keys=True)].encode()).hexdigest()
-            sbom['packages'].append({
-              "SPDXID": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash,
-              "name": parsed_data["name"],
-              "versionInfo": "",
-              "externalRefs": [{
-                "referenceLocator": parsed_data["purl"],
-                "referenceCategory": "PACKAGE-MANAGER",
-                "referenceType": "purl"
-              }],
-            })
-            sbom['relations'].append({
-              "relatedSpdxElement": "SPDXRef-DocumentRoot-File-",
-              "relationship": "CONTAINS",
-              "relatedSpdxElement": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash
-            })
-          json.dump(sbom, sys.stdout)
-          EOS
+          })
+          sbom['relationships'].append({
+            "SPDXElementID": "SPDXRef-DocumentRoot-File-",
+            "relationship": "CONTAINS",
+            "relatedSpdxElement": "SPDXRef-Package-" + parsed_data["name"]+ "--" + package_hash
+          })
+        json.dump(sbom, sys.stdout)
+        EOS
+        )
         fi
 
         temp_file=$(mktemp)
@@ -374,14 +376,14 @@ spec:
           purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
 
           echo "Recording purl $purl"
-          echo '{"purl": "$purl", "name": "$OCI_FILENAME", "digest" :"$OCI_ARTIFACT_DIGEST", "source":"$OCI_SOURCE"}' > $temp_file
+          echo '{"purl": "'$purl'", "name": "'$OCI_FILENAME'", "digest" :"'$OCI_ARTIFACT_DIGEST'", "source":"'$OCI_SOURCE'"}' > $temp_file
         done
         cat $temp_file | python3 -c "$SBOM_SCRIPT" > sbom.json
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom.json --type $(params.sbomType) "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type $(params.sbomType) "$(cat '$(results.IMAGE_REF.path)')"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
       workingDir: /var/workdir
