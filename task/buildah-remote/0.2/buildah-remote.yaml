@@ -157,8 +157,6 @@ spec:
       value: source
     - name: CONTEXT
       value: $(params.CONTEXT)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
     - name: IMAGE
       value: $(params.IMAGE)
     - name: TLSVERIFY
@@ -212,6 +210,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     name: build
     script: |-
@@ -281,6 +281,10 @@ spec:
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        # Custom Dockerfile location is mainly used for instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and also need to provide modified Dockerfile.
+        dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -475,6 +479,15 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
+      if [ -n "$ADDITIONAL_VOLUME_MOUNTS" ]; then
+        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
+        # This is primarily used in instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and add some other tools.
+        while read -r volume_mount; do
+          VOLUME_MOUNTS+=("--volume=$volume_mount")
+        done <<< "$ADDITIONAL_VOLUME_MOUNTS"
+      fi
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -545,7 +558,6 @@ spec:
           -e HERMETIC="$HERMETIC" \
           -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
           -e CONTEXT="$CONTEXT" \
-          -e DOCKERFILE="$DOCKERFILE" \
           -e IMAGE="$IMAGE" \
           -e TLSVERIFY="$TLSVERIFY" \
           -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
@@ -561,6 +573,7 @@ spec:
           -e SQUASH="$SQUASH" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e COMMIT_SHA="$COMMIT_SHA" \
+          -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v "$BUILD_DIR/volumes/shared:/shared:Z" \
           -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
