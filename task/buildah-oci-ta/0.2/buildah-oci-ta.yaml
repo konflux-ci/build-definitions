@@ -350,10 +350,12 @@ spec:
         )
 
         BUILDAH_ARGS=()
+        UNSHARE_ARGS=()
 
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
-          UNSHARE_ARGS="--net"
+          UNSHARE_ARGS+=("--net")
+
           for image in $BASE_IMAGES; do
             unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
           done
@@ -378,10 +380,12 @@ spec:
           BUILDAH_ARGS+=("--skip-unused-stages=false")
         fi
 
+        VOLUME_MOUNTS=()
+
         if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
           cp -r "/var/workdir/cachi2" /tmp/
           chmod -R go+rwX /tmp/cachi2
-          VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
+          VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
           # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
           # for each RUN ... line insert the cachi2.env command *after* any options like --mount
           sed -E -i \
@@ -408,7 +412,7 @@ spec:
         if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
           chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
           mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
-          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
+          VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
         fi
 
         DEFAULT_LABELS=(
@@ -432,12 +436,12 @@ spec:
         if [ -e /activation-key/org ]; then
           cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
           mkdir /shared/rhsm-tmp
-          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z"
+          VOLUME_MOUNTS+=(--volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z)
           echo "Adding activation key to the build"
 
         elif find /entitlement -name "*.pem" >>null; then
           cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
-          VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+          VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
           echo "Adding the entitlement to the build"
         fi
 
@@ -454,13 +458,25 @@ spec:
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
         declare IMAGE
 
-        unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
-          $VOLUME_MOUNTS \
-          "${BUILDAH_ARGS[@]}" \
-          "${LABELS[@]}" \
-          --tls-verify=$TLSVERIFY --no-cache \
-          --ulimit nofile=4096:4096 \
-          -f "$dockerfile_copy" -t "$IMAGE" .
+        buildah_cmd_array=(
+            buildah build
+            "${VOLUME_MOUNTS[@]}"
+            "${BUILDAH_ARGS[@]}"
+            "${LABELS[@]}"
+            --tls-verify="$TLSVERIFY" --no-cache
+            --ulimit nofile=4096:4096
+            -f "$dockerfile_copy" -t "$IMAGE" .
+        )
+        buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
+
+        if [ "${HERMETIC}" == "true" ]; then
+          # enabling loopback adapter enables Bazel builds to work in hermetic mode.
+          command="ip link set lo up && $buildah_cmd"
+        else
+          command="$buildah_cmd"
+        fi
+
+        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
         container=$(buildah from --pull-never "$IMAGE")
         buildah mount $container | tee /shared/container_path
