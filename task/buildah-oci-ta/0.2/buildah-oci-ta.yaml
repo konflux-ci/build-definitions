@@ -188,8 +188,6 @@ spec:
         value: $(params.BUILD_ARGS_FILE)
       - name: CONTEXT
         value: $(params.CONTEXT)
-      - name: DOCKERFILE
-        value: $(params.DOCKERFILE)
       - name: ENTITLEMENT_SECRET
         value: $(params.ENTITLEMENT_SECRET)
       - name: HERMETIC
@@ -251,6 +249,8 @@ spec:
       env:
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE)
       script: |
         #!/bin/bash
         set -e
@@ -265,6 +265,8 @@ spec:
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
         elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+        elif [ -e "$DOCKERFILE" ]; then
+          dockerfile_path="$DOCKERFILE"
         elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
           echo "Fetch Dockerfile from $DOCKERFILE"
           dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -444,6 +446,8 @@ spec:
           VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
           echo "Adding the entitlement to the build"
         fi
+
+        VOLUME_MOUNTS+=("$ADDITIONAL_VOLUME_MOUNTS")
 
         ADDITIONAL_SECRET_PATH="/additional-secret"
         ADDITIONAL_SECRET_TMP="/tmp/additional-secret"

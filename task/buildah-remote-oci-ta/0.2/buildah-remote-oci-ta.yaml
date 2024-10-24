@@ -168,8 +168,6 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
     - name: CONTEXT
       value: $(params.CONTEXT)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
     - name: HERMETIC
@@ -230,6 +228,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
     name: build
     script: |-
@@ -299,6 +299,8 @@ spec:
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
@@ -479,6 +481,8 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
+      VOLUME_MOUNTS+=("$ADDITIONAL_VOLUME_MOUNTS")
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -545,7 +549,6 @@ spec:
           -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
           -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
           -e CONTEXT="$CONTEXT" \
-          -e DOCKERFILE="$DOCKERFILE" \
           -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
           -e HERMETIC="$HERMETIC" \
           -e IMAGE="$IMAGE" \
@@ -560,6 +563,7 @@ spec:
           -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
           -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
           -e COMMIT_SHA="$COMMIT_SHA" \
+          -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/volumes/shared:/shared:Z" \
           -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
           -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
