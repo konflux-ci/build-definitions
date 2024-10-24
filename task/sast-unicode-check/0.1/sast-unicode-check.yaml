@@ -128,8 +128,9 @@ spec:
 
         # Find unicode control
         FUC_EXIT_CODE=0
-        mapfile -t fuc_args <<< "${FIND_UNICODE_CONTROL_ARGS}"
-        LANG=en_US.utf8 ./find-unicode-control/find_unicode_control.py "${fuc_args[@]}" "${SOURCE_CODE_DIR}/source" \
+
+        # shellcheck disable=SC2086
+        LANG=en_US.utf8 ./find-unicode-control/find_unicode_control.py ${FIND_UNICODE_CONTROL_ARGS} "${SOURCE_CODE_DIR}/source" \
             >raw_sast_unicode_check_out.txt \
             2>raw_sast_unicode_check_out.log \
             || FUC_EXIT_CODE=$?
