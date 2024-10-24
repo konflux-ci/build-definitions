@@ -107,6 +107,14 @@ spec:
     description: Additional key=value labels that should be applied to the image
     type: array
     default: []
+  - name: SECURITY_OPTS
+    description: Array of --security-opt values
+    type: array
+    default: []
+  - name: DEVICES
+    description: Array of --device values
+    type: array
+    default: []
 
   results:
   - description: Digest of the image just built
@@ -187,6 +195,10 @@ spec:
       - $(params.BUILD_ARGS[*])
       - --labels
       - $(params.LABELS[*])
+      - --security-opts
+      - $(params.SECURITY_OPTS[*])
+      - --devices
+      - $(params.DEVICES[*])
 
     script: |
       #!/bin/bash
@@ -249,6 +261,8 @@ spec:
       fi
 
       LABELS=()
+      security_opts=()
+      devices=()
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
@@ -262,6 +276,14 @@ spec:
               --labels)
                   shift
                   while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label" "$1"); shift; done
+                  ;;
+              --security-opts)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do security_opts+=("$1"); shift; done
+                  ;;
+              --devices)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do devices+=("$1"); shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2
@@ -298,6 +320,20 @@ spec:
       fi
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+      SECURITY_OPT_FLAGS=()
+      for security_opt in "${security_opts[@]}"; do
+        SECURITY_OPT_FLAGS+=("--security-opt=$security_opt")
+      done
+
+      BUILDAH_ARGS+=("${SECURITY_OPT_FLAGS[@]}")
+
+      DEVICE_FLAGS=()
+      for device in "${devices[@]}"; do
+        DEVICE_FLAGS+=("--device=$device")
+      done
+
+      BUILDAH_ARGS+=("${DEVICE_FLAGS[@]}")
 
       if [ -n "${ADD_CAPABILITIES}" ]; then
         BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
