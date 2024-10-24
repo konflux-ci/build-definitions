@@ -56,9 +56,9 @@
 - op: add
   path: /spec/steps/0/env/-
   value:
-    name: VOLUME_MOUNTS_FROM_ENV
-    value: >-
-      --volume /tmp/sast-scan-results:/sast-scan-results
+    name: ADDITIONAL_VOLUME_MOUNTS
+    value: |-
+      /tmp/sast-scan-results:/sast-scan-results
 
 # Add prepare and postprocess steps
 
@@ -76,6 +76,9 @@
         memory: 0.5Gi
         cpu: '0.5'
     workingDir: $(workspaces.source.path)
+    env:
+      - name: DOCKERFILE
+        value: $(params.DOCKERFILE)
     script: |
       # Dockerfile discovery logic is copied from buildah task
       SOURCE_CODE_DIR=source
@@ -102,10 +105,12 @@
       fi
 
       # Modify Dockerfile
-      sed -i '1 i\ARG NEW_ARG=default-value' $dockerfile_path
+      sed '1 i\ARG NEW_ARG=default-value' $dockerfile_path | tee /shared/Containerfile
 
-      echo 'Modified Dockerfile:'
-      cat $dockerfile_path
+  # Make the buildah task use the instrumented Dockerfile
+- op: replace
+  path: /spec/steps/1/env/1/value  # steps -> build -> env -> DOCKERFILE
+  value: /shared/Containerfile
 
 # Postprocess step
 - op: add
