@@ -10,6 +10,7 @@ Given a file in the user's source directory, copy content from arbitrary urls in
 |IMAGE|Reference of the image we will push||true|
 |OCI_COPY_FILE|Path to the oci copy file.|./oci-copy.yaml|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|sbomType|The type of SBOM to generate. Supported values are 'spdx' and 'cyclonedx'.|cyclonedx|false|
 
 ## Results
 |name|description|

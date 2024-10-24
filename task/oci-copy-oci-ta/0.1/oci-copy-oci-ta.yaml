@@ -42,8 +42,9 @@ spec:
         the application source code.
       type: string
     - name: sbomType
+      description: The type of SBOM to generate. Supported values are 'spdx'
+        and 'cyclonedx'.
       type: string
-      description: The type of SBOM to generate. Supported values are 'spdx' and 'cyclonedx'.
       default: cyclonedx
   results:
     - name: IMAGE_DIGEST
@@ -296,8 +297,9 @@ spec:
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        if [ $(params.sbomType) == "cyclonedx" ]; then
-        SBOM_SCRIPT=$(cat << EOS
+        if [ "$(params.sbomType)" == "cyclonedx" ]; then
+          SBOM_SCRIPT=$(
+                      cat <<EOS
         import sys
         import json
         sbom = {
@@ -318,9 +320,10 @@ spec:
           })
         json.dump(sbom, sys.stdout)
         EOS
-        )
+          )
         else
-        SBOM_SCRIPT=$(cat << EOS
+          SBOM_SCRIPT=$(
+                      cat <<EOS
         import sys
         import json
         import hashlib
@@ -343,9 +346,9 @@ spec:
           package_dict = {"name": parsed_data['name'],
                           "version": "",
                           "purls": [parsed_data['purl']]}
-          package_hash = hashlib.sha256(json.dumps(package_dict, sort_keys=True)].encode()).hexdigest()
+          package_hash = hashlib.sha256(json.dumps(package_dict, sort_keys=True).encode()).hexdigest()
           sbom['packages'].append({
-            "SPDXID": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash,
+            "SPDXID": "SPDXRef-Package-" + parsed_data["name"]+ "--" + package_hash,
             "name": parsed_data["name"],
             "versionInfo": "",
             "externalRefs": [{
@@ -357,33 +360,33 @@ spec:
           sbom['relationships'].append({
             "SPDXElementID": "SPDXRef-DocumentRoot-File-",
             "relationship": "CONTAINS",
-            "relatedSpdxElement": "SPDXRef-Package-" + parsed_data["name"]+ "--" + package_hash
+            "relatedSpdxElement": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash
           })
         json.dump(sbom, sys.stdout)
         EOS
-        )
+          )
         fi
 
         temp_file=$(mktemp)
-        trap "rm -f $temp_file" 0 2 3 15
-        for varfile in "$(workspaces.source.path)"/vars/*; do
+        trap 'rm -f "$temp_file"' 0 2 3 15
+        for varfile in "/var/workdir"/vars/*; do
           echo "Reading $varfile"
           # shellcheck source=/dev/null
-          source $varfile
+          source "$varfile"
 
           ENCODED_URL=$(echo "${OCI_SOURCE}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
           ENCODED_FILENAME=$(echo "${OCI_FILENAME}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
           purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
 
           echo "Recording purl $purl"
-          echo '{"purl": "'$purl'", "name": "'$OCI_FILENAME'", "digest" :"'$OCI_ARTIFACT_DIGEST'", "source":"'$OCI_SOURCE'"}' > $temp_file
+          echo "{\"purl\": \"$purl\", \"name\": \"$OCI_FILENAME\", \"digest\" :\"$OCI_ARTIFACT_DIGEST\", \"source\": \"$OCI_SOURCE\"}" >"$temp_file"
         done
-        cat $temp_file | python3 -c "$SBOM_SCRIPT" > sbom.json
+        python3 -c "$SBOM_SCRIPT" <"$temp_file"  >sbom.json
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom.json --type $(params.sbomType) "$(cat '$(results.IMAGE_REF.path)')"
+        cosign attach sbom --sbom sbom.json --type "$(params.sbomType)" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
       workingDir: /var/workdir
