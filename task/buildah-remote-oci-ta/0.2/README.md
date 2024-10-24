@@ -34,6 +34,8 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |PLATFORM|The platform to build on||true|
+|SECURITY_OPTS|Array of --security-opt values|[]|false|
+|DEVICES|Array of --device values|[]|false|
 
 ## Results
 |name|description|

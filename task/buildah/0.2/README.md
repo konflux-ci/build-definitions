@@ -31,6 +31,8 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
+|SECURITY_OPTS|Array of --security-opt values|[]|false|
+|DEVICES|Array of --device values|[]|false|
 
 ## Results
 |name|description|

@@ -32,6 +32,8 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |PLATFORM|The platform to build on||true|
+|SECURITY_OPTS|Array of --security-opt values|[]|false|
+|DEVICES|Array of --device values|[]|false|
 
 ## Results
 |name|description|
