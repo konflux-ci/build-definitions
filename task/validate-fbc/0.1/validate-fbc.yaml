@@ -1,3 +1,12 @@
+# TODO:
+#   ~~Set the TEST_OUTPUT once~~
+#   ~~Stop using the BASE_IMAGE result~~
+#   ~~Stop using the PVC workspace to transmit data between task steps~~
+#   ~~Create a TA variant of this task~~
+#   Change the pipeline to use the TA variant
+#   Bonus points: make this task multi-arch aware.
+#   ~~Move this task to a new task~~
+#   Output the related images as an OCI artifact instead of running test
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -6,36 +15,171 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
-    build.appstudio.redhat.com/expires-on: "2024-12-31T00:00:00Z"
   name: fbc-validation
 spec:
   description: >-
     Ensures file-based catalog (FBC) components are uniquely linted for proper construction as part of build pipeline.
+    The manifest data of container images is checked using OpenShift Operator Framework's opm CLI tool.
+    The opm binary is extracted from the container's base image, which must come from a trusted source.
   params:
     - name: IMAGE_URL
       description: Fully qualified image name.
     - name: IMAGE_DIGEST
       description: Image digest.
-    - name: BASE_IMAGE
-      description: Fully qualified base image name.
   results:
-    - name: TEST_OUTPUT
-      description: Tekton task test output.
-  workspaces:
-    - name: workspace
+    - name: RELATED_IMAGE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the related images for the FBC fragment.
+  volumes:
+    - name: shared
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
+    volumeMounts:
+      - mountPath: /shared
+        name: shared
+      - mountPath: /var/workdir
+        name: workdir
   steps:
-    - name: extract-and-check-binaries
+    - name: inspect-image
       image: quay.io/redhat-appstudio/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
-      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-      env:
-        - name: IMAGE_URL
-          value: $(params.IMAGE_URL)
-        - name: IMAGE_DIGEST
-          value: $(params.IMAGE_DIGEST)
-        - name: BASE_IMAGE
-          value: "$(params.BASE_IMAGE)"
+      workingDir: /var/workdir/inspect-image
+      securityContext:
+        runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        IMAGE_INSPECT=image_inspect.json
+        BASE_IMAGE_INSPECT=base_image_inspect.json
+        RAW_IMAGE_INSPECT=raw_image_inspect.json
+
+        IMAGE_URL="${IMAGE_URL}@${IMAGE_DIGEST}"
+        # Given a tag and a the digest in the IMAGE_URL we opt to use the digest alone
+        # this is because containers/image currently doesn't support image references
+        # that contain both. See https://github.com/containers/image/issues/1736
+        if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
+          IMAGE_URL="${IMAGE_URL/:*@/@}"
+        fi
+
+        status=-1
+        max_run=5
+        sleep_sec=10
+        for run in $(seq 1 $max_run); do
+          status=0
+          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+          echo "Inspecting manifest for source image ${IMAGE_URL} (try $run/$max_run)."
+          skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT && break || status=$?
+        done
+        if [ "$status" -ne 0 ]; then
+            echo "Failed to inspect image ${IMAGE_URL}"
+            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+            exit 0
+        fi
+        echo "Image ${IMAGE_URL} metadata:"
+        cat "$IMAGE_INSPECT"
+
+        run=1
+        while [ "$run" -le "$max_run" ]; do
+          status=0
+          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+          echo "Inspecting raw image manifest ${IMAGE_URL} (try $run/$max_run)."
+          skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT || status=$?
+
+          if [ "$status" -eq 0 ] && [ "$(jq 'has("manifests")' ${RAW_IMAGE_INSPECT})" = "true" ]; then
+              echo "Found an image index, lookup for amd64 manifest"
+              INDEX_IMAGE_MANIFESTS=$(jq ' .manifests | map ( {(.platform.architecture|tostring|ascii_downcase):  .digest} ) | add'  "${RAW_IMAGE_INSPECT}" || true)
+
+              AMD64_MANIFEST_DIGEST=$(jq -r '.amd64' <<< "${INDEX_IMAGE_MANIFESTS}" || true )
+              if [ -z "$AMD64_MANIFEST_DIGEST" ]; then
+                # we didn't find amd64 platform, fail horribly as it's the required platform currently for all checks
+                echo "[ERROR] Could not find amd64 image manifest for image $IMAGE_URL"
+                note="Step inspect-image failed: Couldn't find amd64 image manifest"
+                TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+                echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+                exit 0
+              fi
+
+              # Replace image URL with new digest
+              IMAGE_URL="${IMAGE_URL/[@:]*/@$AMD64_MANIFEST_DIGEST}"
+              echo "Setting AMD64 specific image: $IMAGE_URL"
+              run=1  # reset runs, we are looking another image; new image, new life
+          else
+              break
+          fi
+        done
+
+        if [ "$status" -ne 0 ]; then
+            echo "Failed to get raw metadata of image ${IMAGE_URL}"
+            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+            exit 0
+        fi
+
+        echo "Image ${IMAGE_URL} raw metadata:"
+        cat "$RAW_IMAGE_INSPECT" | jq  # jq for readable formatting
+
+        echo "Getting base image manifest for source image ${IMAGE_URL}."
+        BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
+        BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
+        if [ $BASE_IMAGE_NAME == 'null' ]; then
+          echo "Cannot get base image info from annotations."
+          BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
+          BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
+          if [ "$BASE_IMAGE_NAME" == 'null' ]; then
+            echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
+            exit 0
+          fi
+        fi
+        if [ -z "$BASE_IMAGE_NAME" ]; then
+          echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
+          exit 0
+        fi
+
+        BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
+        echo "Detected base image: $BASE_IMAGE"
+        echo -n "$BASE_IMAGE" > /shared/BASE_IMAGE
+
+        for run in $(seq 1 $max_run); do
+          status=0
+          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+          echo "Inspecting base image ${BASE_IMAGE} (try $run/$max_run)."
+          skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
+        done
+        if [ "$status" -ne 0 ]; then
+            echo "Failed to inspect base image ${BASE_IMAGE}"
+            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+            echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+            exit 0
+        fi
+
+        BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
+        echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
+        echo -n "$BASE_IMAGE_REPOSITORY" > /shared/BASE_IMAGE_REPOSITORY
+
+        note="Step inspect-image completed: Check inspected JSON files under /var/workdir/inspect-image."
+    - name: extract-and-validate
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      workingDir: /var/workdir/extract-and-validate
       securityContext:
         runAsUser: 0
         capabilities:
@@ -53,6 +197,8 @@ spec:
         source /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
 
+        BASE_IMAGE=$(cat /shared/BASE_IMAGE)
+
         declare -a ALLOWED_BASE_IMAGES=(
           "registry.redhat.io/openshift4/ose-operator-registry"
           "registry.redhat.io/openshift4/ose-operator-registry-rhel9"
@@ -62,7 +208,7 @@ spec:
         ### FBC base image check
         if [ -z "${BASE_IMAGE}" ]; then
           echo "Base image is unknown. The file-based catalog must have base image defined. Check inspect-image task log."
-          note="Task $(context.task.name) failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          note="Step extract-and-validate failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
@@ -81,7 +227,7 @@ spec:
 
         if [[ "${allowed}" == false ]]; then
           echo "Base image ${BASE_IMAGE} is not allowed for the file based catalog image. Allowed images: ${ALLOWED_BASE_IMAGES}"
-          note="Task $(context.task.name) failed: Base image ${BASE_IMAGE} is not allowed for the file based catalog image. For details, check Tekton task logs"
+          note="Step extract-and-validate failed: Base image ${BASE_IMAGE} is not allowed for the file based catalog image. For details, check Tekton task logs"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
@@ -89,16 +235,16 @@ spec:
 
         ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
         if [ ! -s ../inspect-image/image_inspect.json ]; then
-          echo "File $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
-          note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          echo "File /var/workdir/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
+          note="Step extract-and-validate failed: /var/workdir/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
         if [ ! -s ../inspect-image/raw_image_inspect.json ]; then
-          echo "File $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. Check inspect-image task log."
-          note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+          echo "File /var/workdir/inspect-image/raw_image_inspect.json did not generate correctly. Check inspect-image task log."
+          note="Step extract-and-validate failed: /var/workdir/inspect-image/raw_image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
@@ -138,7 +284,7 @@ spec:
 
         if ! oc image extract --registry-config ~/.docker/config.json "${image_with_digest}" ; then
           echo "Unable to extract or validate extracted binaries."
-          note="Task $(context.task.name) failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
+          note="Step extract-and-validate failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           popd
@@ -153,13 +299,14 @@ spec:
           exit 0
         fi
         # copy content of conffolder to confdir - will be used in next task - related image check
-        cp -r .$conffolder/* $(workspaces.workspace.path)/hacbs/$(context.task.name)/confdir
+        # This can be removed when we 
+        cp -r .$conffolder/* /var/workdir/extract-and-validate/confdir
 
         EXTRACT_DIR="/extracted_base_img"
         mkdir "${EXTRACT_DIR}"
         if ! oc image extract ${BASE_IMAGE} --path /:"${EXTRACT_DIR}"; then
           echo "Unable to extract opm binary"
-          note="Task $(context.task.name) failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
+          note="Step extract-and-validate failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
           exit 0
         fi
@@ -167,7 +314,7 @@ spec:
         OPM_BINARIES="$(find "${EXTRACT_DIR}" -type f -name opm)"
         BINARIES_COUNT=$(wc -l <<< "${OPM_BINARIES}")
         if [[ $BINARIES_COUNT -ne "1" ]]; then
-            note="Task $(context.task.name) failed: Expected exactly one opm binary in base image.  For details, check Tekton task log"
+            note="Step extract-and-validate failed: Expected exactly one opm binary in base image.  For details, check Tekton task log"
             ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
             echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
             echo "found $BINARIES_COUNT opm binaries:"
@@ -178,8 +325,8 @@ spec:
         echo "OPM_BINARY: '${OPM_BINARY}'"
         chmod 775 "$OPM_BINARY"
 
-        # We have 6 total checks
-        check_num=6
+        # We have 8 total checks
+        check_num=8
         failure_num=0
         TESTPASSED=true
 
@@ -269,7 +416,25 @@ spec:
           fi
         fi
 
-        note="Task $(context.task.name) completed: Check result for task result."
+        FAILEDIMAGES=""
+        catalog="$(opm render .$conffolder/)"
+
+        # OPM generates catalog file in a way that yaml file could contain stream of JSON objects
+        # thats why we need jq in for this situation, because yq can't parse this file
+        # however there is also possibility that catalog.yaml has yaml data in it
+
+        status=0
+        echo "Related images detected:"
+        jq  '.relatedImages[]? |  .image ' <<< ${catalog} || status=$?
+        if [ $status -ne 0 ]; then
+          echo "!FAILURE! - Could not get related images. Make sure catalog.yaml exists in FBC fragment image and it is valid .yaml or .json format."
+          TESTPASSED=false
+        else
+          jq  '.relatedImages[]? |  .image ' <<< ${catalog} | jq --slurp > /shared/RELATED_IMAGES
+        fi
+        
+
+        note="Step extract-and-validate completed: Check result for task result."
         if [ $TESTPASSED == false ]; then
           ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
           echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
@@ -278,3 +443,11 @@ spec:
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         fi
         popd
+    - name: create-trusted-artifact
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
+      args:
+        - create
+        - --store
+        - $(params.IMAGE_URL).relatedImages
+        - $(results.RELATED_IMAGE_ARTIFACT.path)=/shared/RELATED_IMAGES
+
