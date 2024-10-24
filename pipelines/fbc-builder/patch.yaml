@@ -88,7 +88,7 @@
 - op: add
   path: /spec/tasks/-
   value:
-    name: inspect-image
+    name: validate-fbc
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -96,52 +96,10 @@
     runAfter:
       - build-image-index
     taskRef:
-      name: inspect-image
+      name: validate-fbc
       version: "0.1"
     params:
     - name: IMAGE_URL
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE_DIGEST
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    workspaces:
-    - name: source
-      workspace: workspace
-- op: add
-  path: /spec/tasks/-
-  value:
-    name: fbc-validate
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values: ["false"]
-    runAfter:
-      - inspect-image
-    taskRef:
-      name: fbc-validation
-      version: "0.1"
-    params:
-    - name: IMAGE_URL
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: BASE_IMAGE
-      value: $(tasks.inspect-image.results.BASE_IMAGE)
-    workspaces:
-      - name: workspace
-        workspace: workspace
-- op: add
-  path: /spec/tasks/-
-  value:
-    name: fbc-related-image-check
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values: ["false"]
-    runAfter:
-      - fbc-validate
-    taskRef:
-      name: fbc-related-image-check
-      version: "0.1"
-    workspaces:
-      - name: workspace
-        workspace: workspace
