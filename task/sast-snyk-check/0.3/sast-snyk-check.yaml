@@ -152,48 +152,49 @@ spec:
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
 
-        # In order to generate csdiff/v1, we need to add the whole path of the source code as Snyk only provides an URI to embed the context
-        (cd  "${SOURCE_CODE_DIR}" && csgrep --mode=json --embed-context=3 "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json) \
-          | csgrep --mode=json --strip-path-prefix="source/"  \
-          > sast_snyk_check_out_all_findings.json
-
-        echo "Results:"
-        (set -x && csgrep --mode=evtstat sast_snyk_check_out_all_findings.json)
-
-        # We check if the KFP_GIT_URL variable is set to apply the filters or not
-        if [[ -z "${KFP_GIT_URL}" ]]; then
-          echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
-          mv sast_snyk_check_out_all_findings.json filtered_sast_snyk_check_out.json
-        else
-          echo "Filtering false positives in results files using csfilter-kfp..."
-
-          CMD=(
-            csfilter-kfp
-            --verbose
-            --kfp-git-url="${KFP_GIT_URL}"
-            --project-nvr="${PROJECT_NAME}"
-          )
-
-          if [ "${RECORD_EXCLUDED}" == "true" ]; then
-            CMD+=(--record-excluded="excluded-findings.json")
-          fi
-
-          set +e
-          "${CMD[@]}" sast_snyk_check_out_all_findings.json > filtered_sast_snyk_check_out.json
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            echo "Error: failed to filter known false positives" >&2
-            return 1
-          else
-            echo "Message: Succeed to filter known false positives" >&2
-          fi
-          echo "Results after filtering:"
-          (set -x && csgrep --mode=evtstat filtered_sast_snyk_check_out.json)
-        fi
-
-        csgrep --mode=sarif filtered_sast_snyk_check_out.json > sast_snyk_check_out.sarif
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
+          # In order to generate csdiff/v1, we need to add the whole path of the source code as Snyk only provides an URI to embed the context
+          (cd  "${SOURCE_CODE_DIR}" && csgrep --mode=json --embed-context=3 "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json) \
+            | csgrep --mode=json --strip-path-prefix="source/"  \
+            > sast_snyk_check_out_all_findings.json
+
+          echo "Results:"
+          (set -x && csgrep --mode=evtstat sast_snyk_check_out_all_findings.json)
+
+          # We check if the KFP_GIT_URL variable is set to apply the filters or not
+          if [[ -z "${KFP_GIT_URL}" ]]; then
+            echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+            mv sast_snyk_check_out_all_findings.json filtered_sast_snyk_check_out.json
+          else
+            echo "Filtering false positives in results files using csfilter-kfp..."
+
+            CMD=(
+              csfilter-kfp
+              --verbose
+              --kfp-git-url="${KFP_GIT_URL}"
+              --project-nvr="${PROJECT_NAME}"
+            )
+
+            if [ "${RECORD_EXCLUDED}" == "true" ]; then
+              CMD+=(--record-excluded="excluded-findings.json")
+            fi
+
+            set +e
+            "${CMD[@]}" sast_snyk_check_out_all_findings.json > filtered_sast_snyk_check_out.json
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "Error: failed to filter known false positives" >&2
+              return 1
+            else
+              echo "Message: Succeed to filter known false positives" >&2
+            fi
+            echo "Results after filtering:"
+            (set -x && csgrep --mode=evtstat filtered_sast_snyk_check_out.json)
+          fi
+
+          csgrep --mode=sarif filtered_sast_snyk_check_out.json > sast_snyk_check_out.sarif
+
           TEST_OUTPUT=
           parse_test_output "$(context.task.name)" sarif sast_snyk_check_out.sarif  || true
 
