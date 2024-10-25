@@ -30,7 +30,7 @@ spec:
       type: string
       description: URL from repository to download known false positives files.
       # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git when KONFLUX-4530 is resolved
-      default: "https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+      default: ""
     - name: PROJECT_NVR
       type: string
       description: |
@@ -99,17 +99,6 @@ spec:
           update-ca-trust
         fi
 
-        # Only used for testing
-        microdnf install dnf -y
-        dnf install -y 'dnf-command(copr)'
-        dnf copr enable copr.devel.redhat.com/@osh/csdiff -y
-        dnf install -y csdiff git python3-file-magic
-
-        # Installation of Red Hat certificates for cloning Red Hat internal repositories
-        curl -sS https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem > /etc/pki/ca-trust/source/anchors/2015-RH-IT-Root-CA.crt
-        curl -sS https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem > /etc/pki/ca-trust/source/anchors/2022-IT-Root-CA.pem
-        update-ca-trust
-
         # Clone the source code from upstream repo
         GIT_URL=$(echo "${FIND_UNICODE_CONTROL_GIT_URL}" | awk -F'#' '{print $1}')
         REV=$(echo "${FIND_UNICODE_CONTROL_GIT_URL}" | awk -F'#' '{print $2}')
@@ -139,8 +128,9 @@ spec:
 
         # Find unicode control
         FUC_EXIT_CODE=0
-        mapfile -t fuc_args <<< "${FIND_UNICODE_CONTROL_ARGS}"
-        LANG=en_US.utf8 ./find-unicode-control/find_unicode_control.py "${fuc_args[@]}" "${SOURCE_CODE_DIR}/source" \
+
+        # shellcheck disable=SC2086
+        LANG=en_US.utf8 ./find-unicode-control/find_unicode_control.py ${FIND_UNICODE_CONTROL_ARGS} "${SOURCE_CODE_DIR}/source" \
             >raw_sast_unicode_check_out.txt \
             2>raw_sast_unicode_check_out.log \
             || FUC_EXIT_CODE=$?
