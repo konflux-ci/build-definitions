@@ -66,6 +66,8 @@ spec:
         value: $(params.IMAGE)
       - name: OCI_COPY_FILE
         value: $(params.OCI_COPY_FILE)
+      - name: SBOM_TYPE
+        value: $(params.sbomType)
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -297,7 +299,7 @@ spec:
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        if [ "$(params.sbomType)" == "cyclonedx" ]; then
+        if [ "$SBOM_TYPE" == "cyclonedx" ]; then
           SBOM_SCRIPT=$(
                       cat <<EOS
         import sys
@@ -379,14 +381,14 @@ spec:
           purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
 
           echo "Recording purl $purl"
-          echo "{\"purl\": \"$purl\", \"name\": \"$OCI_FILENAME\", \"digest\" :\"$OCI_ARTIFACT_DIGEST\", \"source\": \"$OCI_SOURCE\"}" >"$temp_file"
+          echo "{\"purl\": \"$purl\", \"name\": \"$OCI_FILENAME\", \"digest\" :\"$OCI_ARTIFACT_DIGEST\", \"source\": \"$OCI_SOURCE\"}" >>"$temp_file"
         done
         python3 -c "$SBOM_SCRIPT" <"$temp_file"  >sbom.json
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom.json --type "$(params.sbomType)" "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
       workingDir: /var/workdir
