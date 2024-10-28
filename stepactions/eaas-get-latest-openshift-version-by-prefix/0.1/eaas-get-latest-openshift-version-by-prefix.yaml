@@ -13,14 +13,18 @@ spec:
       description: The leading part of the OpenShift version. E.g. `4.` or `4.15.`
     - name: releaseStream
       type: string
-      default: 4-stable
-      description: The name of the OpenShift release stream. E.g. `4-stable`
+      default: 4-stable-multi
+      description: The name of the OpenShift release stream. E.g. `4-stable-multi`
+    - name: host
+      type: string
+      default: multi.ocp.releases.ci.openshift.org
+      description: The name of the API host. E.g. `multi.ocp.releases.ci.openshift.org`
   results:
     - name: version
       description: The latest matching version.
   env:
     - name: URL
-      value: https://amd64.ocp.releases.ci.openshift.org/api/v1/releasestream/$(params.releaseStream)/latest?prefix=$(params.prefix)
+      value: https://$(params.host)/api/v1/releasestream/$(params.releaseStream)/latest?prefix=$(params.prefix)
   script: |
     #!/bin/bash
     set -eo pipefail
