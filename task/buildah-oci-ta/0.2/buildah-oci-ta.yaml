@@ -82,6 +82,10 @@ spec:
         be made available to the build.
       type: string
       default: ""
+    - name: PRIVILEGED_NESTED
+      description: Whether to enable privileged mode
+      type: string
+      default: "false"
     - name: SKIP_UNUSED_STAGES
       description: Whether to skip stages in Containerfile that seem unused
         by subsequent stages
@@ -196,6 +200,8 @@ spec:
         value: $(params.IMAGE)
       - name: IMAGE_EXPIRES_AFTER
         value: $(params.IMAGE_EXPIRES_AFTER)
+      - name: PRIVILEGED_NESTED
+        value: $(params.PRIVILEGED_NESTED)
       - name: SKIP_UNUSED_STAGES
         value: $(params.SKIP_UNUSED_STAGES)
       - name: SOURCE_CODE_DIR
@@ -371,6 +377,12 @@ spec:
         fi
 
         BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+        if [ "${PRIVILEGED_NESTED}" == "true" ]; then
+          BUILDAH_ARGS+=("--security-opt=label=disable")
+          BUILDAH_ARGS+=("--cap-add=all")
+          BUILDAH_ARGS+=("--device=/dev/fuse")
+        fi
 
         if [ -n "${ADD_CAPABILITIES}" ]; then
           BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
