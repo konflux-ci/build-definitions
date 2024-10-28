@@ -51,7 +51,7 @@ spec:
         value: $(params.IMAGE)
   steps:
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       script: |
         #!/bin/bash
         set -eu
@@ -268,7 +268,7 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       script: |
         #!/bin/bash
         cat >sbom-cyclonedx.json <<EOL
@@ -300,7 +300,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}
