@@ -54,13 +54,13 @@ spec:
             workspace: workspace
       - name: sast-unicode-check
         runAfter:
-          - build-container
+          - build-appstudio-utils
         taskRef:
           name: sast-unicode-check
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: build-container
+      - name: build-appstudio-utils
         runAfter:
           - task-lint-check
         params:
@@ -75,7 +75,7 @@ spec:
             workspace: workspace
       - name: check-partner-tasks
         runAfter:
-          - build-container
+          - build-appstudio-utils
         taskSpec:
           steps:
             - name: check-task-structure
@@ -131,7 +131,7 @@ spec:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
         runAfter:
-          - build-container
+          - build-appstudio-utils
         workspaces:
           - name: source
             workspace: workspace

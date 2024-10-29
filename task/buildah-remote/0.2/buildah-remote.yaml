@@ -157,8 +157,6 @@ spec:
       value: source
     - name: CONTEXT
       value: $(params.CONTEXT)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
     - name: IMAGE
       value: $(params.IMAGE)
     - name: TLSVERIFY
@@ -188,7 +186,7 @@ spec:
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -212,7 +210,9 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     name: build
     script: |-
       #!/bin/bash
@@ -281,15 +281,19 @@ spec:
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        # Custom Dockerfile location is mainly used for instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and also need to provide modified Dockerfile.
+        dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
         if [ $http_code != 200 ]; then
           echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
         if [ $http_code = 200 ]; then
           echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
           mv "$dockerfile_path.dockerignore.tmp" $SOURCE_CODE_DIR/$CONTEXT/.dockerignore
@@ -360,10 +364,12 @@ spec:
       )
 
       BUILDAH_ARGS=()
+      UNSHARE_ARGS=()
 
       if [ "${HERMETIC}" == "true" ]; then
         BUILDAH_ARGS+=("--pull=never")
-        UNSHARE_ARGS="--net"
+        UNSHARE_ARGS+=("--net")
+
         for image in $BASE_IMAGES; do
           unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
         done
@@ -388,10 +394,12 @@ spec:
         BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
+      VOLUME_MOUNTS=()
+
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
-        VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
+        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount
         sed -E -i \
@@ -418,7 +426,7 @@ spec:
       if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
         chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
         mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
-        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume ${mount_point}:${YUM_REPOS_D_TARGET}"
+        VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
       fi
 
       DEFAULT_LABELS=(
@@ -435,20 +443,49 @@ spec:
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
-      # do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
-      # when activation keys are used an empty directory on shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced container
-      # To use activation key file 'org' must exist, which means the key 'org' must exist in the key/value secret
 
+      # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+      # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
+      # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
+      # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
+      #    to buildah but don't pre-register for backwards compatibility. In this case mount an empty directory on
+      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced
+      #    container.
+
+      REGISTERED="false"
       if [ -e /activation-key/org ]; then
         cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
         mkdir /shared/rhsm-tmp
-        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z"
+        VOLUME_MOUNTS+=(--volume /tmp/activation-key:/activation-key -v /shared/rhsm-tmp:/etc/pki/entitlement:Z)
         echo "Adding activation key to the build"
 
+        if ! grep subscription-manager "$dockerfile_path" | grep -q register; then
+          # user is not running registration in the Containerfile: pre-register.
+          echo "Pre-registering with subscription manager."
+          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          REGISTERED=$?
+          # copy generated certificates to /shared/rhsm-tmp
+          cp /etc/pki/entitlement/*.pem /shared/rhsm-tmp
+
+          # and then mount get /etc/rhsm/ca/redhat-uep.pem into /run/secrets/rhsm/ca
+          VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/run/secrets/rhsm/ca/redhat-uep.pem)
+        fi
+
+
+      # was: if [ -d "$ACTIVATION_KEY_PATH" ]; then
       elif find /entitlement -name "*.pem" >> null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
-        VOLUME_MOUNTS="${VOLUME_MOUNTS} --volume /tmp/entitlement:/etc/pki/entitlement"
+        VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "$ADDITIONAL_VOLUME_MOUNTS" ]; then
+        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
+        # This is primarily used in instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and add some other tools.
+        while read -r volume_mount; do
+          VOLUME_MOUNTS+=("--volume=$volume_mount")
+        done <<< "$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
       ADDITIONAL_SECRET_PATH="/additional-secret"
@@ -464,13 +501,25 @@ spec:
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
       declare IMAGE
 
-      unshare -Uf $UNSHARE_ARGS --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w ${SOURCE_CODE_DIR}/$CONTEXT -- buildah build \
-        $VOLUME_MOUNTS \
-        "${BUILDAH_ARGS[@]}" \
-        "${LABELS[@]}" \
-        --tls-verify=$TLSVERIFY --no-cache \
-        --ulimit nofile=4096:4096 \
-        -f "$dockerfile_copy" -t "$IMAGE" .
+      buildah_cmd_array=(
+          buildah build
+          "${VOLUME_MOUNTS[@]}"
+          "${BUILDAH_ARGS[@]}"
+          "${LABELS[@]}"
+          --tls-verify="$TLSVERIFY" --no-cache
+          --ulimit nofile=4096:4096
+          -f "$dockerfile_copy" -t "$IMAGE" .
+      )
+      buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
+
+      if [ "${HERMETIC}" == "true" ]; then
+        # enabling loopback adapter enables Bazel builds to work in hermetic mode.
+        command="ip link set lo up && $buildah_cmd"
+      else
+        command="$buildah_cmd"
+      fi
+
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
       container=$(buildah from --pull-never "$IMAGE")
       buildah mount $container | tee /shared/container_path
@@ -491,6 +540,11 @@ spec:
       # Needed to generate base images SBOM
       echo "$BASE_IMAGES" > /shared/base_images_from_dockerfile
 
+      # unregister pod from subscription manager
+      if [ "$REGISTERED" == "0" ]; then
+        subscription-manager unregister
+      fi
+
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
@@ -504,7 +558,6 @@ spec:
           -e HERMETIC="$HERMETIC" \
           -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
           -e CONTEXT="$CONTEXT" \
-          -e DOCKERFILE="$DOCKERFILE" \
           -e IMAGE="$IMAGE" \
           -e TLSVERIFY="$TLSVERIFY" \
           -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
@@ -520,6 +573,7 @@ spec:
           -e SQUASH="$SQUASH" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e COMMIT_SHA="$COMMIT_SHA" \
+          -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
           -v "$BUILD_DIR/volumes/shared:/shared:Z" \
           -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
@@ -661,7 +715,7 @@ spec:
       requests:
         cpu: "1"
         memory: 1Gi
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:860a239c5f25376a435a514ae6d53a5c75b1fa492461d17774e9b7cb32d1e275
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     name: inject-sbom-and-push
     script: |
       #!/bin/bash
