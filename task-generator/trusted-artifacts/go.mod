@@ -7,7 +7,7 @@ require (
 	github.com/google/go-containerregistry v0.20.2
 	github.com/tektoncd/pipeline v0.65.0
 	github.com/zregvart/tkn-fmt v0.0.0-20240614122620-a2995427266c
-	k8s.io/api v0.30.1
+	k8s.io/api v0.31.2
 	mvdan.cc/sh/v3 v3.10.0
 	sigs.k8s.io/kustomize/api v0.17.3
 	sigs.k8s.io/kustomize/kyaml v0.17.2
