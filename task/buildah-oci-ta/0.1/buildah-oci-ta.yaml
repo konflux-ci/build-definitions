@@ -328,9 +328,9 @@ spec:
           # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
           # for each RUN ... line insert the cachi2.env command *after* any options like --mount
           sed -E -i \
-              -e 'H;1h;$!d;x' \
-              -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
-              "$dockerfile_path"
+            -e 'H;1h;$!d;x' \
+            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+            "$dockerfile_path"
           echo "Prefetched content will be made available"
 
           prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
@@ -562,8 +562,8 @@ spec:
             docker://$IMAGE && break || status=$?
         done
         if [ "$status" -ne 0 ]; then
-            echo "Failed to push sbom image to registry after ${max_run} tries"
-            exit 1
+          echo "Failed to push sbom image to registry after ${max_run} tries"
+          exit 1
         fi
 
         cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
