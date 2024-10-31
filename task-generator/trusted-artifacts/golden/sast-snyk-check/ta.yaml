@@ -104,7 +104,7 @@ spec:
         if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
           cat sast_snyk_check_out.json
           TEST_OUTPUT=
-          parse_test_output $(context.task.name) sarif sast_snyk_check_out.json  || true
+          parse_test_output $(context.task.name) sarif sast_snyk_check_out.json || true
 
         # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
         elif [[ "$test_not_skipped" -eq 0 ]]; then
