@@ -352,28 +352,28 @@ spec:
       LABELS=()
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
-          case $1 in
-              --build-args)
-                  shift
-                  # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
-                  # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
-                  while [[ $# -gt 0 && $1 != --* ]]; do
-                                                        build_args+=("$1")
-                                                                            shift
+        case $1 in
+        --build-args)
+          shift
+          # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+          # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+          # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            build_args+=("$1")
+            shift
           done
-                  ;;
-              --labels)
-                  shift
-                  while [[ $# -gt 0 && $1 != --* ]]; do
-                                                        LABELS+=("--label" "$1")
-                                                                                  shift
+          ;;
+        --labels)
+          shift
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            LABELS+=("--label" "$1")
+            shift
           done
-                  ;;
-              *)
-                  echo "unexpected argument: $1" >&2
-                  exit 2
-                  ;;
+          ;;
+        *)
+          echo "unexpected argument: $1" >&2
+          exit 2
+          ;;
         esac
       done
 
@@ -427,9 +427,9 @@ spec:
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount
         sed -E -i \
-            -e 'H;1h;$!d;x' \
-            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
-            "$dockerfile_copy"
+          -e 'H;1h;$!d;x' \
+          -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+          "$dockerfile_copy"
         echo "Prefetched content will be made available"
 
         prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
@@ -524,13 +524,13 @@ spec:
       declare IMAGE
 
       buildah_cmd_array=(
-          buildah build
-          "${VOLUME_MOUNTS[@]}"
-          "${BUILDAH_ARGS[@]}"
-          "${LABELS[@]}"
-          --tls-verify="$TLSVERIFY" --no-cache
-          --ulimit nofile=4096:4096
-          -f "$dockerfile_copy" -t "$IMAGE" .
+        buildah build
+        "${VOLUME_MOUNTS[@]}"
+        "${BUILDAH_ARGS[@]}"
+        "${LABELS[@]}"
+        --tls-verify="$TLSVERIFY" --no-cache
+        --ulimit nofile=4096:4096
+        -f "$dockerfile_copy" -t "$IMAGE" .
       )
       buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
 
@@ -780,8 +780,8 @@ spec:
           docker://$IMAGE && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
-          echo "Failed to push sbom image to registry after ${max_run} tries"
-          exit 1
+        echo "Failed to push sbom image to registry after ${max_run} tries"
+        exit 1
       fi
 
       cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
