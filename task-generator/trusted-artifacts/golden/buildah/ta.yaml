@@ -421,8 +421,8 @@ spec:
           docker://$IMAGE && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
-          echo "Failed to push sbom image to registry after ${max_run} tries"
-          exit 1
+        echo "Failed to push sbom image to registry after ${max_run} tries"
+        exit 1
       fi
 
       cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
