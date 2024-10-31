@@ -265,7 +265,7 @@ spec:
           exit 1
       fi
 
-      < "$(workspaces.source.path)"/image-digest tee "$(results.IMAGE_DIGEST.path)"
+      tee "$(results.IMAGE_DIGEST.path)" < "$(workspaces.source.path)"/image-digest
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
       {
         echo -n "${IMAGE}@"
