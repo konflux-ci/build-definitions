@@ -471,7 +471,6 @@ spec:
           VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/run/secrets/rhsm/ca/redhat-uep.pem)
         fi
 
-
       # was: if [ -d "$ACTIVATION_KEY_PATH" ]; then
       elif find /entitlement -name "*.pem" >> null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
@@ -757,6 +756,16 @@ spec:
       fi
 
       buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
+
+      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+      if ! retry buildah push \
+        --tls-verify="$TLSVERIFY" \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)";
+      then
+        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${max_run} tries"
+        exit 1
+      fi
 
       echo "Pushing to ${IMAGE}"
       if ! retry buildah push \
