@@ -147,7 +147,7 @@ spec:
         mkdir -p scripts
         echo "$BUILD_DIR"
         # shellcheck disable=SC2086
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp"
+        ssh $SSH_ARGS "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp"
 
         rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
         cat >scripts/script-build.sh <<'REMOTESSHEOF'
@@ -195,23 +195,23 @@ spec:
         # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST" \
           podman run \
-            $network_opt \
-            --mount type=bind,source="${BUILD_DIR}/tmp,target=/var/tmp,relabel=shared" \
-            --privileged \
-            -e CONTEXT="$CONTEXT" \
-            -e IMAGE_FILE="$IMAGE_FILE" \
-            -e CONFIG_FILE="$CONFIG_FILE" \
-            -e IMAGE="$IMAGE" \
-            -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-            -e COMMIT_SHA="$COMMIT_SHA" \
-            --rm \
-            -v "$BUILD_DIR/workspaces/source:/var/workdir:Z" \
-            -v "${BUILD_DIR}/scripts":/script:Z \
-            -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-            --user=0 \
-            --entrypoint bash \
-            "$BUILDER_IMAGE" \
-            /script/script-build.sh
+          $network_opt \
+          --mount type=bind,source="${BUILD_DIR}/tmp,target=/var/tmp,relabel=shared" \
+          --privileged \
+          -e CONTEXT="$CONTEXT" \
+          -e IMAGE_FILE="$IMAGE_FILE" \
+          -e CONFIG_FILE="$CONFIG_FILE" \
+          -e IMAGE="$IMAGE" \
+          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+          -e COMMIT_SHA="$COMMIT_SHA" \
+          --rm \
+          -v "$BUILD_DIR/workspaces/source:/var/workdir:Z" \
+          -v "${BUILD_DIR}/scripts":/script:Z \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+          --user=0 \
+          --entrypoint bash \
+          "$BUILDER_IMAGE" \
+          /script/script-build.sh
         rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "/var/workdir/"
         cp -r rhtap-final-image /var/lib/containers/rhtap-final-image
         buildah pull oci:rhtap-final-image
@@ -281,11 +281,11 @@ spec:
             "docker://${IMAGE}" && break || status=$?
         done
         if [ "$status" -ne 0 ]; then
-            echo "Failed to push sbom image to registry after ${max_run} tries"
-            exit 1
+          echo "Failed to push sbom image to registry after ${max_run} tries"
+          exit 1
         fi
 
-                                                                   <"/var/workdir"/image-digest tee "$(results.IMAGE_DIGEST.path)"
+        tee "$(results.IMAGE_DIGEST.path)" <"/var/workdir"/image-digest
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         {
           echo -n "${IMAGE}@"
