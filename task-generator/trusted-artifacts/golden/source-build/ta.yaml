@@ -68,36 +68,36 @@ spec:
         set -euo pipefail
 
         if [[ -n "$BASE_IMAGES" ]]; then
-            echo "BASE_IMAGES param received:"
-            printf "%s" "$BASE_IMAGES" | tee "$BASE_IMAGES_FILE"
-            exit
+          echo "BASE_IMAGES param received:"
+          printf "%s" "$BASE_IMAGES" | tee "$BASE_IMAGES_FILE"
+          exit
         fi
 
         echo "BASE_IMAGES param is empty, inspecting the SBOM instead"
 
         raw_inspect=$(skopeo inspect --raw "docker://$BINARY_IMAGE")
         if manifest_digest=$(jq -e -r '.manifests[0].digest' <<<"$raw_inspect"); then
-            # The BINARY_IMAGE is an index image, each manifest in the list has its own SBOM.
-            # We're gonna assume the base images are the same or similar enough in all the SBOMs.
-            echo "BINARY_IMAGE ($BINARY_IMAGE) is a manifest list, picking an arbitrary image from the list"
-            image_without_digest=${BINARY_IMAGE%@*}
-            image_without_tag=${image_without_digest%:*}
-            image=${image_without_tag}@${manifest_digest}
+          # The BINARY_IMAGE is an index image, each manifest in the list has its own SBOM.
+          # We're gonna assume the base images are the same or similar enough in all the SBOMs.
+          echo "BINARY_IMAGE ($BINARY_IMAGE) is a manifest list, picking an arbitrary image from the list"
+          image_without_digest=${BINARY_IMAGE%@*}
+          image_without_tag=${image_without_digest%:*}
+          image=${image_without_tag}@${manifest_digest}
         else
-            # The image is a single manifest
-            image=$BINARY_IMAGE
+          # The image is a single manifest
+          image=$BINARY_IMAGE
         fi
 
         for i in {1..5}; do
-            echo "Downloading SBOM for $image (attempt $i)"
-            sbom=$(cosign download sbom "$image") && break
-            [[ "$i" -lt 5 ]] && sleep 1
+          echo "Downloading SBOM for $image (attempt $i)"
+          sbom=$(cosign download sbom "$image") && break
+          [[ "$i" -lt 5 ]] && sleep 1
         done
 
         if [[ -z "$sbom" ]]; then
-            echo "Failed to download SBOM after 5 attempts. Proceeding anyway."
-            echo "WARNING: the source image will not include sources for the base image."
-            exit 0
+          echo "Failed to download SBOM after 5 attempts. Proceeding anyway."
+          echo "WARNING: the source image will not include sources for the base image."
+          exit 0
         fi
 
         echo -n "Looking for base image in SBOM"
@@ -110,7 +110,7 @@ spec:
             | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
             | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
             | .name + "@" + $matched.digest
-        ' <<<"$sbom"  | tee "$BASE_IMAGES_FILE"
+        ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
     - name: build
       image: quay.io/konflux-ci/source-container-build:9ad131acf5154d2f280b7b46a1abc543952d325c@sha256:94271c32e4578208ac90308695d2b625d4e932d65f0cdd116b200c39228f5ece
       workingDir: /var/workdir

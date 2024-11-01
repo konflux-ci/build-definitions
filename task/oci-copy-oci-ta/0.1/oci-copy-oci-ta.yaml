@@ -71,7 +71,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -159,7 +159,7 @@ spec:
         host;x-amz-content-sha256;x-amz-date
         $payload_digest
         EOF
-            canonical_request=$(echo -n "$canonical_request" | head -c -1)  # Strip trailing newline
+            canonical_request=$(echo -n "$canonical_request" | head -c -1) # Strip trailing newline
             canonical_digest=$(echo -n "$canonical_request" | sha256sum | cut -d " " -f 1)
 
             # Step 2: construct string to sign
@@ -169,7 +169,7 @@ spec:
         ${date%T*}/$region/s3/aws4_request
         $canonical_digest
         EOF
-            string_to_sign=$(echo -n "$string_to_sign" | head -c -1)  # Strip trailing newline
+            string_to_sign=$(echo -n "$string_to_sign" | head -c -1) # Strip trailing newline
 
             # Step 3: derive a signing key
             startkey="AWS4${AWS_SECRET_ACCESS_KEY}"
@@ -183,11 +183,11 @@ spec:
             authorization="AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${date%T*}/${region}/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}"
 
             curl "${curl_args[@]}" \
-                -H "X-Amz-Date: ${date}" \
-                -H "X-Amz-Content-SHA256: $payload_digest" \
-                -H "Authorization: ${authorization}" \
-                --location "$url" \
-                -o "$file"
+              -H "X-Amz-Date: ${date}" \
+              -H "X-Amz-Content-SHA256: $payload_digest" \
+              -H "Authorization: ${authorization}" \
+              --location "$url" \
+              -o "$file"
           elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
             curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
@@ -228,9 +228,9 @@ spec:
 
         echo "Ensuring that the empty blob exists, for the image manifest config."
         echo -n "{}" | oras blob push \
-                --registry-config auth.json \
-                ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a \
-                --media-type application/vnd.oci.empty.v1+json --size 2 -
+          --registry-config auth.json \
+          ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a \
+          --media-type application/vnd.oci.empty.v1+json --size 2 -
 
         for varfile in "/var/workdir"/vars/*; do
           echo "Reading $varfile"
@@ -288,7 +288,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -320,7 +320,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:f758d9a25bc88cc114bfb6137fd4d649db427de5a4217e818b8466ad5bf9255c
+      image: quay.io/konflux-ci/yq:latest@sha256:4ce1f9431020387eb6c33a28a46e079b0c28b97f916243d150e70a09e41ce6b4
       workingDir: /var/workdir
       script: |
         #!/bin/bash
