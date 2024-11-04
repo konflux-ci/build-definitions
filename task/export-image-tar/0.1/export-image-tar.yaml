@@ -8,9 +8,9 @@ spec:
       type: string
       description: The input image that is to be saved as an oci-archive tar file
     - name: input-arch
-      default: "amd64"
+      default: ""
       type: string
-      description: The input image architecture to pull. Use this if you are the input-image is a multi-arch manifest, and the architecture you want to export is differnt from the CI host.
+      description: The input image architecture to pull. Use this if you are the input-image is a multi-arch manifest, and the architecture you want to export is differnt from the CI host. Defaults to host arch.
     - name: tar-filename
       default: "oci-archive.tar"
       description: The tar filename of the saved input image
@@ -33,8 +33,13 @@ spec:
       script: |
         podman --version
 
-        echo "pull arch: $(params.input-arch)"
-        podman pull --arch "$(params.input-arch)" "$(params.input-image)"
+        if [[ -n "$(params.input-arch)" ]]; then
+          echo "pull arch: $(params.input-arch)"
+          podman pull --arch "$(params.input-arch)" "$(params.input-image)"
+        else
+          # default to host arch
+          podman pull "$(params.input-image)"
+        fi
 
         echo "saving: $(params.tar-filename)"
 
