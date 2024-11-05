@@ -78,8 +78,8 @@ spec:
         ARTIFACT_DIGEST=$(oras push --registry-config "$HOME/auth.json" "$(params.output-artifact)" ./"$(params.tar-filename)":application/vnd.oci.image.layer.v1.tar 2>&1 | grep 'Digest:' | awk '{print $2}')
 
         # Finally, record all that in our results
-        printf "$(params.output-artifact)" | tee /tekton/results/ARTIFACT_URL
-        printf "$ARTIFACT_DIGEST" | tee /tekton/results/ARTIFACT_DIGEST
+        printf "%s" "$(params.output-artifact)" | tee /tekton/results/ARTIFACT_URL
+        printf "%s" "$ARTIFACT_DIGEST" | tee /tekton/results/ARTIFACT_DIGEST
 
       volumeMounts:
         - mountPath: /mnt/artifacts
