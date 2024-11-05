@@ -33,7 +33,7 @@ spec:
       script: |
         podman --version
 
-        if [[ -n "$(params.input-arch)" ]]; then
+        if [ "$(params.input-arch)" ]; then
           echo "pull arch: $(params.input-arch)"
           podman pull --arch "$(params.input-arch)" "$(params.input-image)"
         else
@@ -44,7 +44,7 @@ spec:
         echo "saving: $(params.tar-filename)"
 
         # Check if dest-image-tag is not an empty string
-        if [[ -n "$(params.dest-image-tag)" ]]; then
+        if [ "$(params.dest-image-tag)" ]; then
             # Tag the base image with the destination image tag
             echo "tagging image: $(params.dest-image-tag)"
             podman tag "$(params.input-image)" "$(params.dest-image-tag)"
@@ -56,7 +56,7 @@ spec:
             podman save --format oci-archive -o "/mnt/artifacts/$(params.tar-filename)" "$(params.input-image)"
         fi
 
-        du -hs /mnt/artifacts/$(params.tar-filename)
+        du -hs /mnt/artifacts/"$(params.tar-filename)"
       securityContext:
         # This is required for podman to work properly
         capabilities:
@@ -74,12 +74,12 @@ spec:
         # push the tar using oras and caputre the Digest
         echo "oras push tar: $(params.tar-filename)"
         echo "output-artifact: $(params.output-artifact)"
-        cd /mnt/artifacts
-        ARTIFACT_DIGEST=$(oras push --registry-config "$HOME/auth.json" $(params.output-artifact) ./$(params.tar-filename):application/vnd.oci.image.layer.v1.tar 2>&1 | grep 'Digest:' | awk '{print $2}')
+        cd /mnt/artifacts || exit
+        ARTIFACT_DIGEST=$(oras push --registry-config "$HOME/auth.json" "$(params.output-artifact)" ./"$(params.tar-filename)":application/vnd.oci.image.layer.v1.tar 2>&1 | grep 'Digest:' | awk '{print $2}')
 
         # Finally, record all that in our results
-        echo -n "$(params.output-artifact)" | tee /tekton/results/ARTIFACT_URL
-        echo -n "$ARTIFACT_DIGEST" | tee /tekton/results/ARTIFACT_DIGEST
+        printf "$(params.output-artifact)" | tee /tekton/results/ARTIFACT_URL
+        printf "$ARTIFACT_DIGEST" | tee /tekton/results/ARTIFACT_DIGEST
 
       volumeMounts:
         - mountPath: /mnt/artifacts
