@@ -10,6 +10,7 @@ This StepAction provisions an ephemeral cluster using Hypershift with 3 worker n
 |instanceType|AWS EC2 instance type for worker nodes. Supported values: `m5.large`, `m5.xlarge`, `m5.2xlarge`, `m6g.large`, `m6g.xlarge`, `m6g.2xlarge`|m6g.large|false|
 |insecureSkipTLSVerify|Skip TLS verification when accessing the EaaS hub cluster. This should not be set to "true" in a production environment.|false|false|
 |timeout|How long to wait for cluster provisioning to complete.|30m|false|
+|imageContentSources|Alternate registry information containing a list of sources and their mirrors in yaml format. See: https://hypershift-docs.netlify.app/how-to/disconnected/image-content-sources|""|false|
 
 ## Results
 |name|description|
