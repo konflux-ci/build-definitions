@@ -13,13 +13,16 @@ spec:
   params:
     - name: message
       description: Message to be sent
+      type: string
     - name: secret-name
       description: |
         Secret with at least one key where value is webhook URL for slack.
         eg. oc create secret generic my-secret --from-literal team1=https://hooks.slack.com/services/XXX/XXXXXX --from-literal team2=https://hooks.slack.com/services/YYY/YYYYYY
       default: slack-webhook-notification-secret
+      type: string
     - name: key-name
       description: Key in the key in secret which contains webhook URL for slack.
+      type: string
     - name: submodules
       type: array
       description: List of submodules name to dump. Git log since previous submodule commit will be added to the message. The previous submodule commit is found by looking at the previous commit in the repository that declares the submodules.
