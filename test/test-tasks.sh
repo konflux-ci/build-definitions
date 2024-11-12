@@ -35,19 +35,12 @@ all_tests=$(echo task/*/*/tests)
 
 # Run only the tests related to the task modified in the PR
 if [[ -z ${TEST_RUN_ALL_TESTS} ]];then
-    all_tests=$(detect_new_changed_resources|sort -u || true)
+    all_tests=$(print_changed_resources_to_console|sort -u || true)
     [[ -z ${all_tests} ]] && {
         echo "No tests has been detected in this PR. exiting."
         success
     }
 fi
-
-# Validate task yamls using tektor linter
-tasks_changed=$(get_new_changed_tasks)
-[[ ! -z ${tasks_changed} ]] && {
-    validate_task_yaml_using_tektor "${tasks_changed}"
-}
-
 
 # Validate task yamls can be installed
 test_yaml_can_install "${all_tests}"
@@ -59,7 +52,7 @@ function test_resources {
     for runtest in $@;do
         resource_to_tests="${resource_to_tests} ${runtest}"
         if [[ ${cnt} == "${MAX_NUMBERS_OF_PARALLEL_TASKS}" ]];then
-            test_resource_creation "${resource_to_tests}"
+            test_resource_creation_and_validation "${resource_to_tests}"
             cnt=0
             resource_to_tests=""
             continue
@@ -69,7 +62,7 @@ function test_resources {
 
     # in case if there are some remaining resources
     if [[ -n ${resource_to_tests} ]];then
-        test_resource_creation "${resource_to_tests}"
+        test_resource_creation_and_validation "${resource_to_tests}"
     fi
 }
 

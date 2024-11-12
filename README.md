@@ -132,6 +132,33 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
   ./hack/test-shellspec.sh`
   ```
 
+## Testing Tasks
+
+Tasks can be validated in the GithubActions CI setup with this repository.
+
+If you have a directory called `tests/` inside the task directory, CI will create a random `Namespace`, apply the task first in the namespace and then all the test yaml files (containing TaskRun or PipelineRun) inside the `tests` directory.
+
+We can use the functionality of running scripts before applying the tested task or the other yaml files. There are two different scripts that are automatically applied if present. These are applied using the `source` bash script:
+
+- `pre-apply-task-hook.sh`: Script to run before applying the task, it can include `kubectl` commands to apply any kubernetes resources in the cluster
+- `pre-apply-taskrun-hook.sh`: Script to run before applying the task run or pipeline run yaml files, it can also include `kubectl` commands to apply any kubernetes resources in the cluster
+
+For example refer: Git Clone task [tests](./task/git-clone/0.1/tests/run.yaml)
+
+CI also validates the task yamls using [tektor](https://github.com/lcarva/tektor)
+
+### Running Task tests locally
+
+Prerequisites: Deploy [upstream konflux](https://github.com/konflux-ci/konflux-ci?tab=readme-ov-file#bootstrapping-the-cluster) locally.
+
+A helper script called `run-test.sh` is present inside `test` directory to help the developer run the test. Just specify resource type as first argument, resource name as second argument and the version as third argument i.e:
+
+```
+./test/run-test.sh task git-clone 0.1
+```
+
+and it will use your current kubernetes context to run the test and show you the outputs similar to the CI.
+
 ### Compliance
 
 Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.

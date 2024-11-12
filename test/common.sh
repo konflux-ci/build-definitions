@@ -26,18 +26,14 @@ function set_test_return_code() {
 
 function detect_changed_e2e_test() {
     # check if any file from test/ directory is changed
-    echo ${CHANGED_FILES} |grep "test/" || true
+    echo ${CHANGED_FILES} | grep "test/" || true
 }
 
-function detect_new_changed_resources() {
+function print_changed_resources_to_console() {
     # detect for changes in tests dir of the task
-    echo ${CHANGED_FILES} |grep -o 'task/[^\/]*/[^\/]*/tests/[^/]*'|xargs -I {} dirname {}|sed 's/\(tests\).*/\1/g'
+    echo ${CHANGED_FILES} | grep -o 'task/[^\/]*/[^\/]*/tests/[^/]*'|xargs -I {} dirname {}|sed 's/\(tests\).*/\1/g'
     # detect for changes in the task manifest
-    echo ${CHANGED_FILES} |grep -o 'task/[^\/]*/[^\/]*/*[^/]*.yaml'|xargs -I {} dirname {}|awk '{print $1"/tests"}'
-}
-
-function get_new_changed_tasks() {
-    echo ${CHANGED_FILES} |grep -o 'task/[^\/]*/[^\/]*/*[^/]*.yaml' || true
+    echo ${CHANGED_FILES} | grep -o 'task/[^\/]*/[^\/]*/*[^/]*.yaml'|xargs -I {} dirname {}|awk '{print $1"/tests"}'
 }
 
 # Signal (as return code and in the logs) that all E2E tests passed.
@@ -50,35 +46,34 @@ function success() {
 }
 
 function show_failure() {
-    local testname=$1 tns=$2
+    local testname=$1 test_namespace=$2
 
     echo "FAILED: ${testname} task has failed to comeback properly" ;
     ${KUBECTL_CMD} api-resources
-    echo "Namespace: ${tns}"
+    echo "Namespace: ${test_namespace}"
     echo "--- TaskRun Dump"
-    ${KUBECTL_CMD} get --ignore-not-found=true -n ${tns} taskrun -o yaml
+    ${KUBECTL_CMD} get --ignore-not-found=true -n ${test_namespace} taskrun -o yaml
     echo "--- Task Dump"
-    ${KUBECTL_CMD} get --ignore-not-found=true -n ${tns} task -o yaml
+    ${KUBECTL_CMD} get --ignore-not-found=true -n ${test_namespace} task -o yaml
     echo "--- PipelineRun Dump"
-    ${KUBECTL_CMD} get --ignore-not-found=true -n ${tns} pipelinerun -o yaml
+    ${KUBECTL_CMD} get --ignore-not-found=true -n ${test_namespace} pipelinerun -o yaml
     echo "--- Pipeline Dump"
-    ${KUBECTL_CMD} get --ignore-not-found=true -n ${tns} pipeline -o yaml
+    ${KUBECTL_CMD} get --ignore-not-found=true -n ${test_namespace} pipeline -o yaml
     echo "--- StepAction Dump"
-    ${KUBECTL_CMD} get --ignore-not-found=true -n ${tns} stepaction -o yaml
+    ${KUBECTL_CMD} get --ignore-not-found=true -n ${test_namespace} stepaction -o yaml
     echo "--- Container Logs"
-    for pod in $(${KUBECTL_CMD} get pod -o name -n ${tns}); do
+    for pod in $(${KUBECTL_CMD} get pod -o name -n ${test_namespace}); do
         echo "----POD_NAME: ${pod}---"
-        ${KUBECTL_CMD} logs --all-containers -n ${tns} ${pod} || true
+        ${KUBECTL_CMD} logs --all-containers -n ${test_namespace} ${pod} || true
     done
     exit 1
-
 }
 
 function test_yaml_can_install() {
     # Validate that all the Task CRDs in this repo are valid by creating them in a NS.
     ns="test-yaml-ns"
     all_tasks="$*"
-    ${KUBECTL_CMD} create ns "${ns}" || true
+    ${KUBECTL_CMD} create namespace "${ns}" || true
 
     local runtest
     for runtest in ${all_tasks}; do
@@ -94,7 +89,7 @@ function test_yaml_can_install() {
 
         runtest="${runtest}${testname}.yaml"
         skipit=
-        for ignore in ${TEST_YAML_IGNORES};do
+        for ignore in ${TEST_YAML_IGNORES}; do
             [[ ${ignore} == "${testname}" ]] && skipit=True
         done
 
@@ -110,22 +105,11 @@ function test_yaml_can_install() {
     done
 }
 
-function validate_task_yaml_using_tektor() {
-    all_tasks="$*"
-    for task in ${all_tasks}; do
-        # Skip if it is kustomize related yaml files
-        if [[ ${task} == *"kustomization.yaml" || ${task} == *"patch.yaml" || ${task} == *"recipe.yaml" ]]; then
-                continue
-        fi
-        tektor validate ${task}
-    done
-}
-
-function test_resource_creation() {
+function test_resource_creation_and_validation() {
     local runtest
     declare -A resource_to_wait_for
 
-    for runtest in $@;do
+    for runtest in $@; do
         # remove task/ from beginning
         local runtestdir=${runtest#*/}
         # remove /<version>/tests from end
@@ -136,10 +120,10 @@ function test_resource_creation() {
         # replace . with - in version as not supported in namespace name
         version="$( echo $version | tr '.' '-' )"
 
-        local tns="${testname}-${version}"
+        local test_namespace="${testname}-${version}"
         local skipit=
 
-        for ignore in ${TEST_TASKRUN_IGNORES};do
+        for ignore in ${TEST_TASKRUN_IGNORES}; do
             [[ ${ignore} == ${testname} ]] && skipit=True
         done
 
@@ -159,14 +143,14 @@ function test_resource_creation() {
 
 	    [[ -n ${skipit} ]] && continue
 
-        # Delete the tns if already exists
-        ${KUBECTL_CMD} delete ns ${tns} >/dev/null 2>/dev/null || :
+        # Delete the test_namespace if already exists
+        ${KUBECTL_CMD} delete namespace ${test_namespace} >/dev/null 2>/dev/null || :
 
         # create the test namespace
-        ${KUBECTL_CMD} create namespace ${tns} >/dev/null 2>/dev/null
+        ${KUBECTL_CMD} create namespace ${test_namespace} >/dev/null 2>/dev/null
 
         # create the service account appstudio-pipeline (konflux spedific requirement)
-        $KUBECTL_CMD create sa appstudio-pipeline -n ${tns}
+        $KUBECTL_CMD create sa appstudio-pipeline -n ${test_namespace}
 
          # Install the task itself first. We can only have one YAML file
         yaml=$(printf  ${resourcedir}/*.yaml)
@@ -175,7 +159,7 @@ function test_resource_creation() {
 
         # dry-run this YAML to validate and also get formatting side-effects.
         # TODO: need to add tekton linter here
-        ${KUBECTL_CMD} -n ${tns} create -f ${yaml} --dry-run=client -o yaml >${TMPF}
+        ${KUBECTL_CMD} -n ${test_namespace} create -f ${yaml} --dry-run=client -o yaml >${TMPF}
 
         [[ -f ${resourcedir}/tests/pre-apply-task-hook.sh ]] && source ${resourcedir}/tests/pre-apply-task-hook.sh
         function_exists pre-apply-task-hook && pre-apply-task-hook
@@ -183,11 +167,11 @@ function test_resource_creation() {
         # Make sure we have deleted the content, this is in case of rerun
         # and namespace hasn't been cleaned up or there is some Cluster*
         # stuff, which really should not be allowed.
-        ${KUBECTL_CMD} -n ${tns} delete -f ${TMPF} >/dev/null 2>/dev/null || true
-        ${KUBECTL_CMD} -n ${tns} create -f ${TMPF}
+        ${KUBECTL_CMD} -n ${test_namespace} delete -f ${TMPF} >/dev/null 2>/dev/null || true
+        ${KUBECTL_CMD} -n ${test_namespace} create -f ${TMPF}
 
         # Install resource and run
-        for yaml in ${runtest}/*.yaml;do
+        for yaml in ${runtest}/*.yaml; do
             cp ${yaml} ${TMPF}
             [[ -f ${resourcedir}/tests/pre-apply-taskrun-hook.sh ]] && source ${resourcedir}/tests/pre-apply-taskrun-hook.sh
             function_exists pre-apply-taskrun-hook && pre-apply-taskrun-hook
@@ -195,11 +179,11 @@ function test_resource_creation() {
             # Make sure we have deleted the content, this is in case of rerun
             # and namespace hasn't been cleaned up or there is some Cluster*
             # stuff, which really should not be allowed.
-            ${KUBECTL_CMD} -n ${tns} delete -f ${TMPF} >/dev/null 2>/dev/null || true
-            ${KUBECTL_CMD} -n ${tns} create -f ${TMPF}
+            ${KUBECTL_CMD} -n ${test_namespace} delete -f ${TMPF} >/dev/null 2>/dev/null || true
+            ${KUBECTL_CMD} -n ${test_namespace} create -f ${TMPF}
         done
 
-        resource_to_wait_for["$testname/${version}"]="${tns}|$started"
+        resource_to_wait_for["$testname/${version}"]="${test_namespace}|$started"
 
     done
 
@@ -211,11 +195,11 @@ function test_resource_creation() {
     local maxloop=60 # 10 minutes max
 
     set +x
-    while true;do
+    while true; do
         # If we have timed out then show failures of what's remaining in
         # resource_to_wait_for we assume only first one fails this
         [[ ${cnt} == "${maxloop}" ]] && {
-            for testname in "${!resource_to_wait_for[@]}";do
+            for testname in "${!resource_to_wait_for[@]}"; do
                 target_ns=${resource_to_wait_for[$testname]}
                 show_failure "${testname}" "${target_ns}"
             done
@@ -224,12 +208,12 @@ function test_resource_creation() {
             break
         }
 
-        for testname in "${!resource_to_wait_for[@]}";do
+        for testname in "${!resource_to_wait_for[@]}"; do
             target_ns=${resource_to_wait_for[$testname]%|*}
             started=${resource_to_wait_for[$testname]#*|}
             # sometimes we don't get all_status and reason in one go so
             # wait until we get the reason and all_status for 5 iterations
-            for tektontype in pipelinerun taskrun;do
+            for tektontype in pipelinerun taskrun; do
                 for _ in {1..10}; do
                     all_status=$(${KUBECTL_CMD} get -n ${target_ns} ${tektontype} --output=jsonpath='{.items[*].status.conditions[*].status}')
                     reason=$(${KUBECTL_CMD} get -n ${target_ns} ${tektontype} --output=jsonpath='{.items[*].status.conditions[*].reason}')
@@ -247,11 +231,11 @@ function test_resource_creation() {
             fi
 
             breakit=True
-            for status in ${all_status};do
+            for status in ${all_status}; do
                 [[ ${status} == *ERROR || ${reason} == *Fail* || ${reason} == Couldnt* ]] && show_failure ${testname} ${target_ns}
 
                 if [[ ${status} != True ]];then
-                    breakit=
+                    breakit=False
                 fi
             done
 
@@ -263,7 +247,7 @@ function test_resource_creation() {
 
             if [[ ${breakit} == True ]];then
                 unset resource_to_wait_for[$testname]
-                [[ -z ${CATALOG_TEST_SKIP_CLEANUP} ]] && ${KUBECTL_CMD} delete ns ${target_ns} >/dev/null
+                [[ -z ${CATALOG_TEST_SKIP_CLEANUP} ]] && ${KUBECTL_CMD} delete namespace ${target_ns} >/dev/null
                 echo "${started}::$(date '+%Hh%M:%S') SUCCESS: ${testname} testrun has successfully executed" ;
             fi
 

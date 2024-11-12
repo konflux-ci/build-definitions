@@ -1,0 +1,53 @@
+---
+name: tasklint
+"on":
+  pull_request:
+    branches: [main]
+jobs:
+  tasklint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get all changed files in the PR from task directories
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          # Avoid using single or double quotes for multiline patterns
+          files: |
+            task/**
+
+      - name: Setup Go
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install tektor
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          go install github.com/lcarva/tektor@4e9385885cc638fe337bcb9cc5f3d64cc8c262c5
+
+      - name: Run tektor linter
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          #!/bin/bash
+          echo "Files changed in PR: ${CHANGED_FILES}"
+          function print_changed_tasks_to_console() {
+            echo ${CHANGED_FILES} | grep -o 'task/[^\/]*/[^\/]*/*[^/]*.yaml' || true
+          }
+          function validate_task_yaml_using_tektor() {
+              all_tasks="$*"
+              for task in ${all_tasks}; do
+                  # Skip if it is kustomize related yaml files
+                  if [[ ${task} == *"kustomization.yaml" || ${task} == *"patch.yaml" || ${task} == *"recipe.yaml" ]]; then
+                          continue
+                  fi
+                  tektor validate ${task}
+              done
+          }
+          # Validate task yamls using tektor linter
+          tasks_changed=$(print_changed_tasks_to_console)
+          [[ ! -z ${tasks_changed} ]] && {
+            validate_task_yaml_using_tektor "${tasks_changed}"
+          }

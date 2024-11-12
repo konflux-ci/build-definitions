@@ -44,4 +44,4 @@ if [[ ! -d ${resourcedir}/tests ]];then
     exit 1
 fi
 
-test_resource_creation ${RESOURCE}/${NAME}/${VERSION}/tests
+test_resource_creation_and_validation ${RESOURCE}/${NAME}/${VERSION}/tests
