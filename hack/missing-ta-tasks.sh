@@ -33,7 +33,6 @@ todo=(
   task/sast-unicode-check/0.1/sast-unicode-check.yaml
   task/slack-webhook-notification/0.1/slack-webhook-notification.yaml
   task/summary/0.2/summary.yaml
-  task/tkn-bundle/0.1/tkn-bundle.yaml
   task/update-infra-deployments/0.1/update-infra-deployments.yaml
   task/upload-sbom-to-trustification/0.1/upload-sbom-to-trustification.yaml
   task/verify-enterprise-contract/0.1/kustomization.yaml
