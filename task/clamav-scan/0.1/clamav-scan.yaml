@@ -100,7 +100,7 @@ spec:
             interval=20  # interval between checks in seconds
             elapsed=0
 
-            until [ -f /var/lib/clamav/daily.cld ] || [ "$elapsed" -ge "$timeout" ]; do
+            until [ -f /var/lib/clamav/ready.txt ] || [ "$elapsed" -ge "$timeout" ]; do
               if (( elapsed % 60 == 0 )) && [ $elapsed -ne 0 ]; then
                 echo "Waiting for database to be downloaded... Elapsed time: $((elapsed / 60)) minute(s)"
               fi
@@ -108,10 +108,25 @@ spec:
               elapsed=$((elapsed + interval))
             done
 
-            if [ ! -f /var/lib/clamav/daily.cld ]; then
-              echo "Error: Timed out waiting for daily.cld after $((elapsed / 60)) minute(s)."
+            if [ ! -f /var/lib/clamav/ready.txt ] ; then
+              echo "Error: Timed out waiting for database download after $((elapsed / 60)) minute(s)."
               exit 1
             fi
+
+            DAILY_DB_FILE=""
+            for DB_PATH in "/var/lib/clamav/daily.cvd" "/var/lib/clamav/daily.cld"; do
+              if [ -f "${DB_PATH}" ]; then
+                DAILY_DB_FILE="${DB_PATH}"
+                break
+              fi
+            done
+            if [ -z "${DAILY_DB_FILE}" ]; then
+              echo "Daily DB file not found!"
+              exit 1
+            fi
+
+            db_version=$(sigtool --info "${DAILY_DB_FILE}" | grep 'Version')
+
 
             echo "Scanning image for arch $arch. This operation may take a while."
             clamscan $destination -ri --max-scansize=4095M --max-filesize=4095M \
@@ -123,7 +138,6 @@ spec:
               --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
               | tee /work/logs/clamscan-result-$arch.log || true
 
-            db_version=$(sigtool --info /var/lib/clamav/daily.cld | grep 'Version')
             echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
 
             digests_processed+=("\"$arch_sha\"")
@@ -231,6 +245,8 @@ spec:
         #!/usr/bin/env bash
         clamscan --version
         cp -r /var/lib/clamav/* /tmp/clamdb
+        echo "DB files copied"
+        touch /tmp/clamdb/ready.txt
       volumeMounts:
         - mountPath: /tmp/clamdb
           name: dbfolder
