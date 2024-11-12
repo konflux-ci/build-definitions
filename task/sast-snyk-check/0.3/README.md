@@ -21,7 +21,7 @@ Snyk's SAST tool uses a combination of static analysis and machine learning tech
 
 ## How to obtain a snyk-token and enable snyk task on the pipeline:
 
-Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)
+Follow the steps given [here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/)
 
 ## Results:
 
