@@ -1,0 +1,53 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: task-switchboard
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/displayName: Task Switchboard
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: "Computes a set of expressions based on the changed files in the
+  pipeline, used to determine which tasks to run"
+  params:
+    - name: pr_number
+      type: string
+    - name: utils_image
+      type: string
+    - name: expressions
+      type: array
+  results:
+    - name: bindings
+      type: array
+  steps:
+    - name: evaluate
+      image: $(params.utils_image)
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: "{{ git_auth_secret }}"
+              key: "git-provider-token"
+      args:
+        - "$(params.expressions[*])"
+      script: |
+        #!/bin/bash
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        rules="$(mktemp -d)"
+        trap 'rm -rf "${rules}"' EXIT
+        for ((i=1; i<=$#; ++i)); do
+            printf "package rule\n%s\n" "${!i}" > "${rules}/$i.rego"
+        done
+
+        ec opa check --v1-compatible "${rules}"
+
+        ec opa eval --v1-compatible --data "${rules}" --input \
+        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/$(params.pr_number)" --json files --jq '[.files.[].path']) \
+        'data[_]' \
+        | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
+        | tee "$(results.bindings.path)"
