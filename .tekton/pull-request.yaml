@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/"))
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml, task/sast-unicode-check/0.1/sast-unicode-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml, task/sast-unicode-check/0.1/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -36,7 +36,27 @@ spec:
             value: $(params.revision)
           - name: depth
             value: "0"
+      - name: task-switchboard
+        taskRef:
+          name: task-switchboard
+        params:
+          - name: pr_number
+            value: "{{ pull_request_number }}"
+          - name: utils_image
+            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+          - name: expressions
+            value:
+              - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
+              - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
+              - e2e_tests := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
+              - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
+        runAfter:
+          - build-appstudio-utils
       - name: task-lint-check
+        when:
+          - input: "tasks"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
           - fetch-repository
         taskRef:
@@ -62,7 +82,7 @@ spec:
             workspace: workspace
       - name: build-appstudio-utils
         runAfter:
-          - task-lint-check
+          - fetch-repository
         params:
           - name: IMAGE
             value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
@@ -74,6 +94,10 @@ spec:
           - name: source
             workspace: workspace
       - name: check-partner-tasks
+        when:
+          - input: "check_partner_tasks"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
           - build-appstudio-utils
         taskSpec:
@@ -125,13 +149,15 @@ spec:
           - name: source
             workspace: workspace
       - name: build-bundles
+        when:
+          - input: "tasks_pipelines"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         params:
           - name: revision
             value: "{{ revision }}"
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
-        runAfter:
-          - build-appstudio-utils
         workspaces:
           - name: source
             workspace: workspace
@@ -174,6 +200,10 @@ spec:
           workspaces:
             - name: source
       - name: e2e-tests
+        when:
+          - input: "e2e_tests"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
@@ -198,6 +228,10 @@ spec:
         # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
         timeout: "2h"
       - name: check-task-pipeline-repo-existence
+        when:
+          - input: "tasks_pipelines"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
           - build-bundles
         taskSpec:
@@ -214,6 +248,10 @@ spec:
           - name: source
             workspace: workspace
       - name: ec-task-checks
+        when:
+          - input: "tasks_pipelines"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
           - fetch-repository
         taskRef:
@@ -222,6 +260,10 @@ spec:
           - name: source
             workspace: workspace
       - name: check-task-migration-md
+        when:
+          - input: "tasks"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
           - fetch-repository
         taskSpec:
@@ -250,6 +292,10 @@ spec:
             workspace: workspace
     finally:
       - name: e2e-cleanup
+        when:
+          - input: "e2e_tests"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
