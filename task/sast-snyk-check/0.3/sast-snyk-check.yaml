@@ -11,7 +11,7 @@ spec:
   description: |-
     Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
 
-    Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+    Follow the steps given [here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
     The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
 
@@ -129,7 +129,7 @@ spec:
         else
           # According to shellcheck documentation, the following error can be ignored as it is ignored through indirection: https://www.shellcheck.net/wiki/SC2034
           # shellcheck disable=SC2034
-          to_enable_snyk='[here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/)'
+          to_enable_snyk='[here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/)'
           note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key 'snyk_token' containing the Snyk token by following the steps given ${to_enable_snyk}"
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
