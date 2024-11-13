@@ -129,20 +129,31 @@ spec:
         echo "roxctl image scan"
 
         IMAGE=${PARAM_IMAGE}@${PARAM_IMAGE_DIGEST}
-        ./roxctl image scan \
-          $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
-          echo -n "--insecure-skip-tls-verify") \
-          -e "${ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" --output json --force \
-          > roxctl_image_scan_output.json
-        image_scan_err_code=$?
-        cp roxctl_image_scan_output.json /steps-shared-folder/acs-image-scan.json
-        if [ $image_scan_err_code -ne 0 ]; then
-          cat roxctl_image_scan_output.json
-          note='ACS image scan failed to process the image. See the task logs for more details.'
-          echo $note
-          set_test_output_result ERROR "$note"
-          exit 2
-        fi
+        retry=3
+        while true; do
+          retry=$(( retry - 1 ))
+          ./roxctl image scan \
+            $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
+            echo -n "--insecure-skip-tls-verify") \
+            -e "${ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" --output json --force \
+            > roxctl_image_scan_output.json
+          image_scan_err_code=$?
+          cp -f roxctl_image_scan_output.json /steps-shared-folder/acs-image-scan.json
+          if [ $image_scan_err_code -ne 0 ]; then
+            cat roxctl_image_scan_output.json
+            if [ "$(grep -c "context deadline exceeded" roxctl_image_scan_output.json)" -ne 0 ] && [ $retry -gt 0 ]; then
+              echo "Retry in 5m"
+              sleep 300
+            else
+              note='ACS image scan failed to process the image. See the task logs for more details.'
+              echo "$note"
+              set_test_output_result ERROR "$note"
+              exit 2
+            fi
+          else
+            break
+          fi
+        done
 
         # Set SCAN_OUTPUT result
         critical=$(cat roxctl_image_scan_output.json | grep -oP '(?<="CRITICAL": )\d+')
