@@ -50,7 +50,7 @@ spec:
       image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
       script: |
         #!/usr/bin/env bash
-        echo "acs-image-scan $(context.taskRun.name)"
+        echo "acs-deploy-check $(context.taskRun.name)"
         oc annotate taskrun $(context.taskRun.name) task.results.format=application/json
         oc annotate taskrun $(context.taskRun.name) task.results.type=roxctl-deployment-check
         oc annotate taskrun $(context.taskRun.name) task.results.container=step-report
