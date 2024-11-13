@@ -113,19 +113,7 @@ spec:
               exit 1
             fi
 
-            DAILY_DB_FILE=""
-            for DB_PATH in "/var/lib/clamav/daily.cvd" "/var/lib/clamav/daily.cld"; do
-              if [ -f "${DB_PATH}" ]; then
-                DAILY_DB_FILE="${DB_PATH}"
-                break
-              fi
-            done
-            if [ -z "${DAILY_DB_FILE}" ]; then
-              echo "Daily DB file not found!"
-              exit 1
-            fi
-
-            db_version=$(sigtool --info "${DAILY_DB_FILE}" | grep 'Version')
+            db_version=$(clamscan --version | sed 's|.*/\(.*\)/.*|\1|')
 
 
             echo "Scanning image for arch $arch. This operation may take a while."
@@ -138,7 +126,7 @@ spec:
               --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
               | tee /work/logs/clamscan-result-$arch.log || true
 
-            echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
+            echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database version: $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
 
             digests_processed+=("\"$arch_sha\"")
 
