@@ -104,6 +104,10 @@ spec:
     name: url
   - description: The commit timestamp of the checkout
     name: commit-timestamp
+  - description: The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.
+    name: CHAINS-GIT_URL
+  - description: The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.
+    name: CHAINS-GIT_COMMIT
   steps:
   - name: clone
     env:
@@ -245,8 +249,10 @@ spec:
         exit "${EXIT_CODE}"
       fi
       printf "%s" "${RESULT_SHA}" > "$(results.commit.path)"
+      printf "%s" "${RESULT_SHA}" > "$(results.CHAINS-GIT_COMMIT.path)"
       printf "%s" "${RESULT_SHA_SHORT}" > "$(results.short-commit.path)"
       printf "%s" "${PARAM_URL}" > "$(results.url.path)"
+      printf "%s" "${PARAM_URL}" > "$(results.CHAINS-GIT_URL.path)"
       printf "%s" "$(git log -1 --pretty=%ct)" > "$(results.commit-timestamp.path)"
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
