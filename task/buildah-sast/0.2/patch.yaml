@@ -61,6 +61,7 @@
       /shared:/shared
       /usr/bin/csgcca:/usr/bin/csgcca
       /usr/bin/cswrap:/usr/bin/cswrap
+      /usr/bin/gcc-wrapper:/usr/bin/gcc-wrapper
       /usr/lib64/csgcca:/usr/lib64/csgcca
       /usr/lib64/cswrap:/usr/lib64/cswrap
       /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
@@ -124,16 +125,10 @@
       touch "${sast_dir}/empty.txt"
 
       # create a wrapper script to instrument RUN lines
+      GCC_WRAPPER="$(cswrap --print-path-to-wrap)/gcc-wrapper"
       tee /shared/cmd-wrap.sh << EOF
       #!/bin/bash -x
-      env "PATH=/usr/lib64/csgcca:/usr/lib64/cswrap:\$PATH" CSWRAP_TIMEOUT=30 CSWRAP_TIMEOUT_FOR=gcc CSWRAP_CAP_FILE="${sast_dir}/gcc-\$\$.txt" "\$@"
-      EC=\$?
-      src="${sast_dir}/gcc-\$\$.txt"
-      if test -f "\$src"; then
-        /usr/libexec/csgrep-static --mode=json --event=^warning --embed-context=3 --quiet "\$src" >"${sast_dir}/gcc-\$\$.json"
-        rm -f "\$src"
-      fi
-      exit \$EC
+      exec env "PATH=/usr/lib64/csgcca:/usr/lib64/cswrap:\$PATH" CSGCCA_ANALYZER_BIN="${GCC_WRAPPER}" CSWRAP_TIMEOUT=30 CSWRAP_TIMEOUT_FOR=gcc "\$@"
       EOF
       chmod 0755 /shared/cmd-wrap.sh
 
@@ -169,7 +164,7 @@
 
       # read the collected SAST scanning results
       UPLOAD_FILE=gcc-analyzer.sarif
-      (set -x && cd "$sast_dir" && csgrep --mode=sarif --event=^warning --remove-duplicates ./*) \
+      csgrep --mode=sarif --event=^warning --remove-duplicates --file-glob "${sast_dir}/*" \
         | tee "${UPLOAD_FILE}" | csgrep
 
       # upload scan results
