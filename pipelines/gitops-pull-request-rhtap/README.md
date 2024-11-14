@@ -3,11 +3,11 @@
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|ec-policy-configuration| Enterprise Contract policy to validate against| github.com/enterprise-contract/config//default| verify-enteprise-contract:0.1:POLICY_CONFIGURATION|
-|ec-public-key| The public key that EC should use to verify signatures| k8s://$(context.pipelineRun.namespace)/cosign-pub| verify-enteprise-contract:0.1:PUBLIC_KEY ; download-sboms:0.1:PUBLIC_KEY|
-|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.rhtap-tas.svc| verify-enteprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
-|ec-strict| Should EC violations cause the pipeline to fail?| true| verify-enteprise-contract:0.1:STRICT|
-|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.rhtap-tas.svc| verify-enteprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
+|ec-policy-configuration| Enterprise Contract policy to validate against| github.com/enterprise-contract/config//default| verify-enterprise-contract:0.1:POLICY_CONFIGURATION|
+|ec-public-key| The public key that EC should use to verify signatures| k8s://$(context.pipelineRun.namespace)/cosign-pub| verify-enterprise-contract:0.1:PUBLIC_KEY ; download-sboms:0.1:PUBLIC_KEY|
+|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.rhtap-tas.svc| verify-enterprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
+|ec-strict| Should EC violations cause the pipeline to fail?| true| verify-enterprise-contract:0.1:STRICT|
+|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.rhtap-tas.svc| verify-enterprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
 |fail-if-trustification-not-configured| Should the pipeline fail when there are SBOMs to upload but Trustification is not properly configured (i.e. the secret is missing or doesn't have all the required keys)?| true| upload-sboms-to-trustification:0.1:FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED|
 |git-url| Gitops repo url| None| clone-repository:0.1:url|
 |revision| Gitops repo revision| | clone-repository:0.1:revision|
@@ -87,7 +87,7 @@
 ### gather-deploy-images:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGES_TO_VERIFY| The images to be verified, in a format compatible with https://github.com/konflux-ci/build-definitions/tree/main/task/verify-enterprise-contract/0.1. When there are no images to verify, this is an empty string. | verify-enteprise-contract:0.1:IMAGES|
+|IMAGES_TO_VERIFY| The images to be verified, in a format compatible with https://github.com/konflux-ci/build-definitions/tree/main/task/verify-enterprise-contract/0.1. When there are no images to verify, this is an empty string. | verify-enterprise-contract:0.1:IMAGES|
 ### gather-deploy-images:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
