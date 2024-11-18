@@ -107,10 +107,6 @@ spec:
     description: Additional key=value labels that should be applied to the image
     type: array
     default: []
-  - name: PRIVILEGED_NESTED
-    description: Whether to enable privileged mode
-    type: string
-    default: "false"
 
   results:
   - description: Digest of the image just built
@@ -170,8 +166,6 @@ spec:
       value: $(params.SQUASH)
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
-    - name: PRIVILEGED_NESTED
-      value: $(params.PRIVILEGED_NESTED)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
@@ -308,12 +302,6 @@ spec:
       fi
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
-
-      if [ "${PRIVILEGED_NESTED}" == "true" ]; then
-        BUILDAH_ARGS+=("--security-opt=label=disable")
-        BUILDAH_ARGS+=("--cap-add=all")
-        BUILDAH_ARGS+=("--device=/dev/fuse")
-      fi
 
       if [ -n "${ADD_CAPABILITIES}" ]; then
         BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
