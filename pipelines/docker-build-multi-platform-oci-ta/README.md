@@ -235,6 +235,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### git-clone-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
+|CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.1:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| build-images:0.2:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |

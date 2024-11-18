@@ -10,26 +10,31 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |refspec|Refspec to fetch before checking out revision.|""|false|
 |submodules|Initialize and fetch git submodules.|true|false|
 |depth|Perform a shallow clone, fetching only the most recent N commits.|1|false|
+|shortCommitLength|Length of short commit SHA|7|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
-|subdirectory|Subdirectory inside the `output` Workspace to clone the repo into.|""|false|
+|subdirectory|Subdirectory inside the `output` Workspace to clone the repo into.|source|false|
 |sparseCheckoutDirectories|Define the directory patterns to match or exclude when performing a sparse checkout.|""|false|
 |deleteExisting|Clean out the contents of the destination directory if it already exists before cloning.|true|false|
 |httpProxy|HTTP proxy server for non-SSL requests.|""|false|
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
-|verbose|Log the commands that are executed during `git-clone`'s operation.|true|false|
+|verbose|Log the commands that are executed during `git-clone`'s operation.|false|false|
 |gitInitImage|Deprecated. Has no effect. Will be removed in the future.|""|false|
-|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden the gitInitImage param with an image containing custom user configuration. |/tekton/home|false|
-|enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.|true|false|
+|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
+|enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. |true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
-|shortCommitLength|Length of the returned short-commit|7|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 
 ## Results
 |name|description|
 |---|---|
 |commit|The precise commit SHA that was fetched by this Task.|
-|short-commit|The commit SHA that was fetched by this Task shortened to `shortCommitLength` number of characters||
+|short-commit|The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters|
 |url|The precise URL that was fetched by this Task.|
+|commit-timestamp|The commit timestamp of the checkout|
+|CHAINS-GIT_URL|The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.|
+|CHAINS-GIT_COMMIT|The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.|
 
 ## Workspaces
 |name|description|optional|
