@@ -383,7 +383,8 @@ spec:
                         -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
         echo "Adding activation key to the build"
 
-        if ! grep subscription-manager "$dockerfile_path" | grep -q register; then
+
+        if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
           # user is not running registration in the Containerfile: pre-register.
           echo "Pre-registering with subscription manager."
           subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
