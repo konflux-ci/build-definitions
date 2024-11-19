@@ -14,4 +14,8 @@ This StepAction queries the EaaS hub cluster to get the kubeconfig for an epheme
 |name|description|
 |---|---|
 |kubeconfig|Relative path to the kubeconfig in the mounted volume|
+|username|The username for the cluster|
+|passwordPath|Relative path to the password file in the mounted volume|
+|apiServerURL|API server URL of the cluster|
+|consoleURL|Console URL of the cluster|
 
