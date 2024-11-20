@@ -215,13 +215,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:81c4864dae6bb11595f657be887e205262e70086a05ed16ada827fd6391926ac
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
       args:
         - $(params.BUILD_ARGS[*])
       workingDir: /var/workdir
@@ -456,7 +456,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: merge-syft-sboms
-      image: registry.access.redhat.com/ubi9/python-39:1-197.1729767844@sha256:e7f5b60728d8e71588272e28b88c2e8fe9e63609347fb379b8c1625df886e189
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1731645406@sha256:84c028923cd3c8554c9b5c1423a553a4cb8f3ee88c17a3d87756c9b08f5e8fe7
       workingDir: /var/workdir
       script: |
         #!/bin/python3
@@ -490,7 +490,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: merge-cachi2-sbom
-      image: quay.io/redhat-appstudio/cachi2:0.13.0@sha256:eb34cfe3fea20997eebd8164dc93eedb2fd7a60dc1fb4afcc1b1ff43df9d6667
+      image: quay.io/redhat-appstudio/cachi2:0.14.0@sha256:3088e307f41894c0654b69bb199a4648ba31721d6173099cf6ca8ff259c0e457
       workingDir: /var/workdir
       script: |
         if [ -f "sbom-cachi2.json" ]; then
@@ -503,7 +503,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: create-purl-sbom
-      image: registry.access.redhat.com/ubi9/python-39:1-197.1729767844@sha256:e7f5b60728d8e71588272e28b88c2e8fe9e63609347fb379b8c1625df886e189
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1731645406@sha256:84c028923cd3c8554c9b5c1423a553a4cb8f3ee88c17a3d87756c9b08f5e8fe7
       workingDir: /var/workdir
       script: |
         #!/bin/python3
@@ -530,7 +530,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: inject-sbom-and-push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:5cbd487022fb7ac476cbfdea25513b810f7e343ec48f89dc6a4e8c3c39fa37a2
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers

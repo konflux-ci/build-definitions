@@ -12,13 +12,13 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@6d193bf28034eafb982f37bd894289fe649468fc
+      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
       - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@ea0c88120e8fe1b09b2134dc97e879870b61b7ce
+        uses: golangci/golangci-lint-action@160a1d779cee256901ff3d68ef8ccc63ac8a04f8
         with:
           working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
@@ -31,7 +31,7 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@6d193bf28034eafb982f37bd894289fe649468fc
+      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
       - name: Install Go
         uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed
         with:
@@ -72,7 +72,7 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@6d193bf28034eafb982f37bd894289fe649468fc
+      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
       - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed
         with:
           go-version-file: './${{matrix.path}}/go.mod'
@@ -84,7 +84,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@6e3a010dfe7e41114c548b680d885bbd55b2834e
+        uses: github/codeql-action/upload-sarif@a6c8729a5d7573eb8d440e52a9645ce4db61d97c
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif

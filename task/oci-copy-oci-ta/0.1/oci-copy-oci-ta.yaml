@@ -66,7 +66,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:e0e457b6af10e44ff6b90208a9e69adc863a865e1c062c4cb84bf3846037d74d
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:81c4864dae6bb11595f657be887e205262e70086a05ed16ada827fd6391926ac
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -100,7 +100,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:9d6db5840c70e65fefe041201cc7ffe2d1661bd0582b590b54787213ccfd76e9
+      image: quay.io/konflux-ci/oras:latest@sha256:7a85f12b14b9122df29450dfa60c6d035b04db1a7372f7b606a0fb74ed716844
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -315,7 +315,7 @@ spec:
           yq -oj -i '.components += [ {"purl": "'$purl'", "type": "file", "name": "'$OCI_FILENAME'", "hashes": [{"alg": "SHA-256", "content": "'$OCI_ARTIFACT_DIGEST'"}], "externalReferences": [{"type": "distribution", "url": "'$OCI_SOURCE'"}]} ]' sbom-cyclonedx.json
         done
     - name: upload-sbom
-      image: quay.io/konflux-ci/appstudio-utils:ab6b0b8e40e440158e7288c73aff1cf83a2cc8a9@sha256:24179f0efd06c65d16868c2d7eb82573cce8e43533de6cea14fec3b7446e0b14
+      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       workingDir: /var/workdir
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"

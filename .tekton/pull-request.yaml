@@ -312,6 +312,8 @@ spec:
                 oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
   # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
+  # If this timeout increases, the age of stale resources should be increased too.
+  # https://github.com/redhat-appstudio/infra-deployments/blob/main/components/tekton-ci/production/cleanup-cronjob.yaml
   timeouts:
     pipeline: "2h"
   workspaces:
