@@ -1,0 +1,193 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: "maven-zip"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "maven, konflux"
+  name: build-maven
+spec:
+  description: |-
+    Build maven task builds source dependency files and checksums into a zip and pushes as OCI-artifact into container registry using oras tool.
+    In addition it also pushes the SBOM file generated from prefetch using cosign tool.
+  params:
+  - description: Reference of the OCI image build maven will produce.
+    name: IMAGE
+    type: string
+  - description: The SBOM file name generated in prefetch.
+    name: SBOM_FILENAME
+    type: string
+    default: "sbom-cyclonedx.json"
+  - description: The product package name of the maven zip image produced for.
+    name: PACKAGE_NAMESPACE
+    type: string
+    default: "package"
+  - description: In case it is not empty, the prefetched content should be made available to the build.
+    name: PREFETCH_INPUT
+    type: string
+    default: ""
+
+  results:
+  - description: Digest of the OCI-artifact just built
+    name: IMAGE_DIGEST
+  - description: Repository and tag where the built OCI-artifact was pushed
+    name: IMAGE_URL
+  - description: Reference of SBOM blob digest of the attached SBOM for OCI-artifact
+    name: SBOM_BLOB_URL
+
+  stepTemplate:
+    env:
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: SBOM_FILENAME
+      value: $(params.SBOM_FILENAME)
+    - name: PACKAGE_NAMESPACE
+      value: $(params.PACKAGE_NAMESPACE)
+    - name: MAVEN_REPO_NAMESPACE
+      value: maven-repository
+
+  steps:
+    - image: quay.io/konflux-ci/appstudio-utils:0244d30be4bd55daf268aabec712a46d3e8ec135@sha256:08dfa6b694b69bb3b4945cef6d1fd9aca3dceb1ddff0e2402905a9a00aefe3de
+      name: maven-zip-bundle
+      computeResources:
+        limits:
+          memory: 4Gi
+          cpu: '2'
+        requests:
+          memory: 1Gi
+          cpu: 500m
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        generate_checksum() {
+          local file="$1"
+          local error=0
+
+          # skip the checksum files
+          if [[ "$file" =~ \.(sha1|sha256|md5)$ ]]; then
+            return 0
+          fi
+
+          if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+            echo "Warning: fail to access file $file" >&2
+            return 1
+          fi
+
+          # generate missing checksum files
+            if [ ! -f "${file}.sha256" ]; then
+              echo "Generate sha256 for ${file}"
+              sha256sum "$file" | awk '{print $1}' > "${file}.sha256" || error=1
+            fi
+            if [ ! -f "${file}.sha1" ]; then
+              echo "Generate sha1 for ${file}"
+              sha1sum "$file" | awk '{print $1}' > "${file}.sha1" || error=1
+            fi
+            if [ ! -f "${file}.md5" ]; then
+              echo "Generate md5sum for ${file}"
+              md5sum "$file" | awk '{print $1}' > "${file}.md5" || error=1
+            fi
+
+            if [ "$error" -eq 1 ]; then
+              echo "Warning: fail to generate checksum for $file" >&2
+            fi
+
+            return $error
+        }
+
+        echo "declare MAVEN_REPO_PATH=$(workspaces.source.path)/${PACKAGE_NAMESPACE}-${MAVEN_REPO_NAMESPACE}/${MAVEN_REPO_NAMESPACE}"
+        echo "declare OCI_FILENAME=$(workspaces.source.path)/${PACKAGE_NAMESPACE}-${MAVEN_REPO_NAMESPACE}.zip"
+
+        find "${MAVEN_REPO_PATH}" -type f -print0 | while IFS= read -r -d '' file; do
+          generate_checksum "$file"
+        done
+        echo "Generated checksum done"
+      
+        echo "Creating zip file: ${OCI_FILENAME}"
+
+        # zip bundle as maven repository files structure
+        if ( cd ${MAVEN_REPO_PATH%/*} && zip -rq ${OCI_FILENAME} . && cd - ); then
+          echo "Zip file created"
+        else
+          echo "Warning: fail to create zip file"
+          exit 1
+        fi
+
+      volumeMounts:
+      - mountPath: /var/lib/containers
+        name: varlibcontainers
+
+    - image: quay.io/konflux-ci/oras:latest@sha256:9d6db5840c70e65fefe041201cc7ffe2d1661bd0582b590b54787213ccfd76e9
+      name: oci-push
+      computeResources:
+        limits:
+          memory: 2Gi
+          cpu: '1'
+        requests:
+          memory: 1Gi
+          cpu: 500m
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "Selecting auth for $IMAGE"
+        auth_json=$(mktemp)
+        select-oci-auth $IMAGE > "$auth_json"
+
+        REPO=${IMAGE%:*}
+
+        echo "Pushing maven zip ${OCI_FILENAME}"
+        oras push ${REPO} \
+        --registry-config "$auth_json" \
+        --format oci \
+        --media-type "application/zip" \
+        --artifact-type "application/vnd.company.archive.zip.v1" \
+        ${OCI_FILENAME}
+
+        RESULTING_DIGEST=$(oras resolve --registry-config "$auth_json" "${IMAGE}")
+        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+
+    - image: quay.io/konflux-ci/appstudio-utils:0244d30be4bd55daf268aabec712a46d3e8ec135@sha256:08dfa6b694b69bb3b4945cef6d1fd9aca3dceb1ddff0e2402905a9a00aefe3de
+      name: sbom-upload
+      computeResources:
+        limits:
+          memory: 512Mi
+          cpu: 200m
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        cosign attach sbom --sbom ${SBOM_FILENAME} --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+        SBOM_DIGEST=$(sha256sum ${SBOM_FILENAME} | awk '{ print $1 }')
+        echo "Found that ${SBOM_DIGEST} is the SBOM digest"
+        REPO=${IMAGE%:*}
+        echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee $(results.SBOM_BLOB_URL.path)
+
+  volumes:
+  - name: varlibcontainers
+    emptyDir: {}
+
+  workspaces:
+  - name: source
+    description: Workspace containing the source to do zip bundle and OCI push.
