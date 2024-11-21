@@ -227,10 +227,6 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\nbuildah push \"$IMAGE\" \"oci:konflux-final-image:$IMAGE\""
 		ret += "\nREMOTESSHEOF"
 		ret += "\nchmod +x " + script + "\n"
-		ret += "\nPODMAN_NVIDIA_ARGS=()"
-		ret += "\nif [[ \"$PLATFORM\" == \"linux-g\"* ]]; then"
-		ret += "\n    PODMAN_NVIDIA_ARGS+=(\"--device=nvidia.com/gpu=all\" \"--security-opt=label=disable\")"
-		ret += "\nfi\n"
 
 		if task.Spec.StepTemplate != nil {
 			for _, e := range task.Spec.StepTemplate.Env {
@@ -244,7 +240,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
 		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
-		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]}\" --rm \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		for _, workspace := range task.Spec.Workspaces {
