@@ -128,7 +128,13 @@ spec:
             echo "Bucket path is $path"
             date="$(date -u '+%Y%m%dT%H%M%SZ')"
             host=$(echo -n "$url" | awk -F '/' '{print $3}')
-            region=$(echo -n "$host" | awk -F '.' '{print $2}')
+            if [[ "$host" == *.amazonaws.com ]] ; then
+              # AWS Style
+              region=$(echo -n "$host" | awk -F '.' '{print $3}')
+            else
+              # IBM Cloud style
+              region=$(echo -n "$host" | awk -F '.' '{print $2}')
+            fi
 
             # This e3b0c44 digest is digest of the empty string. No request body.
             payload_digest=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
