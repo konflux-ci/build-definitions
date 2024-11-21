@@ -193,7 +193,25 @@ spec:
             (set -x && csgrep --mode=evtstat filtered_sast_snyk_check_out.json)
           fi
 
-          csgrep --mode=sarif filtered_sast_snyk_check_out.json > sast_snyk_check_out.sarif
+          # Generation of scan stats
+
+          total_files=$(jq '[.runs[0].properties.coverage[].files] | add' "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json)
+          supported_files=$(jq '[.runs[0].properties.coverage[] | select(.type == "SUPPORTED") | .files] | add' "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json)
+
+          # We make sure the values are 0 if no supported/total files are found
+          total_files=${total_files:-0}
+          supported_files=${supported_files:-0}
+
+          coverage_ratio=0
+          if (( total_files > 0 )); then
+              coverage_ratio=$((supported_files * 100 / total_files))
+          fi
+
+          # embed stats in results file and convert to SARIF
+          csgrep --mode=sarif --set-scan-prop snyk-scanned-files-coverage:"${coverage_ratio}" \
+                              --set-scan-prop snyk-scanned-files-success:"${supported_files}"  \
+                              --set-scan-prop snyk-scanned-files-total:"${total_files}" \
+                              filtered_sast_snyk_check_out.json  > sast_snyk_check_out.sarif
 
           TEST_OUTPUT=
           parse_test_output "$(context.task.name)" sarif sast_snyk_check_out.sarif  || true
