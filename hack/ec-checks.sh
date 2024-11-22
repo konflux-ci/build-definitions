@@ -58,3 +58,19 @@ function all_tasks_dir {
     copy_all_task_versions "${task/*\//}" $tasks_dir
  done
 }
+
+function stepactions_dir {
+  if [[ ! -d $1 ]]; then
+    mkdir "$1"
+  fi
+  local d=$1
+
+  shopt -s globstar
+  for f in stepactions/**/*.yaml; do
+      yq eval -e '.kind == "StepAction"' "${f}" || continue
+      dest="${f#*/*/}"
+      dest="${d}/${dest/\//-}"
+      echo "[DEBUG] Copying ${f} to ${dest}"
+      cp "${f}" "${dest}"
+  done
+}
