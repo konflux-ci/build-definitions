@@ -135,11 +135,13 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
 ### Compliance
 
 Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.
-Currently, there are two policy configurations.
-- The [all-tasks](./policies/all-tasks.yaml) policy
-configuration applies to all Task definitions
-- The [build-tasks](./policies/build-tasks.yaml)
-policy configuration applies only to build Task definitions.
+Currently, there are three policy configurations.
 
-A build Task, i.e., one that produces a
-container image, must abide by both policy configurations.
+- The [all-tasks](./policies/all-tasks.yaml) policy configuration applies to all Task definitions.
+- The [build-tasks](./policies/build-tasks.yaml) policy configuration applies only to build Task
+  definitions.
+- The [step-actions](./policies/step-actions.yaml) policy configuration applies to all StepAction
+  definitions.
+
+A build Task, e.g. one that produces a container image, must abide by both `all-tasks` and
+`build-tasks` policy configurations.
