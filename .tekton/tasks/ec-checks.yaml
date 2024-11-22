@@ -11,6 +11,15 @@ metadata:
 spec:
   description: >-
     This task can be used to run enterprise contract checks
+  stepTemplate:
+    securityContext:
+      # runAsUser is needed because the different images used in this Task run as different users. Ideally,
+      # we'd let OpenShift do its thing and set a random UID with a common group ID for *all* containers
+      # in the namespace, but that is currently disabled so it's wild west.
+      runAsUser: 0
+    env:
+      - name: HOME
+        value: /tekton/home
   steps:
   - name: gather-tasks
     image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
@@ -18,12 +27,17 @@ spec:
     # the cluster will set imagePullPolicy to IfNotPresent
     workingDir: $(workspaces.source.path)/source
     script: |
+      #!/bin/bash
+      set -euo pipefail
+
       source hack/ec-checks.sh
-      $(build_tasks_dir build_tasks-ec)
-      $(all_tasks_dir all_tasks-ec)
+
+      build_tasks_dir build_tasks-ec
+      all_tasks_dir all_tasks-ec
+      stepactions_dir stepactions-ec
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:ccbf00aee7d4af1f78ba66aa04b0899b7e770dea44f6df0a1aa0a9a12529e9fe
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:46fae4d356d678383a926de8a68f79177d7e685d5497675acf41c9d3425aaacc
     script: |
       set -euo pipefail
 
@@ -37,7 +51,7 @@ spec:
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:ccbf00aee7d4af1f78ba66aa04b0899b7e770dea44f6df0a1aa0a9a12529e9fe
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:46fae4d356d678383a926de8a68f79177d7e685d5497675acf41c9d3425aaacc
     script: |
       set -euo pipefail
 
@@ -49,5 +63,20 @@ spec:
       policy='./policies/build-tasks.yaml'
 
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
+  - name: validate-step-actions
+    workingDir: "$(workspaces.source.path)/source"
+    image: quay.io/enterprise-contract/ec-cli:snapshot@sha256:46fae4d356d678383a926de8a68f79177d7e685d5497675acf41c9d3425aaacc
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      # Generate array of file parameters, e.g. --file=foo.yaml --file=bar.yaml
+      files=( stepactions-ec/*.yaml )
+      readarray -t args < <(printf -- '--file=%s\n' "${files[@]}")
+      echo "[DEBUG] Files parameter: ${args[*]}"
+
+      policy='./policies/step-actions.yaml'
+      ec validate input --show-successes --policy "${policy}" --output yaml --strict=true "${args[@]}"
+
   workspaces:
     - name: source
