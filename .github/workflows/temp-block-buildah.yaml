@@ -1,0 +1,38 @@
+name: Block buildah-remote-oci-ta size increase
+"on":
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check that the size of buildah-remote-oci-ta doesn't increase
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          #!/bin/bash
+          set -euo pipefail
+
+          buildah_remote_oci_ta=task/buildah-remote-oci-ta/0.2/buildah-remote-oci-ta.yaml
+          prev_size=$(git show "$BASE:$buildah_remote_oci_ta" | wc -c)
+          current_size=$(wc -c < "$buildah_remote_oci_ta")
+
+          if [[ "$current_size" -gt "$prev_size" ]]; then
+            cat << EOF >&2
+          This PR increases the size of $buildah_remote_oci_ta.
+
+          Due to https://github.com/tektoncd/pipeline/issues/8388, this is risky;
+          the resulting bundle may not be resolvable by Tekton.
+
+          Until the fix for the above issue is deployed in Konflux, your PR is blocked.
+          Sorry!
+          EOF
+            exit 1
+          fi
