@@ -86,7 +86,7 @@ spec:
           cpu: "16"
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
-      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
       volumeMounts:
         - name: cov-license
           mountPath: "/etc/secrets/cov"
@@ -130,9 +130,9 @@ spec:
         echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
 
         COVERITY_DIR=/var/tmp/coverity/idir
-        COVERITY_RESULTS_FILE=$(workspaces.workspace.path)/coverity-buildless-results.json
+        COVERITY_RESULTS_FILE=$(workspaces.source.path)/coverity-buildless-results.json
         COV_LICENSE_PATH=/etc/secrets/cov/cov-license
-        SOURCE_CODE_DIR=$(workspaces.workspace.path)
+        SOURCE_CODE_DIR=$(workspaces.source.path)
 
         # Installing Coverity license
         cp "$COV_LICENSE_PATH" /opt/coverity/bin/license.dat
@@ -227,7 +227,7 @@ spec:
           (set -x $$ csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)
         fi
 
-        csgrep --mode=sarif filtered_sast_coverity_buildless_check_all_findings.json > "$(workspaces.workspace.path)"/coverity-results.sarif
+        csgrep --mode=sarif filtered_sast_coverity_buildless_check_all_findings.json > "$(workspaces.source.path)"/coverity-results.sarif
 
         if [[ -z "$(csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)" ]]; then
           note="Task $(context.task.name) success: No finding was detected"
@@ -235,7 +235,7 @@ spec:
           echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         else
           TEST_OUTPUT=
-          parse_test_output "$(context.task.name)" sarif "$(workspaces.workspace.path)"/coverity-results.sarif || true
+          parse_test_output "$(context.task.name)" sarif "$(workspaces.source.path)"/coverity-results.sarif || true
           note="Task $(context.task.name) failed: For details, check Tekton task log."
           echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         fi
@@ -243,7 +243,7 @@ spec:
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:99737f436051e6d3866eb8a8706463c35abf72c87f05090ff42ff642f6729661
-      workingDir: $(workspaces.workspace.path)
+      workingDir: $(workspaces.source.path)
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -273,4 +273,4 @@ spec:
           oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
         done
   workspaces:
-    - name: workspace
+    - name: source

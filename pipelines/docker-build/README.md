@@ -334,7 +334,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.3:source ; build-source-image:0.1:workspace ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.2:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.3:source ; build-source-image:0.1:workspace ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### buildah:0.3 task workspaces
 |name|description|optional|workspace from pipeline
@@ -359,7 +359,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-coverity-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|workspace| | False| workspace|
+|source| | False| workspace|
 ### sast-shell-check:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
