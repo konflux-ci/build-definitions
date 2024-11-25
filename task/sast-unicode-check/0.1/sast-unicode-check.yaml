@@ -31,17 +31,15 @@ spec:
       description: URL from repository to download known false positives files.
       # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git when KONFLUX-4530 is resolved
       default: ""
-    - name: PROJECT_NVR
+    - name: PROJECT_NAME
+      description: Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.
       type: string
-      description: |
-        Name-Version-Release (NVR) of the scanned project.
-        It is used to find path exclusions (it is optional).
       default: ""
     - name: RECORD_EXCLUDED
       type: string
       description: |
         Whether to record the excluded findings (defaults to false).
-        If `true`, the the excluded findings will be stored in `excluded-findings.json`.
+        If `true`, the excluded findings will be stored in `excluded-findings.json`.
       default: "false"
     - name: caTrustConfigMapName
       type: string
@@ -72,16 +70,20 @@ spec:
       env:
         - name: KFP_GIT_URL
           value: $(params.KFP_GIT_URL)
+        - name: PROJECT_NAME
+          value: $(params.PROJECT_NAME)
         - name: FIND_UNICODE_CONTROL_GIT_URL
           value: $(params.FIND_UNICODE_CONTROL_GIT_URL)
         - name: FIND_UNICODE_CONTROL_ARGS
           value: $(params.FIND_UNICODE_CONTROL_ARGS)
-        - name: PROJECT_NVR
-          value: $(params.PROJECT_NVR)
         - name: RECORD_EXCLUDED
           value: $(params.RECORD_EXCLUDED)
         - name: SOURCE_CODE_DIR
           value: $(workspaces.workspace.path)
+        - name: COMPONENT_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['appstudio.openshift.io/component']
       script: |
         #!/usr/bin/env bash
         set -exuo pipefail
@@ -89,6 +91,12 @@ spec:
         # shellcheck source=/dev/null
         . /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        if [[ -z "${PROJECT_NAME}" ]]; then
+            PROJECT_NAME=${COMPONENT_LABEL}
+        fi
+
+        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
 
         SCAN_PROP=""
 
@@ -185,8 +193,8 @@ spec:
             )
 
             # Append --project-nvr option if PROJECT_NVR is set
-            if [[ -n "${PROJECT_NVR}" ]]; then
-                csfilter_kfp_cmd+=(--project-nvr="${PROJECT_NVR}")
+            if [[ -n "${PROJECT_NAME}" ]]; then
+                csfilter_kfp_cmd+=(--project-nvr="${PROJECT_NAME}")
             fi
 
             # Append --record-excluded option if RECORD_EXCLUDED is true
