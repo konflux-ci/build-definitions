@@ -1,276 +1,794 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  labels:
-    app.kubernetes.io/version: "0.1"
   annotations:
-    tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "konflux"
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: 0.2.1
+    build.appstudio.redhat.com/build_type: docker
   name: sast-coverity-check
 spec:
-  description: >-
-    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Coverity. At the moment, this task only uses the buildless mode, which does not build the project in order to analyze it.
-  results:
-    - description: Tekton task test output.
-      name: TEST_OUTPUT
+  description: Scans source code for security vulnerabilities, including common issues
+    such as SQL injection, cross-site scripting (XSS), and code injection attacks
+    using Coverity.
   params:
-    - description: Image URL.
-      name: image-url
-      type: string
-    - name: caTrustConfigMapName
-      type: string
-      description: The name of the ConfigMap to read CA bundle data from.
-      default: trusted-ca
-    - name: caTrustConfigMapKey
-      type: string
-      description: The name of the key in the ConfigMap that contains the CA bundle data.
-      default: ca-bundle.crt
-    - description: Arguments to be appended to the coverity capture command
-      name: COV_CAPTURE_ARGS
-      type: string
-      default: ""
-    - description: Arguments to be appended to the cov-analyze command
-      name: COV_ANALYZE_ARGS
-      type: string
-      default: "--enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096"
-    - name: COV_LICENSE
-      description: Name of secret which contains the Coverity license
-      default: cov-license
-    - name: AUTH_TOKEN_COVERITY_IMAGE
-      description: Name of secret which contains the authentication token for pulling the Coverity image.
-      default: "auth-token-coverity-image"
-    - name: IMP_FINDINGS_ONLY
-      type: string
-      description: Report only important findings. Default is true. To report all findings, specify "false"
-      default: "true"
-    - name: KFP_GIT_URL
-      type: string
-      description: URL from repository to download known false positives files
-      # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git when KONFLUX-4530 is resolved
-      default: ""
-    - name: PROJECT_NAME
-      description: Name of the scanned project, used to find path exclusions.
-            By default, the Konflux component name will be used.
-      type: string
-      default: ""
-    - name: RECORD_EXCLUDED
-      type: string
-      description: Write excluded records in file. Useful for auditing (defaults to false).
-      default: "false"
-  volumes:
-    - name: cov-license
-      secret:
-        secretName: $(params.COV_LICENSE)
-        optional: false
-    - name: auth-token-coverity-image
-      secret:
-        secretName: $(params.AUTH_TOKEN_COVERITY_IMAGE)
-        optional: false
-    - name: trusted-ca
-      configMap:
-        name: $(params.caTrustConfigMapName)
-        items:
-          - key: $(params.caTrustConfigMapKey)
-            path: ca-bundle.crt
-        optional: true
+  - description: Reference of the image buildah will produce.
+    name: IMAGE
+    type: string
+  - default: ./Dockerfile
+    description: Path to the Dockerfile to build.
+    name: DOCKERFILE
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - default: "true"
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS
+      registry)
+    name: TLSVERIFY
+    type: string
+  - default: "false"
+    description: Determines if build will be executed without network access.
+    name: HERMETIC
+    type: string
+  - default: ""
+    description: In case it is not empty, the prefetched content should be made available
+      to the build.
+    name: PREFETCH_INPUT
+    type: string
+  - default: ""
+    description: Delete image tag after specified time. Empty means to keep the image
+      tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks,
+      respectively.
+    name: IMAGE_EXPIRES_AFTER
+    type: string
+  - default: ""
+    description: The image is built from this commit.
+    name: COMMIT_SHA
+    type: string
+  - default: repos.d
+    description: Path in the git repository in which yum repository files are stored
+    name: YUM_REPOS_D_SRC
+  - default: fetched.repos.d
+    description: Path in source workspace where dynamically-fetched repos are present
+    name: YUM_REPOS_D_FETCHED
+  - default: /etc/yum.repos.d
+    description: Target path on the container in which yum repository files should
+      be made available
+    name: YUM_REPOS_D_TARGET
+  - default: ""
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile
+      is processed entirely to (and including) its last stage.
+    name: TARGET_STAGE
+    type: string
+  - default: etc-pki-entitlement
+    description: Name of secret which contains the entitlement certificates
+    name: ENTITLEMENT_SECRET
+    type: string
+  - default: activation-key
+    description: Name of secret which contains subscription activation key
+    name: ACTIVATION_KEY
+    type: string
+  - default: does-not-exist
+    description: Name of a secret which will be made available to the build with 'buildah
+      build --secret' at /run/secrets/$ADDITIONAL_SECRET
+    name: ADDITIONAL_SECRET
+    type: string
+  - default: []
+    description: Array of --build-arg values ("arg=value" strings)
+    name: BUILD_ARGS
+    type: array
+  - default: ""
+    description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
+    name: BUILD_ARGS_FILE
+    type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from.
+    name: caTrustConfigMapName
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data.
+    name: caTrustConfigMapKey
+    type: string
+  - default: ""
+    description: Comma separated list of extra capabilities to add when running 'buildah
+      build'
+    name: ADD_CAPABILITIES
+    type: string
+  - default: "false"
+    description: Squash all new and previous layers added as a part of this build,
+      as per --squash
+    name: SQUASH
+    type: string
+  - default: vfs
+    description: Storage driver to configure for buildah
+    name: STORAGE_DRIVER
+    type: string
+  - default: "true"
+    description: Whether to skip stages in Containerfile that seem unused by subsequent
+      stages
+    name: SKIP_UNUSED_STAGES
+    type: string
+  - default: []
+    description: Additional key=value labels that should be applied to the image
+    name: LABELS
+    type: array
+  - default: "false"
+    description: Whether to enable privileged mode
+    name: PRIVILEGED_NESTED
+    type: string
+  - default: "false"
+    description: Skip SBOM-related operations. This will likely cause EC policies
+      to fail if enabled
+    name: SKIP_SBOM_GENERATION
+    type: string
+  - default: cyclonedx
+    description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.
+      Note: the SBOM from the prefetch task - if there is one - must be in the same
+      format.'
+    name: SBOM_TYPE
+    type: string
+  - name: image-url
+    type: string
+  - default: cov-license
+    description: Name of secret which contains the Coverity license
+    name: COV_LICENSE
+    type: string
+  - default: ""
+    name: PROJECT_NAME
+    type: string
+  - default: "false"
+    name: RECORD_EXCLUDED
+    type: string
+  - default: --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096
+    description: Arguments to be appended to the cov-analyze command
+    name: COV_ANALYZE_ARGS
+    type: string
+  - default: "true"
+    description: Report only important findings. Default is true. To report all findings,
+      specify "false"
+    name: IMP_FINDINGS_ONLY
+    type: string
+  - default: ""
+    description: URL from repository to download known false positives files
+    name: KFP_GIT_URL
+    type: string
+  results:
+  - description: Tekton task test output.
+    name: TEST_OUTPUT
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: BUILDAH_FORMAT
+      value: oci
+    - name: STORAGE_DRIVER
+      value: $(params.STORAGE_DRIVER)
+    - name: HERMETIC
+      value: $(params.HERMETIC)
+    - name: SOURCE_CODE_DIR
+      value: source
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: YUM_REPOS_D_SRC
+      value: $(params.YUM_REPOS_D_SRC)
+    - name: YUM_REPOS_D_FETCHED
+      value: $(params.YUM_REPOS_D_FETCHED)
+    - name: YUM_REPOS_D_TARGET
+      value: $(params.YUM_REPOS_D_TARGET)
+    - name: TARGET_STAGE
+      value: $(params.TARGET_STAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
+    - name: ADDITIONAL_SECRET
+      value: $(params.ADDITIONAL_SECRET)
+    - name: BUILD_ARGS_FILE
+      value: $(params.BUILD_ARGS_FILE)
+    - name: ADD_CAPABILITIES
+      value: $(params.ADD_CAPABILITIES)
+    - name: SQUASH
+      value: $(params.SQUASH)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
+    - name: PRIVILEGED_NESTED
+      value: $(params.PRIVILEGED_NESTED)
+    - name: SKIP_SBOM_GENERATION
+      value: $(params.SKIP_SBOM_GENERATION)
+    - name: SBOM_TYPE
+      value: $(params.SBOM_TYPE)
+    volumeMounts:
+    - mountPath: /shared
+      name: shared
   steps:
-    - name: sast-coverity-check
-      # image: $(steps.secrets-check.results.image)
-      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:d8e1266319d310443b183f8c14e083932b70f665fd72a61ff90b30e46b9398f0
-      computeResources:
-        requests:
-          memory: "16Gi"
-          cpu: "8"
-        limits:
-          memory: "32Gi"
-          cpu: "16"
-      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
-      # the cluster will set imagePullPolicy to IfNotPresent
-      workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
-      volumeMounts:
-        - name: cov-license
-          mountPath: "/etc/secrets/cov"
-          readOnly: true
-        - name: trusted-ca
-          mountPath: /mnt/trusted-ca
-          readOnly: true
-      env:
-        - name: COV_ANALYZE_ARGS
-          value: $(params.COV_ANALYZE_ARGS)
-        - name: COV_CAPTURE_ARGS
-          value: $(params.COV_CAPTURE_ARGS)
-        - name: KFP_GIT_URL
-          value: $(params.KFP_GIT_URL)
-        - name: COV_LICENSE
-          value: $(params.COV_LICENSE)
-        - name: IMP_FINDINGS_ONLY
-          value: $(params.IMP_FINDINGS_ONLY)
-        - name: PROJECT_NAME
-          value: $(params.PROJECT_NAME)
-        - name: RECORD_EXCLUDED
-          value: $(params.RECORD_EXCLUDED)
-        - name: COMPONENT_LABEL
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['appstudio.openshift.io/component']
-      script: |
-        #!/usr/bin/env bash
-        set -eo pipefail
-        # shellcheck source=/dev/null
-        . /usr/local/share/konflux-test/utils.sh
-        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+  - env:
+    - name: COV_ANALYZE_ARGS
+      value: $(params.COV_ANALYZE_ARGS)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    name: prepare
+    script: |
+      #!/bin/bash
 
-        echo 'Starting Coverity buildless scan'
-
-        export HOME="/var/tmp/coverity/home"
-
-        if [[ -z "${PROJECT_NAME}" ]]; then
-          PROJECT_NAME=${COMPONENT_LABEL}
-        fi
-        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
-
-        COVERITY_DIR=/var/tmp/coverity/idir
-        COVERITY_RESULTS_FILE=$(workspaces.source.path)/coverity-buildless-results.json
-        COV_LICENSE_PATH=/etc/secrets/cov/cov-license
-        SOURCE_CODE_DIR=$(workspaces.source.path)
-
-        # Installing Coverity license
-        cp "$COV_LICENSE_PATH" /opt/coverity/bin/license.dat
-
-        # Installation of Red Hat certificates for cloning Red Hat internal repositories
-        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
-        if [ -f "$ca_bundle" ]; then
-          echo "INFO: Using mounted CA bundle: $ca_bundle"
-          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
-          update-ca-trust
-        fi
-
-        # Create configuration file for coverity buildless
-        echo -e 'capture:\n   build-command-inference: false' > "$SOURCE_CODE_DIR"/coverity.yml
-
-        set +e -x
-        # Buildless scan
-        # shellcheck disable=SC2086
-        env COV_HOST=konflux /opt/coverity/bin/coverity capture $COV_CAPTURE_ARGS --project-dir "$SOURCE_CODE_DIR" --dir "$COVERITY_DIR"
-        COV_CAPTURE_EXIT_CODE=$?
-        set -x
-
-        if [[ "$COV_CAPTURE_EXIT_CODE" -eq 0 ]]; then
-          echo "Coverity capture scan finished successfully"
-        else
-          echo "Coverity capture command failed with exit code ${COV_CAPTURE_EXIT_CODE}. Exiting..."
-          note="Task $(context.task.name) failed: For details, check Tekton task log."
-          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+      # FIXME: Dockerfile discovery logic is copied from buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
 
-        # Analysis phase
-        set -x
-        /opt/coverity/bin/cov-manage-emit --dir $COVERITY_DIR reset-host-name
-        # shellcheck disable=SC2086
-        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir="$COVERITY_DIR"
-        COV_ANALYZE_EXIT_CODE=$?
-        set +x
+      # install Coverity license file
+      install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
 
-        if [[ "$COV_ANALYZE_EXIT_CODE" -eq 0 ]]; then
-          echo "cov-analyze scan finished successfully"
-        else
-          echo "cov-analyze scan failed with exit code ${COV_ANALYZE_EXIT_CODE}. Exiting..."
-          note="Task $(context.task.name) failed: For details, check Tekton task log."
-          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+      # pre-create directory for SAST scanning results
+      install -vm1777 -d /shared/sast-results
+
+      # create a wrapper script to instrument RUN lines
+      tee /shared/cmd-wrap.sh >&2 << EOF
+      #!/bin/bash -x
+      id >&2
+
+      # use current directory as project directory by default
+      proj_dir=\$(pwd)
+
+      # if current directory is "/", fallback to an empty temp directory
+      [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
+
+      # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
+      /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
+        -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
+        - "\$@"
+
+      # always remove Coverity's intermediate directory so that it can be recreated with different ownership
+      trap 'rm -fr /tmp/idir' EXIT
+
+      # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
+      $(declare -p COV_ANALYZE_ARGS)
+
+      # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
+      /opt/coverity/bin/cov-analyze --dir=/tmp/idir \$COV_ANALYZE_ARGS
+
+      # export scan results and embed source code context into the scan results
+      /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+        | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
+        > \$(mktemp /shared/sast-results/\$\$-XXXX.json)
+
+      # propagate the original exit code of the wrapped command
+      exit "\$(</tmp/idir/build-cmd-ec.txt)"
+      EOF
+      echo >&2
+
+      # make the wrapper script executable
+      chmod -v 0755 /shared/cmd-wrap.sh
+
+      # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
+      cstrans-df-run --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile
+    volumeMounts:
+    - mountPath: /etc/secrets/cov
+      name: cov-license
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  - args:
+    - --build-args
+    - $(params.BUILD_ARGS[*])
+    - --labels
+    - $(params.LABELS[*])
+    computeResources:
+      limits:
+        cpu: 16
+        memory: 16Gi
+      requests:
+        cpu: 4
+        memory: 4Gi
+    env:
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    - name: DOCKERFILE
+      value: /shared/Containerfile
+    - name: ADDITIONAL_VOLUME_MOUNTS
+      value: |-
+        /opt:/opt
+        /shared:/shared
+        /shared/license.dat:/opt/coverity/bin/license.dat
+        /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
+    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    name: build
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        # Instrumented builds (SAST) use this custom dockerffile step as their base
+        dockerfile_path="$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
-        set -e
-
-        /opt/coverity/bin/cov-format-errors --dir="$COVERITY_DIR" --json-output-v10 "$COVERITY_RESULTS_FILE"
-        # We parse the results, embed context, remove duplicates and store them in SARIF format.
-        IMP_LEVEL=1
-        if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
-          IMP_LEVEL=0
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
         fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
 
-        (cd "$SOURCE_CODE_DIR" && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --embed-context=3 "$COVERITY_RESULTS_FILE") \
-        | csgrep --mode=json --strip-path-prefix="$SOURCE_CODE_DIR"/source/ \
-        | csgrep --mode=json --strip-path-prefix="$HOME" \
-        > sast_coverity_buildless_check_all_findings.json
+      dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
+      cp "$dockerfile_path" "$dockerfile_copy"
 
-        echo "Results:"
-        (set -x && csgrep --mode=evtstat sast_coverity_buildless_check_all_findings.json)
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
 
-        # We check if the KFP_GIT_URL variable is set to apply the filters or not
-        if [[ -z "${KFP_GIT_URL}" ]]; then
-          echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
-          mv sast_coverity_buildless_check_all_findings.json filtered_sast_coverity_buildless_check_all_findings.json
-        else
-          echo "Filtering false positives in results files using csfilter-kfp..."
-          CMD=(
-            csfilter-kfp
-            --verbose
-            --kfp-git-url="${KFP_GIT_URL}"
-            --project-nvr="${PROJECT_NAME}"
-          )
+      sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
-          if [ "${RECORD_EXCLUDED}" == "true" ]; then
-            CMD+=(--record-excluded="excluded-findings.json")
-          fi
+      # Setting new namespace to run buildah - 2^32-2
+      echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
-          "${CMD[@]}" sast_coverity_buildless_check_all_findings.json > filtered_sast_coverity_buildless_check_all_findings.json
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            echo "Error: failed to filter known false positives" >&2
-            return 1
-          else
-            echo "Message: Succeed to filter known false positives" >&2
-          fi
+      build_args=()
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        # Parse BUILD_ARGS_FILE ourselves because dockerfile-json doesn't support it
+        echo "Parsing ARGs from $BUILD_ARGS_FILE"
+        mapfile -t build_args < <(
+          # https://www.mankier.com/1/buildah-build#--build-arg-file
+          # delete lines that start with #
+          # delete blank lines
+          sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
+        )
+      fi
 
-          echo "Results after filtering:"
-          (set -x $$ csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)
-        fi
+      LABELS=()
+      # Split `args` into two sets of arguments.
+      while [[ $# -gt 0 ]]; do
+          case $1 in
+              --build-args)
+                  shift
+                  # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+                  # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE
+                  while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
+                  ;;
+              --labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label" "$1"); shift; done
+                  ;;
+              *)
+                  echo "unexpected argument: $1" >&2
+                  exit 2
+                  ;;
+          esac
+      done
 
-        csgrep --mode=sarif filtered_sast_coverity_buildless_check_all_findings.json > "$(workspaces.source.path)"/coverity-results.sarif
+      BUILD_ARG_FLAGS=()
+      for build_arg in "${build_args[@]}"; do
+        BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
+      done
 
-        if [[ -z "$(csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)" ]]; then
-          note="Task $(context.task.name) success: No finding was detected"
-          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
-          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-        else
-          TEST_OUTPUT=
-          parse_test_output "$(context.task.name)" sarif "$(workspaces.source.path)"/coverity-results.sarif || true
-          note="Task $(context.task.name) failed: For details, check Tekton task log."
-          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-        fi
+      dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
+      BASE_IMAGES=$(
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not) | sub("\"?(?<image>[^\"]*)\"?" ; .image)' /shared/parsed_dockerfile.json
+      )
 
-        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
-    - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:99737f436051e6d3866eb8a8706463c35abf72c87f05090ff42ff642f6729661
-      workingDir: $(workspaces.source.path)
-      env:
-        - name: IMAGE_URL
-          value: $(params.image-url)
-      script: |
-        #!/usr/bin/env bash
+      BUILDAH_ARGS=()
+      UNSHARE_ARGS=()
 
-        if [ -z "${IMAGE_URL}" ]; then
-          echo 'No image-url param provided. Skipping upload.'
-          exit 0
-        fi
-        UPLOAD_FILES="coverity-results.sarif excluded-findings.json"
+      if [ "${HERMETIC}" == "true" ]; then
+        BUILDAH_ARGS+=("--pull=never")
+        UNSHARE_ARGS+=("--net")
 
-        for UPLOAD_FILE in ${UPLOAD_FILES}; do
-          if [ ! -f "${UPLOAD_FILE}" ]; then
-            echo "No ${UPLOAD_FILE} exists. Skipping upload."
-            continue
-          fi
-          if [ "${UPLOAD_FILES}" == "excluded-findings.json" ]; then
-            MEDIA_TYPE=application/json
-          else
-            MEDIA_TYPE=application/sarif+json
-          fi
-
-          echo "Selecting auth"
-          select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
-          echo "Attaching to ${IMAGE_URL}"
-          oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        for image in $BASE_IMAGES; do
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
         done
+        echo "Build will be executed with network isolation"
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+      fi
+
+      BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+      if [ "${PRIVILEGED_NESTED}" == "true" ]; then
+        BUILDAH_ARGS+=("--security-opt=label=disable")
+        BUILDAH_ARGS+=("--cap-add=all")
+        BUILDAH_ARGS+=("--device=/dev/fuse")
+      fi
+
+      if [ -n "${ADD_CAPABILITIES}" ]; then
+        BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
+      fi
+
+      if [ "${SQUASH}" == "true" ]; then
+        BUILDAH_ARGS+=("--squash")
+      fi
+
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
+      VOLUME_MOUNTS=()
+
+      if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
+        cp -r "$(workspaces.source.path)/cachi2" /tmp/
+        chmod -R go+rwX /tmp/cachi2
+        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
+        # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
+        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
+        sed -E -i \
+            -e 'H;1h;$!d;x' \
+            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+            "$dockerfile_copy"
+        echo "Prefetched content will be made available"
+
+        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+        if [ -f "$prefetched_repo_for_my_arch" ]; then
+          echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
+          mkdir -p "$YUM_REPOS_D_FETCHED"
+          cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+        fi
+      fi
+
+      # if yum repofiles stored in git, copy them to mount point outside the source dir
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        mkdir -p "${YUM_REPOS_D_FETCHED}"
+        cp -r "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}"/* "${YUM_REPOS_D_FETCHED}"
+      fi
+
+      # if anything in the repofiles mount point (either fetched or from git), mount it
+      if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
+        chmod -R go+rwX "${YUM_REPOS_D_FETCHED}"
+        mount_point=$(realpath "${YUM_REPOS_D_FETCHED}")
+        VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
+      fi
+
+      DEFAULT_LABELS=(
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
+      )
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
+      # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
+      LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      ACTIVATION_KEY_PATH="/activation-key"
+      ENTITLEMENT_PATH="/entitlement"
+
+      # 0. if hermetic=true, skip all subscription related stuff
+      # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+      # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
+      # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
+      # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
+      #    to buildah but don't pre-register for backwards compatibility. Mount an empty directory on
+      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included
+
+      if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
+        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+        mkdir -p /shared/rhsm/etc/pki/entitlement
+        mkdir -p /shared/rhsm/etc/pki/consumer
+
+        VOLUME_MOUNTS+=(-v /tmp/activation-key:/activation-key \
+                        -v /shared/rhsm/etc/pki/entitlement:/etc/pki/entitlement:Z \
+                        -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
+        echo "Adding activation key to the build"
+
+        if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
+          # user is not running registration in the Containerfile: pre-register.
+          echo "Pre-registering with subscription manager."
+          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          trap 'subscription-manager unregister || true' EXIT
+
+          # copy generated certificates to /shared volume
+          cp /etc/pki/entitlement/*.pem /shared/rhsm/etc/pki/entitlement
+          cp /etc/pki/consumer/*.pem /shared/rhsm/etc/pki/consumer
+
+          # and then mount get /etc/rhsm/ca/redhat-uep.pem into /run/secrets/rhsm/ca
+          VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
+        fi
+
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >> null; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
+        echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
+        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
+        # Instrumented builds (SAST) use this step as their base and add some other tools.
+        while read -r volume_mount; do
+          VOLUME_MOUNTS+=("--volume=$volume_mount")
+        done <<< "$ADDITIONAL_VOLUME_MOUNTS"
+      fi
+
+      ADDITIONAL_SECRET_PATH="/additional-secret"
+      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
+      if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
+        cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+        while read -r filename; do
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+        done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
+      fi
+
+      # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
+      declare IMAGE
+
+      buildah_cmd_array=(
+          buildah build
+          "${VOLUME_MOUNTS[@]}"
+          "${BUILDAH_ARGS[@]}"
+          "${LABELS[@]}"
+          --tls-verify="$TLSVERIFY" --no-cache
+          --ulimit nofile=4096:4096
+          -f "$dockerfile_copy" -t "$IMAGE" .
+      )
+      buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
+
+      if [ "${HERMETIC}" == "true" ]; then
+        # enabling loopback adapter enables Bazel builds to work in hermetic mode.
+        command="ip link set lo up && $buildah_cmd"
+      else
+        command="$buildah_cmd"
+      fi
+
+      # disable host subcription manager integration
+      find /usr/share/rhel/secrets -type l -exec unlink {} \;
+
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      container=$(buildah from --pull-never "$IMAGE")
+
+      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      if [ -f "/tmp/cachi2/output/bom.json" ]; then
+        echo "Making copy of sbom-cachi2.json"
+        cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+      fi
+
+      buildah mount "$container" | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
+      echo $container > /shared/container_name
+
+      touch /shared/base_images_digests
+      echo "Recording base image digests used"
+      for image in $BASE_IMAGES; do
+        base_image_digest=$(buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image")
+        # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
+        # if buildah did not use that particular image during build because it was skipped
+        if [ -n "$base_image_digest" ]; then
+          echo "$image $base_image_digest" | tee -a /shared/base_images_digests
+        fi
+      done
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /entitlement
+      name: etc-pki-entitlement
+    - mountPath: /activation-key
+      name: activation-key
+    - mountPath: /additional-secret
+      name: additional-secret
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  - computeResources:
+      limits:
+        cpu: 4
+        memory: 4Gi
+      requests:
+        cpu: 2
+        memory: 2Gi
+    env:
+    - name: IMAGE_URL
+      value: $(params.image-url)
+    - name: COV_ANALYZE_ARGS
+      value: $(params.COV_ANALYZE_ARGS)
+    - name: KFP_GIT_URL
+      value: $(params.KFP_GIT_URL)
+    - name: IMP_FINDINGS_ONLY
+      value: $(params.IMP_FINDINGS_ONLY)
+    - name: PROJECT_NAME
+      value: $(params.PROJECT_NAME)
+    - name: RECORD_EXCLUDED
+      value: $(params.RECORD_EXCLUDED)
+    - name: COMPONENT_LABEL
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['appstudio.openshift.io/component']
+    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    name: postprocess
+    script: |
+      #!/bin/bash -e
+      # shellcheck source=/dev/null
+      set -o pipefail
+
+      . /usr/local/share/konflux-test/utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      [ -n "${PROJECT_NAME}" ] || PROJECT_NAME="${COMPONENT_LABEL}"
+      echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+      # Installation of Red Hat certificates for cloning Red Hat internal repositories
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -z "$(ls /shared/sast-results/)" ]; then (
+        set +e
+        set -x
+
+        # fallback to buildless scan if we have no scan results from buildful
+        # shellcheck disable=SC2086
+        env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
+
+        # install Coverity license file
+        install -vm0644 /{shared,opt/coverity/bin}/license.dat
+
+        # shellcheck disable=SC2086
+        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
+
+        # export scan results
+        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+          | csgrep --mode=json --embed-context=3 \
+          > /shared/sast-results/coverity-buildless.json
+      ) fi
+
+      # reflect the IMP_FINDINGS_ONLY parameter in csgrep arguments
+      IMP_LEVEL=1
+      if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
+        IMP_LEVEL=0
+      fi
+
+      # collect scan results
+      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob '/shared/sast-results/*') \
+        | tee coverity-results-raw.json \
+        | csgrep --mode=evtstat
+
+      # We check if the KFP_GIT_URL variable is set to apply the filters or not
+      if [[ -z "${KFP_GIT_URL}" ]]; then
+        echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+        mv coverity-results{-raw,}.json
+      else
+        echo "Filtering false positives in results files using csfilter-kfp..."
+        CMD=(
+          csfilter-kfp
+          --verbose
+          --kfp-git-url="${KFP_GIT_URL}"
+          --project-nvr="${PROJECT_NAME}"
+        )
+
+        if [ "${RECORD_EXCLUDED}" == "true" ]; then
+          CMD+=(--record-excluded="excluded-findings.json")
+        fi
+
+        "${CMD[@]}" coverity-results-raw.json \
+          | tee coverity-results.json \
+          | csgrep --mode=evtstat
+      fi
+
+      # convert the scan results into SARIF
+      csgrep --mode=sarif coverity-results.json > "$(workspaces.source.path)/coverity-results.sarif"
+
+      if [[ -z "$(csgrep --mode=stat coverity-results.json)" ]]; then
+        note="Task $(context.task.name) success: No finding was detected"
+        ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      else
+        TEST_OUTPUT=
+        parse_test_output "$(context.task.name)" sarif "$(workspaces.source.path)/coverity-results.sarif" || true
+        note="Task $(context.task.name) failed: For details, check Tekton task log."
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      fi
+
+      echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+
+      # upload scan results
+      echo "Selecting auth for upload of scan results"
+      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+
+      upload_file() (
+        set -x
+        UPLOAD_FILE="$1"
+        MEDIA_TYPE="$2"
+        oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+      )
+
+      echo "Attaching scan results to ${IMAGE_URL}"
+      upload_file "coverity-results.sarif" "application/sarif+json"
+
+      # upload excluded-findings.json if enabled
+      if [ -f "excluded-findings.json" ]; then
+        upload_file "excluded-findings.json" "application/json"
+      fi
+    volumeMounts:
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  volumes:
+  - emptyDir: {}
+    name: varlibcontainers
+  - emptyDir: {}
+    name: shared
+  - name: etc-pki-entitlement
+    secret:
+      optional: true
+      secretName: $(params.ENTITLEMENT_SECRET)
+  - name: activation-key
+    secret:
+      optional: true
+      secretName: $(params.ACTIVATION_KEY)
+  - name: additional-secret
+    secret:
+      optional: true
+      secretName: $(params.ADDITIONAL_SECRET)
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
+  - name: cov-license
+    secret:
+      optional: false
+      secretName: $(params.COV_LICENSE)
   workspaces:
-    - name: source
+  - description: Workspace containing the source code to build.
+    name: source
