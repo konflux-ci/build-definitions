@@ -1,0 +1,276 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: sast-coverity-check
+spec:
+  description: >-
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Coverity. At the moment, this task only uses the buildless mode, which does not build the project in order to analyze it.
+  results:
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+  params:
+    - description: Image URL.
+      name: image-url
+      type: string
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+    - description: Arguments to be appended to the coverity capture command
+      name: COV_CAPTURE_ARGS
+      type: string
+      default: ""
+    - description: Arguments to be appended to the cov-analyze command
+      name: COV_ANALYZE_ARGS
+      type: string
+      default: "--enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096"
+    - name: COV_LICENSE
+      description: Name of secret which contains the Coverity license
+      default: cov-license
+    - name: AUTH_TOKEN_COVERITY_IMAGE
+      description: Name of secret which contains the authentication token for pulling the Coverity image.
+      default: "auth-token-coverity-image"
+    - name: IMP_FINDINGS_ONLY
+      type: string
+      description: Report only important findings. Default is true. To report all findings, specify "false"
+      default: "true"
+    - name: KFP_GIT_URL
+      type: string
+      description: URL from repository to download known false positives files
+      # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git when KONFLUX-4530 is resolved
+      default: ""
+    - name: PROJECT_NAME
+      description: Name of the scanned project, used to find path exclusions.
+            By default, the Konflux component name will be used.
+      type: string
+      default: ""
+    - name: RECORD_EXCLUDED
+      type: string
+      description: Write excluded records in file. Useful for auditing (defaults to false).
+      default: "false"
+  volumes:
+    - name: cov-license
+      secret:
+        secretName: $(params.COV_LICENSE)
+        optional: false
+    - name: auth-token-coverity-image
+      secret:
+        secretName: $(params.AUTH_TOKEN_COVERITY_IMAGE)
+        optional: false
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+  steps:
+    - name: sast-coverity-check
+      # image: $(steps.secrets-check.results.image)
+      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:d8e1266319d310443b183f8c14e083932b70f665fd72a61ff90b30e46b9398f0
+      computeResources:
+        requests:
+          memory: "16Gi"
+          cpu: "8"
+        limits:
+          memory: "32Gi"
+          cpu: "16"
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      volumeMounts:
+        - name: cov-license
+          mountPath: "/etc/secrets/cov"
+          readOnly: true
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      env:
+        - name: COV_ANALYZE_ARGS
+          value: $(params.COV_ANALYZE_ARGS)
+        - name: COV_CAPTURE_ARGS
+          value: $(params.COV_CAPTURE_ARGS)
+        - name: KFP_GIT_URL
+          value: $(params.KFP_GIT_URL)
+        - name: COV_LICENSE
+          value: $(params.COV_LICENSE)
+        - name: IMP_FINDINGS_ONLY
+          value: $(params.IMP_FINDINGS_ONLY)
+        - name: PROJECT_NAME
+          value: $(params.PROJECT_NAME)
+        - name: RECORD_EXCLUDED
+          value: $(params.RECORD_EXCLUDED)
+        - name: COMPONENT_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['appstudio.openshift.io/component']
+      script: |
+        #!/usr/bin/env bash
+        set -eo pipefail
+        # shellcheck source=/dev/null
+        . /usr/local/share/konflux-test/utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        echo 'Starting Coverity buildless scan'
+
+        export HOME="/var/tmp/coverity/home"
+
+        if [[ -z "${PROJECT_NAME}" ]]; then
+          PROJECT_NAME=${COMPONENT_LABEL}
+        fi
+        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+        COVERITY_DIR=/var/tmp/coverity/idir
+        COVERITY_RESULTS_FILE=$(workspaces.workspace.path)/coverity-buildless-results.json
+        COV_LICENSE_PATH=/etc/secrets/cov/cov-license
+        SOURCE_CODE_DIR=$(workspaces.workspace.path)
+
+        # Installing Coverity license
+        cp "$COV_LICENSE_PATH" /opt/coverity/bin/license.dat
+
+        # Installation of Red Hat certificates for cloning Red Hat internal repositories
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        # Create configuration file for coverity buildless
+        echo -e 'capture:\n   build-command-inference: false' > "$SOURCE_CODE_DIR"/coverity.yml
+
+        set +e -x
+        # Buildless scan
+        # shellcheck disable=SC2086
+        env COV_HOST=konflux /opt/coverity/bin/coverity capture $COV_CAPTURE_ARGS --project-dir "$SOURCE_CODE_DIR" --dir "$COVERITY_DIR"
+        COV_CAPTURE_EXIT_CODE=$?
+        set -x
+
+        if [[ "$COV_CAPTURE_EXIT_CODE" -eq 0 ]]; then
+          echo "Coverity capture scan finished successfully"
+        else
+          echo "Coverity capture command failed with exit code ${COV_CAPTURE_EXIT_CODE}. Exiting..."
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          exit 1
+        fi
+
+        # Analysis phase
+        set -x
+        /opt/coverity/bin/cov-manage-emit --dir $COVERITY_DIR reset-host-name
+        # shellcheck disable=SC2086
+        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir="$COVERITY_DIR"
+        COV_ANALYZE_EXIT_CODE=$?
+        set +x
+
+        if [[ "$COV_ANALYZE_EXIT_CODE" -eq 0 ]]; then
+          echo "cov-analyze scan finished successfully"
+        else
+          echo "cov-analyze scan failed with exit code ${COV_ANALYZE_EXIT_CODE}. Exiting..."
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          exit 1
+        fi
+        set -e
+
+        /opt/coverity/bin/cov-format-errors --dir="$COVERITY_DIR" --json-output-v10 "$COVERITY_RESULTS_FILE"
+        # We parse the results, embed context, remove duplicates and store them in SARIF format.
+        IMP_LEVEL=1
+        if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
+          IMP_LEVEL=0
+        fi
+
+        (cd "$SOURCE_CODE_DIR" && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --embed-context=3 "$COVERITY_RESULTS_FILE") \
+        | csgrep --mode=json --strip-path-prefix="$SOURCE_CODE_DIR"/source/ \
+        | csgrep --mode=json --strip-path-prefix="$HOME" \
+        > sast_coverity_buildless_check_all_findings.json
+
+        echo "Results:"
+        (set -x && csgrep --mode=evtstat sast_coverity_buildless_check_all_findings.json)
+
+        # We check if the KFP_GIT_URL variable is set to apply the filters or not
+        if [[ -z "${KFP_GIT_URL}" ]]; then
+          echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+          mv sast_coverity_buildless_check_all_findings.json filtered_sast_coverity_buildless_check_all_findings.json
+        else
+          echo "Filtering false positives in results files using csfilter-kfp..."
+          CMD=(
+            csfilter-kfp
+            --verbose
+            --kfp-git-url="${KFP_GIT_URL}"
+            --project-nvr="${PROJECT_NAME}"
+          )
+
+          if [ "${RECORD_EXCLUDED}" == "true" ]; then
+            CMD+=(--record-excluded="excluded-findings.json")
+          fi
+
+          "${CMD[@]}" sast_coverity_buildless_check_all_findings.json > filtered_sast_coverity_buildless_check_all_findings.json
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "Error: failed to filter known false positives" >&2
+            return 1
+          else
+            echo "Message: Succeed to filter known false positives" >&2
+          fi
+
+          echo "Results after filtering:"
+          (set -x $$ csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)
+        fi
+
+        csgrep --mode=sarif filtered_sast_coverity_buildless_check_all_findings.json > "$(workspaces.workspace.path)"/coverity-results.sarif
+
+        if [[ -z "$(csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)" ]]; then
+          note="Task $(context.task.name) success: No finding was detected"
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        else
+          TEST_OUTPUT=
+          parse_test_output "$(context.task.name)" sarif "$(workspaces.workspace.path)"/coverity-results.sarif || true
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        fi
+
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:99737f436051e6d3866eb8a8706463c35abf72c87f05090ff42ff642f6729661
+      workingDir: $(workspaces.workspace.path)
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        if [ -z "${IMAGE_URL}" ]; then
+          echo 'No image-url param provided. Skipping upload.'
+          exit 0
+        fi
+        UPLOAD_FILES="coverity-results.sarif excluded-findings.json"
+
+        for UPLOAD_FILE in ${UPLOAD_FILES}; do
+          if [ ! -f "${UPLOAD_FILE}" ]; then
+            echo "No ${UPLOAD_FILE} exists. Skipping upload."
+            continue
+          fi
+          if [ "${UPLOAD_FILES}" == "excluded-findings.json" ]; then
+            MEDIA_TYPE=application/json
+          else
+            MEDIA_TYPE=application/sarif+json
+          fi
+
+          echo "Selecting auth"
+          select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+          echo "Attaching to ${IMAGE_URL}"
+          oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        done
+  workspaces:
+    - name: workspace
