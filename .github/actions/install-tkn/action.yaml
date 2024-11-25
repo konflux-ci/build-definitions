@@ -1,0 +1,12 @@
+# yamllint disable-file
+---
+name: Install tkn
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        curl -LO "https://github.com/tektoncd/cli/releases/download/v${TKN_CLI_VERSION}/tektoncd-cli-${TKN_CLI_VERSION}_Linux-64bit.deb"
+        sudo dpkg -i ./tektoncd-cli-${TKN_CLI_VERSION}_Linux-64bit.deb
+      shell: bash
+      env:
+        TKN_CLI_VERSION: 0.38.1
