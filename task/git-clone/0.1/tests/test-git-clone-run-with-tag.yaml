@@ -1,0 +1,37 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-with-tag
+spec:
+  description: |
+    Test the git-clone task with tag
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/kelseyhightower/nocode
+        - name: revision
+          value: 1.0.0
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+    - name: check-result
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+            script: |
+              #!/usr/bin/env sh
+              set -eux
+              files=$(find "$(workspaces.output.path)/source/" -mindepth 1 -maxdepth 1)
+              test -n "$files"
+      runAfter:
+        - run-task

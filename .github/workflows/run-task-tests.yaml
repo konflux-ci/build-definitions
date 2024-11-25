@@ -1,0 +1,90 @@
+name: Run Task Tests
+
+"on":
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  run-task-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Get all changed files in the PR from task directory
+        id: changed-dirs
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            task/**
+          dir_names: "true"
+          dir_names_max_depth: "3"
+
+      - name: Checkout build-defintions Repository
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        uses: actions/checkout@v3
+        with:
+          ref: "${{ github.event.pull_request.head.sha }}"
+          path: build-definitions
+
+      - name: Install tkn
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        uses: ./build-definitions/.github/actions/install-tkn
+
+      - name: Checkout konflux-ci/konflux-ci Repository
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        uses: actions/checkout@v3
+        with:
+          repository: 'konflux-ci/konflux-ci'
+          path: konflux-ci
+          ref: c4630e684e81f71bfd920fff0c9bb2956d3265f4
+
+      - name: Create k8s Kind Cluster
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        uses: helm/kind-action@v1
+        with:
+          config: konflux-ci/kind-config.yaml
+
+      - name: Show version information
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          kubectl version
+          kind version
+
+      - name: Deploying Dependencies
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-deps.sh
+
+      - name: Wait for the dependencies to be ready
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./wait-for-all.sh
+
+      - name: Deploying Konflux
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-konflux.sh
+
+      - name: List namespaces
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          kubectl get namespace
+
+      - name: Deploy test resources
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        run: |
+          cd $GITHUB_WORKSPACE/konflux-ci
+          ./deploy-test-resources.sh
+
+      - name: Run the task tests
+        if: steps.changed-dirs.outputs.any_changed == 'true'
+        env:
+          CHANGED_DIRS: ${{ steps.changed-dirs.outputs.all_changed_files }}
+        run: |
+          echo "Task Dirs changed in PR: ${CHANGED_DIRS}"
+          cd $GITHUB_WORKSPACE/build-definitions
+          ./.github/scripts/test_tekton_tasks.sh ${CHANGED_DIRS}
