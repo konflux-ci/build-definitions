@@ -7,17 +7,17 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.3:BUILD_ARGS|
-|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.3:BUILD_ARGS_FILE|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.3:BUILD_ARGS ; sast-coverity-check:0.2:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.3:BUILD_ARGS_FILE ; sast-coverity-check:0.2:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.3:DOCKERFILE ; sast-coverity-check:0.2:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|hermetic| Execute the build with network isolation| false| build-container:0.3:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.3:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.3:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.1:BINARY_IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.3:CONTEXT ; push-dockerfile:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input ; build-container:0.3:PREFETCH_INPUT|
+|hermetic| Execute the build with network isolation| false| build-container:0.3:HERMETIC ; sast-coverity-check:0.2:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.3:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.2:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.3:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.1:BINARY_IMAGE ; sast-coverity-check:0.2:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.3:CONTEXT ; sast-coverity-check:0.2:CONTEXT ; push-dockerfile:0.1:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input ; build-container:0.3:PREFETCH_INPUT ; sast-coverity-check:0.2:PREFETCH_INPUT|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
@@ -167,17 +167,40 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-coverity-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
+|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
+|BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
+|COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
+|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
-|COV_CAPTURE_ARGS| Arguments to be appended to the coverity capture command| | |
 |COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
+|ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
+|HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
+|IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |KFP_GIT_URL| URL from repository to download known false positives files| | |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
-|RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
+|LABELS| Additional key=value labels that should be applied to the image| []| |
+|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
+|PRIVILEGED_NESTED| Whether to enable privileged mode| false| |
+|PROJECT_NAME| | | |
+|RECORD_EXCLUDED| | false| |
+|SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| cyclonedx| |
+|SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
+|SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
+|SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
+|STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
+|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
+|TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
+|YUM_REPOS_D_FETCHED| Path in source workspace where dynamically-fetched repos are present| fetched.repos.d| |
+|YUM_REPOS_D_SRC| Path in the git repository in which yum repository files are stored| repos.d| |
+|YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-url| | None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### sast-shell-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -287,7 +310,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.3:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.3:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA ; sast-coverity-check:0.2:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
@@ -359,7 +382,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-coverity-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|source| | False| workspace|
+|source| Workspace containing the source code to build.| False| workspace|
 ### sast-shell-check:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
