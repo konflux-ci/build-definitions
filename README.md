@@ -132,6 +132,76 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
   ./hack/test-shellspec.sh`
   ```
 
+## Testing Tasks
+
+When updating tasks, if the tasks doesn't have tests, try to add a few tests. Currently it is not mandatory, but is recommended.
+When a pull request is opened, CI will run the tests (if it exists) for the task directories that are being modified.
+[Github workflow](https://github.com/konflux-ci/build-definitions/blob/main/.github/workflows/run-task-tests.yaml) runs the tests.
+
+Tests are defined as Tekton Pipelines inside the `tests` subdirectory of the task directory. The test filenames must match `test-*.yaml` format and 
+a test file should contain a single Pipeline.
+
+E.g. to add a test pipeline for `task/git-clone/0.1` task, you can add a pipeline such as `task/git-clone/0.1/tests/test-git-clone-run-with-tag.yaml`
+
+Refer the task under test in a test pipeline by task name. For example:
+```
+  - name: run-task
+    taskRef:
+      name: git-clone
+```
+
+### Testing scenarios where the Task is expected to fail
+
+When testing Tasks, most tests will test a positive outcome. But sometimes it's desirable to test that a Task fails, for example when invalid data is supplied as input for the Task. But if the Task under test fails in the test Pipeline, the whole Pipeline will fail too. So we need a way to tell the test script that the given test Pipeline is expected to fail.
+
+You can do this by adding the annotation `test/assert-task-failure` to the test pipeline object. This annotation will specify which task `(.spec.tasks[*].name)` in the pipeline is expected to fail. For example:
+
+```
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: test-git-clone-fail-for-wrong-url
+  annotations:
+    test/assert-task-failure: "run-task"
+```
+When this annotation is present, the test script will test that the pipeline fails and also that it fails in the expected task.
+
+### Adding Workspaces
+
+Some tasks require one or multiple workspaces. This means that the test pipeline will also have to declare a workspace and bind it to the workspace(s) required by the task under test.
+
+Currently, the test script will pass a single workspace named `tests-workspace` mapping to a 10Mi volume when starting the pipelinerun.
+This workspace can be used in the test pipeline.
+
+### Test Setup 
+
+Some task tests will require setup on the kind cluster before the test pipeline can be run. Certain things can be done in a setup task step as part of the test pipeline, but others cannot. 
+In order to achieve this, a `pre-apply-task-hook.sh` script can be created in the `tests` directory for a task. When the CI runs the testing, it will first check for this file. If it is found, it is executed before the test pipeline.
+
+### Mocking commands executed in task scripts
+
+Mocking commands is possible similar to the release service catalog repository.
+For more details and example, refer [here](https://github.com/konflux-ci/release-service-catalog/blob/development/CONTRIBUTING.md#mocking-commands-executed-in-task-scripts).
+
+### Prerequisites for running task test locally
+
+- Upstream [konflux-ci installed](https://github.com/konflux-ci/konflux-ci?tab=readme-ov-file#bootstrapping-the-cluster) on a kind cluster
+- [tkn](https://github.com/tektoncd/cli) installed
+- jq installed
+
+You can run the test script locally and to run tests for a particular task, pass the task directories as arguments, e.g.
+```
+./.github/scripts/test_tekton_tasks.sh task/git-clone/0.1
+```
+This will install the task and run all test pipelines matching `tests/test-*.yaml` under task directory.
+
+Another option is to run one or more tests directly by specifying them as arguments:
+```
+./.github/scripts/test_tekton_tasks.sh tasks/git-clone/tests/test-git-clone-run-with-tag.yaml
+```
+It will then run only the specified test pipeline.
+
 ### Compliance
 
 Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.
