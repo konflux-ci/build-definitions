@@ -5,6 +5,8 @@
 
 - The unused `IMAGE_DIGEST` parameter has been removed.
 
+- The `sast-coverity-check` task now supports buildful SAST scanning, too.
+
 ## Action from users
 
 - The workspace for this task in the build pipeline should be renamed to `source`.
