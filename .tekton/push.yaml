@@ -148,6 +148,11 @@ spec:
                 value: "$(params.revision)"
               - name: GIT_URL
                 value: "$(params.git-url)"
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: "{{ git_auth_secret }}"
+                    key: "git-provider-token"
               script: |
                 #!/bin/bash
                 set -euo pipefail
