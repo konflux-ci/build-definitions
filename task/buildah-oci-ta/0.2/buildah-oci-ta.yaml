@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: 0.2.1
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -546,79 +546,6 @@ spec:
         capabilities:
           add:
             - SETFCAP
-    - name: sbom-syft-generate
-      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
-      workingDir: /var/workdir/source
-      volumeMounts:
-        - mountPath: /var/lib/containers
-          name: varlibcontainers
-        - mountPath: /shared
-          name: shared
-      script: |
-        echo "Running syft on the source directory"
-        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
-        echo "Running syft on the image filesystem"
-        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
-      computeResources:
-        limits:
-          cpu: "2"
-          memory: 4Gi
-        requests:
-          cpu: 500m
-          memory: 1Gi
-    - name: analyse-dependencies-java-sbom
-      image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-      volumeMounts:
-        - mountPath: /var/lib/containers
-          name: varlibcontainers
-        - mountPath: /shared
-          name: shared
-      script: |
-        if [ -f /var/lib/containers/java ]; then
-          /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
-          sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
-        else
-          touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
-        fi
-      computeResources:
-        limits:
-          cpu: 200m
-          memory: 512Mi
-        requests:
-          cpu: 100m
-          memory: 256Mi
-      securityContext:
-        runAsUser: 0
-    - name: prepare-sboms
-      image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:11851ba63f63dfdcf722e47993f41a1f5f31a7a0dc8aa85b810ce2466daf23af
-      workingDir: /var/workdir
-      script: |
-        echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
-        python3 /scripts/merge_syft_sboms.py
-
-        if [ -f "sbom-cachi2.json" ]; then
-          echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-          python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json >sbom-temp.json
-          mv sbom-temp.json sbom-cyclonedx.json
-        fi
-
-        echo "Creating sbom-purl.json"
-        python3 /scripts/create_purl_sbom.py
-
-        echo "Adding base images data to sbom-cyclonedx.json"
-        python3 /scripts/base_images_sbom_script.py \
-          --sbom=sbom-cyclonedx.json \
-          --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
-          --base-images-digests=/shared/base_images_digests
-      computeResources:
-        limits:
-          cpu: 200m
-          memory: 512Mi
-        requests:
-          cpu: 100m
-          memory: 256Mi
-      securityContext:
-        runAsUser: 0
     - name: push
       image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
       workingDir: /var/workdir
@@ -687,6 +614,91 @@ spec:
         capabilities:
           add:
             - SETFCAP
+        runAsUser: 0
+    - name: sbom-syft-generate
+      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: /shared
+          name: shared
+      script: |
+        echo "Running syft on the source directory"
+        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
+        echo "Running syft on the image filesystem"
+        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
+      computeResources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+    - name: analyse-dependencies-java-sbom
+      image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: /shared
+          name: shared
+      script: |
+        if [ -f /var/lib/containers/java ]; then
+          /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s /var/workdir/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+          sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
+        else
+          touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
+        fi
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      securityContext:
+        runAsUser: 0
+    - name: prepare-sboms
+      image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:11851ba63f63dfdcf722e47993f41a1f5f31a7a0dc8aa85b810ce2466daf23af
+      workingDir: /var/workdir
+      script: |
+        echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
+        python3 /scripts/merge_syft_sboms.py
+
+        if [ -f "sbom-cachi2.json" ]; then
+          echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
+          python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json >sbom-temp.json
+          mv sbom-temp.json sbom-cyclonedx.json
+        fi
+
+        echo "Creating sbom-purl.json"
+        python3 /scripts/create_purl_sbom.py
+
+        echo "Adding base images data to sbom-cyclonedx.json"
+        python3 /scripts/base_images_sbom_script.py \
+          --sbom=sbom-cyclonedx.json \
+          --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
+          --base-images-digests=/shared/base_images_digests
+
+        echo "Adding image reference to sbom"
+        IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+        IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+        python3 /scripts/add_image_reference.py \
+          --image-url "$IMAGE_URL" \
+          --image-digest "$IMAGE_DIGEST" \
+          --input-file sbom-cyclonedx.json \
+          --output-file /tmp/sbom-cyclonedx.tmp.json
+
+        mv /tmp/sbom-cyclonedx.tmp.json sbom-cyclonedx.json
+      computeResources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      securityContext:
         runAsUser: 0
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
