@@ -719,7 +719,7 @@ spec:
         cpu: "1"
         memory: 1Gi
     image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
-    name: inject-sbom-and-push
+    name: push
     script: |
       #!/bin/bash
       set -e
@@ -748,19 +748,6 @@ spec:
         update-ca-trust
       fi
 
-      base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' $IMAGE | cut -f1 -d'@')
-      base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' $IMAGE)
-      container=$(buildah from --pull-never $IMAGE)
-      buildah copy $container sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
-      buildah config -a org.opencontainers.image.base.name=${base_image_name} -a org.opencontainers.image.base.digest=${base_image_digest} $container
-
-      BUILDAH_ARGS=()
-      if [ "${SQUASH}" == "true" ]; then
-        BUILDAH_ARGS+=("--squash")
-      fi
-
-      buildah commit "${BUILDAH_ARGS[@]}" $container $IMAGE
-
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
       if ! retry buildah push \
         --tls-verify="$TLSVERIFY" \
@@ -787,12 +774,6 @@ spec:
         echo -n "${IMAGE}@"
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
-
-      # Remove tag from IMAGE while allowing registry to contain a port number.
-      sbom_repo="${IMAGE%:*}"
-      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
-      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
-      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     securityContext:
       capabilities:
         add:
@@ -816,11 +797,7 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
-      set -e
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -829,6 +806,12 @@ spec:
       fi
 
       cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca
