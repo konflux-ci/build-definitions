@@ -6,7 +6,7 @@ metadata:
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: 0.2.1
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -622,6 +622,81 @@ spec:
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    name: push
+    script: |
+      #!/bin/bash
+      set -e
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+
+      retry () {
+        status=-1
+        max_run=5
+        sleep_sec=10
+
+        for run in $(seq 1 $max_run); do
+          status=0
+          [ "$run" -gt 1 ] && sleep $sleep_sec
+          "$@" && break || status=$?
+        done
+        return $status
+      }
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+      if ! retry buildah push \
+        --tls-verify="$TLSVERIFY" \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)";
+      then
+        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${max_run} tries"
+        exit 1
+      fi
+
+      echo "Pushing to ${IMAGE}"
+      if ! retry buildah push \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
+        "docker://$IMAGE";
+      then
+        echo "Failed to push sbom image to $IMAGE after ${max_run} tries"
+        exit 1
+      fi
+
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF.path)"
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  - computeResources:
+      limits:
         cpu: "2"
         memory: 4Gi
       requests:
@@ -708,83 +783,20 @@ spec:
         --sbom=sbom-cyclonedx.json \
         --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
         --base-images-digests=/shared/base_images_digests
+
+      echo "Adding image reference to sbom"
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+      python3 /scripts/add_image_reference.py \
+        --image-url "$IMAGE_URL" \
+        --image-digest "$IMAGE_DIGEST" \
+        --input-file sbom-cyclonedx.json \
+        --output-file /tmp/sbom-cyclonedx.tmp.json
+
+      mv /tmp/sbom-cyclonedx.tmp.json sbom-cyclonedx.json
     securityContext:
       runAsUser: 0
-    workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: "4"
-        memory: 4Gi
-      requests:
-        cpu: "1"
-        memory: 1Gi
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
-    name: push
-    script: |
-      #!/bin/bash
-      set -e
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
-
-      retry () {
-        status=-1
-        max_run=5
-        sleep_sec=10
-
-        for run in $(seq 1 $max_run); do
-          status=0
-          [ "$run" -gt 1 ] && sleep $sleep_sec
-          "$@" && break || status=$?
-        done
-        return $status
-      }
-
-      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
-      if [ -f "$ca_bundle" ]; then
-        echo "INFO: Using mounted CA bundle: $ca_bundle"
-        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
-        update-ca-trust
-      fi
-
-      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-      if ! retry buildah push \
-        --tls-verify="$TLSVERIFY" \
-        "$IMAGE" \
-        "docker://${IMAGE%:*}:$(context.taskRun.name)";
-      then
-        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${max_run} tries"
-        exit 1
-      fi
-
-      echo "Pushing to ${IMAGE}"
-      if ! retry buildah push \
-        --tls-verify="$TLSVERIFY" \
-        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
-        "docker://$IMAGE";
-      then
-        echo "Failed to push sbom image to $IMAGE after ${max_run} tries"
-        exit 1
-      fi
-
-      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
-      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
-      {
-        echo -n "${IMAGE}@"
-        cat "$(workspaces.source.path)/image-digest"
-      } > "$(results.IMAGE_REF.path)"
-    securityContext:
-      capabilities:
-        add:
-        - SETFCAP
-      runAsUser: 0
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    - mountPath: /mnt/trusted-ca
-      name: trusted-ca
-      readOnly: true
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
