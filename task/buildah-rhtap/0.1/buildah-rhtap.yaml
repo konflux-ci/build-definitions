@@ -103,6 +103,13 @@ spec:
         --digestfile /tmp/files/image-digest $IMAGE \
         docker://$IMAGE
 
+      # Push the image to a unique tag to avoid race conditions
+      buildah push \
+        --tls-verify="$TLSVERIFY" \
+        --retry=5 \
+        --digestfile /tmp/files/image-digest "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)"
+
       # Set task results
       buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' | grep -v $IMAGE > $(results.BASE_IMAGES_DIGESTS.path)
       cat /tmp/files/image-digest | tee $(results.IMAGE_DIGEST.path)
