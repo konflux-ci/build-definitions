@@ -12,7 +12,7 @@ spec:
   description: "Computes a set of expressions based on the changed files in the
   pipeline, used to determine which tasks to run"
   params:
-    - name: pr_number
+    - name: revision
       type: string
     - name: utils_image
       type: string
@@ -46,8 +46,10 @@ spec:
 
         ec opa check --v1-compatible "${rules}"
 
+        pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
+
         ec opa eval --v1-compatible --data "${rules}" --input \
-        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/$(params.pr_number)" --json files --jq '[.files.[].path']) \
+        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
         'data[_]' \
         | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
         | tee "$(results.bindings.path)"
