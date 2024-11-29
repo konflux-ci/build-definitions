@@ -90,16 +90,31 @@ spec:
         fi
 
         echo -n "Looking for base image in SBOM"
-        echo " (.formulation[].components[] with 'konflux:container:is_base_image' property)"
+        [[ $(jq -r '.spdxVersion') != "" ]] && bomFormat="SPDX" || bomFormat="CDX"
         # Note: the SBOM should contain at most one image with the is_base_image property - the
         # base image for the last FROM instruction. That is the only base image we care about.
-        jq -r '
-            .formulation[]?
-            | .components[]?
-            | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
-            | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
-            | .name + "@" + $matched.digest
-        ' <<< "$sbom" | tee "$BASE_IMAGES_FILE"
+        if [ "$bomFormat" == "SPDX" ]; then
+            echo "SBOM is in SPDX format"
+            echo " (.packages[].annotations[] with 'konflux:container:is_base_image' property)"
+            jq -r '.packages.[]|select(.annotations) |
+                  select(.annotations.[].annotator == "Tool:konflux:jsonencoded") |
+                  select(.annotations.[].comment | fromjson |.name == "konflux:container:is_base_image") |
+                  .name as $name |
+                  .externalRefs[] | select(.referenceType == "purl") |
+                  (.referenceLocator | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched |
+                  $name + "@" + $matched.digest
+            ' <<< "$sbom" | tee "$BASE_IMAGES_FILE"
+        else
+          echo "SBOM is in CycloneDX format"
+          echo " (.formulation[].components[] with 'konflux:container:is_base_image' property)"
+          jq -r '
+              .formulation[]?
+              | .components[]?
+              | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
+              | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
+              | .name + "@" + $matched.digest
+          ' <<< "$sbom" | tee "$BASE_IMAGES_FILE"
+        fi
 
     - name: build
       image: quay.io/konflux-ci/source-container-build:latest@sha256:103d147cffaa3b2a9f687006d7dd956e89dac7644a878f1508168dcf12a0ec33
