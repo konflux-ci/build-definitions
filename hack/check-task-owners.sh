@@ -1,25 +1,37 @@
 #!/usr/bin/env bash
+set -o errexit -o nounset -o pipefail
 
-check_result=$(mktemp)
+shopt -s nullglob
 
-# Check the OWNERS file is present for each task
-find task/ -mindepth 1 -maxdepth 1 -type d | \
-    while read -r task_dir; do
-        owners_file="$task_dir/OWNERS"
-        if [ ! -e "$owners_file" ]; then
-            echo "error: missing owners file $owners_file" >>"$check_result"
-            continue
+codeowners_to_gitignore() {
+    # drop comments and the root '*' pattern, extract the pattern from each line
+    awk '/^[^#]/ && !/^\*\s/ { print $1 }' "$1"
+}
+
+temp_gitignore=$(mktemp --tmpdir "codeowners-gitignore.XXXX")
+trap 'rm "$temp_gitignore"' EXIT
+codeowners_to_gitignore CODEOWNERS > "$temp_gitignore"
+
+important_dirs=$(
+    for f in task/* stepactions/*; do
+        if [[ -d "$f" ]]; then
+            echo "$f"
         fi
-        approvers=$(yq '.approvers[]' $owners_file)
-        reviewers=$(yq '.reviwers[]' $owners_file)
-        if [ -z "$approvers" ] && [ -z "$reviewers" ]; then
-            echo "error: $task_dir/OWNERS don't have atleast 1 approver and 1 reviewer" >>"$check_result"
-        fi
-    done
+    done | sort
+)
 
-if [ -s "$check_result" ]; then
-    cat "$check_result"
-    echo "Please add OWNERS file with atleast 1 approver and 1 reviewer"
+codeowned_dirs=$(
+    # CODEOWNERS is roughly a .gitignore file, so check which dirs are "ignored" by CODEOWNERS
+    echo "$important_dirs" |
+    git -c "core.excludesFile=$temp_gitignore" check-ignore --no-index --stdin |
+    sort
+)
+
+missing_owners=$(comm -23 <(echo "$important_dirs") <(echo "$codeowned_dirs"))
+
+if [[ -n "$missing_owners" ]]; then
+    echo "Missing CODEOWNERS:" >&2
+    # shellcheck disable=SC2001 # can't use ${variable//search/replace} instead
+    sed 's/^/  /' <<< "$missing_owners" >&2
     exit 1
 fi
-
