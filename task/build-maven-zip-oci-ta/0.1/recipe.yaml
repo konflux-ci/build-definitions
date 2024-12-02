@@ -1,0 +1,14 @@
+---
+base: ../../build-maven-zip/0.1/build-maven-zip.yaml
+add:
+  - use-cachi2
+removeWorkspaces:
+  - source
+replacements:
+  workspaces.source.path: /var/workdir
+regexReplacements:
+  "/workspace(/.*)": /var/workdir$1
+description: |-
+    Build-maven-zip task builds prefetched maven artifacts into a OCI-artifact with zip bundle  and pushes the OCI-artifact into container registry.
+    In addition it will use the SBOM file in prefetch-task, pushes the SBOM file to same registry of zip oci-artifact using cosign tool.
+    Note that this task needs the output of prefetch-dependencies task. If it is not activated, there will not be any output from this task.
