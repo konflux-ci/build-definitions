@@ -1,0 +1,94 @@
+---
+- op: add
+  path: /spec/description
+  value: |
+    This pipeline will build the maven zip to oci-artifact while maintaining trust after pipeline customization.
+
+    _Uses `prefetch-dependencies` to fetch all artifacts which will be the content of the maven zip, and then uses `build-maven-zip-oci-ta` to create zip and push it to quay.io as oci-artifact. Information is shared between tasks using OCI artifacts instead of PVCs.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-maven-zip-build-oci-ta?tab=tags)_
+- op: replace
+  path: /metadata/name
+  value: maven-zip-build-oci-ta
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "generic"
+    "pipelines.openshift.io/strategy": "maven-zip"
+# clone-repository Task
+- op: replace
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).git
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/1/workspaces/0
+# prefetch-dependencies Task
+- op: replace
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).prefetch
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/2/workspaces/0
+- op: remove
+  path: /spec/tasks/2/when
+# Replace build-maven-zip task by build-maven-zip-oci-ta task
+- op: replace
+  path: /spec/tasks/3/taskRef
+  value:
+    name: build-maven-zip-oci-ta
+    version: "0.1"
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/3/workspaces/0
+# sast-snyk-check
+- op: replace
+  path: /spec/tasks/4/taskRef/name
+  value: sast-snyk-check-oci-ta
+- op: add
+  # In the maven-zip-build Pipeline, the snyk Task does not receive any parameters, so we cannot
+  # append to it.
+  path: /spec/tasks/4/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/4/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/4/workspaces/0
+# show-summary
+# This Task relies on a shared workspace for some of its functionality. Although optional, it raises
+# the question of how valuable this Task actually is. Rather than add Trusted Artifacts support for
+# this Task, we are taking the approach of just removing it altogether. Additional context on this
+# decision can be found in https://issues.redhat.com/browse/EC-643.
+- op: remove
+  path: /spec/finally/1
