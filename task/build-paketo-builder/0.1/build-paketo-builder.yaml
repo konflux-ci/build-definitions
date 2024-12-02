@@ -169,7 +169,6 @@ spec:
           export PODMAN_PORT_FORWARD=""
           
           echo "### rsync folders from pod to VM ..."
-          #rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
           rsync -ra "/var/workdir/"            "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
           rsync -ra "/shared/"                 "$SSH_HOST:$BUILD_DIR/volumes/shared/"
           rsync -ra "/mnt/trusted-ca/"         "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
@@ -283,7 +282,6 @@ spec:
             scripts/script-post-build.sh
           
           echo "### rsync folders from VM to pod"
-          #rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" "$(workspaces.source.path)/"
           rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
           rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/"  "/shared/"
           rsync -ra "$SSH_HOST:$BUILD_DIR/results/"         "/tekton/results/"
