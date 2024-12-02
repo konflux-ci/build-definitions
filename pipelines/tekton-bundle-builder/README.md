@@ -91,20 +91,43 @@
 |image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
-### sast-coverity-check:0.1 task parameters
+### sast-coverity-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
+|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
+|BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| |
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | |
+|COMMIT_SHA| The image is built from this commit.| | |
+|CONTEXT| Path to the directory to use as context.| .| |
 |COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
 |COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| |
+|ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
+|HERMETIC| Determines if build will be executed without network access.| false| |
+|IMAGE| Reference of the image buildah will produce.| None| |
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |KFP_GIT_URL| URL from repository to download known false positives files| | |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
-|RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
+|LABELS| Additional key=value labels that should be applied to the image| []| |
+|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | |
+|PRIVILEGED_NESTED| Whether to enable privileged mode| false| |
+|PROJECT_NAME| | | |
+|RECORD_EXCLUDED| | false| |
+|SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| cyclonedx| |
+|SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
+|SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
+|SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
+|STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
+|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
+|TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
+|YUM_REPOS_D_FETCHED| Path in source workspace where dynamically-fetched repos are present| fetched.repos.d| |
+|YUM_REPOS_D_SRC| Path in the git repository in which yum repository files are stored| repos.d| |
+|YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to report findings for.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-url| | None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### sast-unicode-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -143,9 +166,9 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| sast-coverity-check:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| sast-coverity-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| sast-coverity-check:0.2:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -170,7 +193,7 @@
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-coverity-check:0.1 task results
+### sast-coverity-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -190,7 +213,7 @@
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-coverity-check:0.1:workspace ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-coverity-check:0.2:source ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -208,10 +231,10 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
-### sast-coverity-check:0.1 task workspaces
+### sast-coverity-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|workspace| | False| workspace|
+|source| Workspace containing the source code to build.| False| workspace|
 ### sast-unicode-check:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
