@@ -1,6 +1,6 @@
-# build-paketo-ubi-builder task
+# build-paketo-builder task
 
-The `build-paketo-ubi-builder` task builds the [ubi builder image](https://github.com/paketo-community/builder-ubi-base) for paketo using as input the [builder.toml](https://buildpacks.io/docs/reference/config/builder-config/) file. The image is build using the pack tool packaged part of the [paketo-container](https://github.com/konflux-ci/paketo-container/) image.
+The `build-paketo-builder` task builds a builder image (e.g. https://github.com/paketo-community/builder-ubi-base) for paketo using as input the [builder.toml](https://buildpacks.io/docs/reference/config/builder-config/) file. The image is build using the pack tool packaged part of the [paketo-container](https://github.com/konflux-ci/paketo-container/) image.
 The task also produces the SBOM which is signed and added to the image.
 
 ## Parameters
