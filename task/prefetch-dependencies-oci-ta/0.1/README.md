@@ -26,6 +26,7 @@ params:
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
+|ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
