@@ -637,19 +637,6 @@ spec:
         export IMAGE
       fi
 
-      retry () {
-        status=-1
-        max_run=5
-        sleep_sec=10
-
-        for run in $(seq 1 $max_run); do
-          status=0
-          [ "$run" -gt 1 ] && sleep $sleep_sec
-          "$@" && break || status=$?
-        done
-        return $status
-      }
-
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -657,23 +644,28 @@ spec:
         update-ca-trust
       fi
 
+      retries=5
+      # Push to a unique tag based on the TaskRun name to avoid race conditions
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-      if ! retry buildah push \
+      if ! buildah push \
+        --retry "$retries" \
         --tls-verify="$TLSVERIFY" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:$(context.taskRun.name)";
       then
-        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${max_run} tries"
+        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
         exit 1
       fi
 
+      # Push to a tag based on the git revision
       echo "Pushing to ${IMAGE}"
-      if ! retry buildah push \
+      if ! buildah push \
+        --retry "$retries" \
         --tls-verify="$TLSVERIFY" \
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE";
       then
-        echo "Failed to push sbom image to $IMAGE after ${max_run} tries"
+        echo "Failed to push sbom image to $IMAGE after ${retries} tries"
         exit 1
       fi
 
