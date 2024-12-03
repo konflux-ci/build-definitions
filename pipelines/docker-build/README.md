@@ -136,6 +136,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |config-file-content| Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
