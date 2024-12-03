@@ -241,7 +241,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: prepare
-      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:4c17d06f245d124bed3f8f50085144d5237fd09e9c72897fde84a694780c65de
+      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:515130a2152e182a05dd6f0d2db8a3f0a77d86c0d591ca305a128ea29e038521
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -312,7 +312,7 @@ spec:
         # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
         cstrans-df-run --verbose /shared/cmd-wrap.sh <"$dockerfile_path" >/shared/Containerfile
     - name: build
-      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:4c17d06f245d124bed3f8f50085144d5237fd09e9c72897fde84a694780c65de
+      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:515130a2152e182a05dd6f0d2db8a3f0a77d86c0d591ca305a128ea29e038521
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -638,7 +638,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:4c17d06f245d124bed3f8f50085144d5237fd09e9c72897fde84a694780c65de
+      image: quay.io/redhat-user-workloads/sast-tenant/sast-scanner/coverity@sha256:515130a2152e182a05dd6f0d2db8a3f0a77d86c0d591ca305a128ea29e038521
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
