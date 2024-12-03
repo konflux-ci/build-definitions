@@ -5,17 +5,18 @@ See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
 
 ## Configuration
 
-Config file must be passed as a YAML string. For all available config options please check [available configuration parameters] page.
+Config file must be passed as a YAML string. For all available config options please check
+[available configuration parameters] page.
 
 Example of setting timeouts:
 
 ```yaml
 params:
-    - name: config-file-content
-      value: |
-         ---
-         requests_timeout: 300
-         subprocess_timeout: 3600
+  - name: config-file-content
+    value: |
+      ---
+      requests_timeout: 300
+      subprocess_timeout: 3600
 ```
 
 [available configuration parameters]: https://github.com/containerbuildsystem/cachi2?tab=readme-ov-file#available-configuration-parameters
@@ -29,6 +30,7 @@ params:
 |config-file-content|Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! |""|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 
 ## Workspaces
 |name|description|optional|

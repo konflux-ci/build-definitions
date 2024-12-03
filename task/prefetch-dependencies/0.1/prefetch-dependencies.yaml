@@ -53,6 +53,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: ACTIVATION_KEY
+    default: activation-key
+    description: Name of secret which contains subscription activation key
+    type: string
 
   stepTemplate:
     env:
@@ -61,7 +65,8 @@ spec:
     volumeMounts:
       - name: config
         mountPath: /mnt/config
-
+      - mountPath: /shared
+        name: shared
   steps:
   - name: sanitize-cachi2-config-file-with-yq
     image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
@@ -74,13 +79,164 @@ spec:
         yq 'del(.goproxy_url)' <<< "${CONFIG_FILE_CONTENT}" > /mnt/config/config.yaml
       fi
 
-  - image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+  - name: check-prefetch-input
+    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
-    name: prefetch-dependencies
     env:
     - name: INPUT
       value: $(params.input)
+    script: |
+      if [ -z "${INPUT}" ]
+      then
+        # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
+        echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
+        echo "skip" > /shared/skip
+      fi
+
+  - name: register-red-hat
+    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    env:
+    - name: INPUT
+      value: $(params.input)
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
+    volumeMounts:
+    - mountPath: /activation-key
+      name: activation-key
+    results:
+    - name: registered
+      type: string
+    script: |
+      #!/bin/bash
+      if [ -f /shared/skip ]; then
+        echo "Skipping."
+        exit 0
+      fi
+
+      echo "false" > /shared/registered
+      ACTIVATION_KEY_PATH="/activation-key"
+
+      mkdir -p /shared/rhsm/entitlement
+      mkdir -p /shared/rhsm/consumer
+
+      if [ -e /activation-key/org ]; then
+        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+
+        echo "Registering with Red Hat subscription manager."
+        subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+
+        # copy generated certificates to /shared/rhsm
+        cp /etc/pki/entitlement/*.pem /shared/rhsm/entitlement/
+        cp /etc/pki/consumer/*.pem /shared/rhsm/consumer/
+
+        file="$(find /shared/rhsm/entitlement -regextype egrep -regex '.*[0-9]+\.pem' -printf %f)"
+        echo "file: $file"
+        basename "$file" .pem > /shared/RHSM_ID
+        echo "./RHSM_ID:"
+        cat /shared/RHSM_ID
+
+        # trust the CA used for Red Hat CDN
+        cp /etc/rhsm-host/ca/redhat-uep.pem /shared/rhsm/redhat-uep.pem
+      fi
+
+  - name: preprocess-input
+    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+
+    env:
+    - name: INPUT
+      value: $(params.input)
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
+    args: ["$(params.input)"]
+    script: |
+      #!/bin/python3
+      import json
+      import os
+      import sys
+
+
+      def string_to_json(input: str):
+          if input in ['bundler', 'generic', 'gomod', 'npm', 'pip', 'rpm', 'yarn-classic', 'yarn']:
+              input = '{"type": "%s"}' % input
+              print("json: %s" % input)
+          return input
+
+
+      def json_to_list(input: str):
+          input = json.loads(input)
+          if type(input) is dict:
+              input = [input]
+          return json.dumps(input)
+
+
+      def inject_certs(input: str, rhsm_id: str):
+          input_list: list = json.loads(input)
+
+          cert = ("/shared/rhsm/entitlement/%s.pem" % rhsm_id)
+          key = ("/shared/rhsm/entitlement/%s-key.pem" % rhsm_id)
+          ca_bundle = os.getenv("CA_BUNDLE", None)
+          for pkg_man in input_list:
+              if pkg_man["type"] == "rpm":
+
+                  # preserve verify setting
+                  verify = \
+                      pkg_man.get("options", {}).get("ssl", {}).get("ssl_verify", 1)
+
+                  # preserve other options
+                  options: dict = pkg_man.get('options', {})
+
+                  ssl_options = {
+                      "client_key": key,
+                      "client_cert": cert,
+                      "ca_bundle": ca_bundle,
+                      "ssl_verify": verify}
+
+                  options['ssl'] = ssl_options
+                  pkg_man["options"] = options
+          return (json.dumps(input_list))
+
+
+      def convert_input(input, rhsm_id):
+          input = string_to_json(input)
+          input = json_to_list(input)
+          input = inject_certs(input, rhsm_id)
+          return input
+
+
+      if __name__ == '__main__':
+
+          if os.path.isfile("/shared/skip"):
+              sys.exit()
+
+          rhsm_id = ""
+          input = ""
+
+          try:
+              f = open("/shared/RHSM_ID", "r")
+              rhsm_id = f.read().strip("\n")
+          except FileNotFoundError:
+              print("No RHSM ID found.")
+
+          if rhsm_id == "":
+              input = sys.argv[1]
+          else:
+              print("RHSM Cert ID is: %s" % rhsm_id)
+              print("Called with args: %s" % str(sys.argv))
+              input = convert_input(sys.argv[1], rhsm_id)
+
+          print("Preprocessing result: %s" % input)
+          with open('/shared/rhsm/preprocessed_input', 'w') as f:
+              f.write(input)
+
+
+  - name: prefetch-dependencies
+    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    env:
     - name: DEV_PACKAGE_MANAGERS
       value: $(params.dev-package-managers)
     - name: LOG_LEVEL
@@ -97,11 +253,13 @@ spec:
       - name: trusted-ca
         mountPath: /mnt/trusted-ca
         readOnly: true
+      - mountPath: /activation-key
+        name: activation-key
     script: |
-      if [ -z "${INPUT}" ]
-      then
-        # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
-        echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
+      #!/bin/bash
+
+      if [ -f /shared/skip ]; then
+        echo "Skipping."
         exit 0
       fi
 
@@ -115,6 +273,16 @@ spec:
         dev_pacman_flag=--dev-package-managers
       else
         dev_pacman_flag=""
+      fi
+
+      INPUT=$(cat /shared/rhsm/preprocessed_input)
+      export INPUT
+
+      # trust Red Hat CA cert used for Red Hat CDN
+      if [ -f /shared/rhsm/redhat-uep.pem ]; then
+        echo "Adding Red Hat CA certificate to trusted roots."
+        cp /shared/rhsm/redhat-uep.pem /etc/pki/ca-trust/source/anchors/
+        update-ca-trust
       fi
 
       # Copied from https://github.com/konflux-ci/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
@@ -159,6 +327,22 @@ spec:
 
       cachi2 --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output
+
+  - name: unregister-rhsm
+    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    script: |
+      #!/bin/bash
+      if [ -f /shared/skip ]; then
+        echo "Skipping."
+        exit 0
+      fi
+
+      cp /shared/rhsm/consumer/* /etc/pki/consumer/
+      cp /shared/rhsm/entitlement/* /etc/pki/entitlement/
+      subscription-manager unregister || true
+
   workspaces:
   - name: source
     description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well
@@ -175,6 +359,14 @@ spec:
       performing http(s) requests.
     optional: true
   volumes:
+    - name: shared
+      emptyDir: {}
+    - name: etc-pki-entitlement
+      emptyDir: {}
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
     - name: trusted-ca
       configMap:
         name: $(params.caTrustConfigMapName)
