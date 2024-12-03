@@ -238,6 +238,45 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: sast-coverity-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+        - input: $(tasks.coverity-availability-check.results.STATUS)
+          operator: in
+          values: ["success"]
+      runAfter:
+        - coverity-availability-check
+      taskRef:
+        name: sast-coverity-check
+        version: "0.1"
+      params:
+        - name: image-digest
+          value: $(tasks.build-container.results.IMAGE_DIGEST)
+        - name: image-url
+          value: $(tasks.build-container.results.IMAGE_URL)
+      workspaces:
+        - name: workspace
+          workspace: workspace
+    - name: coverity-availability-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+      runAfter:
+        - build-image-index
+      taskRef:
+        name: coverity-availability-check
+        version: "0.1"
+      params:
+        - name: image-digest
+          value: $(tasks.build-container.results.IMAGE_DIGEST)
+        - name: image-url
+          value: $(tasks.build-container.results.IMAGE_URL)
+      workspaces:
+        - name: workspace
+          workspace: workspace
     - name: apply-tags
       runAfter:
         - build-image-index
