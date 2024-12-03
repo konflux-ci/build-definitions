@@ -117,6 +117,7 @@
     value: |-
       /opt:/opt
       /shared:/shared
+      /shared/license.dat:/opt/coverity/bin/license.dat
       /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
 
 # Add prepare step
@@ -164,7 +165,7 @@
       install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
 
       # pre-create directory for SAST scaning results
-      mkdir "/shared/sast-results"
+      install -vm1777 -d /shared/sast-results
 
       # create a wrapper script to instrument RUN lines
       tee /shared/cmd-wrap.sh << EOF
@@ -180,9 +181,6 @@
       # wrap the RUN command with "coverity capture"
       /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" -- "\$@"
       EC=\$?
-
-      # install Coverity license file
-      install -vm0644 /{shared,opt/coverity/bin}/license.dat
 
       # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
       /opt/coverity/bin/cov-analyze --dir=/tmp/idir $COV_ANALYZE_ARGS
