@@ -30,8 +30,10 @@
 #   8  ecosystem-cert-preflight-checks
 #   9  sast-snyk-check
 #  10  clamav-scan
-#  11  apply-tags
-#  12  push-dockerfile
+#  11  coverity-availability-check
+#  12  sast-coverity-check
+#  13  apply-tags
+#  14  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -127,17 +129,51 @@
 - op: remove
   path: /spec/tasks/9/workspaces/0
 
-# push-dockerfile
+# sast-coverity-check
+- op: replace
+  path: /spec/tasks/11/taskRef/name
+  value: sast-coverity-check-oci-ta
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/11/workspaces/0
+
+# coverity-availability-check
 - op: replace
   path: /spec/tasks/12/taskRef/name
-  value: push-dockerfile-oci-ta
+  value: coverity-availability-check-oci-ta
 - op: add
   path: /spec/tasks/12/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/12/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/12/workspaces/0
+
+# push-dockerfile
+- op: replace
+  path: /spec/tasks/14/taskRef/name
+  value: push-dockerfile-oci-ta
+- op: add
+  path: /spec/tasks/14/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/14/workspaces/0
 
 # Order of finally Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0

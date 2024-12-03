@@ -85,6 +85,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |docker-auth| unused| | |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### coverity-availability-check-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 ### deprecated-image-check:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -159,6 +166,22 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
+### sast-coverity-check-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
+|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
+|KFP_GIT_URL| URL from repository to download known false positives files| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to report findings for.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### sast-snyk-check-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -202,9 +225,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### buildah-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| |
+|IMAGE_DIGEST| Digest of the image just built| sast-coverity-check:0.1:image-digest ; coverity-availability-check:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.1:IMAGES|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.1:IMAGES ; sast-coverity-check:0.1:image-url ; coverity-availability-check:0.1:image-url|
 |JAVA_COMMUNITY_DEPENDENCIES| The Java dependencies that came from community sources such as Maven central.| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 |SBOM_JAVA_COMPONENTS_COUNT| The counting of Java components by publisher in JSON format| |
@@ -220,6 +243,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
+### coverity-availability-check-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|STATUS| Tekton task simple status to be later checked| |
+|TEST_OUTPUT| Tekton task result output.| |
 ### deprecated-image-check:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -246,8 +274,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.2:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.2:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.2:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.2:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.2:CACHI2_ARTIFACT ; sast-coverity-check:0.1:CACHI2_ARTIFACT ; coverity-availability-check:0.1:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.2:SOURCE_ARTIFACT ; sast-coverity-check:0.1:SOURCE_ARTIFACT ; coverity-availability-check:0.1:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
 ### push-dockerfile-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -257,6 +285,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
+|TEST_OUTPUT| Tekton task test output.| |
+### sast-coverity-check-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
 ### sast-snyk-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

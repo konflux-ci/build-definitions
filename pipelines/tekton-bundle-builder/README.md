@@ -5,25 +5,18 @@
 |---|---|---|---|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.1:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; build-image-index:0.1:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT ; push-dockerfile:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 
 ## Available params from tasks
-### apply-tags:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
-|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### build-image-index:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -72,6 +65,37 @@
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+### push-dockerfile:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ARTIFACT_TYPE| Artifact type of the Dockerfile image.| application/vnd.konflux.dockerfile| |
+|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
+|DOCKERFILE| Path to the Dockerfile.| ./Dockerfile| '$(params.dockerfile)'|
+|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
+### rpms-signature-scan:0.2 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
+### sast-coverity-check:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
+|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
+|KFP_GIT_URL| URL from repository to download known false positives files| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to report findings for.| None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-container.results.IMAGE_URL)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -99,9 +123,9 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| |
+|IMAGE_DIGEST| Digest of the image just built| push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| apply-tags:0.1:IMAGE|
+|IMAGE_URL| Image repository and tag where the built image was pushed| push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -116,19 +140,33 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+### push-dockerfile:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
+### rpms-signature-scan:0.2 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|RPMS_DATA| Information about signed and unsigned RPMs| |
+|TEST_OUTPUT| Tekton task test output.| |
+### sast-coverity-check:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
 ### tkn-bundle:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the image just built| |
+|IMAGE_DIGEST| Digest of the image just built| sast-coverity-check:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.1:IMAGES|
+|IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.1:IMAGES ; sast-coverity-check:0.1:image-url|
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-coverity-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -142,6 +180,14 @@
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, cachi2 artifacts will be stored on the workspace as well| False| workspace|
+### push-dockerfile:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
+### sast-coverity-check:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| | False| workspace|
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
