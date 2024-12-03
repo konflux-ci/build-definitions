@@ -5,6 +5,10 @@ set -e -o pipefail
 VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
 
+# https://reproducible-builds.org/docs/source-date-epoch/
+SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+BUILD_DATE="$(date --utc --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y-%m-%d)"
+
 function is_official_repo() {
     # match e.g.
     #   redhat-appstudio-tekton-catalog
@@ -171,6 +175,7 @@ do
       ANNOTATIONS=()
       ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
       ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
+      ANNOTATIONS+=("org.opencontainers.image.created=${SOURCE_DATE_EPOCH}")
       ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
       # Ensure an empty string is set rather than string "null" if the version label is not present
       concrete_task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "$prepared_task_file" | sed '/null/d')
