@@ -1,0 +1,143 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: StepAction
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: fips-operator-check-step-action
+spec:
+  description: >-
+    This stepAction scans relatedImages of operator bundle image builds for FIPS compliance using the check-payload tool.
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  image: quay.io/redhat-appstudio/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+  securityContext:
+    capabilities:
+      add:
+        - SETFCAP
+  script: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # shellcheck source=/dev/null
+    . /utils.sh
+
+    success_counter=0
+    warnings_counter=0
+    error_counter=0
+    failure_counter=0
+
+    if [ ! -e "/tekton/home/unique_related_images.txt" ]; then
+      echo "No relatedImages to process"
+      exit 0
+    fi
+
+    related_images=$(cat /tekton/home/unique_related_images.txt)
+    echo "Related images are : ${related_images}"
+
+    # If target OCP version is found, use it to apply the exception list when running check-payload
+    check_payload_version=""
+    if [ -f "/tekton/home/target_ocp_version.txt" ]; then
+      version=$(cat "/tekton/home/target_ocp_version.txt")
+      check_payload_version="-V=${version}"
+      echo "Target OCP version found: ${check_payload_version}"
+    fi
+
+    # Check if an image to mirror map is defined for unreleased images
+    image_mirror_map=""
+    if [ -f "/tekton/home/related-images-map.txt" ]; then
+      image_mirror_map=$(cat "/tekton/home/related-images-map.txt")
+      echo "Image Mirror Map found: ${image_mirror_map}"
+    fi
+
+    for related_image in ${related_images}; do
+      echo "Processing related image : ${related_image}"
+
+      # Replace original pullspec with mirror, if present
+      if [ -n "${image_mirror_map}" ]; then
+        reg_and_repo=$(echo "${related_image}" | sed -E 's/^([^:@]+).*$/\1/')
+        first_mirror=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][0]')
+        if [ "$first_mirror" != "null" ]; then
+          replaced_image=$(replace_image_pullspec "$related_image" "$first_mirror")
+          echo "Replacing $related_image with $replaced_image"
+          related_image="$replaced_image"
+        fi
+      fi
+
+      if ! image_labels=$(get_image_labels "${related_image}"); then
+        echo "Error: Could not inspect image ${related_image} for labels"
+        error_counter=$((error_counter + 1))
+        continue
+      fi
+      component_label=$(echo "${image_labels}" | grep 'com.redhat.component=' | cut -d= -f2 || true)
+      echo "Component label is ${component_label}"
+
+      if [ -z "${component_label}" ]; then
+        echo "Error: Could not get com.redhat.component label for ${related_image}"
+        error_counter=$((error_counter + 1))
+        continue
+      fi
+
+      # Convert image to OCI format since umoci can only handle the OCI format
+      if ! skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}:latest"; then
+        echo "Error: Could not convert image ${related_image} to OCI format"
+        error_counter=$((error_counter + 1))
+        continue
+      fi
+
+      # Unpack OCI image
+      if ! umoci raw unpack --rootless \
+          --image "/tekton/home/${component_label}:latest" \
+          "/tekton/home/unpacked-${component_label}"; then
+        echo "Error: Could not unpack OCI image ${related_image}"
+        error_counter=$((error_counter + 1))
+        continue
+      fi
+
+      # Run check-payload on the unpacked image
+      # The check-payload command fails with exit 1 when the scan for an image is unsuccessful
+      # or when the image is not FIPS compliant. Hence, count those as failures and not errors
+      if ! check-payload scan local \
+          --path="/tekton/home/unpacked-${component_label}" \
+          "${check_payload_version}" \
+          --components="${component_label}" \
+          --output-format=csv \
+          --output-file="/tekton/home/report-${component_label}.csv"; then
+        echo "check-payload scan failed for ${related_image}"
+        failure_counter=$((failure_counter + 1))
+        continue
+      fi
+
+      if [ -f "/tekton/home/report-${component_label}.csv" ]; then
+        if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}.csv"; then
+          echo "check-payload scan was successful for ${related_image}"
+          success_counter=$((success_counter + 1))
+        elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}.csv"; then
+          echo "check-payload scan was successful with warnings for ${related_image}"
+          warnings_counter=$((warnings_counter + 1))
+        fi
+      fi
+
+    done
+
+    note="Task $(context.task.name) failed: Some images could not be scanned. For details, check Tekton task log."
+    ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+
+    note="Task $(context.task.name) completed: Check result for task result."
+    if [[ "$error_counter" == 0 ]];
+    then
+      if [[ "${failure_counter}" -gt 0 ]]; then
+        RES="FAILURE"
+      elif [[ "${warnings_counter}" -gt 0 ]]; then
+        RES="WARNING"
+      else
+        RES="SUCCESS"
+      fi
+      TEST_OUTPUT=$(make_result_json \
+        -r "${RES}" \
+        -s "${success_counter}" -f "${failure_counter}" -w "${warnings_counter}" -t "$note")
+    fi
+    echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(step.results.TEST_OUTPUT.path)"
