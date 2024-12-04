@@ -39,6 +39,13 @@
 |image-digest| Digest of the image to scan | None| '$(tasks.build-container.results.IMAGE_DIGEST)'|
 |insecure-skip-tls-verify| When set to `"true"`, skip verifying the TLS certs of the Central endpoint.  Defaults to `"false"`. | false| 'true'|
 |rox-secret-name| Secret containing the StackRox server endpoint and API token with CI permissions under rox-api-endpoint and rox-api-token keys. For example: rox-api-endpoint: rox.stackrox.io:443 ; rox-api-token: eyJhbGciOiJS... | None| '$(params.stackrox-secret)'|
+### apply-tags:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
+|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### buildah-rhtap:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -95,6 +102,17 @@
 |image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
+### sast-unicode-check:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
+|FIND_UNICODE_CONTROL_GIT_URL| URL from repository to find unicode control.| https://github.com/siddhesh/find-unicode-control.git#c2accbfbba7553a8bc1ebd97089ae08ad8347e58| |
+|KFP_GIT_URL| URL from repository to download known false positives files.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### show-sbom-rhdh:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -157,6 +175,10 @@
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
 |TEST_OUTPUT| Tekton task test output.| |
+### sast-unicode-check:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
 ### show-sbom-rhdh:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -166,7 +188,7 @@
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### acs-deploy-check:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -186,6 +208,10 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
+### sast-unicode-check:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| | False| workspace|
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
