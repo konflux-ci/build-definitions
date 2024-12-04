@@ -163,7 +163,7 @@ spec:
           echo "### Export different variables which are used within the script like args, etc"
           export BUILD_ARGS="$@"
           
-          ssh $SSH_ARGS "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+          ssh "$SSH_ARGS" "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
           
           export PORT_FORWARD=""
           export PODMAN_PORT_FORWARD=""
@@ -254,11 +254,11 @@ spec:
           rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
           
           echo "### Setup VM environment: podman, etc within the VM ..."
-          ssh $SSH_ARGS "$SSH_HOST" scripts/script-setup.sh
+          ssh "$SSH_ARGS" "$SSH_HOST" scripts/script-setup.sh
           
           # Adding security-opt to by pass: dial unix /workdir/podman.sock: connect: permission denied
-          ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman run $PODMAN_PORT_FORWARD \
-            -e BUILDER_IMAGE=$BUILDER_IMAGE \
+          ssh "$SSH_ARGS" "$SSH_HOST" "$PORT_FORWARD" podman run "$PODMAN_PORT_FORWARD" \
+            -e BUILDER_IMAGE="$BUILDER_IMAGE" \
             -e HERMETIC="$HERMETIC" \
             -e PLATFORM="$PLATFORM" \
             -e STORAGE_DRIVER="$STORAGE_DRIVER" \
@@ -276,7 +276,7 @@ spec:
             --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
           
           echo "### Execute post build steps within the VM ..."
-          ssh $SSH_ARGS "$SSH_HOST" \
+          ssh "$SSH_ARGS" "$SSH_HOST" \
             BUILD_DIR="$BUILD_DIR" \
             IMAGE="$IMAGE" \
             scripts/script-post-build.sh
@@ -471,7 +471,7 @@ spec:
           # The SBOM_BLOB_URL is created by `cosign attach sbom`.
           echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
           
-          cat "/shared"/BASE_IMAGES_DIGESTS | tee $(results.BASE_IMAGES_DIGESTS.path)
+          cat "/shared"/BASE_IMAGES_DIGESTS | tee "$(results.BASE_IMAGES_DIGESTS.path)"
         securityContext:
           capabilities:
             add:
