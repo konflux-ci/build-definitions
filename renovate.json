@@ -6,7 +6,10 @@
   "dependencyDashboard": false,
   "prConcurrentLimit": 20,
   "tekton": {
-    "fileMatch": ["\\.yaml$", "\\.yml$"],
+    "fileMatch": [
+      "\\.yaml$",
+      "\\.yml$"
+    ],
     "includePaths": [
       ".tekton/**",
       "task/**",
@@ -30,7 +33,14 @@
         "registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9"
       ],
       "groupName": "build",
-      "reviewers": ["mmorhun", "tkdchen", "rcerven", "mkosiarc", "brunoapimentel", "chmeliik"]
+      "reviewers": [
+        "mmorhun",
+        "tkdchen",
+        "rcerven",
+        "mkosiarc",
+        "brunoapimentel",
+        "chmeliik"
+      ]
     },
     {
       "matchPackagePrefixes": [
@@ -40,7 +50,10 @@
         "registry.redhat.io/openshift-pipelines/pipelines-cli-tkn-rhel8"
       ],
       "groupName": "ec",
-      "reviewers": ["zregvart", "lcarva"]
+      "reviewers": [
+        "zregvart",
+        "lcarva"
+      ]
     },
     {
       "matchPackageNames": [
@@ -49,14 +62,27 @@
         "quay.io/konflux-ci/clamav-db"
       ],
       "groupName": "integration",
-      "reviewers": ["dirgim", "hongweiliu17", "jsztuka", "Josh-Everett", " 14rcole", "chipspeak", "dheerajodha", "kasemAlem", "jencull", "sonam1412"]
+      "reviewers": [
+        "dirgim",
+        "hongweiliu17",
+        "jsztuka",
+        "Josh-Everett",
+        " 14rcole",
+        "chipspeak",
+        "dheerajodha",
+        "kasemAlem",
+        "jencull",
+        "sonam1412"
+      ]
     },
     {
       "matchPackageNames": [
         "quay.io/opdev/preflight"
       ],
       "groupName": "preflight",
-      "reviewers": ["skattoju"]
+      "reviewers": [
+        "skattoju"
+      ]
     },
     {
       "matchPackagePrefixes": [
@@ -64,13 +90,19 @@
         "registry.access.redhat.com",
         "docker.io"
       ],
-      "schedule": ["on monday and wednesday"],
+      "schedule": [
+        "on monday and wednesday"
+      ],
       "groupName": "shared"
     },
     {
       "groupName": "github-actions",
-      "matchManagers": ["github-actions"],
-      "schedule": ["on monday"]
+      "matchManagers": [
+        "github-actions"
+      ],
+      "schedule": [
+        "on monday"
+      ]
     },
     {
       "matchPackageNames": [
@@ -86,7 +118,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^task/[\\w-]+/[0-9.]+/[\\w-]+\\.yaml$"],
+      "fileMatch": [
+        "^task/[\\w-]+/[0-9.]+/[\\w-]+\\.yaml$"
+      ],
       "matchStrings": [
         "value: (?<depName>quay\\.io/konflux-ci/buildah[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
@@ -95,8 +129,12 @@
     },
     {
       "customType": "regex",
-      "fileMatch": [".github/workflows/run-task-tests.yaml"],
-      "matchStrings": ["ref:\\s+(?<currentDigest>[a-f0-9]{40})"],
+      "fileMatch": [
+        ".github/workflows/run-task-tests.yaml"
+      ],
+      "matchStrings": [
+        "ref:\\s+(?<currentDigest>[a-f0-9]{40})"
+      ],
       "currentValueTemplate": "main",
       "depNameTemplate": "konflux-ci",
       "packageNameTemplate": "https://github.com/konflux-ci/konflux-ci",
