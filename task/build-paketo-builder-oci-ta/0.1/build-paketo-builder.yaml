@@ -460,7 +460,7 @@ spec:
           echo "##########################################################################################"
           echo "## Save the different results"
           echo "##########################################################################################"
-          cat "/shared"/image-digest | tee "$(results.IMAGE_DIGEST.path)"
+          tee "$(results.IMAGE_DIGEST.path)" < /shared/image-digest
           echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
           {
             echo -n "${IMAGE}@"
@@ -473,7 +473,7 @@ spec:
           # The SBOM_BLOB_URL is created by `cosign attach sbom`.
           echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
           
-          cat "/shared"/BASE_IMAGES_DIGESTS | tee "$(results.BASE_IMAGES_DIGESTS.path)"
+          tee "$(results.BASE_IMAGES_DIGESTS.path)" < /shared/BASE_IMAGES_DIGESTS
         securityContext:
           capabilities:
             add:
