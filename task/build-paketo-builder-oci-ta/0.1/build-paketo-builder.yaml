@@ -163,7 +163,7 @@ spec:
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
 
         echo "### Export different variables which are used within the script like args, etc"
-        export BUILD_ARGS="$@"
+        export BUILD_ARGS=( "$@" )
 
         ssh "$SSH_ARGS" "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
