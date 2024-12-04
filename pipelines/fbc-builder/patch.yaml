@@ -15,35 +15,32 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "fbc"
     "pipelines.openshift.io/strategy": "fbc"
+# Customize parameters
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.params.[].name" | nl -v 0
+#      0  git-url
+#      1  revision
+#      2  output-image
+#      3  path-context
+#      4  dockerfile
+#      5  rebuild
+#      6  skip-checks
+#      7  hermetic
+#      8  prefetch-input
+#      9  image-expires-after
+#     10  build-source-image
+#     11  build-image-index
+#     12  build-args
+#     13  build-args-file
+#     14  build-platforms
 - op: replace
   path: /spec/params/7/default
   value: "true"
-- op: replace
-  path: /spec/tasks/3/taskRef
-  value:
-    name: buildah
-    version: "0.2"
-- op: add
-  path: /spec/tasks/3/params
-  value:
-  - name: IMAGE
-    value: $(params.output-image)
-  - name: DOCKERFILE
-    value: $(params.dockerfile)
-  - name: CONTEXT
-    value: $(params.path-context)
-  - name: HERMETIC
-    value: $(params.hermetic)
-  - name: IMAGE_EXPIRES_AFTER
-    value: "$(params.image-expires-after)"
-  - name: COMMIT_SHA
-    value: "$(tasks.clone-repository.results.commit)"
 # Remove tasks
-# yq ".spec.tasks.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.[].name" | nl -v 0
 #      0  init
 #      1  clone-repository
 #      2  prefetch-dependencies
-#      3  build-container
+#      3  build-images
 #      4  build-image-index
 #      5  build-source-image
 #      6  deprecated-base-image-check
@@ -83,8 +80,6 @@
   path: /spec/tasks/7  # clair-scan
 - op: remove
   path: /spec/tasks/5  # build-source-image
-- op: remove
-  path: /spec/tasks/2  # prefetch-dependencies
 - op: add
   path: /spec/tasks/-
   value:
