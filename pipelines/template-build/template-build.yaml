@@ -214,7 +214,7 @@ spec:
         - build-image-index
       taskRef:
         name: sast-snyk-check
-        version: "0.2"
+        version: "0.3"
       workspaces:
       - name: workspace
         workspace: workspace
@@ -277,6 +277,40 @@ spec:
       workspaces:
         - name: workspace
           workspace: workspace
+    - name: sast-shell-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+      runAfter:
+        - build-image-index
+      taskRef:
+        name: sast-shell-check
+        version: "0.1"
+      workspaces:
+        - name: workspace
+          workspace: workspace
+      params:
+        - name: image-digest
+          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+        - name: image-url
+          value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: sast-unicode-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+      runAfter:
+        - build-image-index
+      taskRef:
+        name: sast-unicode-check
+        version: "0.1"
+      workspaces:
+        - name: workspace
+          workspace: workspace
+      params:
+        - name: image-url
+          value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: apply-tags
       runAfter:
         - build-image-index
