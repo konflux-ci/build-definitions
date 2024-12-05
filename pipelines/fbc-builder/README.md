@@ -75,12 +75,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
 |POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
-### fbc-validation:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|BASE_IMAGE| Fully qualified base image name.| None| '$(tasks.inspect-image.results.BASE_IMAGE)'|
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -110,12 +104,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
-### inspect-image:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|DOCKER_AUTH| unused, should be removed in next task version| | |
-|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -130,6 +118,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
+### validate-fbc:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 
 ## Results
 |name|description|value|
@@ -143,9 +136,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; inspect-image:0.1:IMAGE_DIGEST ; fbc-validate:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; validate-fbc:0.1:IMAGE_DIGEST|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; apply-tags:0.1:IMAGE ; inspect-image:0.1:IMAGE_URL ; fbc-validate:0.1:IMAGE_URL|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; apply-tags:0.1:IMAGE ; validate-fbc:0.1:IMAGE_URL|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -161,14 +154,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### fbc-related-image-check:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|TEST_OUTPUT| Tekton task test output.| |
-### fbc-validation:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|TEST_OUTPUT| Tekton task test output.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -182,42 +167,31 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### inspect-image:0.1 task results
+### validate-fbc:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|BASE_IMAGE| Base image source image is built from.| fbc-validate:0.1:BASE_IMAGE|
-|BASE_IMAGE_REPOSITORY| Base image repository URL.| |
+|RELATED_IMAGES_DIGEST| Digest for attached json file containing related images| |
+|RELATED_IMAGE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the related images for the FBC fragment.| |
 |TEST_OUTPUT| Tekton task test output.| |
+|TEST_OUTPUT_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the related images for the FBC fragment.| |
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth|
 |netrc| |True| |
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.2:source ; inspect-image:0.1:source ; fbc-validate:0.1:workspace ; fbc-related-image-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.2:source|
 ## Available workspaces from tasks
 ### buildah:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### fbc-related-image-check:0.1 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| | False| workspace|
-### fbc-validation:0.1 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| | False| workspace|
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |output| The git repo will be cloned onto the volume backing this Workspace.| False| workspace|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### inspect-image:0.1 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|source| | False| workspace|
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
