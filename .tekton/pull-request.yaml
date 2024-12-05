@@ -36,6 +36,27 @@ spec:
             value: $(params.revision)
           - name: depth
             value: "0"
+      - name: build-appstudio-utils
+        runAfter:
+          - fetch-repository
+        params:
+          - name: IMAGE
+            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+          - name: CONTEXT
+            value: appstudio-utils
+        taskRef:
+          name: buildah
+        workspaces:
+          - name: source
+            workspace: workspace
+      - name: sast-snyk-check
+        runAfter:
+          - fetch-repository
+        taskRef:
+          name: sast-snyk-check
+        workspaces:
+          - name: workspace
+            workspace: workspace
       - name: task-switchboard
         taskRef:
           name: task-switchboard
@@ -58,19 +79,11 @@ spec:
             operator: "in"
             values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
-          - fetch-repository
+          - task-switchboard
         taskRef:
           name: task-lint
         workspaces:
           - name: shared-workspace
-            workspace: workspace
-      - name: sast-snyk-check
-        runAfter:
-          - fetch-repository
-        taskRef:
-          name: sast-snyk-check
-        workspaces:
-          - name: workspace
             workspace: workspace
       - name: sast-unicode-check
         runAfter:
@@ -80,26 +93,13 @@ spec:
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: build-appstudio-utils
-        runAfter:
-          - fetch-repository
-        params:
-          - name: IMAGE
-            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
-          - name: CONTEXT
-            value: appstudio-utils
-        taskRef:
-          name: buildah
-        workspaces:
-          - name: source
-            workspace: workspace
       - name: check-partner-tasks
         when:
           - input: "check_partner_tasks"
             operator: "in"
             values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
-          - build-appstudio-utils
+          - task-switchboard
         taskSpec:
           steps:
             - name: check-task-structure
@@ -153,6 +153,8 @@ spec:
           - input: "tasks_pipelines"
             operator: "in"
             values: ["$(tasks.task-switchboard.results.bindings[*])"]
+        runAfter:
+          - task-switchboard
         params:
           - name: revision
             value: "{{ revision }}"
@@ -253,7 +255,7 @@ spec:
             operator: "in"
             values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
-          - fetch-repository
+          - task-switchboard
         taskRef:
           name: ec-checks
         workspaces:
@@ -265,7 +267,7 @@ spec:
             operator: "in"
             values: ["$(tasks.task-switchboard.results.bindings[*])"]
         runAfter:
-          - fetch-repository
+          - task-switchboard
         taskSpec:
           steps:
             - name: check-task-migration-md
