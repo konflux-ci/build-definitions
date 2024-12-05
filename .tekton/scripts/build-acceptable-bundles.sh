@@ -7,14 +7,10 @@ set -o pipefail
 DATA_BUNDLE_REPO="${DATA_BUNDLE_REPO:-quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles}"
 mapfile -t BUNDLES < <(cat "$@")
 
-pr_number=$(gh search prs --repo konflux-ci/build-definitions --merged "${REVISION}" --json number --jq '.[].number')
-
-# changed files in a PR
-mapfile -t changed_files < <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '.files.[].path')
 # store a list of changed task files
 task_records=()
 # loop over all changed files
-for path in "${changed_files[@]}"; do
+for path in $(git log -m -1 --name-only --pretty="format:" "${REVISION}"); do
     # check that the file modified is the task file
     if [[ "${path}" == task/*/*/*.yaml ]]; then
         IFS='/' read -r -a path_array <<< "${path}"
@@ -33,11 +29,6 @@ printf '%s\n' "${task_records[@]}"
 
 echo "Bundles to be added:"
 printf '%s\n' "${BUNDLES[@]}"
-
-if [[ -z ${task_records[*]} && -z ${BUNDLES[*]} ]]; then
-    echo Nothing to do...
-    exit 0
-fi
 
 # The OPA data bundle is tagged with the current timestamp. This has two main
 # advantages. First, it prevents the image from accidentally not having any tags,
