@@ -53,6 +53,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: sbomType
+    type: string
+    description: The type of SBOM to generate. Supported values are 'spdx' and 'cyclonedx'.
+    default: cyclonedx
 
   stepTemplate:
     env:
@@ -106,9 +110,9 @@ spec:
       fi
 
       if [ -f /mnt/config/config.yaml ]; then
-        config_flag=--config-file=/mnt/config/config.yaml
+        config_flag=--config-file=/mnt/config/config.yaml --sbom-type=$(params.sbomType)
       else
-        config_flag=""
+        config_flag="--sbom-type=$(params.sbomType)"
       fi
 
       if [ "$DEV_PACKAGE_MANAGERS" = "true" ]; then
