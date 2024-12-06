@@ -13,6 +13,7 @@ The characteristics of these tasks are:
 - Only important findings are reported by default.  A parameter ( `IMP_FINDINGS_ONLY`) is provided to override this configuration.
 - The csdiff/v1 SARIF fingerprints are provided for all findings
 - A parameter ( `KFP_GIT_URL`) is provided to remove false positives providing a known false positives repository. By default, no repository is provided.
+- The stats of the scan are embedded into the result's SARIF file
 
 > NOTE: This task is executed only if there is a Coverity license set up in the environment. Please check coverity-availability-check task for more information.
 
