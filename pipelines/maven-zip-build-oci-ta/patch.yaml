@@ -15,6 +15,7 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "maven-zip"
+
 # clone-repository Task
 - op: replace
   path: /spec/tasks/1/taskRef/name
@@ -31,6 +32,7 @@
     value: $(params.image-expires-after)
 - op: remove
   path: /spec/tasks/1/workspaces/0
+
 # prefetch-dependencies Task
 - op: replace
   path: /spec/tasks/2/taskRef/name
@@ -54,7 +56,8 @@
   path: /spec/tasks/2/workspaces/0
 - op: remove
   path: /spec/tasks/2/when
-# Replace build-maven-zip task by build-maven-zip-oci-ta task
+
+# build-oci-artifact
 - op: replace
   path: /spec/tasks/3/taskRef
   value:
@@ -67,6 +70,7 @@
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/3/workspaces/0
+
 # sast-snyk-check
 - op: replace
   path: /spec/tasks/4/taskRef/name
@@ -85,6 +89,75 @@
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/4/workspaces/0
+
+# coverity-availability-check
+- op: replace
+  path: /spec/tasks/6/taskRef/name
+  value: coverity-availability-check-oci-ta
+- op: add
+  path: /spec/tasks/6/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/6/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+
+# sast-coverity-check
+- op: replace
+  path: /spec/tasks/5/taskRef/name
+  value: sast-coverity-check-oci-ta
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/5/workspaces/0
+- op: remove
+  path: /spec/tasks/6/workspaces/0
+
+# sast-shell-check
+- op: replace
+  path: /spec/tasks/7/taskRef/name
+  value: sast-shell-check-oci-ta
+- op: add
+  path: /spec/tasks/7/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/7/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/7/workspaces/0
+
+# sast-unicode-check
+- op: replace
+  path: /spec/tasks/8/taskRef/name
+  value: sast-shell-check-oci-ta
+- op: add
+  path: /spec/tasks/8/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/8/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/8/workspaces/0
+
 # show-summary
 # This Task relies on a shared workspace for some of its functionality. Although optional, it raises
 # the question of how valuable this Task actually is. Rather than add Trusted Artifacts support for

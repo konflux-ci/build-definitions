@@ -16,13 +16,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 
 ## Available params from tasks
-### apply-tags:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
-|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### build-maven-zip:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -32,6 +25,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |PREFETCH_ROOT| The root directory of the artifacts under the prefetched directory. Will be kept in the maven zip as the top directory for all artifacts.| maven-repository| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+### coverity-availability-check:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -71,23 +69,31 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
-### push-dockerfile:0.1 task parameters
+### sast-coverity-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|ARTIFACT_TYPE| Artifact type of the Dockerfile image.| application/vnd.konflux.dockerfile| |
-|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
-|DOCKERFILE| Path to the Dockerfile.| ./Dockerfile| '$(params.dockerfile)'|
-|IMAGE| The built binary image. The Dockerfile is pushed to the same image repository alongside.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|IMAGE_DIGEST| The built binary image digest, which is used to construct the tag of Dockerfile image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|TAG_SUFFIX| Suffix of the Dockerfile image tag.| .dockerfile| |
-### rpms-signature-scan:0.2 task parameters
+|AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
+|COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
+|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
+|KFP_GIT_URL| URL from repository to download known false positives files| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to report findings for.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
+### sast-shell-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
+|IMP_FINDINGS_ONLY| Whether to include important findings only| true| |
+|KFP_GIT_URL| git repository to download known false positives files from| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|RECORD_EXCLUDED| Whether to record the excluded findings (default to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to report findings for.| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### sast-snyk-check:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -110,7 +116,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -137,10 +143,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### build-maven-zip:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest|
+|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest ; sast-coverity-check:0.1:image-digest ; coverity-availability-check:0.1:image-digest ; sast-shell-check:0.1:image-digest|
 |IMAGE_REF| OCI-Artifact reference of the built OCI-Artifact| |
-|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url|
+|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url ; sast-coverity-check:0.1:image-url ; coverity-availability-check:0.1:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
+### coverity-availability-check:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|STATUS| Tekton task simple status to be later checked| |
+|TEST_OUTPUT| Tekton task result output.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -154,15 +165,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### push-dockerfile:0.1 task results
+### sast-coverity-check:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_REF| Digest-pinned image reference to the Dockerfile image.| |
-### rpms-signature-scan:0.2 task results
+|TEST_OUTPUT| Tekton task test output.| |
+### sast-shell-check:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGES_PROCESSED| Images processed in the task.| |
-|RPMS_DATA| Information about signed and unsigned RPMs| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### sast-snyk-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -178,12 +187,16 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.1:workspace ; coverity-availability-check:0.1:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
 ## Available workspaces from tasks
 ### build-maven-zip:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
+### coverity-availability-check:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| | False| workspace|
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
@@ -196,10 +209,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, cachi2 artifacts will be stored on the workspace as well| False| workspace|
-### push-dockerfile:0.1 task workspaces
+### sast-coverity-check:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|workspace| Workspace containing the source code from where the Dockerfile is discovered.| False| workspace|
+|workspace| | False| workspace|
+### sast-shell-check:0.1 task workspaces
+|name|description|optional|workspace from pipeline
+|---|---|---|---|
+|workspace| | False| workspace|
 ### sast-snyk-check:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
