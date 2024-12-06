@@ -10,15 +10,16 @@ name: Run Task Tests
 jobs:
   run-task-tests:
     runs-on: ubuntu-22.04
-    # Skipping it temporarily till we fix this workflow
-    if: false
     steps:
       - name: Get all changed files in the PR from task directory
         id: changed-dirs
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            task/**
+            # Any task yaml or script is changed
+            task/*/*/*.{yaml,sh}
+            # Any test yaml or script is changed
+            task/*/*/*/*.{yaml,sh}
           dir_names: "true"
           dir_names_max_depth: "3"
 
@@ -29,12 +30,34 @@ jobs:
           ref: "${{ github.event.pull_request.head.sha }}"
           path: build-definitions
 
-      - name: Install tkn
+      - name: Check if tests dir exists for all the tasks changed
         if: steps.changed-dirs.outputs.any_changed == 'true'
+        id: tasks-to-be-tested
+        env:
+          CHANGED_DIRS: ${{ steps.changed-dirs.outputs.all_changed_files }}
+        run: |
+          echo "Task Dirs changed in PR: ${CHANGED_DIRS}"
+          # Check if tests dir exists under each task dir
+          TASKS_TO_BE_TESTED=()
+          for TASK_DIR in ${CHANGED_DIRS}; do
+            TESTS_DIR=build-definitions/${TASK_DIR}/tests
+            if [ ! -d $TESTS_DIR ]; then
+              echo "INFO: tests dir does not exist: $TESTS_DIR"
+              continue
+            else
+              echo "INFO: tests dir exists for task: $TASK_DIR"
+              TASKS_TO_BE_TESTED+=("$TASK_DIR")
+            fi
+          done
+          echo "Tasks with tests: ${TASKS_TO_BE_TESTED[@]}"
+          echo "tasklist=${TASKS_TO_BE_TESTED[@]}" >> $GITHUB_OUTPUT
+
+      - name: Install tkn
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         uses: ./build-definitions/.github/actions/install-tkn
 
       - name: Checkout konflux-ci/konflux-ci Repository
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         uses: actions/checkout@v3
         with:
           repository: 'konflux-ci/konflux-ci'
@@ -42,51 +65,51 @@ jobs:
           ref: 69fd3b5aaaf42100de366918b4943c90b6cf7194
 
       - name: Create k8s Kind Cluster
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         uses: helm/kind-action@v1
         with:
           config: konflux-ci/kind-config.yaml
 
       - name: Show version information
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           kubectl version
           kind version
 
       - name: Deploying Dependencies
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./deploy-deps.sh
 
       - name: Wait for the dependencies to be ready
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./wait-for-all.sh
 
       - name: Deploying Konflux
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./deploy-konflux.sh
 
       - name: List namespaces
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           kubectl get namespace
 
       - name: Deploy test resources
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
           ./deploy-test-resources.sh
 
       - name: Run the task tests
-        if: steps.changed-dirs.outputs.any_changed == 'true'
+        if: steps.tasks-to-be-tested.outputs.tasklist != ''
         env:
-          CHANGED_DIRS: ${{ steps.changed-dirs.outputs.all_changed_files }}
+          TASK_LIST: ${{ steps.tasks-to-be-tested.outputs.tasklist }}
         run: |
-          echo "Task Dirs changed in PR: ${CHANGED_DIRS}"
+          echo "Tasks to be tested: ${TASK_LIST}"
           cd $GITHUB_WORKSPACE/build-definitions
-          ./.github/scripts/test_tekton_tasks.sh ${CHANGED_DIRS}
+          ./.github/scripts/test_tekton_tasks.sh ${TASK_LIST}
