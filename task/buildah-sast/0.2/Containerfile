@@ -1,0 +1,10 @@
+FROM quay.io/konflux-ci/oras:latest AS oras
+FROM quay.io/konflux-ci/buildah-task
+
+RUN microdnf install --enable-repo=updates-testing -y cs{diff{,-static},gcca,wrap}
+
+RUN ln -fsv "../../bin/cswrap" "$(cswrap --print-path-to-wrap)/gcc-wrapper"
+COPY gcc-wrapper.sh /usr/bin/gcc-wrapper
+
+COPY --from=oras /usr/bin/oras /usr/bin/yq /usr/bin/
+COPY --from=oras /usr/local/bin/select-oci-auth /usr/local/bin/
