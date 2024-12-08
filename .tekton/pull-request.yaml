@@ -69,7 +69,12 @@ spec:
             value:
               - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
               - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
-              - e2e_tests := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
+              - |
+                e2e_tests if {
+                  some file in input
+                  strings.any_prefix_match(file, ["task/", "pipelines/", "hack/", ".tekton/"])
+                  not endswith(file, "/OWNERS")
+                }
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
         runAfter:
           - build-appstudio-utils
