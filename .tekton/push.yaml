@@ -176,6 +176,29 @@ spec:
           workspaces:
             - name: source
 
+      - name: create-repositories-if-missing
+        runAfter:
+          - build-bundles
+        taskSpec:
+          steps:
+            - name: run-create-bundle-repos
+              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              workingDir: $(workspaces.source.path)/source
+              script: |
+                #!/usr/bin/env bash
+                .tekton/scripts/create-task-pipeline-bundle-repos.sh
+              env:
+                - name: QUAY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: konflux-ci-repo-creator
+                      key: quaytoken
+          workspaces:
+            - name: source
+        workspaces:
+          - name: source
+            workspace: workspace
+
       - name: update-infra-repo
         runAfter:
           - build-bundles
