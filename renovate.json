@@ -20,8 +20,15 @@
   "packageRules": [
     {
       "matchPackageNames": [
+        "quay.io/konflux-ci/appstudio-utils"
+      ],
+      "schedule": [
+        "on sunday"
+      ]
+    },
+    {
+      "matchPackageNames": [
         "quay.io/konflux-ci/pull-request-builds",
-        "quay.io/konflux-ci/appstudio-utils",
         "quay.io/konflux-ci/buildah",
         "quay.io/konflux-ci/source-container-build",
         "quay.io/redhat-appstudio/e2e-tests",
@@ -124,23 +131,15 @@
       ]
     },
     {
-      "matchPackagePrefixes": [
-        "registry.redhat.io",
-        "registry.access.redhat.com",
-        "docker.io"
-      ],
-      "schedule": [
-        "on monday and wednesday"
-      ],
-      "groupName": "shared"
-    },
-    {
       "groupName": "github-actions",
       "matchManagers": [
         "github-actions"
       ],
+      "matchFileNames": [
+        ".github/workflows/**"
+      ],
       "schedule": [
-        "on monday"
+        "on sunday"
       ]
     },
     {
