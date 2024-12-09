@@ -47,8 +47,8 @@ jobs:
               TASKS_TO_BE_TESTED+=("$TASK_DIR")
             fi
           done
-          echo "Tasks with tests: ${TASKS_TO_BE_TESTED[@]}"
-          echo "tasklist=${TASKS_TO_BE_TESTED[@]}" >> $GITHUB_OUTPUT
+          echo "Tasks with tests: ${TASKS_TO_BE_TESTED[*]}"
+          echo "tasklist=${TASKS_TO_BE_TESTED[*]}" >> $GITHUB_OUTPUT
 
       - name: Install tkn
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
