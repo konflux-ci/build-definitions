@@ -9,7 +9,7 @@ name: Run Task Tests
 
 jobs:
   run-task-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Get all changed files in the PR from task directory
         id: changed-dirs
@@ -23,7 +23,7 @@ jobs:
 
       - name: Checkout build-defintions Repository
         if: steps.changed-dirs.outputs.any_changed == 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
           path: build-definitions
@@ -56,7 +56,7 @@ jobs:
 
       - name: Checkout konflux-ci/konflux-ci Repository
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci
