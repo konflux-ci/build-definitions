@@ -158,7 +158,9 @@ spec:
           exit 0
         fi
 
-        BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
+        # Strip out any tags and digests then append our known digest
+        BASE_IMAGE_REPOSITORY="$(echo -n "${BASE_IMAGE_NAME}" | cut -d@ -f1 | sed 's_/\(.*\):\(.*\)_/\1_g')"
+        BASE_IMAGE="${BASE_IMAGE_REPOSITORY}@$BASE_IMAGE_DIGEST"
         echo "Detected base image: $BASE_IMAGE"
         echo -n "$BASE_IMAGE" > /shared/BASE_IMAGE
 
@@ -176,7 +178,6 @@ spec:
             exit 0
         fi
 
-        BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
         echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
         echo -n "$BASE_IMAGE_REPOSITORY" > /shared/BASE_IMAGE_REPOSITORY
 
@@ -204,6 +205,7 @@ spec:
         trap 'handle_error "$(results.TEST_OUTPUT.path)"' EXIT
 
         BASE_IMAGE=$(cat /shared/BASE_IMAGE)
+        BASE_IMAGE_REPOSITORY=$(cat /shared/BASE_IMAGE_REPOSITORY)
 
         declare -a ALLOWED_BASE_IMAGES=(
           "registry.redhat.io/openshift4/ose-operator-registry"
@@ -220,12 +222,10 @@ spec:
           exit 0
         fi
 
-        IMAGE_WITHOUT_TAG=$(echo "${BASE_IMAGE}" | sed "s/:.*$//" | sed "s/@.*$//")
-
         allowed=false
         for value in "${ALLOWED_BASE_IMAGES[@]}"
         do
-          if [[ "${IMAGE_WITHOUT_TAG}" == "${value}" ]]; then
+          if [[ "${BASE_IMAGE_REPOSITORY}" == "${value}" ]]; then
             allowed=true
             break
           fi
