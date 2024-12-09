@@ -32,8 +32,9 @@ To remove this task from your pipeline please follow these steps:
         - name: name
 -          value: fbc-validation
 +          value: validate-fbc
--        - name: bundle
--          value: quay.io/konflux-ci/tekton-catalog/task-validate-fbc:0.1
+        - name: bundle
+-          value: quay.io/konflux-ci/tekton-catalog/task-fbc-validation:0.1
++          value: quay.io/konflux-ci/tekton-catalog/task-validate-fbc:0.1
         - name: kind
           value: task
         resolver: bundles
