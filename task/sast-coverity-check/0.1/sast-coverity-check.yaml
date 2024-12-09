@@ -224,7 +224,32 @@ spec:
           (set -x && csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)
         fi
 
-        csgrep --mode=sarif filtered_sast_coverity_buildless_check_all_findings.json > "$(workspaces.workspace.path)"/coverity-results.sarif
+        # Generation of stats
+        /opt/coverity/bin/coverity list --dir "$COVERITY_DIR" > coverity_list_command.txt
+
+        # Parse the summary statistics using grep
+        SUCCEEDED=$(grep "SUCCEEDED:" "coverity_list_command.txt" | grep -oE '[0-9]+')
+        INCOMPLETE=$(grep "INCOMPLETE:" "coverity_list_command.txt" | grep -oE '[0-9]+')
+        FAILED=$(grep "FAILED:" "coverity_list_command.txt" | grep -oE '[0-9]+')
+        IGNORED=$(grep "IGNORED:" "coverity_list_command.txt" | grep -oE '[0-9]+')
+        LINES_OF_CODE=$(grep "LINES OF CODE:" "coverity_list_command.txt" | grep -oE '[0-9]+')
+
+        # Calculate the total number of files
+        TOTAL_FILES=$((SUCCEEDED + INCOMPLETE + FAILED + IGNORED))
+
+        # Calculate the ratio of successful files to total files
+        if [ "$TOTAL_FILES" -ne 0 ]; then
+            COVERAGE_RATIO=$((SUCCEEDED * 100 / TOTAL_FILES))
+        else
+            COVERAGE_RATIO="0"
+        fi
+
+        csgrep --mode=sarif --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
+        --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
+        --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
+        --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}"
+        filtered_sast_coverity_buildless_check_all_findings.json \
+        > "$(workspaces.workspace.path)"/coverity-results.sarif
 
         if [[ -z "$(csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)" ]]; then
           note="Task $(context.task.name) success: No finding was detected"
