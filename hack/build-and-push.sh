@@ -34,6 +34,8 @@ function should_skip_repo() {
 
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd "$SCRIPTDIR/.." || exit 1
+
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 
 tkn_bundle_push() {
@@ -111,14 +113,14 @@ fi
 
 APPSTUDIO_UTILS_IMG="quay.io/$QUAY_NAMESPACE/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
 
-OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-${SCRIPTDIR}/../task-bundle-list}"
-OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-${SCRIPTDIR}/../pipeline-bundle-list}"
+OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
+OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
 rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 
 # Build appstudio-utils image
 if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
-    docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
+    docker build -t "$APPSTUDIO_UTILS_IMG" "appstudio-utils/"
     docker push "$APPSTUDIO_UTILS_IMG"
 
     # This isn't needed during PR testing
@@ -139,8 +141,6 @@ core_services_pipelines_dir=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XX
 oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 
 # Build tasks
-(
-cd "$SCRIPTDIR/.."
 find task/*/*/ -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_dir task_name task_version
 do
@@ -166,41 +166,41 @@ do
     task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
     if digest=$(skopeo inspect --no-tags --format='{{.Digest}}' docker://"${task_bundle}-${task_file_sha}" 2>/dev/null); then
-      task_bundle_with_digest=${task_bundle}@${digest}
+        task_bundle_with_digest=${task_bundle}@${digest}
     else
-      ANNOTATIONS=()
-      ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
-      ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
-      ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
-      # Ensure an empty string is set rather than string "null" if the version label is not present
-      concrete_task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "$prepared_task_file" | sed '/null/d')
-      ANNOTATIONS+=("org.opencontainers.image.version=${concrete_task_version}")
-      # yq will return null if the element is missing.
-      if [[ "${task_description}" != "null" ]]; then
-          ANNOTATIONS+=("org.opencontainers.image.description=${task_description}")
-      fi
-      if [ -f "${task_dir}/README.md" ]; then
-          ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
-      fi
-      if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
-          ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
-      fi
-      if [ -f "${task_dir}/USAGE.md" ]; then
-          ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
-      fi
+        ANNOTATIONS=()
+        ANNOTATIONS+=("org.opencontainers.image.source=${VCS_URL}")
+        ANNOTATIONS+=("org.opencontainers.image.revision=${VCS_REF}")
+        ANNOTATIONS+=("org.opencontainers.image.url=${VCS_URL}/tree/${VCS_REF}/${task_dir}")
+        # Ensure an empty string is set rather than string "null" if the version label is not present
+        concrete_task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "$prepared_task_file" | sed '/null/d')
+        ANNOTATIONS+=("org.opencontainers.image.version=${concrete_task_version}")
+        # yq will return null if the element is missing.
+        if [[ "${task_description}" != "null" ]]; then
+            ANNOTATIONS+=("org.opencontainers.image.description=${task_description}")
+        fi
+        if [ -f "${task_dir}/README.md" ]; then
+            ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
+        fi
+        if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
+            ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
+        fi
+        if [ -f "${task_dir}/USAGE.md" ]; then
+            ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
+        fi
 
-      ANNOTATION_FLAGS=()
-      for annotation in "${ANNOTATIONS[@]}"; do
-          ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
-      done
+        ANNOTATION_FLAGS=()
+        for annotation in "${ANNOTATIONS[@]}"; do
+            ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
+        done
 
-      output=$(tkn_bundle_push "${ANNOTATION_FLAGS[@]}" -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
-      echo "$output"
-      task_bundle_with_digest="${output##*$'\n'}"
+        output=$(tkn_bundle_push "${ANNOTATION_FLAGS[@]}" -f "$prepared_task_file" "$task_bundle" | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST")
+        echo "$output"
+        task_bundle_with_digest="${output##*$'\n'}"
 
-      # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
-      # even when original tag is updated
-      skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
+        # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
+        # even when original tag is updated
+        skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
     fi
     # version placeholder is removed naturally by the substitution.
     real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
@@ -218,7 +218,6 @@ do
         yq e "$sub_expr_2" -i "${filename}"
     done
 done
-)
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then
@@ -292,3 +291,6 @@ if [ "$SKIP_INSTALL" == "" ]; then
     echo "export CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE=$docker_multi_platform_oci_ta_pipeline_bundle" >> bundle_values.env
     echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" >> bundle_values.env
 fi
+
+
+# vim: set et sw=4 ts=4:
