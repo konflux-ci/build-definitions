@@ -234,7 +234,7 @@ spec:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       script: |
-        syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=/var/workdir/sbom-cyclonedx.json
+        syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json="/var/workdir/sbom-cyclonedx.json" --source-name "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
       computeResources:
         limits:
           memory: 6Gi
