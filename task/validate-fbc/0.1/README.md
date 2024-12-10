@@ -15,4 +15,5 @@ Ensures file-based catalog (FBC) components are uniquely linted for proper const
 |TEST_OUTPUT_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the related images for the FBC fragment.|
 |TEST_OUTPUT|Tekton task test output.|
 |RELATED_IMAGES_DIGEST|Digest for attached json file containing related images|
+|IMAGES_PROCESSED|Images processed in the task.|
 

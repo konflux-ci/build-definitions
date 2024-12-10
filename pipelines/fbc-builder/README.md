@@ -188,6 +188,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### validate-fbc:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
 |RELATED_IMAGES_DIGEST| Digest for attached json file containing related images| |
 |RELATED_IMAGE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the related images for the FBC fragment.| |
 |TEST_OUTPUT| Tekton task test output.| |
