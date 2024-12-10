@@ -1,5 +1,4 @@
 # TODO:
-#   make this task multi-arch aware (i.e. return IMAGES_PROCESSED result).
 #   make this task fail if a bundle is an image index reference
 #   change the related-image check to be done in EC with exported related images instead of
 #     including it in the TEST_OUTPUT result
@@ -35,6 +34,8 @@ spec:
       description: Tekton task test output.
     - name: RELATED_IMAGES_DIGEST
       description: Digest for attached json file containing related images
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task.
   volumes:
     - name: shared
       emptyDir: {}
@@ -181,7 +182,26 @@ spec:
         echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
         echo -n "$BASE_IMAGE_REPOSITORY" > /shared/BASE_IMAGE_REPOSITORY
 
-        note="Step inspect-image completed: Check inspected JSON files under /var/workdir/inspect-image."
+        # FBC content should be identical across different architectures so the IMAGES_PROCESSED result
+        # is a no-op for now. We can come back later and enforce that the content is identical between
+        # all architectures if desired.
+        image_without_tag=$(echo -n "$IMAGE_URL" | cut -d@ -f1 | sed 's_/\(.*\):\(.*\)_/\1_g')
+        image_with_digest="${image_without_tag}@${IMAGE_DIGEST}"
+        images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+        image_manifests=$(get_image_manifests -i "${image_with_digest}")
+        echo "$image_manifests"
+        if [ -n "$image_manifests" ]; then
+          while read -r _arch arch_sha; do
+            digests_processed+=("\"$arch_sha\"")
+          done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
+        fi
+
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+        echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee "$(results.IMAGES_PROCESSED.path)"
     - name: extract-and-validate
       image: quay.io/redhat-appstudio/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
