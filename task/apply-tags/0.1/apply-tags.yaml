@@ -61,7 +61,7 @@ spec:
       script: |
         #!/bin/bash
 
-        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --format '{{ index .Labels "konflux.additional-tags" }}' docker://$IMAGE)
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE")
 
         if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
           IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"

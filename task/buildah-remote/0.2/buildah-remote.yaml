@@ -358,9 +358,10 @@ spec:
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
       done
 
+
+      dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
       BASE_IMAGES=$(
-        dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" |
-          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)'
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
       )
 
       BUILDAH_ARGS=()
@@ -542,11 +543,13 @@ spec:
 
       touch /shared/base_images_digests
       for image in $BASE_IMAGES; do
-        buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image" >> /shared/base_images_digests
+        base_image_digest=$(buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image")
+        # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
+        # if buildah did not use that particular image during build because it was skipped
+        if [ -n "$base_image_digest" ]; then
+          echo "$image $base_image_digest" >> /shared/base_images_digests
+        fi
       done
-
-      # Needed to generate base images SBOM
-      echo "$BASE_IMAGES" > /shared/base_images_from_dockerfile
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
       REMOTESSHEOF
@@ -749,7 +752,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:f1c07f273536a00fa6539e2aa41b3fddab3bb282a157c9676572858bfd19d7e4
+    image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:e1347023ef1e83d52813c26384f551e3a03e482539d17a647955603e7ea6b579
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -770,7 +773,7 @@ spec:
       echo "Adding base images data to sbom-cyclonedx.json"
       python3 /scripts/base_images_sbom_script.py \
         --sbom=sbom-cyclonedx.json \
-        --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
+        --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
 
       echo "Adding image reference to sbom"
