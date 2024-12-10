@@ -217,7 +217,7 @@ spec:
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
     script: |
-      syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json=$(workspaces.source.path)/sbom-cyclonedx.json --source-name "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
+      syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json="$(workspaces.source.path)/sbom-cyclonedx.json" --source-name "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
     volumeMounts:
       - mountPath: /var/lib/containers
         name: varlibcontainers
