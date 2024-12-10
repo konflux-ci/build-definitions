@@ -34,6 +34,8 @@ function should_skip_repo() {
 
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cd "$SCRIPTDIR/.." || exit 1
+
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 
 tkn_bundle_push() {
@@ -111,14 +113,14 @@ fi
 
 APPSTUDIO_UTILS_IMG="quay.io/$QUAY_NAMESPACE/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
 
-OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-${SCRIPTDIR}/../task-bundle-list}"
-OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-${SCRIPTDIR}/../pipeline-bundle-list}"
+OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
+OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
 rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 
 # Build appstudio-utils image
 if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
-    docker build -t "$APPSTUDIO_UTILS_IMG" "$SCRIPTDIR/../appstudio-utils/"
+    docker build -t "$APPSTUDIO_UTILS_IMG" "appstudio-utils/"
     docker push "$APPSTUDIO_UTILS_IMG"
 
     # This isn't needed during PR testing
@@ -139,8 +141,6 @@ core_services_pipelines_dir=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XX
 oc kustomize --output "$core_services_pipelines_dir" pipelines/core-services/
 
 # Build tasks
-(
-cd "$SCRIPTDIR/.."
 find task/*/*/ -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
 while read -r task_dir task_name task_version
 do
@@ -218,7 +218,6 @@ do
         yq e "$sub_expr_2" -i "${filename}"
     done
 done
-)
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then
