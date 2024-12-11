@@ -183,7 +183,7 @@ spec:
         cat >scripts/script-setup.sh <<'REMOTESSHEOF'
         #!/bin/sh
 
-        echo "Start podman.socket and show podman info ##"
+        echo "Start podman.socket and show podman info"
         systemctl --user start podman.socket
         sleep 10s
 
@@ -252,7 +252,7 @@ spec:
         echo "Setup VM environment: podman, etc within the VM ..."
         ssh "${SSH_ARGS[@]}" "$SSH_HOST" scripts/script-setup.sh
 
-        # Adding security-opt to by pass: dial unix /workdir/podman.sock: connect: permission denied
+        # Remark: Adding security-opt to by pass: dial unix /workdir/podman.sock: connect: permission denied
         ssh "${SSH_ARGS[@]}" "$SSH_HOST" "$PORT_FORWARD" podman run "$PODMAN_PORT_FORWARD" \
           -e BUILDER_IMAGE="$BUILDER_IMAGE" \
           -e HERMETIC="$HERMETIC" \
