@@ -222,6 +222,7 @@ spec:
 
         BASE_IMAGE=$(tomljson source/builder.toml | jq '.stack."build-image"')
         podman inspect ${BASE_IMAGE} | jq -r '.[].Digest' > /shared/BASE_IMAGES_DIGESTS
+        echo "$BASE_IMAGE" >/shared/base_images_from_dockerfile
 
         REMOTESSHEOF
         chmod +x scripts/script-build.sh
@@ -351,12 +352,11 @@ spec:
         echo "Creating sbom-purl.json"
         python3 /scripts/create_purl_sbom.py
 
-        # TODO: How can we get for the paketo stuffs: base_images_from_dockerfile
-        # echo "Adding base images data to sbom-cyclonedx.json"
-        # python3 /scripts/base_images_sbom_script.py \
-        #   --sbom=sbom-cyclonedx.json \
-        #   --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
-        #   --base-images-digests=/shared/BASE_IMAGES_DIGESTS
+        echo "Adding base images data to sbom-cyclonedx.json"
+        python3 /scripts/base_images_sbom_script.py \
+          --sbom=sbom-cyclonedx.json \
+          --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
+          --base-images-digests=/shared/BASE_IMAGES_DIGESTS
       securityContext:
         runAsUser: 0
       volumeMounts:
