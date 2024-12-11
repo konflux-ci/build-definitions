@@ -140,9 +140,7 @@ spec:
         set -eu
         set -o pipefail
 
-        echo "##########################################################################################"
-        echo "### Step 1 :: Configure SSH and rsync folders from tekton to the VM"
-        echo "##########################################################################################"
+        echo "Step 1 :: Configure SSH and rsync folders from tekton to the VM"
         mkdir -p ~/.ssh
         if [ -e "/ssh/error" ]; then
           #no server could be provisioned
@@ -162,39 +160,37 @@ spec:
         export BUILD_DIR
         export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10)
 
-        echo "### Export different variables which are used within the script like args, etc"
+        echo "Export different variables which are used within the script like args, etc"
         BUILD_ARGS=()
         while [[ $# -gt 0 ]]; do BUILD_ARGS+=("$1"); shift; done
         export BUILD_ARGS
-        echo "## Build args: $BUILD_ARGS"
+        echo "Build args: $BUILD_ARGS"
 
         ssh "${SSH_ARGS[@]}" "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
         export PORT_FORWARD=""
         export PODMAN_PORT_FORWARD=""
 
-        echo "### rsync folders from pod to VM ..."
+        echo "Rsync folders from pod to VM ..."
         rsync -ra "/var/workdir/"            "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
         rsync -ra "/shared/"                 "$SSH_HOST:$BUILD_DIR/volumes/shared/"
         rsync -ra "/mnt/trusted-ca/"         "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
         rsync -ra "/tekton/results/"         "$SSH_HOST:$BUILD_DIR/results/"
 
-        echo "##########################################################################################"
-        echo "### Step 2 :: Create the bash script to be executed within the VM"
-        echo "##########################################################################################"
+        echo "Step 2 :: Create the bash script to be executed within the VM"
         mkdir -p scripts
 
         cat >scripts/script-setup.sh <<'REMOTESSHEOF'
         #!/bin/sh
 
-        echo "### Start podman.socket and show podman info ##"
+        echo "Start podman.socket and show podman info ##"
         systemctl --user start podman.socket
         sleep 10s
 
-        echo "## Podman version"
+        echo "Podman version"
         podman version
 
-        echo "## Podman info"
+        echo "Podman info"
         podman info
         REMOTESSHEOF
         chmod +x scripts/script-setup.sh
@@ -204,14 +200,14 @@ spec:
 
         cd /var/workdir
 
-        echo "### Build the builder image using pack"
+        echo "Build the builder image using pack"
         for build_arg in "${BUILD_ARGS[@]}"; do
           PACK_ARGS+=" $build_arg"
         done
 
-        echo "### Pack extra args: $PACK_ARGS"
+        echo "Pack extra args: $PACK_ARGS"
 
-        echo "### Execute: pack builder create ..."
+        echo "Execute: pack builder create ..."
         export DOCKER_HOST=unix:///workdir/podman.sock
         pack config experimental true
 
@@ -233,32 +229,26 @@ spec:
         cat >scripts/script-post-build.sh <<'REMOTESSHEOF'
         #!/bin/sh
 
-        echo "###########################################################"
-
-        echo "### Push the image produced and generate its digest: $IMAGE"
+        echo "Push the image produced and generate its digest: $IMAGE"
         podman push \
            --digestfile $BUILD_DIR/volumes/shared/IMAGE_DIGEST \
            "$IMAGE"
-
-        echo "###########################################################"
-        echo "### Export the image as OCI"
+        
+        echo "Export the image as OCI"
         podman push "${IMAGE}" "oci:$BUILD_DIR/volumes/shared/konflux-final-image:$IMAGE"
-        echo "###########################################################"
 
-        echo "###########################################################"
-        echo "### Export: IMAGE_URL"
-        echo "###########################################################"
+        echo "Export: IMAGE_URL"
         echo -n "$IMAGE" > $BUILD_DIR/volumes/shared/IMAGE_URL
         REMOTESSHEOF
         chmod +x scripts/script-post-build.sh
 
-        echo "##########################################################################################"
-        echo "### Step 3 :: Execute the bash script on the VM"
-        echo "##########################################################################################"
+
+        echo "Step 3 :: Execute the bash script on the VM"
+
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
 
-        echo "### Setup VM environment: podman, etc within the VM ..."
+        echo "Setup VM environment: podman, etc within the VM ..."
         ssh "${SSH_ARGS[@]}" "$SSH_HOST" scripts/script-setup.sh
 
         # Adding security-opt to by pass: dial unix /workdir/podman.sock: connect: permission denied
@@ -280,13 +270,13 @@ spec:
           --security-opt label=disable \
           --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
 
-        echo "### Execute post build steps within the VM ..."
+        echo "Execute post build steps within the VM ..."
         ssh "${SSH_ARGS[@]}" "$SSH_HOST" \
           BUILD_DIR="$BUILD_DIR" \
           IMAGE="$IMAGE" \
           scripts/script-post-build.sh
 
-        echo "### rsync folders from VM to pod"
+        echo "Rsync folders from VM to pod"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/"  "/shared/"
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/"         "/tekton/results/"
@@ -321,14 +311,11 @@ spec:
           IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
           export IMAGE
         fi
-        echo "##########################################################################################"
-        echo "### Running syft on the source directory"
-        echo "##########################################################################################"
+
+        echo "Running syft on the source directory"
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
 
-        echo "##########################################################################################"
-        echo "### Running syft on the image filesystem"
-        echo "##########################################################################################"
+        echo "Running syft on the image filesystem"
         syft scan oci-dir:/shared/konflux-final-image -o cyclonedx-json > /var/workdir/sbom-image.json
       volumeMounts:
         - mountPath: /shared
@@ -351,28 +338,21 @@ spec:
           export IMAGE
         fi
 
-        echo "##########################################################################################"
-        echo "## Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
-        echo "##########################################################################################"
+
+        echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
         python3 /scripts/merge_syft_sboms.py
 
         if [ -f "sbom-cachi2.json" ]; then
-          echo "##########################################################################################"
-          echo "## Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-          echo "##########################################################################################"
+          echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
           python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json >sbom-temp.json
           mv sbom-temp.json sbom-cyclonedx.json
         fi
 
-        echo "##########################################################################################"
         echo "Creating sbom-purl.json"
-        echo "##########################################################################################"
         python3 /scripts/create_purl_sbom.py
 
         # TODO: How can we get for the paketo stuffs: base_images_from_dockerfile
-        # echo "##########################################################################################"
         # echo "Adding base images data to sbom-cyclonedx.json"
-        # echo "##########################################################################################"
         # python3 /scripts/base_images_sbom_script.py \
         #   --sbom=sbom-cyclonedx.json \
         #   --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
@@ -407,14 +387,14 @@ spec:
           update-ca-trust
         fi
 
-        echo "##########################################################################################"
+
         echo "Pull the image from the OCI storage."
-        echo "##########################################################################################"
+
         buildah --storage-driver "$STORAGE_DRIVER" pull "$IMAGE"
 
-        echo "##########################################################################################"
-        echo "## Copy within the container of the image the sbom files"
-        echo "##########################################################################################"
+
+        echo "Copy within the container of the image the sbom files"
+
         container=$(buildah --storage-driver "$STORAGE_DRIVER" from --pull-never "$IMAGE")
         buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
 
@@ -425,9 +405,9 @@ spec:
 
         buildah --storage-driver "$STORAGE_DRIVER" commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
 
-        echo "##########################################################################################"
+
         echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-        echo "##########################################################################################"
+
         retries=5
         if ! buildah push \
           --retry "$retries" \
@@ -439,9 +419,9 @@ spec:
           exit 1
         fi
 
-        echo "##########################################################################################"
+
         echo "Pushing to ${IMAGE}"
-        echo "##########################################################################################"
+
         if ! buildah push \
           --retry "$retries" \
           --storage-driver "$STORAGE_DRIVER" \
@@ -452,9 +432,9 @@ spec:
           exit 1
         fi
 
-        echo "##########################################################################################"
-        echo "## Save the different results"
-        echo "##########################################################################################"
+
+        echo "Save the different results"
+
         tee "$(results.IMAGE_DIGEST.path)" < "/var/workdir/image-digest"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         {
