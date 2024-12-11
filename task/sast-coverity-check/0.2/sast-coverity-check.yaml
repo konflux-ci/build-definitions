@@ -275,6 +275,12 @@ spec:
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
       trap 'rm -fr /tmp/idir' EXIT
 
+      # assign a unique file name for scan results
+      json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
+
+      # obtain capture stats to process them later on
+      /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
+
       # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
       $(declare -p COV_ANALYZE_ARGS)
 
@@ -284,7 +290,7 @@ spec:
       # export scan results and embed source code context into the scan results
       /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
         | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
-        > \$(mktemp /shared/sast-results/\$\$-XXXX.json)
+        > "\${json_file}"
 
       # propagate the original exit code of the wrapped command
       exit "\$(</tmp/idir/build-cmd-ec.txt)"
@@ -677,6 +683,8 @@ spec:
         # shellcheck disable=SC2086
         env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
 
+        /opt/coverity/bin/coverity list --dir=/tmp/idir > "/shared/sast-results/coverity-buildless-summary.txt"
+
         # install Coverity license file
         install -vm0644 /{shared,opt/coverity/bin}/license.dat
 
@@ -689,6 +697,22 @@ spec:
           > /shared/sast-results/coverity-buildless.json
       ) fi
 
+      # collect capture stats (FIXME: this doe not take findings deduplication into account)
+      set +e
+      for file in /shared/sast-results/*-summary.txt; do
+        ((SUCCEEDED     += $(grep "^ *SUCCEEDED:"     "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((INCOMPLETE    += $(grep "^ *INCOMPLETE:"    "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((FAILED        += $(grep "^ *FAILED:"        "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((LINES_OF_CODE += $(grep "^ *LINES OF CODE:" "${file}" | grep -oE '[0-9]+' || echo 0)))
+      done
+
+      # calculate the total number of files
+      ((TOTAL_FILES = SUCCEEDED + INCOMPLETE + FAILED))
+
+      # calculate the ratio of successful files to total files
+      ((COVERAGE_RATIO = (TOTAL_FILES == 0) ? 0 : (SUCCEEDED * 100 / TOTAL_FILES)))
+      set -e
+
       # reflect the IMP_FINDINGS_ONLY parameter in csgrep arguments
       IMP_LEVEL=1
       if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
@@ -696,7 +720,11 @@ spec:
       fi
 
       # collect scan results
-      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob '/shared/sast-results/*') \
+      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob '/shared/sast-results/*.json' \
+        --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
+        --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
+        --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
+        --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}") \
         | tee coverity-results-raw.json \
         | csgrep --mode=evtstat
 
