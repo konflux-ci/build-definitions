@@ -10,6 +10,13 @@ The logs will provide both the version of ClamAV and the version of the database
 On this version the sidecard is removed from the task and required tools (jq, oc ..) were added to the Clamav BD container image
 this should fix the problem of timing out when task is scanning the database and improve the performance.
 
+## --max-filesize: 
+Is set to the same value as the default value according to the ClamAV official Documentation.
+
+https://wiki.debian.org/ClamAV
+
+https://docs.clamav.net/manual/Development/tips-and-tricks.html?highlight=max-filesize#general-debugging 
+
 ## Params:
 
 | name                     | description                                                            | default       |
