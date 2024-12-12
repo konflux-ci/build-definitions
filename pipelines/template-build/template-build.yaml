@@ -268,15 +268,7 @@ spec:
         - build-image-index
       taskRef:
         name: coverity-availability-check
-        version: "0.1"
-      params:
-        - name: image-digest
-          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-        - name: image-url
-          value: $(tasks.build-image-index.results.IMAGE_URL)
-      workspaces:
-        - name: workspace
-          workspace: workspace
+        version: "0.2"
     - name: sast-shell-check
       when:
         - input: $(params.skip-checks)
