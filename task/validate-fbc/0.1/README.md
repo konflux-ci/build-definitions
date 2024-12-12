@@ -16,4 +16,5 @@ Ensures file-based catalog (FBC) components are uniquely linted for proper const
 |TEST_OUTPUT|Tekton task test output.|
 |RELATED_IMAGES_DIGEST|Digest for attached json file containing related images|
 |IMAGES_PROCESSED|Images processed in the task.|
+|OCP_VERSION|OCP version of FBC image.|
 
