@@ -66,12 +66,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:52f1391e6f1c472fd10bb838f64fae2ed3320c636f536014978a5ddbdfc6b3af
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:b31dc501d5068e30621e51681a2921d4e43f5a030ab78c8991f83a5e774534a3
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
+      image: quay.io/konflux-ci/yq:latest@sha256:0dcbbb0be8da0c0369d8bc2893d191381eef129ebe9dccd0221ad85ea13c3326
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -100,7 +100,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:7a85f12b14b9122df29450dfa60c6d035b04db1a7372f7b606a0fb74ed716844
+      image: quay.io/konflux-ci/oras:latest@sha256:66ccc8c3698304036a42739f6e1836f3399a46645be2d3c5d6d456b9c79fff40
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -294,7 +294,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
+      image: quay.io/konflux-ci/yq:latest@sha256:0dcbbb0be8da0c0369d8bc2893d191381eef129ebe9dccd0221ad85ea13c3326
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -326,7 +326,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
+      image: quay.io/konflux-ci/yq:latest@sha256:0dcbbb0be8da0c0369d8bc2893d191381eef129ebe9dccd0221ad85ea13c3326
       workingDir: /var/workdir
       script: |
         #!/bin/bash
