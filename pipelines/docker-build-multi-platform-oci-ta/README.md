@@ -91,13 +91,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |docker-auth| unused| | |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### coverity-availability-check-oci-ta:0.1 task parameters
+### coverity-availability-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 ### deprecated-image-check:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -258,9 +256,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.3:image-digest ; clamav-scan:0.2:image-digest ; sast-coverity-check:0.1:image-digest ; coverity-availability-check:0.1:image-digest ; sast-shell-check:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.4:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.3:image-digest ; clamav-scan:0.2:image-digest ; sast-coverity-check:0.1:image-digest ; sast-shell-check:0.1:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.3:image-url ; clamav-scan:0.2:image-url ; sast-coverity-check:0.1:image-url ; coverity-availability-check:0.1:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.4:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.1:image-url ; sast-snyk-check:0.3:image-url ; clamav-scan:0.2:image-url ; sast-coverity-check:0.1:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-remote-oci-ta:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -281,7 +279,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### coverity-availability-check-oci-ta:0.1 task results
+### coverity-availability-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |STATUS| Tekton task simple status to be later checked| |
@@ -312,8 +310,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.3:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.3:CACHI2_ARTIFACT ; sast-coverity-check:0.1:CACHI2_ARTIFACT ; coverity-availability-check:0.1:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.3:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.3:SOURCE_ARTIFACT ; sast-coverity-check:0.1:SOURCE_ARTIFACT ; coverity-availability-check:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.3:CACHI2_ARTIFACT ; build-source-image:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.3:CACHI2_ARTIFACT ; sast-coverity-check:0.1:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.3:SOURCE_ARTIFACT ; build-source-image:0.1:SOURCE_ARTIFACT ; sast-snyk-check:0.3:SOURCE_ARTIFACT ; sast-coverity-check:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
 ### push-dockerfile-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
