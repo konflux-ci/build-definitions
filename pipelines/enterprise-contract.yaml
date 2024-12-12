@@ -85,6 +85,8 @@ spec:
       value: "$(tasks.verify.results.TEST_OUTPUT)"
   tasks:
     - name: verify
+      # Timeout 0 is unlimited. Here, rely on pipeline timeout to kill this task eventually.
+      timeout: 0
       params:
         - name: POLICY_CONFIGURATION
           value: "$(params.POLICY_CONFIGURATION)"
