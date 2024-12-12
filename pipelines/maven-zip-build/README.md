@@ -25,7 +25,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |PREFETCH_ROOT| The root directory of the artifacts under the prefetched directory. Will be kept in the maven zip as the top directory for all artifacts.| maven-repository| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-### coverity-availability-check:0.1 task parameters
+### coverity-availability-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
@@ -145,11 +145,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### build-maven-zip:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest ; sast-coverity-check:0.1:image-digest ; coverity-availability-check:0.1:image-digest ; sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest ; sast-coverity-check:0.1:image-digest ; sast-shell-check:0.1:image-digest|
 |IMAGE_REF| OCI-Artifact reference of the built OCI-Artifact| |
-|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url ; sast-coverity-check:0.1:image-url ; coverity-availability-check:0.1:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url|
+|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url ; sast-coverity-check:0.1:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### coverity-availability-check:0.1 task results
+### coverity-availability-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |STATUS| Tekton task simple status to be later checked| |
@@ -189,16 +189,12 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.1:workspace ; coverity-availability-check:0.1:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.1:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
 ## Available workspaces from tasks
 ### build-maven-zip:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### coverity-availability-check:0.1 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| | False| workspace|
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|

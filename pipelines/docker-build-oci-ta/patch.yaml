@@ -30,8 +30,8 @@
 #   8  ecosystem-cert-preflight-checks
 #   9  sast-snyk-check
 #  10  clamav-scan
-#  11  coverity-availability-check
-#  12  sast-coverity-check
+#  11  sast-coverity-check
+#  12  coverity-availability-check
 #  13  sast-shell-check
 #  14  sast-unicode-check
 #  15  apply-tags
@@ -147,23 +147,6 @@
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/11/workspaces/0
-
-# coverity-availability-check
-- op: replace
-  path: /spec/tasks/12/taskRef/name
-  value: coverity-availability-check-oci-ta
-- op: add
-  path: /spec/tasks/12/params/-
-  value:
-    name: SOURCE_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-- op: add
-  path: /spec/tasks/12/params/-
-  value:
-    name: CACHI2_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-- op: remove
-  path: /spec/tasks/12/workspaces/0
 
 # sast-shell-check
 - op: replace
