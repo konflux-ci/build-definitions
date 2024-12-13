@@ -365,7 +365,7 @@ spec:
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
 
-
+      # 0. if hermetic=true, skip all subscription related stuff
       # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
       # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
       # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
@@ -374,7 +374,7 @@ spec:
       #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced
       #    container.
 
-      if [ -e /activation-key/org ]; then
+      if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
         cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
         mkdir -p /shared/rhsm/etc/pki/entitlement
         mkdir -p /shared/rhsm/etc/pki/consumer
@@ -383,7 +383,6 @@ spec:
                         -v /shared/rhsm/etc/pki/entitlement:/etc/pki/entitlement:Z \
                         -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
         echo "Adding activation key to the build"
-
 
         if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
           # user is not running registration in the Containerfile: pre-register.
@@ -399,8 +398,7 @@ spec:
           VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
         fi
 
-      # was: if [ -d "$ACTIVATION_KEY_PATH" ]; then
-      elif find /entitlement -name "*.pem" >> null; then
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >> null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
