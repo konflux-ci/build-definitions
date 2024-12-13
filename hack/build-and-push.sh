@@ -194,19 +194,20 @@ inject_bundle_ref_to_pipelines() {
     local -r task_name=$1
     local -r task_version=$2
     local -r task_bundle_with_digest=$3
-    sub_expr_1="
-        (.spec.tasks[].taskRef | select(.name == \"${task_name}\" and .version == \"${task_version}\" ))
-        |= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" }, { \"name\": \"kind\", \"value\": \"task\" }] }
-    "
-    sub_expr_2="
-        (.spec.finally[].taskRef | select(.name == \"${task_name}\" and .version == \"${task_version}\" ))
-        |= {\"resolver\": \"bundles\", \"params\": [ { \"name\": \"name\", \"value\": \"${task_name}\" } , { \"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\" },{ \"name\": \"kind\", \"value\": \"task\" }] }
-    "
-    for filename in "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml
-    do
-        yq e "$sub_expr_1" -i "${filename}"
-        yq e "$sub_expr_2" -i "${filename}"
-    done
+    local -r bundle_ref="{
+        \"resolver\": \"bundles\",
+        \"params\": [
+            {\"name\": \"name\", \"value\": \"${task_name}\"},
+            {\"name\": \"bundle\", \"value\": \"${task_bundle_with_digest}\"},
+            {\"name\": \"kind\", \"value\": \"task\"}
+        ]
+    }"
+    local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
+    find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
+        while read -r pipeline_file; do
+            yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
+            yq e "(.spec.finally[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
+        done
 }
 
 # Get task version from task definition rather than the version in the directory path.
