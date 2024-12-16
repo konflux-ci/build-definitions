@@ -8,7 +8,7 @@
 #   tasks. kustomized tasks can be customized either based on another normal
 #   task, e.g. task buildah-24gb is based on task buildah. This type of
 #   kustomized task inherits the interface without change. Or based on itself,
-#   e.g. task inspect image.
+#   e.g. task inspect-image.
 #
 # Task are built and pushed to the registry as Tekton task bundles. There are
 # two kinds of tags in a single task bundle repository.
@@ -227,7 +227,6 @@ build_push_task() {
     local -r prepared_task_file=$2
     local -r task_bundle=$3
     local -r task_file_sha=$4
-    # local -r extra_annotations=${5:-""}
 
     local -r task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
@@ -241,13 +240,13 @@ build_push_task() {
         ANNOTATIONS+=("org.opencontainers.image.description=${task_description}")
     fi
     if [ -f "${task_dir}/README.md" ]; then
-        ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}README.md")
+        ANNOTATIONS+=("org.opencontainers.image.documentation=${VCS_URL}/tree/${VCS_REF}/${task_dir}/README.md")
     fi
     if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
-        ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}TROUBLESHOOTING.md")
+        ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${VCS_URL}/tree/${VCS_REF}/${task_dir}/TROUBLESHOOTING.md")
     fi
     if [ -f "${task_dir}/USAGE.md" ]; then
-        ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}USAGE.md")
+        ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
 
     local -a ANNOTATION_FLAGS=()
@@ -255,22 +254,12 @@ build_push_task() {
         ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
     done
 
-    output=$(
-        retry tkn bundle push "${ANNOTATION_FLAGS[@]}" -f "$prepared_task_file" "$task_bundle" \
-            | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST"
-    )
-    echo "$output"
+    retry tkn bundle push "${ANNOTATION_FLAGS[@]}" -f "$prepared_task_file" "$task_bundle" \
+        | save_ref "$task_bundle" "$OUTPUT_TASK_BUNDLE_LIST"
 
     # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
     # even when original tag is updated
     skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
-
-    # Ensure task bundle reference with digest is the last one so that function
-    # caller can extract it easily.
-    local -r task_bundle_with_digest="${output##*$'\n'}"
-
-    cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
-    echo "$task_bundle_with_digest"
 }
 
 # Determine if a task is a normal task. 0 returns if it is, otherwise 1 is returned.
@@ -344,8 +333,7 @@ cache_get() {
     local -r key=$1
     local value=
     if [ -n "$ENABLE_CACHE" ]; then
-        # No match should not fail the script. It means no cached data.
-        read -r _ value < <(grep "^${key}" "$CACHE_FILE" 2>/dev/null) || :
+        value=$(awk -v key="$key" '$1 == key { print $2 }' <"$CACHE_FILE")
     fi
     echo "$value"
 }
@@ -380,7 +368,6 @@ attach_migration_file() {
     local -r concrete_task_version=$2
     local -r task_bundle=$3
 
-    local -r task_file="${task_dir}/${task_name}.yaml"
     local -r migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
 
     if [ ! -e "$migration_file" ]; then
@@ -433,7 +420,7 @@ attach_migration_file() {
         retry oras attach \
             --registry-config "$AUTH_JSON" \
             --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
-            --distribution-spec v1.1-referrers-tag \
+            --distribution-spec v1.1-referrers-api \
             --annotation "$ANNOTATION_TASK_MIGRATION=true" \
             "$task_bundle" "${migration_file##*/}"
     )
@@ -451,11 +438,12 @@ build_push_tasks() {
     local prepared_task_file
     local task_file_sha
     local task_bundle
+    local output
 
     find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
     do
-        if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -v "$task_name" 2>/dev/null; then
+        if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
             continue
         fi
 
@@ -464,11 +452,14 @@ build_push_tasks() {
             continue
         fi
 
+        echo "info: build and push task $task_dir" 1>&2
+
         if is_normal_task "$task_dir" "$task_name";  then
             build_data=$(generate_normal_task_build_data "$task_dir" "$task_name" "$task_version")
         elif is_kustomized_task "$task_dir" "$task_name";  then
             build_data=$(generate_kustomized_task_build_data "$task_dir" "$task_name" "$task_version")
         else
+            echo "warning: skip handling task $task_dir since it does not follow a known task definition structure." 1>&2
             continue
         fi
 
@@ -477,17 +468,22 @@ build_push_tasks() {
 
         if [ -n "$digest" ]; then
             task_bundle_with_digest=${task_bundle}@${digest}
+            echo "info: use existing $task_bundle_with_digest" 1>&2
         else
-            task_bundle_with_digest=$(
-                build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
-                    | tail -n 1
-            )
+            echo "info: push new bundle $task_bundle" 1>&2
+
+            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha")
+
+            task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
+            task_bundle_with_digest=${task_bundle_with_digest##* }
+            cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
         fi
 
         concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
         attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest"
 
         # version placeholder is removed naturally by the substitution.
+        echo "info: inject task bundle to pielines $task_bundle_with_digest" 1>&2
         real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
         inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
     done
