@@ -34,6 +34,10 @@ spec:
         https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html.
       type: string
       default: "does-not-exist"
+    - name: sbomType
+      type: string
+      description: The type of SBOM to generate. Supported values are 'spdx' and 'cyclonedx'.
+      default: cyclonedx
   results:
     - description: Digest of the artifact just pushed
       name: IMAGE_DIGEST
@@ -49,6 +53,8 @@ spec:
         value: $(params.OCI_COPY_FILE)
       - name: IMAGE
         value: $(params.IMAGE)
+      - name: SBOM_TYPE
+        value: $(params.sbomType)
   steps:
     - name: prepare
       image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
@@ -277,34 +283,96 @@ spec:
       image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
       script: |
         #!/bin/bash
-        cat >sbom-cyclonedx.json <<EOL
-        {
-            "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
-            "bomFormat": "CycloneDX",
-            "specVersion": "1.5",
-            "version": 1,
-            "components": []
+        if [ "$SBOM_TYPE" == "cyclonedx" ]; then
+        SBOM_SCRIPT=$(cat << EOS
+        import sys
+        import json
+        sbom = {
+          "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+          "bomFormat": "CycloneDX",
+          "specVersion": "1.5",
+          "version": 1,
+          "components": []
         }
-        EOL
+        for data in sys.stdin:
+          parsed_data = json.loads(data)
+          sbom["components"].append({
+            "purl": parsed_data["purl"],
+            "type": "file",
+            "name": parsed_data["name"],
+            "hashes": [{"alg": "SHA-256", "content": parsed_data["digest"]}],
+            "externalReferences": [{"type": "distribution", "url": parsed_data["source"]}]
+          })
+        json.dump(sbom, sys.stdout)
+        EOS
+        )
+        else
+        SBOM_SCRIPT=$(cat << EOS
+        import sys
+        import json
+        import hashlib
+        sbom = {
+          "spdxVersion": "SPDX-2.3",
+          "dataLicense": "CC0-1.0",
+          "SPDXID": "SPDXRef-DOCUMENT",
+          "packages": [{
+            "SPDXID": "SPDXRef-DocumentRoot-File-",
+            "name": ""
+          }],
+          "relationships": [{
+            "SPDXElementID": "SPDXRef-DOCUMENT",
+            "relatedSpdxElement": "SPDXRef-DocumentRoot-File-",
+            "relationshipType": "DESCRIBES"
+          }]
+        }
+        for data in sys.stdin:
+          parsed_data = json.loads(data)
+          package_dict = {"name": parsed_data['name'],
+                          "version": "",
+                          "purls": [parsed_data['purl']]}
+          package_hash = hashlib.sha256(json.dumps(package_dict, sort_keys=True).encode()).hexdigest()
+          sbom['packages'].append({
+            "SPDXID": "SPDXRef-Package-" + parsed_data["name"]+ "--" + package_hash,
+            "name": parsed_data["name"],
+            "versionInfo": "",
+            "externalRefs": [{
+              "referenceLocator": parsed_data["purl"],
+              "referenceCategory": "PACKAGE-MANAGER",
+              "referenceType": "purl"
+            }],
+          })
+          sbom['relationships'].append({
+            "SPDXElementID": "SPDXRef-DocumentRoot-File-",
+            "relationship": "CONTAINS",
+            "relatedSpdxElement": "SPDXRef-Package" + parsed_data["name"]+ "--" + package_hash
+          })
+        json.dump(sbom, sys.stdout)
+        EOS
+        )
+        fi
 
+        temp_file=$(mktemp)
+        trap 'rm -f "$temp_file"' 0 2 3 15
         for varfile in "$(workspaces.source.path)"/vars/*; do
           echo "Reading $varfile"
           # shellcheck source=/dev/null
-          source $varfile
+          source "$varfile"
 
           ENCODED_URL=$(echo "${OCI_SOURCE}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
           ENCODED_FILENAME=$(echo "${OCI_FILENAME}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
           purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
 
           echo "Recording purl $purl"
-          yq -oj -i '.components += [ {"purl": "'$purl'", "type": "file", "name": "'$OCI_FILENAME'", "hashes": [{"alg": "SHA-256", "content": "'$OCI_ARTIFACT_DIGEST'"}], "externalReferences": [{"type": "distribution", "url": "'$OCI_SOURCE'"}]} ]' sbom-cyclonedx.json
+          echo "{\"purl\": \"$purl\", \"name\": \"$OCI_FILENAME\", \"digest\" :\"$OCI_ARTIFACT_DIGEST\", \"source\": \"$OCI_SOURCE\"}" >> "$temp_file"
         done
+        python3 -c "$SBOM_SCRIPT" < "$temp_file" > sbom.json
+
       workingDir: $(workspaces.source.path)
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       workingDir: $(workspaces.source.path)
       script: |
-        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
       script: |
