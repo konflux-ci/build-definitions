@@ -207,6 +207,17 @@
       "depNameTemplate": "konflux-ci",
       "packageNameTemplate": "https://github.com/konflux-ci/konflux-ci",
       "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^task/.*/recipe\\.yaml$"
+      ],
+      "matchStrings": [
+        "image: (?:['\"])?(?<depName>.*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
+      ],
+      "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
     }
   ]
 }
