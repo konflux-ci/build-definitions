@@ -381,6 +381,8 @@ attach_migration_file() {
 
     # List attached artifacts, that have specific artifact type and annotation.
     # Then, find out the migration artifact.
+    #
+    # Minimum version oras 1.2.0 is required for option --format
     artifact_refs=$(
         retry oras discover "$task_bundle" --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" --format json | \
         jq -r "

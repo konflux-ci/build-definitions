@@ -10,6 +10,10 @@ RUN curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.3
 RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/snapshot/ec_linux_amd64 -o /usr/bin/ec && chmod +x /usr/bin/ec && ec version
 RUN curl -L https://github.com/cli/cli/releases/download/v2.60.1/gh_2.60.1_linux_amd64.tar.gz | tar -xz  -C /usr/bin --wildcards "gh_*/bin/gh" --strip-components=2 --no-same-owner
 
+# 1.2.0 is the minimum required version
+RUN curl -L https://github.com/oras-project/oras/releases/download/v1.2.1/oras_1.2.1_linux_amd64.tar.gz | \
+    tar -xz --no-same-owner -C /usr/bin oras
+
 RUN dnf -y --setopt=tsflags=nodocs install \
     git \
     skopeo \
