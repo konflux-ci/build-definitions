@@ -422,7 +422,6 @@ attach_migration_file() {
         retry oras attach \
             --registry-config "$AUTH_JSON" \
             --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
-            --distribution-spec v1.1-referrers-api \
             --annotation "$ANNOTATION_TASK_MIGRATION=true" \
             "$task_bundle" "${migration_file##*/}"
     )
