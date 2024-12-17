@@ -1,0 +1,199 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: fbc-target-index-pruning-check
+spec:
+  description: >-
+    Ensures file-based catalog (FBC) components do not remove versions of operators already added to a released catalog.
+  params:
+    - name: IMAGE_URL
+      description: Fully qualified image name.
+    - name: IMAGE_DIGEST
+      description: Image digest.
+    - name: TARGET_INDEX
+      description: Image name of target index, minus tag.
+      default: registry.redhat.io/redhat/redhat-operator-index
+    - name: OCP_VERSION
+      description: OCP version.
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  steps:
+    - name: check-if-fragment-prunes-target-index
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.9@sha256:eee855e60b437d9a55a30e63f2eb7f95d9fd6d3b111c32cac8730c9b7a071394
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      workingDir: /var/workdir/fbc-pruning
+      env:
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
+        - name: TARGET_INDEX
+          value: $(params.TARGET_INDEX)
+        - name: OCP_VERSION
+          value: $(params.OCP_VERSION)
+      securityContext:
+        runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          memory: 512Mi
+          cpu: 10m
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        source /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        IMAGE_URL="${IMAGE_URL}@${IMAGE_DIGEST}"
+        # Given a tag and a the digest in the IMAGE_URL we opt to use the digest alone
+        # this is because containers/image currently doesn't support image references
+        # that contain both. See https://github.com/containers/image/issues/1736
+        if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
+          IMAGE_URL="${IMAGE_URL/:*@/@}"
+        fi
+
+        ### Check if TARGET_INDEX is defined
+        if [ -z "${TARGET_INDEX}" ]; then
+          echo "TARGET_INDEX is not defined."
+          note="Task $(context.task.name) failed: The TARGET_INDEX is not defined."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        ### Check if OCP_VERSION is defined
+        if [ -z "${OCP_VERSION}" ]; then
+          echo "OCP_VERSION is not defined."
+          note="Task $(context.task.name) failed: The OCP_VERSION is not defined."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        ### Run opm render for FBC fragment and target index
+        rendered_fbc_image=/tmp/opm-render-fbc-fragment.json
+        rendered_target_index=/tmp/opm-render-target-index.json
+
+        echo "Rendering FBC image:    ${IMAGE_URL}"
+        opm render "${IMAGE_URL}" | tr -d '\000-\031' > "${rendered_fbc_image}"
+        if [[ ! -f "${rendered_fbc_image}" ]]; then
+          note="Task $(context.task.name) failed: Unable to render the fragment FBC image: ${IMAGE_URL}"
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+
+        target_index_pullspec="${TARGET_INDEX}:v${OCP_VERSION}"
+        echo "Rendering target index: ${target_index_pullspec}"
+        opm render "${target_index_pullspec}" | tr -d '\000-\031' > "${rendered_target_index}"
+        if [[ ! -f "${rendered_target_index}" ]]; then
+          note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+
+        failure_num=0
+        TESTPASSED=true
+
+        fbc_channels=/tmp/olm-channels-fbc-image.json
+        ndx_channels=/tmp/olm-channels-target-index.json
+
+        ### Filter out channels and channel entries from FBC fragment render
+        jq -s 'map(select(.schema == "olm.channel")) | reduce .[] as $obj ([]; . += [{package: $obj.package, channel: $obj.name, entries: [$obj.entries[].name]}])' "${rendered_fbc_image}" > "${fbc_channels}"
+
+        echo ""
+        echo "Channels defined in FBC fragment:"
+        jq '.' "${fbc_channels}"
+        echo ""
+
+        ### Filter out channels and channel entries from target index render
+        jq -s 'map(select(.schema == "olm.channel")) | reduce .[] as $obj ([]; . += [{package: $obj.package, channel: $obj.name, entries: [$obj.entries[].name]}])' "${rendered_target_index}" > "${ndx_channels}"
+
+        ### Get the package(s) the fragment is configuring
+        mapfile -t fbc_pkgs < <(jq -r '.[].package ' "${fbc_channels}" | sort -u)
+        if (( ${#fbc_pkgs[@]} < 1 )); then
+          note="Task $(context.task.name) failed: No OLM packages detected in FBC fragment."
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+
+        ### Get packages in target index
+        mapfile -t ndx_pkgs < <(jq -r '.[].package ' "${ndx_channels}" | sort -u)
+        if [[ ${#ndx_pkgs[@]} -lt 1 ]]; then
+          note="Task $(context.task.name) failed: No OLM packages detected in target index."
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+
+        ### Test packages in the FBC fragment that already exist in the target index.
+        pkgs_to_test=()
+        for pkg in "${fbc_pkgs[@]}"; do
+          if echo "${ndx_pkgs[@]}" | grep -Fwq "${pkg}"; then
+            pkgs_to_test+=("${pkg}")
+          fi
+        done
+
+        if (( ${#pkgs_to_test[@]} > 0 )); then
+          for pkg in "${pkgs_to_test[@]}"; do
+            channels_to_test=()
+            mapfile -t fbc_channel_names < <(jq -r --arg p "${pkg}" '.[] | select(.package == $p) | .channel' ${fbc_channels})
+            mapfile -t ndx_channel_names < <(jq -r --arg p "${pkg}" '.[] | select(.package == $p) | .channel' ${ndx_channels})
+
+            ### Check for removed channels
+            for chan in "${ndx_channel_names[@]}"; do
+              if echo "${fbc_channel_names[@]}" | grep -Fwq "${chan}"; then
+                channels_to_test+=("${chan}")
+              else
+                echo "!FAILURE! - FBC fragment prunes entire ${pkg}.${chan} channel."
+                TESTPASSED=false
+                failure_num=$((failure_num + 1))
+              fi
+            done
+
+            ### Check each channel for removed entries
+            if (( ${#channels_to_test[@]} > 0 )); then
+              for chan in "${channels_to_test[@]}"; do
+                echo ""
+                echo "TARGET INDEX ${pkg}.${chan} channel:"
+                jq -r --arg p "${pkg}" --arg c "${chan}" '.[] | select(.package == $p and .channel == $c)' "${ndx_channels}"
+                echo ""
+                mapfile -t ndx_entries < <(jq -r --arg p "${pkg}" --arg c "${chan}" '.[] | select(.package == $p and .channel == $c) | .entries[]' "${ndx_channels}")
+                mapfile -t fbc_entries < <(jq -r --arg p "${pkg}" --arg c "${chan}" '.[] | select(.package == $p and .channel == $c) | .entries[]' "${fbc_channels}")
+
+                for entry in "${ndx_entries[@]}"; do
+                  if ! echo "${fbc_entries[@]}" | grep -Fwq "${entry}"; then
+                    echo "!FAILURE! - FBC fragment prunes ${entry} from ${pkg}.${chan} channel."
+                    failure_num=$((failure_num + 1))
+                    TESTPASSED=false
+                  fi
+                done
+              done
+            fi
+          done
+        else
+          echo "FBC fragment is not modifying any existing channels in the target index."
+        fi
+
+        note="Task $(context.task.name) completed: Check result for task result."
+        if [[ $TESTPASSED == false ]]; then
+          ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s 0 -t "${note}")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        else
+          TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "${note}")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        fi
