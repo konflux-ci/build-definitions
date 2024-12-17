@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	pipeline "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	core "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 var (
@@ -334,6 +335,16 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 				},
 			},
 			Args: args,
+			ComputeResources: core.ResourceRequirements{
+				Requests: core.ResourceList{
+					core.ResourceCPU:    resource.MustParse("1"),
+					core.ResourceMemory: resource.MustParse("3Gi"),
+				},
+				Limits: core.ResourceList{
+					core.ResourceCPU:    resource.MustParse("1"),
+					core.ResourceMemory: resource.MustParse("3Gi"),
+				},
+			},
 		}
 
 		if task.Spec.StepTemplate == nil && !recipe.PreferStepTemplate {
