@@ -69,7 +69,7 @@ spec:
         name: shared
   steps:
   - name: sanitize-cachi2-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
+    image: quay.io/konflux-ci/yq:latest@sha256:d2ceeb1d5834f8218200815fffec488caec4a582e6179d16f781df0b8d14efd4
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -80,7 +80,7 @@ spec:
       fi
 
   - name: check-prefetch-input
-    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -95,7 +95,7 @@ spec:
       fi
 
   - name: register-red-hat
-    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
     env:
     - name: INPUT
       value: $(params.input)
@@ -141,7 +141,7 @@ spec:
       fi
 
   - name: preprocess-input
-    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
 
@@ -233,7 +233,7 @@ spec:
 
 
   - name: prefetch-dependencies
-    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -329,7 +329,7 @@ spec:
       --for-output-dir=/cachi2/output
 
   - name: unregister-rhsm
-    image: quay.io/redhat-appstudio/cachi2:0.15.0@sha256:b141cb5cf4d98e6c5f668f1fe172e1d68f2a44ac1027403fbcff94ce1e68185d
+    image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     script: |
