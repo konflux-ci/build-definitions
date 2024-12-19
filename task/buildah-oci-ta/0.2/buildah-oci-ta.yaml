@@ -82,6 +82,11 @@ spec:
         be made available to the build.
       type: string
       default: ""
+    - name: SKIP_SBOM_GENERATION
+      description: Skip SBOM-related operations. This will likely cause EC
+        policies to fail if enabled
+      type: string
+      default: "false"
     - name: SKIP_UNUSED_STAGES
       description: Whether to skip stages in Containerfile that seem unused
         by subsequent stages
@@ -618,6 +623,10 @@ spec:
         - mountPath: /shared
           name: shared
       script: |
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
         echo "Running syft on the source directory"
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
@@ -656,6 +665,10 @@ spec:
       image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:adbe6c723810099c5cf616b1edb8ab6f276385fd2f97dfd201ab3ccc6402b834
       workingDir: /var/workdir
       script: |
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
         echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
         python3 /scripts/merge_syft_sboms.py
 
@@ -700,6 +713,10 @@ spec:
           readOnly: true
       script: |
         #!/bin/bash
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
 
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then
