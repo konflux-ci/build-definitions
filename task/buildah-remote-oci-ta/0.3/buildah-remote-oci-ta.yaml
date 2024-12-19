@@ -1,0 +1,831 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/version: 0.2.1
+    build.appstudio.redhat.com/build_type: docker
+  name: buildah-remote-oci-ta
+spec:
+  description: |-
+    Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
+    In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
+    When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment.
+  params:
+  - default: activation-key
+    description: Name of secret which contains subscription activation key
+    name: ACTIVATION_KEY
+    type: string
+  - default: does-not-exist
+    description: Name of a secret which will be made available to the build with 'buildah
+      build --secret' at /run/secrets/$ADDITIONAL_SECRET
+    name: ADDITIONAL_SECRET
+    type: string
+  - default: ""
+    description: Comma separated list of extra capabilities to add when running 'buildah
+      build'
+    name: ADD_CAPABILITIES
+    type: string
+  - default: []
+    description: Array of --build-arg values ("arg=value" strings)
+    name: BUILD_ARGS
+    type: array
+  - default: ""
+    description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
+    name: BUILD_ARGS_FILE
+    type: string
+  - default: ""
+    description: The Trusted Artifact URI pointing to the artifact with the prefetched
+      dependencies.
+    name: CACHI2_ARTIFACT
+    type: string
+  - default: ""
+    description: The image is built from this commit.
+    name: COMMIT_SHA
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - default: ./Dockerfile
+    description: Path to the Dockerfile to build.
+    name: DOCKERFILE
+    type: string
+  - default: etc-pki-entitlement
+    description: Name of secret which contains the entitlement certificates
+    name: ENTITLEMENT_SECRET
+    type: string
+  - default: "false"
+    description: Determines if build will be executed without network access.
+    name: HERMETIC
+    type: string
+  - description: Reference of the image buildah will produce.
+    name: IMAGE
+    type: string
+  - default: ""
+    description: Delete image tag after specified time. Empty means to keep the image
+      tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks,
+      respectively.
+    name: IMAGE_EXPIRES_AFTER
+    type: string
+  - default: []
+    description: Additional key=value labels that should be applied to the image
+    name: LABELS
+    type: array
+  - default: ""
+    description: In case it is not empty, the prefetched content should be made available
+      to the build.
+    name: PREFETCH_INPUT
+    type: string
+  - default: "true"
+    description: Whether to skip stages in Containerfile that seem unused by subsequent
+      stages
+    name: SKIP_UNUSED_STAGES
+    type: string
+  - description: The Trusted Artifact URI pointing to the artifact with the application
+      source code.
+    name: SOURCE_ARTIFACT
+    type: string
+  - default: "false"
+    description: Squash all new and previous layers added as a part of this build,
+      as per --squash
+    name: SQUASH
+    type: string
+  - default: vfs
+    description: Storage driver to configure for buildah
+    name: STORAGE_DRIVER
+    type: string
+  - default: ""
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile
+      is processed entirely to (and including) its last stage.
+    name: TARGET_STAGE
+    type: string
+  - default: "true"
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS
+      registry)
+    name: TLSVERIFY
+    type: string
+  - default: fetched.repos.d
+    description: Path in source workspace where dynamically-fetched repos are present
+    name: YUM_REPOS_D_FETCHED
+  - default: repos.d
+    description: Path in the git repository in which yum repository files are stored
+    name: YUM_REPOS_D_SRC
+  - default: /etc/yum.repos.d
+    description: Target path on the container in which yum repository files should
+      be made available
+    name: YUM_REPOS_D_TARGET
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data.
+    name: caTrustConfigMapKey
+    type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from.
+    name: caTrustConfigMapName
+    type: string
+  - description: The platform to build on
+    name: PLATFORM
+    type: string
+  - default: "false"
+    description: Whether to append a sanitized platform architecture on the IMAGE
+      tag
+    name: IMAGE_APPEND_PLATFORM
+    type: string
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image reference of the built image
+    name: IMAGE_REF
+  - description: Image repository and tag where the built image was pushed
+    name: IMAGE_URL
+  - description: Reference of SBOM blob digest to enable digest-based verification
+      from provenance
+    name: SBOM_BLOB_URL
+    type: string
+  stepTemplate:
+    computeResources: {}
+    env:
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
+    - name: ADDITIONAL_SECRET
+      value: $(params.ADDITIONAL_SECRET)
+    - name: ADD_CAPABILITIES
+      value: $(params.ADD_CAPABILITIES)
+    - name: BUILDAH_FORMAT
+      value: oci
+    - name: BUILD_ARGS_FILE
+      value: $(params.BUILD_ARGS_FILE)
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
+    - name: HERMETIC
+      value: $(params.HERMETIC)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
+    - name: SOURCE_CODE_DIR
+      value: source
+    - name: SQUASH
+      value: $(params.SQUASH)
+    - name: STORAGE_DRIVER
+      value: $(params.STORAGE_DRIVER)
+    - name: TARGET_STAGE
+      value: $(params.TARGET_STAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: YUM_REPOS_D_FETCHED
+      value: $(params.YUM_REPOS_D_FETCHED)
+    - name: YUM_REPOS_D_SRC
+      value: $(params.YUM_REPOS_D_SRC)
+    - name: YUM_REPOS_D_TARGET
+      value: $(params.YUM_REPOS_D_TARGET)
+    - name: BUILDER_IMAGE
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    - name: PLATFORM
+      value: $(params.PLATFORM)
+    - name: IMAGE_APPEND_PLATFORM
+      value: $(params.IMAGE_APPEND_PLATFORM)
+    volumeMounts:
+    - mountPath: /shared
+      name: shared
+    - mountPath: /var/workdir
+      name: workdir
+  steps:
+  - args:
+    - use
+    - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+    computeResources: {}
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+    name: use-trusted-artifact
+  - args:
+    - --build-args
+    - $(params.BUILD_ARGS[*])
+    - --labels
+    - $(params.LABELS[*])
+    computeResources:
+      limits:
+        cpu: "4"
+        memory: 8Gi
+      requests:
+        cpu: "1"
+        memory: 2Gi
+    env:
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    name: build
+    script: |-
+      #!/bin/bash
+      set -e
+      set -o verbose
+      mkdir -p ~/.ssh
+      if [ -e "/ssh/error" ]; then
+        #no server could be provisioned
+        cat /ssh/error
+        exit 1
+      fi
+      export SSH_HOST=$(cat /ssh/host)
+
+      if [ "$SSH_HOST" == "localhost" ] ; then
+        IS_LOCALHOST=true
+        echo "Localhost detected; running build in cluster"
+      elif [ -e "/ssh/otp" ]; then
+        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+        echo "" >> ~/.ssh/id_rsa
+      else
+        cp /ssh/id_rsa ~/.ssh
+      fi
+
+      mkdir -p scripts
+
+      if ! [[ $IS_LOCALHOST ]]; then
+        chmod 0400 ~/.ssh/id_rsa
+        export BUILD_DIR=$(cat /ssh/user-dir)
+        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
+        echo "$BUILD_DIR"
+        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+
+        PORT_FORWARD=""
+        PODMAN_PORT_FORWARD=""
+        if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
+          PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
+          PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
+        fi
+
+        rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
+        rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
+        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+        rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
+        rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
+        rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
+        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
+      fi
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+
+      cat >scripts/script-build.sh <<'REMOTESSHEOF'
+      #!/bin/bash
+      set -euo pipefail
+      cd /var/workdir
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        # Custom Dockerfile location is mainly used for instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and also need to provide modified Dockerfile.
+        dockerfile_path="$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ $http_code != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ $http_code = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" $SOURCE_CODE_DIR/$CONTEXT/.dockerignore
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
+      cp "$dockerfile_path" "$dockerfile_copy"
+
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
+
+      sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+
+      # Setting new namespace to run buildah - 2^32-2
+      echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
+
+      build_args=()
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        # Parse BUILD_ARGS_FILE ourselves because dockerfile-json doesn't support it
+        echo "Parsing ARGs from $BUILD_ARGS_FILE"
+        mapfile -t build_args < <(
+          # https://www.mankier.com/1/buildah-build#--build-arg-file
+          # delete lines that start with #
+          # delete blank lines
+          sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
+        )
+      fi
+
+      LABELS=()
+      # Split `args` into two sets of arguments.
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+        --build-args)
+          shift
+          # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+          # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+          # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            build_args+=("$1")
+            shift
+          done
+          ;;
+        --labels)
+          shift
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            LABELS+=("--label" "$1")
+            shift
+          done
+          ;;
+        *)
+          echo "unexpected argument: $1" >&2
+          exit 2
+          ;;
+        esac
+      done
+
+      BUILD_ARG_FLAGS=()
+      for build_arg in "${build_args[@]}"; do
+        BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
+      done
+
+      dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
+      BASE_IMAGES=$(
+        jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
+      )
+
+      BUILDAH_ARGS=()
+      UNSHARE_ARGS=()
+
+      if [ "${HERMETIC}" == "true" ]; then
+        BUILDAH_ARGS+=("--pull=never")
+        UNSHARE_ARGS+=("--net")
+
+        for image in $BASE_IMAGES; do
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+        done
+        echo "Build will be executed with network isolation"
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+      fi
+
+      BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+      if [ -n "${ADD_CAPABILITIES}" ]; then
+        BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
+      fi
+
+      if [ "${SQUASH}" == "true" ]; then
+        BUILDAH_ARGS+=("--squash")
+      fi
+
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ]; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
+      VOLUME_MOUNTS=()
+
+      if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
+        cp -r "/var/workdir/cachi2" /tmp/
+        chmod -R go+rwX /tmp/cachi2
+        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
+        # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
+        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
+        sed -E -i \
+          -e 'H;1h;$!d;x' \
+          -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+          "$dockerfile_copy"
+        echo "Prefetched content will be made available"
+
+        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+        if [ -f "$prefetched_repo_for_my_arch" ]; then
+          echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
+          mkdir -p "$YUM_REPOS_D_FETCHED"
+          cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+        fi
+      fi
+
+      # if yum repofiles stored in git, copy them to mount point outside the source dir
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        mkdir -p ${YUM_REPOS_D_FETCHED}
+        cp -r ${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}/* ${YUM_REPOS_D_FETCHED}
+      fi
+
+      # if anything in the repofiles mount point (either fetched or from git), mount it
+      if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
+        chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
+        mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
+        VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
+      fi
+
+      DEFAULT_LABELS=(
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
+      )
+      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
+      # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
+      LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      ACTIVATION_KEY_PATH="/activation-key"
+      ENTITLEMENT_PATH="/entitlement"
+
+      # 0. if hermetic=true, skip all subscription related stuff
+      # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+      # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
+      # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
+      # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
+      #    to buildah but don't pre-register for backwards compatibility. In this case mount an empty directory on
+      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced
+      #    container.
+
+      if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
+        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+        mkdir -p /shared/rhsm/etc/pki/entitlement
+        mkdir -p /shared/rhsm/etc/pki/consumer
+
+        VOLUME_MOUNTS+=(-v /tmp/activation-key:/activation-key
+          -v /shared/rhsm/etc/pki/entitlement:/etc/pki/entitlement:Z
+          -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
+        echo "Adding activation key to the build"
+
+        if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
+          # user is not running registration in the Containerfile: pre-register.
+          echo "Pre-registering with subscription manager."
+          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          trap 'subscription-manager unregister || true' EXIT
+
+          # copy generated certificates to /shared volume
+          cp /etc/pki/entitlement/*.pem /shared/rhsm/etc/pki/entitlement
+          cp /etc/pki/consumer/*.pem /shared/rhsm/etc/pki/consumer
+
+          # and then mount get /etc/rhsm/ca/redhat-uep.pem into /run/secrets/rhsm/ca
+          VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
+        fi
+
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >>null; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
+        echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
+        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
+        # This is primarily used in instrumented builds for SAST scanning and analyzing.
+        # Instrumented builds use this step as their base and add some other tools.
+        while read -r volume_mount; do
+          VOLUME_MOUNTS+=("--volume=$volume_mount")
+        done <<<"$ADDITIONAL_VOLUME_MOUNTS"
+      fi
+
+      ADDITIONAL_SECRET_PATH="/additional-secret"
+      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
+      if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
+        cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+        while read -r filename; do
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+        done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
+      fi
+
+      # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
+      declare IMAGE
+
+      buildah_cmd_array=(
+        buildah build
+        "${VOLUME_MOUNTS[@]}"
+        "${BUILDAH_ARGS[@]}"
+        "${LABELS[@]}"
+        --tls-verify="$TLSVERIFY" --no-cache
+        --ulimit nofile=4096:4096
+        -f "$dockerfile_copy" -t "$IMAGE" .
+      )
+      buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
+
+      if [ "${HERMETIC}" == "true" ]; then
+        # enabling loopback adapter enables Bazel builds to work in hermetic mode.
+        command="ip link set lo up && $buildah_cmd"
+      else
+        command="$buildah_cmd"
+      fi
+
+      # disable host subcription manager integration
+      find /usr/share/rhel/secrets -type l -exec unlink {} \;
+
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      container=$(buildah from --pull-never "$IMAGE")
+      buildah mount $container | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
+      echo $container >/shared/container_name
+
+      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      if [ -f "/tmp/cachi2/output/bom.json" ]; then
+        cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+      fi
+
+      touch /shared/base_images_digests
+      for image in $BASE_IMAGES; do
+        base_image_digest=$(buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image")
+        # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
+        # if buildah did not use that particular image during build because it was skipped
+        if [ -n "$base_image_digest" ]; then
+          echo "$image $base_image_digest" >>/shared/base_images_digests
+        fi
+      done
+
+      buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      REMOTESSHEOF
+      chmod +x scripts/script-build.sh
+
+      if ! [[ $IS_LOCALHOST ]]; then
+        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
+          --tmpfs /run/secrets \
+          -e ACTIVATION_KEY="$ACTIVATION_KEY" \
+          -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
+          -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
+          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
+          -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
+          -e CONTEXT="$CONTEXT" \
+          -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
+          -e HERMETIC="$HERMETIC" \
+          -e IMAGE="$IMAGE" \
+          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
+          -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
+          -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
+          -e SQUASH="$SQUASH" \
+          -e STORAGE_DRIVER="$STORAGE_DRIVER" \
+          -e TARGET_STAGE="$TARGET_STAGE" \
+          -e TLSVERIFY="$TLSVERIFY" \
+          -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
+          -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
+          -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
+          -e COMMIT_SHA="$COMMIT_SHA" \
+          -e DOCKERFILE="$DOCKERFILE" \
+          -v "$BUILD_DIR/volumes/shared:/shared:Z" \
+          -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
+          -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
+          -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
+          -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
+          -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+          -v "$BUILD_DIR/results/:/tekton/results:Z" \
+          -v "$BUILD_DIR/scripts:/scripts:Z" \
+          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+        rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
+        rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
+        rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        buildah pull "oci:konflux-final-image:$IMAGE"
+      else
+        bash scripts/script-build.sh "$@"
+      fi
+      buildah images
+      container=$(buildah from --pull-never "$IMAGE")
+      buildah mount "$container" | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
+      echo $container > /shared/container_name
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /entitlement
+      name: etc-pki-entitlement
+    - mountPath: /activation-key
+      name: activation-key
+    - mountPath: /additional-secret
+      name: additional-secret
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    - mountPath: /ssh
+      name: ssh
+      readOnly: true
+    workingDir: /var/workdir
+  - computeResources:
+      limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    name: push
+    script: |
+      #!/bin/bash
+      set -e
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      retries=5
+      # Push to a unique tag based on the TaskRun name to avoid race conditions
+      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+      if ! buildah push \
+        --retry "$retries" \
+        --tls-verify="$TLSVERIFY" \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
+        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+        exit 1
+      fi
+
+      # Push to a tag based on the git revision
+      echo "Pushing to ${IMAGE}"
+      if ! buildah push \
+        --retry "$retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile "/var/workdir/image-digest" "$IMAGE" \
+        "docker://$IMAGE"; then
+        echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+        exit 1
+      fi
+
+      cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "/var/workdir/image-digest"
+      } >"$(results.IMAGE_REF.path)"
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: /var/workdir
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+    name: sbom-syft-generate
+    script: |
+      #!/bin/bash
+      set -e
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+      echo "Running syft on the source directory"
+      syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
+      echo "Running syft on the image filesystem"
+      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /shared
+      name: shared
+    workingDir: /var/workdir/source
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:adbe6c723810099c5cf616b1edb8ab6f276385fd2f97dfd201ab3ccc6402b834
+    name: prepare-sboms
+    script: |
+      #!/bin/bash
+      set -e
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+      echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
+      python3 /scripts/merge_syft_sboms.py
+
+      if [ -f "sbom-cachi2.json" ]; then
+        echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
+        python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json >sbom-temp.json
+        mv sbom-temp.json sbom-cyclonedx.json
+      fi
+
+      echo "Adding base images data to sbom-cyclonedx.json"
+      python3 /scripts/base_images_sbom_script.py \
+        --sbom=sbom-cyclonedx.json \
+        --parsed-dockerfile=/shared/parsed_dockerfile.json \
+        --base-images-digests=/shared/base_images_digests
+
+      echo "Adding image reference to sbom"
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+      python3 /scripts/add_image_reference.py \
+        --image-url "$IMAGE_URL" \
+        --image-digest "$IMAGE_DIGEST" \
+        --input-file sbom-cyclonedx.json \
+        --output-file /tmp/sbom-cyclonedx.tmp.json
+
+      mv /tmp/sbom-cyclonedx.tmp.json sbom-cyclonedx.json
+    securityContext:
+      runAsUser: 0
+    workingDir: /var/workdir
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    name: upload-sbom
+    script: |
+      #!/bin/bash
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+    volumeMounts:
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: /var/workdir
+  volumes:
+  - name: activation-key
+    secret:
+      optional: true
+      secretName: $(params.ACTIVATION_KEY)
+  - name: additional-secret
+    secret:
+      optional: true
+      secretName: $(params.ADDITIONAL_SECRET)
+  - name: etc-pki-entitlement
+    secret:
+      optional: true
+      secretName: $(params.ENTITLEMENT_SECRET)
+  - emptyDir: {}
+    name: shared
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
+  - emptyDir: {}
+    name: varlibcontainers
+  - emptyDir: {}
+    name: workdir
+  - name: ssh
+    secret:
+      optional: false
+      secretName: multi-platform-ssh-$(context.taskRun.name)
