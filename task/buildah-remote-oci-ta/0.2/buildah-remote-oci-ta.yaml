@@ -81,6 +81,11 @@ spec:
       to the build.
     name: PREFETCH_INPUT
     type: string
+  - default: "false"
+    description: Skip SBOM-related operations. This will likely cause EC policies
+      to fail if enabled
+    name: SKIP_SBOM_GENERATION
+    type: string
   - default: "true"
     description: Whether to skip stages in Containerfile that seem unused by subsequent
       stages
@@ -725,6 +730,10 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Running syft on the source directory"
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
@@ -780,6 +789,10 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
 
@@ -820,6 +833,10 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
