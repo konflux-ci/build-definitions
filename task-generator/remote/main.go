@@ -162,9 +162,8 @@ mkdir -p scripts
 if ! [[ $IS_LOCALHOST ]]; then
   chmod 0400 ~/.ssh/id_rsa
   export BUILD_DIR=$(cat /ssh/user-dir)
-  export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
   echo "$BUILD_DIR"
-  ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+  ssh "$SSH_ARGS" "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
 
   PORT_FORWARD=""
   PODMAN_PORT_FORWARD=""
@@ -240,7 +239,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
 		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
-		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
+		ret += "\n  ssh \"$SSH_ARGS\" \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0  --rm  \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		for _, workspace := range task.Spec.Workspaces {
