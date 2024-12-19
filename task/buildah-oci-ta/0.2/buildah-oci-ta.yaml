@@ -518,15 +518,51 @@ spec:
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
         container=$(buildah from --pull-never "$IMAGE")
+
+        # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+        if [ -f "/tmp/cachi2/output/bom.json" ]; then
+          echo "Making copy of sbom-cachi2.json"
+          cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+
+          # Inject a content sets file for backwards compatibility
+          # This is only possible for images built hermetically with prefetch
+          base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' "$IMAGE" | cut -f1 -d'@')
+          base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' "$IMAGE")
+          cat >content-sets.json <<EOF
+          {
+              "metadata": {
+                  "icm_version": 1,
+                  "icm_spec": "https://raw.githubusercontent.com/containerbuildsystem/atomic-reactor/master/atomic_reactor/schemas/content_manifest.json",
+                  "image_layer_index": 0
+              },
+              "from_dnf_hint": true,
+              "content_sets": []
+          }
+
+        EOF
+
+          while IFS='' read -r content_set; do
+            jq --arg content_set "$content_set" '.content_sets += [$content_set]' content-sets.json >content-sets.json.tmp
+            mv content-sets.json.tmp content-sets.json
+          done <<<"$(jq -r '.components[].purl' sbom-cachi2.json | grep -o -P '(?<=repository_id=).*(?=(&|$))' | sort -u)"
+
+          echo "Writing to /root/buildinfo/content_manifests/content-sets.json"
+          buildah copy "$container" content-sets.json /root/buildinfo/content_manifests/
+          buildah config -a "org.opencontainers.image.base.name=${base_image_name}" -a "org.opencontainers.image.base.digest=${base_image_digest}" "$container"
+
+          BUILDAH_ARGS=()
+          if [ "${SQUASH}" == "true" ]; then
+            BUILDAH_ARGS+=("--squash")
+          fi
+
+          buildah commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
+          # End content sets backwards compatibility
+        fi
+
         buildah mount $container | tee /shared/container_path
         # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
         find $(cat /shared/container_path) -xtype l -delete
         echo $container >/shared/container_name
-
-        # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-        if [ -f "/tmp/cachi2/output/bom.json" ]; then
-          cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
-        fi
 
         touch /shared/base_images_digests
         for image in $BASE_IMAGES; do
