@@ -11,9 +11,8 @@ metadata:
 spec:
   description: |-
     Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
-    In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
-    When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
-    When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
+    In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
+    When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment.
   params:
   - description: Reference of the image buildah will produce.
     name: IMAGE
@@ -118,11 +117,6 @@ spec:
   - name: SBOM_BLOB_URL
     description: Reference of SBOM blob digest to enable digest-based verification from provenance
     type: string
-  - name: SBOM_JAVA_COMPONENTS_COUNT
-    description: The counting of Java components by publisher in JSON format
-    type: string
-  - name: JAVA_COMMUNITY_DEPENDENCIES
-    description: The Java dependencies that came from community sources such as Maven central.
   stepTemplate:
     computeResources:
       limits:
@@ -232,11 +226,6 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
-
-      if [ -n "${JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR-}" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_copy"; then
-        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\)\(.*\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml \3|g" "$dockerfile_copy"
-        touch /var/lib/containers/java
-      fi
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -576,29 +565,6 @@ spec:
       name: varlibcontainers
     - mountPath: /shared
       name: shared
-  - name: analyse-dependencies-java-sbom
-    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
-    computeResources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m
-    script: |
-      if [ -f /var/lib/containers/java ]; then
-        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
-        sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
-      else
-        touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
-      fi
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    - mountPath: /shared
-      name: shared
-    securityContext:
-      runAsUser: 0
 
   - name: prepare-sboms
     image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:9f1fd11d9c3c517ecc112d192ad361d16ecf6ce00b83b109c93cf3d1c644a357
