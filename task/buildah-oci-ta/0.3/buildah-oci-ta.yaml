@@ -85,6 +85,11 @@ spec:
       description: Whether to enable privileged mode
       type: string
       default: "false"
+    - name: SKIP_SBOM_GENERATION
+      description: Skip SBOM-related operations. This will likely cause EC
+        policies to fail if enabled
+      type: string
+      default: "false"
     - name: SKIP_UNUSED_STAGES
       description: Whether to skip stages in Containerfile that seem unused
         by subsequent stages
@@ -202,6 +207,8 @@ spec:
         value: $(params.IMAGE_EXPIRES_AFTER)
       - name: PRIVILEGED_NESTED
         value: $(params.PRIVILEGED_NESTED)
+      - name: SKIP_SBOM_GENERATION
+        value: $(params.SKIP_SBOM_GENERATION)
       - name: SKIP_UNUSED_STAGES
         value: $(params.SKIP_UNUSED_STAGES)
       - name: SOURCE_CODE_DIR
@@ -632,6 +639,10 @@ spec:
         - mountPath: /shared
           name: shared
       script: |
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
         echo "Running syft on the source directory"
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
@@ -640,6 +651,10 @@ spec:
       image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:9f1fd11d9c3c517ecc112d192ad361d16ecf6ce00b83b109c93cf3d1c644a357
       workingDir: /var/workdir
       script: |
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
         echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
         python3 /scripts/merge_syft_sboms.py
 
@@ -684,6 +699,10 @@ spec:
           readOnly: true
       script: |
         #!/bin/bash
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
 
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then

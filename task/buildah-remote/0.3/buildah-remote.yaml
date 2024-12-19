@@ -122,6 +122,11 @@ spec:
     description: Whether to enable privileged mode
     name: PRIVILEGED_NESTED
     type: string
+  - default: "false"
+    description: Skip SBOM-related operations. This will likely cause EC policies
+      to fail if enabled
+    name: SKIP_SBOM_GENERATION
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -190,6 +195,8 @@ spec:
       value: $(params.SKIP_UNUSED_STAGES)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SKIP_SBOM_GENERATION
+      value: $(params.SKIP_SBOM_GENERATION)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     - name: PLATFORM
@@ -592,6 +599,7 @@ spec:
           -e SQUASH="$SQUASH" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e PRIVILEGED_NESTED="$PRIVILEGED_NESTED" \
+          -e SKIP_SBOM_GENERATION="$SKIP_SBOM_GENERATION" \
           -e COMMIT_SHA="$COMMIT_SHA" \
           -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
@@ -728,6 +736,10 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Running syft on the source directory"
       syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
@@ -753,6 +765,10 @@ spec:
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
+      fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
       fi
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
@@ -794,11 +810,15 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
-
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"

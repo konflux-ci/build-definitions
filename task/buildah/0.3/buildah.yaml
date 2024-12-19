@@ -110,6 +110,10 @@ spec:
     description: Whether to enable privileged mode
     type: string
     default: "false"
+  - name: SKIP_SBOM_GENERATION
+    description: Skip SBOM-related operations. This will likely cause EC policies to fail if enabled
+    type: string
+    default: "false"
 
   results:
   - description: Digest of the image just built
@@ -173,6 +177,8 @@ spec:
       value: $(params.SKIP_UNUSED_STAGES)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SKIP_SBOM_GENERATION
+      value: $(params.SKIP_SBOM_GENERATION)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
@@ -572,6 +578,10 @@ spec:
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
     script: |
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Running syft on the source directory"
       syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
@@ -592,6 +602,10 @@ spec:
         memory: 256Mi
         cpu: 100m
     script: |
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
 
@@ -626,6 +640,10 @@ spec:
     image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
     script: |
       #!/bin/bash
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
