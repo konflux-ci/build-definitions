@@ -84,6 +84,11 @@ spec:
     description: Whether to enable privileged mode
     name: PRIVILEGED_NESTED
     type: string
+  - default: "false"
+    description: Skip SBOM-related operations. This will likely cause EC policies
+      to fail if enabled
+    name: SKIP_SBOM_GENERATION
+    type: string
   - default: "true"
     description: Whether to skip stages in Containerfile that seem unused by subsequent
       stages
@@ -181,6 +186,8 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SKIP_SBOM_GENERATION
+      value: $(params.SKIP_SBOM_GENERATION)
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
     - name: SOURCE_CODE_DIR
@@ -607,6 +614,7 @@ spec:
           -e IMAGE="$IMAGE" \
           -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
           -e PRIVILEGED_NESTED="$PRIVILEGED_NESTED" \
+          -e SKIP_SBOM_GENERATION="$SKIP_SBOM_GENERATION" \
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
           -e SQUASH="$SQUASH" \
@@ -750,6 +758,10 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
       echo "Running syft on the source directory"
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
@@ -775,6 +787,10 @@ spec:
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
+      fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
       fi
       echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
       python3 /scripts/merge_syft_sboms.py
@@ -816,11 +832,15 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
-
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
