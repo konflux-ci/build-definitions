@@ -394,6 +394,13 @@ spec:
 
         cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
           --for-output-dir=/cachi2/output
+      computeResources:
+        limits:
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
     - name: unregister-rhsm
       image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
       script: |
@@ -417,3 +424,10 @@ spec:
       env:
         - name: IMAGE_EXPIRES_AFTER
           value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        limits:
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
