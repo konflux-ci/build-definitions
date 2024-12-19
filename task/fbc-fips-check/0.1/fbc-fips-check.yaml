@@ -1,0 +1,199 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: fbc-fips-check
+spec:
+  description: >-
+    The fbc-fips-check task uses the check-payload tool to verify if an unreleased operator bundle in an FBC fragment image is FIPS compliant.
+    It only scans operator bundle images which either claim to be FIPS compliant by setting the `features.operators.openshift.io/fips-compliant`
+    label to `"true"` on the bundle image or require one of `OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform`
+    subscriptions to run the operator on an Openshift cluster.
+    This task extracts relatedImages from all unreleased operator bundle images from your FBC fragment and scans them. In the context of FBC fragment, an unreleased operator bundle image is the one that isn't currently present in the Red Hat production Index Image (`registry.redhat.io/redhat/redhat-operator-index`). It is necessary for relatedImages pullspecs to be pullable at build time of the FBC fragment.
+    In order to resolve them, this task expects a ImageDigestMirrorSet file located at .tekton/images-mirror-set.yaml of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
+  params:
+    - name: image-digest
+      description: Image digest to scan.
+    - name: image-url
+      description: Image URL.
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task.
+  steps:
+    - name: get-unique-related-images
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+      computeResources:
+        limits:
+          memory: 8Gi
+          cpu: '2'
+        requests:
+          memory: 8Gi
+          cpu: '1'
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+        - name: SOURCE_CODE_DIR
+          value: $(workspaces.workspace.path)
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+
+        unique_related_images=()
+        digests_processed=()
+        images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+
+        image_mirror_map=""
+        mirror_set="${SOURCE_CODE_DIR}/source/.tekton/images-mirror-set.yaml"
+        if [[ -f "${mirror_set}" ]]; then
+          mirror_set_yaml=$(cat "${mirror_set}")
+          image_mirror_map=$(process_image_digest_mirror_set "${mirror_set_yaml}")
+          echo "${image_mirror_map}" > "/tekton/home/related-images-map.txt"
+        else
+          echo "Could not find Image mirror set at ${mirror_set}. Unreleased bundles and relatedImages will fail the scan."
+        fi
+
+        image_without_tag=$(echo -n "${IMAGE_URL}" | sed "s/\(.*\):.*/\1/")
+        # strip new-line escape symbol from parameter and save it to variable
+        image_and_digest="${image_without_tag}@${IMAGE_DIGEST}"
+
+        echo "Inspecting raw image manifest $image_and_digest."
+        # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
+        image_manifests=$(get_image_manifests -i "${image_and_digest}")
+        echo "Image manifests are $image_manifests"
+
+        echo "Getting Target ocp version for the FBC fragment"
+        image_manifest_sha=$(echo "${image_manifests}" | jq -r 'to_entries[0].value')
+        target_ocp_version=$(get_ocp_version_from_fbc_fragment "$image_without_tag@$image_manifest_sha")
+        echo "${target_ocp_version#v}" > "/tekton/home/target_ocp_version.txt"
+        echo "Target OCP version: ${target_ocp_version}"
+
+        declare -A seen_related_images
+        while read -r _ arch_sha; do
+          digests_processed+=("\"$arch_sha\"")
+
+          if ! unreleased_bundles=$(get_unreleased_bundle -i "$image_without_tag@$arch_sha"); then
+            note="Task $(context.task.name) failed: Could not get unreleased bundle images from the fragment. Make sure you have ImagePullCredentials for registry.redhat.io"
+            echo "${note}"
+            TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 0
+          fi
+
+          if [ -z "${unreleased_bundles}" ]; then
+            echo "No unreleased bundles found. Skipping check."
+            exit 0
+          fi
+
+          for bundle in ${unreleased_bundles}; do
+            echo "Processing bundle image : ${bundle}"
+
+            if [ -n "${image_mirror_map}" ]; then
+              reg_and_repo=$(echo "${bundle}" | sed -E 's/^([^:@]+).*$/\1/')
+              first_mirror=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][0]')
+              if [ "$first_mirror" != "null" ]; then
+                replaced_image=$(replace_image_pullspec "$bundle" "$first_mirror")
+                echo "Replacing $bundle with $replaced_image"
+                bundle="$replaced_image"
+              fi
+            fi
+
+            # Run the FIPS check only if the bundle is part of the Openshift Subscription or has the fips label set
+            if ! bundle_out=$(opm render "$bundle"); then
+              note="Task $(context.task.name) failed: Could not render unreleased bundle image: ${bundle}. Make sure the image is accessible or a mirror is provided for the same in images-mirror-set.yaml"
+              echo "${note}"
+              TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+              echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+              exit 0
+            fi
+            subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["operators.openshift.io/valid-subscription"] != null) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
+
+            bundle_labels=$(get_image_labels "${bundle}")
+            fips_label=$(echo "${bundle_labels}" | grep '^features.operators.openshift.io/fips-compliant=' | cut -d= -f2 || true)
+
+            if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
+              echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."
+              echo "Subscription labels are : $subscription_label"
+              if [ -z "${fips_label}" ] || [ "${fips_label}" != "true" ]; then
+                echo "The label features.operators.openshift.io/fips-compliant is also not set to true. Skipping the FIPS static check for ${bundle}"
+                continue
+              else
+                echo "The label features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
+              fi
+            else
+              echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are present in operators.openshift.io/valid-subscription. Running the FIPS static check..."
+            fi
+
+            manifest_related_images=$(extract_related_images_from_bundle "$bundle")
+            if [ -n "$manifest_related_images" ]; then
+              for img in $manifest_related_images; do
+                if [ -z "${seen_related_images["$img"]:-}" ]; then
+                  unique_related_images+=("$img")
+                  seen_related_images["$img"]=1
+                fi
+              done
+            fi
+            echo "Current unique images list is ${unique_related_images[*]}"
+
+          done
+        done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
+
+        if [ ${#unique_related_images[@]} -gt 0 ]; then
+          echo "Unique related images: ${unique_related_images[*]}"
+          echo "${unique_related_images[*]}" > "/tekton/home/unique_related_images.txt"
+        else
+          echo "No related images found. Skipping check."
+          exit 0
+        fi
+
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+
+        echo "${images_processed_template/\[%s]/[$digests_processed_string]}" > "/tekton/home/images_processed.txt"
+
+    - name: fips-operator-check-step-action
+      computeResources:
+        limits:
+          memory: 512Mi
+          cpu: 200m
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      ref:
+        name: fips-operator-check-step-action
+
+    - name: parse-images-processed-result
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+      env:
+        - name: STEP_ACTION_TEST_OUTPUT
+          value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if [ -e "/tekton/home/images_processed.txt" ]; then
+          tee "$(results.IMAGES_PROCESSED.path)" < /tekton/home/images_processed.txt
+          echo "${STEP_ACTION_TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        else
+          echo "Task was skipped. Exiting"
+          exit 0
+        fi
+  workspaces:
+    - name: workspace
