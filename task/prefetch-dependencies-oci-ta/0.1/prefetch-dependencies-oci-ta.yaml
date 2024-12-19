@@ -151,6 +151,10 @@ spec:
     - name: sanitize-cachi2-config-file-with-yq
       image: quay.io/konflux-ci/yq:latest@sha256:d2ceeb1d5834f8218200815fffec488caec4a582e6179d16f781df0b8d14efd4
       script: |
+        #!/bin/bash
+
+        set -euo pipefail
+
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
           # impact of this configuration option will be:
@@ -163,6 +167,10 @@ spec:
         - name: INPUT
           value: $(params.input)
       script: |
+        #!/bin/bash
+
+        set -euo pipefail
+
         if [ -z "${INPUT}" ]; then
           # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
           echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
@@ -183,6 +191,9 @@ spec:
           value: $(params.ACTIVATION_KEY)
       script: |
         #!/bin/bash
+
+        set -euo pipefail
+
         if [ -f /shared/skip ]; then
           echo "Skipping."
           exit 0
@@ -325,6 +336,8 @@ spec:
       script: |
         #!/bin/bash
 
+        set -euo pipefail
+
         if [ -f /shared/skip ]; then
           echo "Skipping."
           exit 0
@@ -398,6 +411,9 @@ spec:
       image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
       script: |
         #!/bin/bash
+
+        set -euo pipefail
+
         if [ -f /shared/skip ]; then
           echo "Skipping."
           exit 0
