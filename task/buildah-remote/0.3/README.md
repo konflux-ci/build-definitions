@@ -1,4 +1,4 @@
-# buildah task
+# buildah-remote task
 
 Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
 In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
@@ -31,6 +31,8 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
+|PLATFORM|The platform to build on||true|
+|IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
 
 ## Results
 |name|description|
