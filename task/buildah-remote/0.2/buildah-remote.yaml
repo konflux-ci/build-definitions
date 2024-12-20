@@ -288,8 +288,7 @@ spec:
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
       elif [ -e "$DOCKERFILE" ]; then
-        # Custom Dockerfile location is mainly used for instrumented builds for SAST scanning and analyzing.
-        # Instrumented builds use this step as their base and also need to provide modified Dockerfile.
+        # Instrumented builds (SAST) use this custom dockerffile step as their base
         dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
@@ -345,7 +344,7 @@ spec:
                   shift
                   # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
                   # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE - they take precedence.
+                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE
                   while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
                   ;;
               --labels)
@@ -489,8 +488,7 @@ spec:
 
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
         # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
-        # This is primarily used in instrumented builds for SAST scanning and analyzing.
-        # Instrumented builds use this step as their base and add some other tools.
+        # Instrumented builds (SAST) use this step as their base and add some other tools.
         while read -r volume_mount; do
           VOLUME_MOUNTS+=("--volume=$volume_mount")
         done <<< "$ADDITIONAL_VOLUME_MOUNTS"
