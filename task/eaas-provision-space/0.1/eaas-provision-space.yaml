@@ -5,26 +5,26 @@ metadata:
   name: eaas-provision-space
 spec:
   description: >-
-    Provisions an ephemeral namespace on an EaaS cluster using a SpaceRequest.
+    Provisions an ephemeral namespace on an EaaS cluster using a crossplane namespace claim.
     This namespace can then be used to provision other ephemeral environments for testing.
   params:
     - name: ownerKind
       type: string
       default: PipelineRun
       description: >-
-        The type of resource that should own the generated SpaceRequest.
+        The type of resource that should own the generated namespace claim.
         Deletion of this resource will trigger deletion of the SpaceRequest.
         Supported values: `PipelineRun`, `TaskRun`.
     - name: ownerName
       type: string
       description: >-
-        The name of the resource that should own the generated SpaceRequest.
+        The name of the resource that should own the generated namespace claim.
         This should either be passed the value of `$(context.pipelineRun.name)`
         or `$(context.taskRun.name)` depending on the value of `ownerKind`.
     - name: ownerUid
       type: string
       description: >-
-        The uid of the resource that should own the generated SpaceRequest.
+        The uid of the resource that should own the generated namespace claim.
         This should either be passed the value of `$(context.pipelineRun.uid)`
         or `$(context.taskRun.uid)` depending on the value of `ownerKind`.
   results:
@@ -43,8 +43,10 @@ spec:
           value: $(params.ownerName)
         - name: OWNER_UID
           value: $(params.ownerUid)
-        - name: TIER_NAME
-          value: konflux-eaas
+        - name: CLAIM_NAME
+          value: $(context.taskRun.name)
+        - name: SECRET
+          value: $(context.taskRun.name)-secret
       script: |
         #!/bin/bash
         set -eo pipefail
@@ -58,11 +60,11 @@ spec:
             ;;
         esac
 
-        cat <<EOF > space_request.yaml
-        apiVersion: toolchain.dev.openshift.com/v1alpha1
-        kind: SpaceRequest
+        cat <<EOF > namespace_claim.yaml
+        apiVersion: eaas.konflux-ci.dev/v1alpha1
+        kind: Namespace
         metadata:
-          generateName: eaas-spacerequest-
+          name: $CLAIM_NAME
           namespace: $NAMESPACE
           ownerReferences:
           - apiVersion: tekton.dev/v1
@@ -70,17 +72,15 @@ spec:
             name: $OWNER_NAME
             uid: $OWNER_UID
         spec:
-          tierName: $TIER_NAME
-          targetClusterRoles:
-          - cluster-role.toolchain.dev.openshift.com/eaas
+          writeConnectionSecretToRef:
+            name: $SECRET
         EOF
 
-        NAME=$(oc create -f space_request.yaml -o=jsonpath='{.metadata.name}')
+        NAME=$(oc create -f namespace_claim.yaml -o=jsonpath='{.metadata.name}')
 
-        if oc wait spacerequests $NAME --for=condition=Ready --timeout=5m; then
-          secretRef=$(oc get spacerequests $NAME -o=jsonpath='{.status.namespaceAccess[0].secretRef}')
-          echo "SecretRef: $secretRef"
-          echo -n "$secretRef" > $(results.secretRef.path)
+        if oc wait namespaces.eaas.konflux-ci.dev "$NAME" --for=condition=Ready --timeout=5m; then
+          echo "SecretRef: $SECRET"
+          echo -n "$SECRET" > "$(results.secretRef.path)"
         else
           exit 1
         fi
