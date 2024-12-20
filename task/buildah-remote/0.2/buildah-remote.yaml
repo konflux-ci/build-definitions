@@ -145,7 +145,13 @@ spec:
       central.
     name: JAVA_COMMUNITY_DEPENDENCIES
   stepTemplate:
-    computeResources: {}
+    computeResources:
+      limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
     env:
     - name: BUILDAH_FORMAT
       value: oci
@@ -358,7 +364,6 @@ spec:
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
       done
 
-
       dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
       BASE_IMAGES=$(
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
@@ -449,9 +454,8 @@ spec:
       # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
       # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
       # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
-      #    to buildah but don't pre-register for backwards compatibility. In this case mount an empty directory on
-      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced
-      #    container.
+      #    to buildah but don't pre-register for backwards compatibility. Mount an empty directory on
+      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included
 
       if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
         cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
@@ -625,13 +629,7 @@ spec:
     workingDir: $(workspaces.source.path)
   - args:
     - $(params.IMAGE)
-    computeResources:
-      limits:
-        cpu: "4"
-        memory: 4Gi
-      requests:
-        cpu: "1"
-        memory: 1Gi
+    computeResources: {}
     image: quay.io/rbean/testing:icm-injection-scripts
     name: icm
     securityContext:
@@ -642,13 +640,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: "4"
-        memory: 4Gi
-      requests:
-        cpu: "1"
-        memory: 1Gi
+  - computeResources: {}
     image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     name: push
     script: |
@@ -709,13 +701,7 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: "2"
-        memory: 4Gi
-      requests:
-        cpu: 500m
-        memory: 1Gi
+  - computeResources: {}
     image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
     name: sbom-syft-generate
     script: |
