@@ -14,46 +14,20 @@
 - op: replace
   path: /spec/steps/0/computeResources/requests/cpu
   value: 100m
-# push step
+# icm, push, and sbom-syft-generate steps
 - op: replace
-  path: /spec/steps/1/computeResources/limits/memory
+  path: /spec/stepTemplate/computeResources/limits/memory
   value: 2Gi
 - op: replace
-  path: /spec/steps/1/computeResources/requests/memory
+  path: /spec/stepTemplate/computeResources/requests/memory
   value: 512Mi
 - op: replace
-  path: /spec/steps/1/computeResources/limits/cpu
+  path: /spec/stepTemplate/computeResources/limits/cpu
   value: 500m
 - op: replace
-  path: /spec/steps/1/computeResources/requests/cpu
+  path: /spec/stepTemplate/computeResources/requests/cpu
   value: 100m
-# sbom-syft-generate step
-- op: replace
-  path: /spec/steps/2/computeResources/limits/memory
-  value: 2Gi
-- op: replace
-  path: /spec/steps/2/computeResources/requests/memory
-  value: 512Mi
-- op: replace
-  path: /spec/steps/2/computeResources/limits/cpu
-  value: 1
-- op: replace
-  path: /spec/steps/2/computeResources/requests/cpu
-  value: 50m
 # analyse-dependencies-java-sbom step
-- op: replace
-  path: /spec/steps/3/computeResources/limits/memory
-  value: 256Mi
-- op: replace
-  path: /spec/steps/3/computeResources/requests/memory
-  value: 128Mi
-- op: replace
-  path: /spec/steps/3/computeResources/limits/cpu
-  value: 100m
-- op: replace
-  path: /spec/steps/3/computeResources/requests/cpu
-  value: 10m
-# prepare-sboms step
 - op: replace
   path: /spec/steps/4/computeResources/limits/memory
   value: 256Mi
@@ -66,16 +40,29 @@
 - op: replace
   path: /spec/steps/4/computeResources/requests/cpu
   value: 10m
-# upload-sbom step
+# prepare-sboms step
 - op: replace
   path: /spec/steps/5/computeResources/limits/memory
-  value: 2Gi
+  value: 256Mi
 - op: replace
   path: /spec/steps/5/computeResources/requests/memory
-  value: 512Mi
+  value: 128Mi
 - op: replace
   path: /spec/steps/5/computeResources/limits/cpu
-  value: 2
+  value: 100m
 - op: replace
   path: /spec/steps/5/computeResources/requests/cpu
+  value: 10m
+# upload-sbom step
+- op: replace
+  path: /spec/steps/6/computeResources/limits/memory
+  value: 2Gi
+- op: replace
+  path: /spec/steps/6/computeResources/requests/memory
+  value: 512Mi
+- op: replace
+  path: /spec/steps/6/computeResources/limits/cpu
+  value: 2
+- op: replace
+  path: /spec/steps/6/computeResources/requests/cpu
   value: 100m
