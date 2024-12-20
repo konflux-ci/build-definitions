@@ -16,25 +16,33 @@ jobs:
           #!/bin/bash
           set -euo pipefail
 
-          buildah_remote_oci_ta=task/buildah-remote-oci-ta/0.2/buildah-remote-oci-ta.yaml
-          # 34172 is the largest that the file has ever been *and worked*.
-          # 34200 is known to be too large (see b2f800cc603ec0907ad2b3962d46919a535e158e,
-          # which had to be reverted). The actual limit is somewhere in between.
-          safe_size=34172
-          current_size=$(wc -c < "$buildah_remote_oci_ta")
+          function check_size() {
+            # 34172 is the largest that the file has ever been *and worked*.
+            # 34200 is known to be too large (see b2f800cc603ec0907ad2b3962d46919a535e158e,
+            # which had to be reverted). The actual limit is somewhere in between.
+            local file=$1
+            safe_size=34172
+            current_size=$(wc -c < "$file")
 
-          if [[ "$current_size" -gt "$safe_size" ]]; then
-            cat << EOF >&2
-          This PR increases the size of $buildah_remote_oci_ta beyond the known safe limit.
+            if [[ "$current_size" -gt "$safe_size" ]]; then
+              cat << EOF >&2
+            This PR increases the size of $file beyond the known safe limit.
 
-          safe_size=$safe_size
-          current_size=$current_size
+            safe_size=$safe_size
+            current_size=$current_size
 
-          Due to https://github.com/tektoncd/pipeline/issues/8388, this is risky;
-          the resulting bundle may not be resolvable by Tekton.
+            Due to https://github.com/tektoncd/pipeline/issues/8388, this is risky;
+            the resulting bundle may not be resolvable by Tekton.
 
-          Until the fix for the above issue is deployed in Konflux, your PR is blocked.
-          Sorry!
+            Until the fix for the above issue is deployed in Konflux, your PR is blocked.
+            Sorry!
           EOF
-            exit 1
-          fi
+              exit 1
+            fi
+          }
+
+          for version in 0.2 0.3;
+          do
+            buildah_remote_oci_ta="task/buildah-remote-oci-ta/${version}/buildah-remote-oci-ta.yaml"
+            check_size "$buildah_remote_oci_ta"
+          done
