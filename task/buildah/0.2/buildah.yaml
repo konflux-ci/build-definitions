@@ -455,41 +455,6 @@ spec:
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
         echo "Making copy of sbom-cachi2.json"
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
-
-        # Inject a content sets file for backwards compatibility
-        # This is only possible for images built hermetically with prefetch
-        base_image_name=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.name"}}' "$IMAGE" | cut -f1 -d'@')
-        base_image_digest=$(buildah inspect --format '{{ index .ImageAnnotations "org.opencontainers.image.base.digest"}}' "$IMAGE")
-        cat >content-sets.json <<EOF
-        {
-            "metadata": {
-                "icm_version": 1,
-                "icm_spec": "https://raw.githubusercontent.com/containerbuildsystem/atomic-reactor/master/atomic_reactor/schemas/content_manifest.json",
-                "image_layer_index": 0
-            },
-            "from_dnf_hint": true,
-            "content_sets": []
-        }
-
-      EOF
-
-        while IFS='' read -r content_set;
-        do
-          jq --arg content_set "$content_set" '.content_sets += [$content_set]' content-sets.json > content-sets.json.tmp
-          mv content-sets.json.tmp content-sets.json
-        done <<< "$(jq -r '.components[].purl' sbom-cachi2.json | grep -o -P '(?<=repository_id=).*(?=(&|$))' | sort -u)"
-
-        echo "Writing to /root/buildinfo/content_manifests/content-sets.json"
-        buildah copy "$container" content-sets.json /root/buildinfo/content_manifests/
-        buildah config -a "org.opencontainers.image.base.name=${base_image_name}" -a "org.opencontainers.image.base.digest=${base_image_digest}" "$container"
-
-        BUILDAH_ARGS=()
-        if [ "${SQUASH}" == "true" ]; then
-          BUILDAH_ARGS+=("--squash")
-        fi
-
-        buildah commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
-        # End content sets backwards compatibility
       fi
 
       buildah mount $container | tee /shared/container_path
@@ -524,7 +489,24 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-
+  - name: icm
+    image: quay.io/rbean/testing:icm-injection-scripts
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: '4'
+      requests:
+        memory: 1Gi
+        cpu: '1'
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+    args: [$(params.IMAGE)]
   - name: push
     image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     computeResources:
