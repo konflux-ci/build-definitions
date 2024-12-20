@@ -7,7 +7,6 @@ The task also produces the SBOM which is signed and added to the image.
 | name                 | description                                                                         | default value                                                              | required |
 |----------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------|----------|
 | BUILD_ARGS           | Array of --build-arg values ("arg=value" strings)                                   | []                                                                         | false    |
-| BUILDER_NAME         | Name of the paketo builder image containing the tools as: pack, jam, create-package |  | true     |
 | CACHI2_ARTIFACT      | The Trusted Artifact URI pointing to the artifact with the prefetched dependencies. | ""                                                                         | false    |
 | CONTEXT              | Path to the directory to use as context.                                            | .                                                                          | false    |
 | HERMETIC             | Determines if build will be executed without network access.                        | false                                                                      | false    |
