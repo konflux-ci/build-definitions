@@ -175,6 +175,13 @@ spec:
     - name: workdir
       emptyDir: {}
   stepTemplate:
+    computeResources:
+      limits:
+        cpu: "4"
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
     env:
       - name: ACTIVATION_KEY
         value: $(params.ACTIVATION_KEY)
@@ -438,9 +445,8 @@ spec:
         # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
         # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
         # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
-        #    to buildah but don't pre-register for backwards compatibility. In this case mount an empty directory on
-        #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included in the produced
-        #    container.
+        #    to buildah but don't pre-register for backwards compatibility. Mount an empty directory on
+        #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included
 
         if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
           cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
@@ -558,13 +564,6 @@ spec:
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
-      computeResources:
-        limits:
-          cpu: "4"
-          memory: 4Gi
-        requests:
-          cpu: "1"
-          memory: 1Gi
       securityContext:
         capabilities:
           add:
@@ -618,13 +617,6 @@ spec:
           echo -n "${IMAGE}@"
           cat "/var/workdir/image-digest"
         } >"$(results.IMAGE_REF.path)"
-      computeResources:
-        limits:
-          cpu: "4"
-          memory: 4Gi
-        requests:
-          cpu: "1"
-          memory: 1Gi
       securityContext:
         capabilities:
           add:
@@ -643,13 +635,6 @@ spec:
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
         syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
-      computeResources:
-        limits:
-          cpu: "2"
-          memory: 4Gi
-        requests:
-          cpu: 500m
-          memory: 1Gi
     - name: analyse-dependencies-java-sbom
       image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
       volumeMounts:
