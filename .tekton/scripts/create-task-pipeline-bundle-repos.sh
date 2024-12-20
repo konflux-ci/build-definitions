@@ -47,7 +47,7 @@ locate_in_all_namespaces() {
                 --arg description "" \
                 '$ARGS.named'
             )
-            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --json "$payload" | jq '.error_message // empty');
+            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --data-binary "$payload" -H "Content-Type: application/json" -H "Accept: application/json" | jq '.error_message // empty');
             then
               echo "curl returned an error when creating the repository. See the error above."
               exit 1
