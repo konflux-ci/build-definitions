@@ -335,7 +335,6 @@ spec:
           export IMAGE
         fi
 
-
         echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
         python3 /scripts/merge_syft_sboms.py
 
@@ -380,16 +379,12 @@ spec:
           update-ca-trust
         fi
 
-
         echo "Pull the image from the OCI storage."
 
         buildah --storage-driver "$STORAGE_DRIVER" pull "$IMAGE"
 
-
         echo "Copy within the container of the image the sbom files"
-
         container=$(buildah --storage-driver "$STORAGE_DRIVER" from --pull-never "$IMAGE")
-        buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
 
         BUILDAH_ARGS=()
         if [ "${SQUASH}" == "true" ]; then
@@ -397,7 +392,6 @@ spec:
         fi
 
         buildah --storage-driver "$STORAGE_DRIVER" commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
-
 
         echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
 
@@ -412,7 +406,6 @@ spec:
           exit 1
         fi
 
-
         echo "Pushing to ${IMAGE}"
 
         if ! buildah push \
@@ -424,7 +417,6 @@ spec:
           echo "Failed to push sbom image to $IMAGE after ${retries} tries"
           exit 1
         fi
-
 
         echo "Save the different results"
 
