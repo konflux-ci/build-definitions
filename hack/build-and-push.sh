@@ -495,7 +495,7 @@ build_push_tasks() {
         fi
 
         # version placeholder is removed naturally by the substitution.
-        echo "info: inject task bundle to pielines $task_bundle_with_digest" 1>&2
+        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
         real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
         inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
     done
