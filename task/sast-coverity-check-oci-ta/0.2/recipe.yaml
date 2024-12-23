@@ -1,0 +1,13 @@
+---
+base: ../../sast-coverity-check/0.2/sast-coverity-check.yaml
+removeParams:
+  - BUILDER_IMAGE
+add:
+  - use-source
+  - use-cachi2
+removeWorkspaces:
+  - source
+replacements:
+  workspaces.source.path: /var/workdir
+regexReplacements:
+  "/workspace(/.*)": /var/workdir$1
