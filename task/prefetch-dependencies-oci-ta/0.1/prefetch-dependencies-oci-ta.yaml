@@ -149,7 +149,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:d2ceeb1d5834f8218200815fffec488caec4a582e6179d16f781df0b8d14efd4
+      image: quay.io/konflux-ci/yq:latest@sha256:99fb3254efcfd6a96977bcda12b4b74b872831f524e02938f9fa0d4ae797ffe2
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
@@ -394,6 +394,13 @@ spec:
 
         cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
           --for-output-dir=/cachi2/output
+      computeResources:
+        limits:
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
     - name: unregister-rhsm
       image: quay.io/redhat-appstudio/cachi2:0.16.0@sha256:55415cd8ded149f5d56d3fca46d93125b86b41e07ae5d3c03caa240b7b93b7d8
       script: |
@@ -417,3 +424,10 @@ spec:
       env:
         - name: IMAGE_EXPIRES_AFTER
           value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        limits:
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
