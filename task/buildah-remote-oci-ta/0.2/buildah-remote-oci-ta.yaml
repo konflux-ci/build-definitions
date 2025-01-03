@@ -649,11 +649,17 @@ spec:
       name: ssh
       readOnly: true
     workingDir: /var/workdir
-  - args:
-    - $(params.IMAGE)
-    computeResources: {}
+  - computeResources: {}
     image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:462980e94ba689b5f56c3d5dfb3358cd8c685300daf65a71532f11898935e7f1
     name: icm
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+        export IMAGE
+      fi
+      /scripts/inject-icm.sh "$IMAGE"
     securityContext:
       capabilities:
         add:
