@@ -537,6 +537,12 @@ spec:
           done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
         fi
 
+        if [ -f "$ca_bundle" ]; then
+          cp -r --preserve=mode /mnt/trusted-ca /tmp/trusted-ca
+          VOLUME_MOUNTS+=(--volume /tmp/trusted-ca:/etc/pki/ca-trust/source/anchors)
+          echo "Adding the trusted-ca to the build"
+        fi
+
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
         declare IMAGE
 
