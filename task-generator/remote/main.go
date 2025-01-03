@@ -119,15 +119,19 @@ fi
 		ret := ""
 		step := &task.Spec.Steps[stepPod]
 		if step.Script != "" && taskVersion != "0.1" && step.Name != "build" {
-			scriptHeaderRE := regexp.MustCompile(`^#!/bin/bash\nset -e\n`)
-			if scriptHeaderRE.FindString(step.Script) != "" {
+			scriptHeaderRE := regexp.MustCompile(`^#!(/usr)?(/local)?/bin/(env )?bash(\n)+(set .*\n)*`)
+			scriptHeader := scriptHeaderRE.FindString(step.Script)
+			if scriptHeader != "" {
 				ret = scriptHeaderRE.ReplaceAllString(step.Script, "")
 			} else {
 				ret = step.Script
 			}
+			// If there is a shebang, it is explicitly non-bash, so don't adjust the image
 			if !strings.HasPrefix(ret, "#!") {
-				// If there is a shebang, it is explicitly non-bash, so don't adjust the image
-				ret = "#!/bin/bash\nset -e\n" + adjustRemoteImage + ret
+				if scriptHeader == "" {
+					scriptHeader = "#!/bin/bash\nset -e\n"
+				}
+				ret = scriptHeader + adjustRemoteImage + ret
 			}
 			step.Script = ret
 			continue
