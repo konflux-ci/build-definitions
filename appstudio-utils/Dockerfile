@@ -7,7 +7,7 @@ RUN curl -L https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-l
 RUN curl -L https://github.com/tektoncd/cli/releases/download/v0.32.2/tkn_0.32.2_Linux_x86_64.tar.gz | tar -xz --no-same-owner -C /usr/bin/ tkn
 RUN curl -L https://github.com/sigstore/rekor/releases/download/v0.5.0/rekor-cli-linux-amd64 -o /usr/bin/rekor-cli && chmod +x /usr/bin/rekor-cli
 RUN curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.32.0/conftest_0.32.0_Linux_x86_64.tar.gz | tar -xz --no-same-owner -C /usr/bin
-RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/snapshot/ec_linux_amd64 -o /usr/bin/ec && chmod +x /usr/bin/ec && ec version
+RUN curl -L https://github.com/enterprise-contract/ec-cli/releases/download/v0.6.150/ec_linux_amd64 -o /usr/bin/ec && chmod +x /usr/bin/ec && ec version
 RUN curl -L https://github.com/cli/cli/releases/download/v2.60.1/gh_2.60.1_linux_amd64.tar.gz | tar -xz  -C /usr/bin --wildcards "gh_*/bin/gh" --strip-components=2 --no-same-owner
 
 # 1.2.0 is the minimum required version
