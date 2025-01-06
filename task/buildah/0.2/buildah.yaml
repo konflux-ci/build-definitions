@@ -478,12 +478,13 @@ spec:
       echo $container > /shared/container_name
 
       touch /shared/base_images_digests
+      echo "Recording base image digests used"
       for image in $BASE_IMAGES; do
         base_image_digest=$(buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image")
         # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
         # if buildah did not use that particular image during build because it was skipped
         if [ -n "$base_image_digest" ]; then
-          echo "$image $base_image_digest" >> /shared/base_images_digests
+          echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
 
