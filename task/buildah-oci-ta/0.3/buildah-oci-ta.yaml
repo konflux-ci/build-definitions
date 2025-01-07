@@ -556,12 +556,14 @@ spec:
             - SETFCAP
     - name: icm
       image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:462980e94ba689b5f56c3d5dfb3358cd8c685300daf65a71532f11898935e7f1
-      args:
-        - $(params.IMAGE)
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        /scripts/inject-icm.sh "$IMAGE"
       securityContext:
         capabilities:
           add:
