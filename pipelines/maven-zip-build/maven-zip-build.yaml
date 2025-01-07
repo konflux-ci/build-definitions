@@ -1,0 +1,240 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  labels:
+    pipelines.openshift.io/runtime: generic
+    pipelines.openshift.io/strategy: maven-zip
+    pipelines.openshift.io/used-by: build-cloud
+  name: maven-zip-build
+spec:
+  description: |
+    This pipeline will build the maven zip to oci-artifact.
+
+    _Uses `prefetch-dependencies` to fetch all artifacts which will be the content of the maven zip, and then uses `build-maven-zip` to create zip and push it to quay.io as oci-artifact.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-maven-zip-build?tab=tags)_
+  finally:
+  - name: show-sbom
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    taskRef:
+      name: show-sbom
+      version: "0.1"
+  - name: show-summary
+    params:
+    - name: pipelinerun-name
+      value: $(context.pipelineRun.name)
+    - name: git-url
+      value: $(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)
+    - name: image-url
+      value: $(params.output-image)
+    - name: build-task-status
+      value: $(tasks.build-oci-artifact.status)
+    taskRef:
+      name: summary
+      version: "0.2"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  params:
+  - description: Source Repository URL
+    name: git-url
+    type: string
+  - default: ""
+    description: Revision of the Source Repository
+    name: revision
+    type: string
+  - description: Fully Qualified Output Image
+    name: output-image
+    type: string
+  - default: "false"
+    description: Force rebuild image
+    name: rebuild
+    type: string
+  - default: "false"
+    description: Skip checks against built image
+    name: skip-checks
+    type: string
+  - default: generic
+    description: Build dependencies to be prefetched by Cachi2
+    name: prefetch-input
+    type: string
+  - default: ""
+    description: Image tag expiration time, time values could be something like 1h,
+      2d, 3w for hours, days, and weeks, respectively.
+    name: image-expires-after
+  results:
+  - name: IMAGE_URL
+    value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+  - name: IMAGE_DIGEST
+    value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
+  - name: CHAINS-GIT_URL
+    value: $(tasks.clone-repository.results.url)
+  - name: CHAINS-GIT_COMMIT
+    value: $(tasks.clone-repository.results.commit)
+  tasks:
+  - name: init
+    params:
+    - name: image-url
+      value: $(params.output-image)
+    - name: rebuild
+      value: $(params.rebuild)
+    - name: skip-checks
+      value: $(params.skip-checks)
+    taskRef:
+      name: init
+      version: "0.2"
+  - name: clone-repository
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.revision)
+    runAfter:
+    - init
+    taskRef:
+      name: git-clone
+      version: "0.1"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+    workspaces:
+    - name: output
+      workspace: workspace
+    - name: basic-auth
+      workspace: git-auth
+  - name: prefetch-dependencies
+    params:
+    - name: input
+      value: $(params.prefetch-input)
+    runAfter:
+    - clone-repository
+    taskRef:
+      name: prefetch-dependencies
+      version: "0.1"
+    when:
+    - input: $(params.prefetch-input)
+      operator: notin
+      values:
+      - ""
+    workspaces:
+    - name: source
+      workspace: workspace
+    - name: git-basic-auth
+      workspace: git-auth
+    - name: netrc
+      workspace: netrc
+  - name: build-oci-artifact
+    params:
+    - name: IMAGE
+      value: $(params.output-image)
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.image-expires-after)
+    runAfter:
+    - prefetch-dependencies
+    taskRef:
+      name: build-maven-zip
+      version: "0.1"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+    workspaces:
+    - name: source
+      workspace: workspace
+  - name: sast-snyk-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    runAfter:
+    - build-oci-artifact
+    taskRef:
+      name: sast-snyk-check
+      version: "0.3"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: sast-coverity-check
+    params:
+    - name: image-url
+      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    runAfter:
+    - coverity-availability-check
+    taskRef:
+      name: sast-coverity-check
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    - input: $(tasks.coverity-availability-check.results.STATUS)
+      operator: in
+      values:
+      - success
+    workspaces:
+    - name: source
+      workspace: workspace
+  - name: coverity-availability-check
+    runAfter:
+    - build-oci-artifact
+    taskRef:
+      name: coverity-availability-check
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-shell-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    runAfter:
+    - build-oci-artifact
+    taskRef:
+      name: sast-shell-check
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: sast-unicode-check
+    params:
+    - name: image-url
+      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    runAfter:
+    - build-oci-artifact
+    taskRef:
+      name: sast-unicode-check
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  workspaces:
+  - name: workspace
+  - name: git-auth
+    optional: true
+  - name: netrc
+    optional: true

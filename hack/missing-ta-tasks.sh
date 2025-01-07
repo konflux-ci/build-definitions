@@ -14,22 +14,31 @@ trap 'rm "${tmp_files[@]}" > /dev/null 2>&1' EXIT
 # Tasks that are currently missing Trusted Artifact variant
 todo=(
   task/buildah-10gb/0.2/kustomization.yaml
+  task/buildah-10gb/0.2/buildah-10gb.yaml
   task/buildah-20gb/0.2/kustomization.yaml
+  task/buildah-20gb/0.2/buildah-20gb.yaml
   task/buildah-24gb/0.2/kustomization.yaml
+  task/buildah-24gb/0.2/buildah-24gb.yaml
   task/buildah-6gb/0.2/kustomization.yaml
+  task/buildah-6gb/0.2/buildah-6gb.yaml
   task/buildah-8gb/0.2/kustomization.yaml
+  task/buildah-8gb/0.2/buildah-8gb.yaml
   task/buildah-min/0.2/kustomization.yaml
+  task/buildah-min/0.2/buildah-min.yaml
   task/buildah-rhtap/0.1/buildah-rhtap.yaml
   task/download-sbom-from-url-in-attestation/0.1/download-sbom-from-url-in-attestation.yaml
   task/fbc-related-image-check/0.1/fbc-related-image-check.yaml
   task/fbc-related-image-check/0.2/kustomization.yaml
+  task/fbc-related-image-check/0.2/fbc-related-image-check.yaml
   task/fbc-validation/0.1/fbc-validation.yaml
   task/fbc-validation/0.2/kustomization.yaml
+  task/fbc-validation/0.2/fbc-validation.yaml
   task/gather-deploy-images/0.1/gather-deploy-images.yaml
   task/generate-odcs-compose/0.2/generate-odcs-compose.yaml
   task/generate-odcs-compose/0.2/kustomization.yaml
   task/inspect-image/0.1/inspect-image.yaml
   task/inspect-image/0.2/kustomization.yaml
+  task/inspect-image/0.2/inspect-image.yaml
   task/operator-sdk-generate-bundle/0.1/operator-sdk-generate-bundle.yaml
   task/opm-get-bundle-version/0.1/opm-get-bundle-version.yaml
   task/opm-render-bundles/0.1/opm-render-bundles.yaml
