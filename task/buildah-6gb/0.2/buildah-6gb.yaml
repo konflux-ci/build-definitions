@@ -2,16 +2,22 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
+    build.appstudio.redhat.com/expires-on: "2025-01-21T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'Instead of using this task, switch
+      to buildah task (you can find latest bundle reference here: https://quay.io/repository/konflux-ci/tekton-catalog/task-buildah)
+      and configure build step resources as described in the doc: https://konflux-ci.dev/docs/how-tos/configuring/overriding-compute-resources/'
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
     app.kubernetes.io/version: 0.2.1
     build.appstudio.redhat.com/build_type: docker
-  name: sast-coverity-check
+  name: buildah-6gb
 spec:
-  description: Scans source code for security vulnerabilities, including common issues
-    such as SQL injection, cross-site scripting (XSS), and code injection attacks
-    using Coverity.
+  description: |-
+    Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
+    In addition it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
+    When [Java dependency rebuild](https://redhat-appstudio.github.io/docs.stonesoup.io/Documentation/main/cli/proc_enabled_java_dependencies.html) is enabled it triggers rebuilds of Java artifacts.
+    When prefetch-dependencies task was activated it is using its artifacts to run build in hermetic environment.
   params:
   - description: Reference of the image buildah will produce.
     name: IMAGE
@@ -125,47 +131,27 @@ spec:
       to fail if enabled
     name: SKIP_SBOM_GENERATION
     type: string
-  - default: cyclonedx
-    description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.
-      Note: the SBOM from the prefetch task - if there is one - must be in the same
-      format.'
-    name: SBOM_TYPE
-    type: string
-  - name: image-url
-    type: string
-  - default: cov-license
-    description: Name of secret which contains the Coverity license
-    name: COV_LICENSE
-    type: string
-  - default: ""
-    name: PROJECT_NAME
-    type: string
-  - default: "false"
-    name: RECORD_EXCLUDED
-    type: string
-  - default: --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096
-    description: Arguments to be appended to the cov-analyze command
-    name: COV_ANALYZE_ARGS
-    type: string
-  - default: "true"
-    description: Report only important findings. Default is true. To report all findings,
-      specify "false"
-    name: IMP_FINDINGS_ONLY
-    type: string
-  - default: SITE_DEFAULT
-    description: Known False Positives (KFP) git URL (optionally taking a revision
-      delimited by \#). Defaults to "SITE_DEFAULT", which means the default value
-      "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
-      instance and empty string for external Konflux instance. If set to an empty
-      string, the KFP filtering is disabled.
-    name: KFP_GIT_URL
-    type: string
   results:
-  - description: Tekton task test output.
-    name: TEST_OUTPUT
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository and tag where the built image was pushed
+    name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
+  - description: Reference of SBOM blob digest to enable digest-based verification
+      from provenance
+    name: SBOM_BLOB_URL
+    type: string
+  - description: The counting of Java components by publisher in JSON format
+    name: SBOM_JAVA_COMPONENTS_COUNT
+    type: string
+  - description: The Java dependencies that came from community sources such as Maven
+      central.
+    name: JAVA_COMMUNITY_DEPENDENCIES
   stepTemplate:
     computeResources:
       limits:
+        cpu: "4"
         memory: 4Gi
       requests:
         cpu: "1"
@@ -213,119 +199,10 @@ spec:
       value: $(params.PRIVILEGED_NESTED)
     - name: SKIP_SBOM_GENERATION
       value: $(params.SKIP_SBOM_GENERATION)
-    - name: SBOM_TYPE
-      value: $(params.SBOM_TYPE)
     volumeMounts:
     - mountPath: /shared
       name: shared
   steps:
-  - env:
-    - name: COV_ANALYZE_ARGS
-      value: $(params.COV_ANALYZE_ARGS)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
-    name: prepare
-    script: |
-      #!/bin/bash
-
-      # FIXME: Dockerfile discovery logic is copied from buildah task
-      SOURCE_CODE_DIR=source
-      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
-      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
-      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
-        echo "Fetch Dockerfile from $DOCKERFILE"
-        dockerfile_path=$(mktemp --suffix=-Dockerfile)
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ "$http_code" != 200 ]; then
-          echo "No Dockerfile is fetched. Server responds $http_code"
-          exit 1
-        fi
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
-        if [ "$http_code" = 200 ]; then
-          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
-        fi
-      else
-        echo "Cannot find Dockerfile $DOCKERFILE"
-        exit 1
-      fi
-
-      # install Coverity license file
-      install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
-
-      # pre-create directory for SAST scanning results
-      install -vm1777 -d /shared/sast-results
-
-      # create a wrapper script to instrument RUN lines
-      tee /shared/cmd-wrap.sh >&2 << EOF
-      #!/bin/bash -x
-      id >&2
-
-      # use current directory as project directory by default
-      proj_dir=\$(pwd)
-
-      # if current directory is "/", fallback to an empty temp directory
-      [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
-
-      # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
-      if ! [ -x /usr/bin/file ] && [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
-        install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
-      fi
-
-      # always remove Coverity's intermediate directory so that it can be recreated with different ownership
-      trap 'rm -fr /tmp/idir' EXIT
-
-      # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
-      /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
-        -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
-        - "\$@"
-
-      # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
-      $(declare -p COV_ANALYZE_ARGS)
-
-      # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
-      /opt/coverity/bin/cov-analyze --dir=/tmp/idir \$COV_ANALYZE_ARGS
-
-      if [ \$? -eq 0 ]; then
-        # assign a unique file name for scan results
-        json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
-
-        # obtain capture stats to process them later on
-        /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
-
-        # export scan results and embed source code context into the scan results
-        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
-          | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
-          > "\${json_file}"
-      fi
-
-      # propagate the original exit code of the wrapped command
-      exit "\$(</tmp/idir/build-cmd-ec.txt)"
-      EOF
-      echo >&2
-
-      # make the wrapper script executable
-      chmod -v 0755 /shared/cmd-wrap.sh
-
-      # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
-      cstrans-df-run --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile 2> /tmp/cstrans-df-run.log
-      EC=$?
-
-      # if we have no RUN lines to instrument, it is not a reason to make the task fail
-      if [ $EC -eq 1 ] && [ "cstrans-df-run: error: no RUN line found" = "$(</tmp/cstrans-df-run.log)" ]; then
-        echo "no RUN directive found in \"$dockerfile_path\", falling back to buildless capture..." >&2
-      else
-        cat /tmp/cstrans-df-run.log >&2
-        exit $EC
-      fi
-    volumeMounts:
-    - mountPath: /etc/secrets/cov
-      name: cov-license
-      readOnly: true
-    workingDir: $(workspaces.source.path)
   - args:
     - --build-args
     - $(params.BUILD_ARGS[*])
@@ -333,23 +210,17 @@ spec:
     - $(params.LABELS[*])
     computeResources:
       limits:
-        cpu: 16
-        memory: 16Gi
+        cpu: "4"
+        memory: 6Gi
       requests:
-        cpu: 4
+        cpu: "1"
         memory: 4Gi
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
-      value: /shared/Containerfile
-    - name: ADDITIONAL_VOLUME_MOUNTS
-      value: |-
-        /opt:/opt
-        /shared:/shared
-        /shared/license.dat:/opt/coverity/bin/license.dat
-        /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
+      value: $(params.DOCKERFILE)
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
     name: build
     script: |
       #!/bin/bash
@@ -372,14 +243,14 @@ spec:
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
         http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ "$http_code" != 200 ]; then
+        if [ $http_code != 200 ]; then
           echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
         http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
-        if [ "$http_code" = 200 ]; then
+        if [ $http_code = 200 ]; then
           echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" $SOURCE_CODE_DIR/$CONTEXT/.dockerignore
         fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
@@ -388,6 +259,11 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      if [ -n "${JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR-}" ] && grep -q '^\s*RUN \(./\)\?mvn' "$dockerfile_copy"; then
+        sed -i -e "s|^\s*RUN \(\(./\)\?mvn\)\(.*\)|RUN echo \"<settings><mirrors><mirror><id>mirror.default</id><url>http://$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR/v1/cache/default/0/</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>\" > /tmp/settings.yaml; \1 -s /tmp/settings.yaml \3|g" "$dockerfile_copy"
+        touch /var/lib/containers/java
+      fi
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -438,7 +314,7 @@ spec:
 
       dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
       BASE_IMAGES=$(
-          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not) | sub("\"?(?<image>[^\"]*)\"?" ; .image)' /shared/parsed_dockerfile.json
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
       )
 
       BUILDAH_ARGS=()
@@ -449,7 +325,7 @@ spec:
         UNSHARE_ARGS+=("--net")
 
         for image in $BASE_IMAGES; do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
         done
         echo "Build will be executed with network isolation"
       fi
@@ -502,14 +378,14 @@ spec:
 
       # if yum repofiles stored in git, copy them to mount point outside the source dir
       if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
-        mkdir -p "${YUM_REPOS_D_FETCHED}"
-        cp -r "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}"/* "${YUM_REPOS_D_FETCHED}"
+        mkdir -p ${YUM_REPOS_D_FETCHED}
+        cp -r ${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}/* ${YUM_REPOS_D_FETCHED}
       fi
 
       # if anything in the repofiles mount point (either fetched or from git), mount it
       if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
-        chmod -R go+rwX "${YUM_REPOS_D_FETCHED}"
-        mount_point=$(realpath "${YUM_REPOS_D_FETCHED}")
+        chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
+        mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
         VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
       fi
 
@@ -617,7 +493,7 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
-      buildah mount "$container" | tee /shared/container_path
+      buildah mount $container | tee /shared/container_path
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
@@ -649,47 +525,26 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        memory: 4Gi
-      requests:
-        cpu: 2
-        memory: 2Gi
-    env:
-    - name: IMAGE_URL
-      value: $(params.image-url)
-    - name: COV_ANALYZE_ARGS
-      value: $(params.COV_ANALYZE_ARGS)
-    - name: KFP_GIT_URL
-      value: $(params.KFP_GIT_URL)
-    - name: IMP_FINDINGS_ONLY
-      value: $(params.IMP_FINDINGS_ONLY)
-    - name: PROJECT_NAME
-      value: $(params.PROJECT_NAME)
-    - name: RECORD_EXCLUDED
-      value: $(params.RECORD_EXCLUDED)
-    - name: COMPONENT_LABEL
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.labels['appstudio.openshift.io/component']
-    - name: BUILD_PLR_LOG_URL
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
-    name: postprocess
+  - image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:523689a26c74790be67d6036820abfb9aa10bec6efff98cc1c9b74bd2f99eeb1
+    name: icm
     script: |
-      #!/bin/bash -e
-      # shellcheck source=/dev/null
-      set -o pipefail
+      #!/bin/bash
+      set -euo pipefail
+      /scripts/inject-icm.sh "$IMAGE"
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    workingDir: $(workspaces.source.path)
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    name: push
+    script: |
+      #!/bin/bash
+      set -e
 
-      . /usr/local/share/konflux-test/utils.sh
-      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
-
-      [ -n "${PROJECT_NAME}" ] || PROJECT_NAME="${COMPONENT_LABEL}"
-      echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
-
-      # Installation of Red Hat certificates for cloning Red Hat internal repositories
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
@@ -697,130 +552,166 @@ spec:
         update-ca-trust
       fi
 
-      if [ -z "$(ls /shared/sast-results/)" ]; then (
-        set +e
-        set -x
-
-        # fallback to buildless scan if we have no scan results from buildful
-        # shellcheck disable=SC2086
-        env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
-
-        /opt/coverity/bin/coverity list --dir=/tmp/idir > "/shared/sast-results/coverity-buildless-summary.txt"
-
-        # install Coverity license file
-        install -vm0644 /{shared,opt/coverity/bin}/license.dat
-
-        # shellcheck disable=SC2086
-        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
-
-        # export scan results
-        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
-          | csgrep --mode=json --embed-context=3 \
-          > /shared/sast-results/coverity-buildless.json
-      ) fi
-
-      # collect capture stats (FIXME: this doe not take findings deduplication into account)
-      set +e
-      for file in /shared/sast-results/*-summary.txt; do
-        ((SUCCEEDED     += $(grep "^ *SUCCEEDED:"     "${file}" | grep -oE '[0-9]+' || echo 0)))
-        ((INCOMPLETE    += $(grep "^ *INCOMPLETE:"    "${file}" | grep -oE '[0-9]+' || echo 0)))
-        ((FAILED        += $(grep "^ *FAILED:"        "${file}" | grep -oE '[0-9]+' || echo 0)))
-        ((LINES_OF_CODE += $(grep "^ *LINES OF CODE:" "${file}" | grep -oE '[0-9]+' || echo 0)))
-      done
-
-      # calculate the total number of files
-      ((TOTAL_FILES = SUCCEEDED + INCOMPLETE + FAILED))
-
-      # calculate the ratio of successful files to total files
-      ((COVERAGE_RATIO = (TOTAL_FILES == 0) ? 0 : (SUCCEEDED * 100 / TOTAL_FILES)))
-      set -e
-
-      # reflect the IMP_FINDINGS_ONLY parameter in csgrep arguments
-      IMP_LEVEL=1
-      if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
-        IMP_LEVEL=0
+      retries=5
+      # Push to a unique tag based on the TaskRun name to avoid race conditions
+      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+      if ! buildah push \
+        --retry "$retries" \
+        --tls-verify="$TLSVERIFY" \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)";
+      then
+        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+        exit 1
       fi
 
-      # collect scan results
-      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob '/shared/sast-results/*.json' \
-        --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
-        --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
-        --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
-        --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}") \
-        | tee coverity-results-raw.json \
-        | csgrep --mode=evtstat
-
-      # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instance
-      # p01 will be decommissionned due to lack of IBM support
-      if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
-        case "${BUILD_PLR_LOG_URL}" in
-        *konflux.apps.stone-prod-p02.hjvn.p1.openshiftapps.com* | *konflux.apps.stone-prod-p01.wcfb.p1.openshiftapps.com*)
-          echo "the task is running within Red Hat network, set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-          KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-          ;;
-        *)
-          echo "the task is not running within Red Hat network, set KFP_GIT_URL to empty string"
-          KFP_GIT_URL=
-          ;;
-        esac
+      # Push to a tag based on the git revision
+      echo "Pushing to ${IMAGE}"
+      if ! buildah push \
+        --retry "$retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
+        "docker://$IMAGE";
+      then
+        echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+        exit 1
       fi
 
-      # We check if the KFP_GIT_URL variable is set to apply the filters or not
-      if [[ -z "${KFP_GIT_URL}" ]]; then
-        echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
-        mv coverity-results{-raw,}.json
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF.path)"
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.18.1@sha256:398f0ef395de137f05563d8de43e508bcb2e6810aa9d9adc638154b52c1a469c
+    name: sbom-syft-generate
+    script: |
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+      echo "Running syft on the source directory"
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-source.json"
+      echo "Running syft on the image filesystem"
+      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-image.json"
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /shared
+      name: shared
+    workingDir: $(workspaces.source.path)/source
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
+    name: analyse-dependencies-java-sbom
+    script: |
+      if [ -f /var/lib/containers/java ]; then
+        /opt/jboss/container/java/run/run-java.sh analyse-dependencies path $(cat /shared/container_path) -s $(workspaces.source.path)/sbom-image.json --task-run-name $(context.taskRun.name) --publishers $(results.SBOM_JAVA_COMPONENTS_COUNT.path)
+        sed -i 's/^/ /' $(results.SBOM_JAVA_COMPONENTS_COUNT.path) # Workaround for SRVKP-2875
       else
-        echo "Filtering false positives in results files using csfilter-kfp..."
-        CMD=(
-          csfilter-kfp
-          --verbose
-          --kfp-git-url="${KFP_GIT_URL}"
-          --project-nvr="${PROJECT_NAME}"
-        )
+        touch $(results.JAVA_COMMUNITY_DEPENDENCIES.path)
+      fi
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /shared
+      name: shared
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
+    name: prepare-sboms
+    script: |
+      #!/bin/bash
+      set -euo pipefail
 
-        if [ "${RECORD_EXCLUDED}" == "true" ]; then
-          CMD+=(--record-excluded="excluded-findings.json")
-        fi
-
-        "${CMD[@]}" coverity-results-raw.json \
-          | tee coverity-results.json \
-          | csgrep --mode=evtstat
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
       fi
 
-      # convert the scan results into SARIF
-      csgrep --mode=sarif coverity-results.json > "$(workspaces.source.path)/coverity-results.sarif"
+      sboms_to_merge=(syft:sbom-source.json syft:sbom-image.json)
 
-      if [[ -z "$(csgrep --mode=stat coverity-results.json)" ]]; then
-        note="Task $(context.task.name) success: No finding was detected"
-        ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
-        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-      else
-        TEST_OUTPUT=
-        parse_test_output "$(context.task.name)" sarif "$(workspaces.source.path)/coverity-results.sarif" || true
-        note="Task $(context.task.name) failed: For details, check Tekton task log."
-        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      if [ -f "sbom-cachi2.json" ]; then
+        sboms_to_merge+=(cachi2:sbom-cachi2.json)
       fi
 
-      echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+      echo "Merging sboms: (${sboms_to_merge[*]}) => sbom-cyclonedx.json"
+      python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom-cyclonedx.json
 
-      # upload scan results
-      echo "Selecting auth for upload of scan results"
-      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+      echo "Adding base images data to sbom-cyclonedx.json"
+      python3 /scripts/base_images_sbom_script.py \
+        --sbom=sbom-cyclonedx.json \
+        --parsed-dockerfile=/shared/parsed_dockerfile.json \
+        --base-images-digests=/shared/base_images_digests
 
-      upload_file() (
-        set -x
-        UPLOAD_FILE="$1"
-        MEDIA_TYPE="$2"
-        oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
-      )
+      echo "Adding image reference to sbom"
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
 
-      echo "Attaching scan results to ${IMAGE_URL}"
-      upload_file "coverity-results.sarif" "application/sarif+json"
+      python3 /scripts/add_image_reference.py \
+        --image-url "$IMAGE_URL" \
+        --image-digest "$IMAGE_DIGEST" \
+        --input-file sbom-cyclonedx.json \
+        --output-file /tmp/sbom-cyclonedx.tmp.json
 
-      # upload excluded-findings.json if enabled
-      if [ -f "excluded-findings.json" ]; then
-        upload_file "excluded-findings.json" "application/json"
+      mv /tmp/sbom-cyclonedx.tmp.json sbom-cyclonedx.json
+    securityContext:
+      runAsUser: 0
+    workingDir: $(workspaces.source.path)
+  - computeResources:
+      limits:
+        cpu: 200m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    name: upload-sbom
+    script: |
+      #!/bin/bash
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
       fi
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca
@@ -850,10 +741,6 @@ spec:
       name: $(params.caTrustConfigMapName)
       optional: true
     name: trusted-ca
-  - name: cov-license
-    secret:
-      optional: false
-      secretName: $(params.COV_LICENSE)
   workspaces:
   - description: Workspace containing the source code to build.
     name: source

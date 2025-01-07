@@ -1,0 +1,20 @@
+name: Validate PR - kustomize manifests
+'on':
+  pull_request:
+    branches: [main]
+jobs:
+  kustomize-build:
+    name: Check Kustomize Build of Task and Pipelines
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install oc
+        run: |
+          set -euo pipefail
+          url=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.17/openshift-client-linux.tar.gz
+          if ! which oc; then
+            curl --fail --no-progress-meter -L "$url" | gzip -cd | sudo -- tar -x -C /usr/bin oc
+          fi
+      - name: Validate Manifests
+        run: hack/verify-manifests.sh

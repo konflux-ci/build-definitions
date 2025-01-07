@@ -1,0 +1,168 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-01-31T00:00:00Z"
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+  name: inspect-image
+spec:
+  description: Inspects and analyzes manifest data of the container's source image,
+    and its base image (if available) using Skopeo. An image's manifest data contains
+    information about the layers that make up the image, the platforms for which the
+    image is intended, and other metadata about the image.
+  params:
+  - description: Fully qualified image name.
+    name: IMAGE_URL
+  - description: Image digest.
+    name: IMAGE_DIGEST
+    type: string
+  - default: ""
+    description: unused, should be removed in next task version
+    name: DOCKER_AUTH
+    type: string
+  results:
+  - description: Base image source image is built from.
+    name: BASE_IMAGE
+  - description: Base image repository URL.
+    name: BASE_IMAGE_REPOSITORY
+  - description: Tekton task test output.
+    name: TEST_OUTPUT
+  steps:
+  - env:
+    - name: IMAGE_URL
+      value: $(params.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(params.IMAGE_DIGEST)
+    image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
+    name: inspect-image
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      source /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      IMAGE_INSPECT=image_inspect.json
+      BASE_IMAGE_INSPECT=base_image_inspect.json
+      RAW_IMAGE_INSPECT=raw_image_inspect.json
+
+      IMAGE_URL="${IMAGE_URL}@${IMAGE_DIGEST}"
+      # Given a tag and a the digest in the IMAGE_URL we opt to use the digest alone
+      # this is because containers/image currently doesn't support image references
+      # that contain both. See https://github.com/containers/image/issues/1736
+      if [[ "${IMAGE_URL}" == *":"*"@"* ]]; then
+        IMAGE_URL="${IMAGE_URL/:*@/@}"
+      fi
+
+      status=-1
+      max_run=5
+      sleep_sec=10
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting manifest for source image ${IMAGE_URL} (try $run/$max_run)."
+        skopeo inspect --no-tags docker://"${IMAGE_URL}" > $IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to inspect image ${IMAGE_URL}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
+      echo "Image ${IMAGE_URL} metadata:"
+      cat "$IMAGE_INSPECT"
+
+      run=1
+      while [ "$run" -le "$max_run" ]; do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting raw image manifest ${IMAGE_URL} (try $run/$max_run)."
+        skopeo inspect --no-tags --raw docker://"${IMAGE_URL}" > $RAW_IMAGE_INSPECT || status=$?
+
+        if [ "$status" -eq 0 ] && [ "$(jq 'has("manifests")' ${RAW_IMAGE_INSPECT})" = "true" ]; then
+            echo "Found an image index, lookup for amd64 manifest"
+            INDEX_IMAGE_MANIFESTS=$(jq ' .manifests | map ( {(.platform.architecture|tostring|ascii_downcase):  .digest} ) | add'  "${RAW_IMAGE_INSPECT}" || true)
+
+            AMD64_MANIFEST_DIGEST=$(jq -r '.amd64' <<< "${INDEX_IMAGE_MANIFESTS}" || true )
+            if [ -z "$AMD64_MANIFEST_DIGEST" ]; then
+              # we didn't find amd64 platform, fail horribly as it's the required platform currently for all checks
+              echo "[ERROR] Could not find amd64 image manifest for image $IMAGE_URL"
+              note="Task $(context.task.name) failed: Couldn't find amd64 image manifest"
+              TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+              echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+              exit 0
+            fi
+
+            # Replace image URL with new digest
+            IMAGE_URL="${IMAGE_URL/[@:]*/@$AMD64_MANIFEST_DIGEST}"
+            echo "Setting AMD64 specific image: $IMAGE_URL"
+            run=1  # reset runs, we are looking another image; new image, new life
+        else
+            break
+        fi
+      done
+
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to get raw metadata of image ${IMAGE_URL}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
+
+      echo "Image ${IMAGE_URL} raw metadata:"
+      cat "$RAW_IMAGE_INSPECT" | jq  # jq for readable formatting
+
+      echo "Getting base image manifest for source image ${IMAGE_URL}."
+      BASE_IMAGE_NAME="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" $RAW_IMAGE_INSPECT)"
+      BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $RAW_IMAGE_INSPECT)"
+      if [ $BASE_IMAGE_NAME == 'null' ]; then
+        echo "Cannot get base image info from annotations."
+        BASE_IMAGE_NAME="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" $IMAGE_INSPECT)"
+        BASE_IMAGE_DIGEST="$(jq -r ".annotations.\"org.opencontainers.image.base.digest\"" $IMAGE_INSPECT)"
+        if [ "$BASE_IMAGE_NAME" == 'null' ]; then
+          echo "Cannot get base image info from Labels. For details, check source image ${IMAGE_URL}."
+          exit 0
+        fi
+      fi
+      if [ -z "$BASE_IMAGE_NAME" ]; then
+        echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
+        exit 0
+      fi
+
+      BASE_IMAGE="${BASE_IMAGE_NAME%:*}@$BASE_IMAGE_DIGEST"
+      echo "Detected base image: $BASE_IMAGE"
+      echo -n "$BASE_IMAGE" > $(results.BASE_IMAGE.path)
+
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
+        echo "Inspecting base image ${BASE_IMAGE} (try $run/$max_run)."
+        skopeo inspect --no-tags "docker://$BASE_IMAGE"  > $BASE_IMAGE_INSPECT && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to inspect base image ${BASE_IMAGE}"
+          note="Task $(context.task.name) failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+      fi
+
+      BASE_IMAGE_REPOSITORY="$(jq -r '.Name | sub("[^/]+/"; "") | sub("[:@].*"; "")' "$BASE_IMAGE_INSPECT")"
+      echo "Detected base image repository: $BASE_IMAGE_REPOSITORY"
+      echo -n "$BASE_IMAGE_REPOSITORY" > $(results.BASE_IMAGE_REPOSITORY.path)
+
+      note="Task $(context.task.name) completed: Check inspected JSON files under $(workspaces.source.path)/hacbs/$(context.task.name)."
+      TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
+      echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+      runAsUser: 0
+    workingDir: $(workspaces.source.path)/hacbs/$(context.task.name)
+  workspaces:
+  - name: source
