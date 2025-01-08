@@ -26,23 +26,23 @@ locate_in_all_namespaces() {
     for quay_namespace in "${CATALOG_NAMESPACES[@]}"; do
         found=$(locate_bundle_repo "$quay_namespace" "$type" "$object")
 
+        quay_repo=${type}-${object}
+
         # konflux-ci/tekton-catalog
         if [[ $quay_namespace = */* ]]; then
-            # tekton-catalog/
-            quay_repo_prefix="${quay_namespace#*/}/"
+            # tekton-catalog/...
+            quay_repo="${quay_namespace#*/}/$quay_repo"
             # konflux-ci
             quay_namespace=${quay_namespace%%/*}
-        else
-            quay_repo_prefix=""
         fi
 
-        echo "Checking ${quay_namespace}/${quay_repo_prefix}${object}, http code: ${found}"
+        echo "Checking ${quay_namespace}/${quay_repo}, http code: ${found}"
         if [ "$found" != "200" ]; then
-            echo "Missing $type bundle repo: ${quay_repo_prefix}${object} in ${quay_namespace}, creating..."
+            echo "Missing $type bundle repo: ${quay_repo} in ${quay_namespace}, creating..."
             payload=$(
               jq -n \
                 --arg namespace "$quay_namespace" \
-                --arg repository "$quay_repo_prefix$object" \
+                --arg repository "$quay_repo" \
                 --arg visibility "public" \
                 --arg description "" \
                 '$ARGS.named'
