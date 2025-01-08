@@ -47,13 +47,15 @@ locate_in_all_namespaces() {
                 --arg description "" \
                 '$ARGS.named'
             )
-            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --data-binary "$payload" -H "Content-Type: application/json" -H "Accept: application/json" | jq '.error_message // empty');
+            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --data-binary "$payload" -H "Content-Type: application/json" -H "Accept: application/json" | jq -r '.error_message // empty');
             then
               echo "curl returned an error when creating the repository. See the error above."
               exit 1
             fi
 
-            if [ -n "$err_msg" ]; then
+            if [[ "$err_msg" == "Repository already exists" ]]; then
+                echo "WARNING: repository creation failed, but the error message was '$err_msg'. Assuming that's fine."
+            elif [[ -n "$err_msg" ]]; then
                 echo "Quay returned an error when creating the repository: ${err_msg}"
                 exit 1
             fi
