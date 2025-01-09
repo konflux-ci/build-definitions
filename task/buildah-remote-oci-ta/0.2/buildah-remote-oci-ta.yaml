@@ -824,23 +824,25 @@ spec:
     name: prepare-sboms
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
       fi
-      echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
-      python3 /scripts/merge_syft_sboms.py
+
+      sboms_to_merge=(syft:sbom-source.json syft:sbom-image.json)
 
       if [ -f "sbom-cachi2.json" ]; then
-        echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-        python3 /scripts/merge_cachi2_sboms.py sbom-cachi2.json sbom-cyclonedx.json >sbom-temp.json
-        mv sbom-temp.json sbom-cyclonedx.json
+        sboms_to_merge+=(cachi2:sbom-cachi2.json)
       fi
+
+      echo "Merging sboms: (${sboms_to_merge[*]}) => sbom-cyclonedx.json"
+      python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" >sbom-cyclonedx.json
 
       echo "Adding base images data to sbom-cyclonedx.json"
       python3 /scripts/base_images_sbom_script.py \
