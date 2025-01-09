@@ -78,13 +78,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:52f1391e6f1c472fd10bb838f64fae2ed3320c636f536014978a5ddbdfc6b3af
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: sast-shell-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.8@sha256:57816753b74ed989771b7cddc1994bc1fa9f4fd454b08bcc97acf2fa718e8c1b
+      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:58d19a7da752be21b4db74dc1a203a55914c5aff68b785460a0b9c340092f7e3
       workingDir: /var/workdir/source
       env:
         - name: KFP_GIT_URL
@@ -197,7 +197,7 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:7a85f12b14b9122df29450dfa60c6d035b04db1a7372f7b606a0fb74ed716844
+      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
       workingDir: /var/workdir/source
       env:
         - name: IMAGE_URL

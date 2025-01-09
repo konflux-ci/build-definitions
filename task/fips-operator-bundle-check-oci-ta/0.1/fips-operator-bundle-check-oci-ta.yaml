@@ -46,12 +46,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:b31dc501d5068e30621e51681a2921d4e43f5a030ab78c8991f83a5e774534a3
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: get-unique-related-images
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -160,7 +160,7 @@ spec:
       ref:
         name: fips-operator-check-step-action
     - name: parse-images-processed-result
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

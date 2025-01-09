@@ -54,7 +54,7 @@ spec:
         name: workdir
   steps:
     - name: inspect-image
-      image: quay.io/konflux-ci/konflux-test:v1.4.7@sha256:cf6808a3bd605630a5d9f20595ff7c43f8645c00381219d32f5a11e88fe37072
+      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/inspect-image
@@ -203,7 +203,7 @@ spec:
         digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee "$(results.IMAGES_PROCESSED.path)"
     - name: extract-and-validate
-      image: quay.io/konflux-ci/konflux-test:v1.4.5@sha256:801a105ba0f9c7f58f5ba5cde1a3b4404009fbebb1028779ca2c5de211e94940
+      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -485,7 +485,7 @@ spec:
         fi
         popd
     - name: save-related-images
-      image: quay.io/konflux-ci/oras:latest@sha256:66ccc8c3698304036a42739f6e1836f3399a46645be2d3c5d6d456b9c79fff40
+      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
