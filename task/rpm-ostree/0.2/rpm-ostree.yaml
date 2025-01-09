@@ -249,7 +249,7 @@ spec:
       cachi2_sbom=./cachi2/output/bom.json
       if [ -f "$cachi2_sbom" ]; then
         echo "Merging contents of $cachi2_sbom into sbom.json"
-        python3 /scripts/merge_cachi2_sboms.py "$cachi2_sbom" sbom.json > sbom-temp.json
+        python3 /scripts/merge_sboms.py "cachi2:$cachi2_sbom" syft:sbom.json > sbom-temp.json
         mv sbom-temp.json sbom.json
       else
         echo "Skipping step since no Cachi2 SBOM was produced"
