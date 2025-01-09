@@ -62,7 +62,7 @@ spec:
         optional: true
   steps:
     - name: sast-shell-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.8@sha256:57816753b74ed989771b7cddc1994bc1fa9f4fd454b08bcc97acf2fa718e8c1b
+      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:58d19a7da752be21b4db74dc1a203a55914c5aff68b785460a0b9c340092f7e3
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
@@ -177,7 +177,7 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:7a85f12b14b9122df29450dfa60c6d035b04db1a7372f7b606a0fb74ed716844
+      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
       env:
         - name: IMAGE_URL
