@@ -15,6 +15,7 @@ RPM Ostree (Trusted Artifacts variant).
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |IMAGE_FILE|The file to use to build the image||true|
 |PLATFORM|The platform to build on||true|
+|SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|cyclonedx|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 

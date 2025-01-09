@@ -54,6 +54,12 @@ spec:
     - name: PLATFORM
       description: The platform to build on
       type: string
+    - name: SBOM_TYPE
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx. Note: the SBOM from the prefetch task - if there is one
+        - must be in the same format.'
+      type: string
+      default: cyclonedx
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -97,6 +103,8 @@ spec:
         value: $(params.IMAGE_EXPIRES_AFTER)
       - name: IMAGE_FILE
         value: $(params.IMAGE_FILE)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
       - name: TLSVERIFY
         value: $(params.TLSVERIFY)
     volumeMounts:
@@ -234,7 +242,20 @@ spec:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       script: |
-        syft oci-dir:/var/lib/containers/rhtap-final-image --output cyclonedx-json="/var/workdir/sbom-cyclonedx.json" --source-name "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
+        case $SBOM_TYPE in
+        cyclonedx)
+          syft_sbom_type=cyclonedx-json@1.5
+          ;;
+        spdx)
+          syft_sbom_type=spdx-json@2.3
+          ;;
+        *)
+          echo "Invalid SBOM type: $SBOM_TYPE. Valid: cyclonedx, spdx" >&2
+          exit 1
+          ;;
+        esac
+
+        syft oci-dir:/var/lib/containers/rhtap-final-image --output "$syft_sbom_type"="/var/workdir/sbom.json" --source-name "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
       computeResources:
         limits:
           memory: 6Gi
@@ -246,9 +267,9 @@ spec:
       script: |
         cachi2_sbom=./cachi2/output/bom.json
         if [ -f "$cachi2_sbom" ]; then
-          echo "Merging contents of $cachi2_sbom into sbom-cyclonedx.json"
-          python3 /scripts/merge_cachi2_sboms.py "$cachi2_sbom" sbom-cyclonedx.json >sbom-temp.json
-          mv sbom-temp.json sbom-cyclonedx.json
+          echo "Merging contents of $cachi2_sbom into sbom.json"
+          python3 /scripts/merge_cachi2_sboms.py "$cachi2_sbom" sbom.json >sbom-temp.json
+          mv sbom-temp.json sbom.json
         else
           echo "Skipping step since no Cachi2 SBOM was produced"
         fi
@@ -294,7 +315,7 @@ spec:
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"
-        sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+        sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
         echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
       securityContext:
@@ -306,4 +327,4 @@ spec:
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
