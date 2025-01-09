@@ -32,6 +32,7 @@ When prefetch-dependencies task was activated it is using its artifacts to run b
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
+|PRIVILEGED_NESTED|Whether to enable privileged mode|false|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 
 ## Results
