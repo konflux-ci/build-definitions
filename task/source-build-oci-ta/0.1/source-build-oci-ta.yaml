@@ -103,16 +103,28 @@ spec:
         fi
 
         echo -n "Looking for base image in SBOM"
-        echo " (.formulation[].components[] with 'konflux:container:is_base_image' property)"
+
         # Note: the SBOM should contain at most one image with the is_base_image property - the
         # base image for the last FROM instruction. That is the only base image we care about.
-        jq -r '
-            .formulation[]?
-            | .components[]?
-            | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
-            | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
-            | .name + "@" + $matched.digest
-        ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
+        if jq -e '.bomFormat == "CycloneDX"' <<<"$sbom" >/dev/null; then
+          echo " (.formulation[].components[] with 'konflux:container:is_base_image' property)"
+          jq -r '
+                .formulation[]?
+                | .components[]?
+                | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
+                | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
+                | .name + "@" + $matched.digest
+            ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
+        else
+          echo ' (a package with a {"name": "konflux:container:is_base_image"} JSON-encoded annotation)'
+          jq -r '
+                .packages[]
+                | select(any(.annotations[]?.comment; (fromjson?).name? == "konflux:container:is_base_image"))
+                | [.externalRefs[]? | select(.referenceType == "purl").referenceLocator] as $purls
+                | ($purls | first | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
+                | .name + "@" + $matched.digest
+            ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
+        fi
     - name: build
       image: quay.io/konflux-ci/source-container-build:latest@sha256:9da8982d99263a7f1ee030340779ed7e7a5c95a0e82a535aeb3fe3eebc5b338c
       workingDir: /var/workdir
