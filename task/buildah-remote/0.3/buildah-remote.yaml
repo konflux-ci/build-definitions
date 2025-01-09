@@ -127,6 +127,12 @@ spec:
       to fail if enabled
     name: SKIP_SBOM_GENERATION
     type: string
+  - default: cyclonedx
+    description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.
+      Note: the SBOM from the prefetch task - if there is one - must be in the same
+      format.'
+    name: SBOM_TYPE
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -197,6 +203,8 @@ spec:
       value: $(params.PRIVILEGED_NESTED)
     - name: SKIP_SBOM_GENERATION
       value: $(params.SKIP_SBOM_GENERATION)
+    - name: SBOM_TYPE
+      value: $(params.SBOM_TYPE)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
     - name: PLATFORM
@@ -600,6 +608,7 @@ spec:
           -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
           -e PRIVILEGED_NESTED="$PRIVILEGED_NESTED" \
           -e SKIP_SBOM_GENERATION="$SKIP_SBOM_GENERATION" \
+          -e SBOM_TYPE="$SBOM_TYPE" \
           -e COMMIT_SHA="$COMMIT_SHA" \
           -e DOCKERFILE="$DOCKERFILE" \
           -v "$BUILD_DIR/workspaces/source:$(workspaces.source.path):Z" \
@@ -740,10 +749,22 @@ spec:
         echo "Skipping SBOM generation"
         exit 0
       fi
+
+      case $SBOM_TYPE in
+        cyclonedx)
+          syft_sbom_type=cyclonedx-json@1.5 ;;
+        spdx)
+          syft_sbom_type=spdx-json@2.3 ;;
+        *)
+          echo "Invalid SBOM type: $SBOM_TYPE. Valid: cyclonedx, spdx" >&2
+          exit 1
+          ;;
+      esac
+
       echo "Running syft on the source directory"
-      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-source.json"
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
-      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-image.json"
+      syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -778,12 +799,12 @@ spec:
         sboms_to_merge+=(cachi2:sbom-cachi2.json)
       fi
 
-      echo "Merging sboms: (${sboms_to_merge[*]}) => sbom-cyclonedx.json"
-      python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom-cyclonedx.json
+      echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
+      python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom.json
 
-      echo "Adding base images data to sbom-cyclonedx.json"
+      echo "Adding base images data to sbom.json"
       python3 /scripts/base_images_sbom_script.py \
-        --sbom=sbom-cyclonedx.json \
+        --sbom=sbom.json \
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
 
@@ -794,10 +815,10 @@ spec:
       python3 /scripts/add_image_reference.py \
         --image-url "$IMAGE_URL" \
         --image-digest "$IMAGE_DIGEST" \
-        --input-file sbom-cyclonedx.json \
-        --output-file /tmp/sbom-cyclonedx.tmp.json
+        --input-file sbom.json \
+        --output-file /tmp/sbom.tmp.json
 
-      mv /tmp/sbom-cyclonedx.tmp.json sbom-cyclonedx.json
+      mv /tmp/sbom.tmp.json sbom.json
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
@@ -828,11 +849,11 @@ spec:
         update-ca-trust
       fi
 
-      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+      cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
-      sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     volumeMounts:
