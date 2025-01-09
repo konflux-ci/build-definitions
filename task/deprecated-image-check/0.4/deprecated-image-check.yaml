@@ -91,7 +91,18 @@ spec:
               continue
             fi
 
-            cat ${SBOM_FILE_PATH} | jq -r '.formulation? // empty | .[] | .components? // empty | .[] | select(any((.properties // empty)[]; .name | test("^konflux:container:is_(base|builder)_image"))) | .name' >> ${IMAGES_TO_BE_PROCESSED_PATH}
+            < "${SBOM_FILE_PATH}" jq -r '
+                if .bomFormat == "CycloneDX" then
+                    .formulation[]?
+                    | .components[]?
+                    | select(any(.properties[]?; .name | test("^konflux:container:is_(base|builder)_image")))
+                    | .name
+                else
+                    .packages[]
+                    | select(any(.annotations[]?.comment; (fromjson?).name? | test("^konflux:container:is_(base|builder)_image")?))
+                    | .name
+                end
+            ' >> "${IMAGES_TO_BE_PROCESSED_PATH}"
             echo "Detected base images from $arch SBOM:"
             cat "${IMAGES_TO_BE_PROCESSED_PATH}"
             echo ""
