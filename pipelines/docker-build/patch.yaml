@@ -36,6 +36,9 @@
 #     17  rpms-signature-scan
 
 # build-container
+- op: test
+  path: /spec/tasks/3/name
+  value: build-container
 - op: replace
   path: /spec/tasks/3/taskRef
   value:
@@ -79,6 +82,9 @@
     value: "$(params.build-args-file)"
 
 # FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
+- op: test
+  path: /spec/tasks/11/name
+  value: sast-coverity-check
 - op: add
   path: /spec/tasks/11/params/-
   value:

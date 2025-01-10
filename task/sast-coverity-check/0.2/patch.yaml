@@ -21,18 +21,46 @@
 ###################
 
 # Remove all buildah task steps except build
+
+# upload-sbom
+- op: test
+  path: /spec/steps/5/name
+  value: upload-sbom
 - op: remove
-  path: /spec/steps/5  # upload-sbom
+  path: /spec/steps/5
+
+# prepare-sboms
+- op: test
+  path: /spec/steps/4/name
+  value: prepare-sboms
 - op: remove
-  path: /spec/steps/4  # prepare-sboms
+  path: /spec/steps/4
+
+# sbom-syft-generate
+- op: test
+  path: /spec/steps/3/name
+  value: sbom-syft-generate
 - op: remove
-  path: /spec/steps/3  # sbom-syft-generate
+  path: /spec/steps/3
+
+# push
+- op: test
+  path: /spec/steps/2/name
+  value: push
 - op: remove
-  path: /spec/steps/2  # push
+  path: /spec/steps/2
+
+# icm
+- op: test
+  path: /spec/steps/1/name
+  value: icm
 - op: remove
-  path: /spec/steps/1  # icm
+  path: /spec/steps/1
 
 # Tune the build step (the only one left).
+- op: test
+  path: /spec/steps/0/name
+  value: build
 
 # Change build step image
 - op: replace
@@ -217,11 +245,17 @@
       cstrans-df-run --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile
 
 # Make the buildah task use the instrumented Dockerfile
+- op: test
+  path: /spec/steps/1/env/1/name
+  value: DOCKERFILE
 - op: replace
   path: /spec/steps/1/env/1/value  # steps -> build -> env -> DOCKERFILE
   value: /shared/Containerfile
 
 # Add postprocess step
+- op: test
+  path: /spec/steps/1/name
+  value: build
 - op: add
   path: /spec/steps/2
   value:
