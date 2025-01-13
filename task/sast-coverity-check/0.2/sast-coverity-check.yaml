@@ -221,7 +221,7 @@ spec:
       value: $(params.COV_ANALYZE_ARGS)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    image: quay.io/redhat-services-prod/sast/coverity:202412.1
     name: prepare
     script: |
       #!/bin/bash
@@ -266,6 +266,11 @@ spec:
 
       # if current directory is "/", fallback to an empty temp directory
       [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
+
+      # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
+      if ! [ -x /usr/bin/file ] && [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+        install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+      fi
 
       # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
       /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
@@ -330,7 +335,7 @@ spec:
         /shared:/shared
         /shared/license.dat:/opt/coverity/bin/license.dat
         /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
-    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    image: quay.io/redhat-services-prod/sast/coverity:202412.1
     name: build
     script: |
       #!/bin/bash
@@ -654,7 +659,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.labels['appstudio.openshift.io/component']
-    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    image: quay.io/redhat-services-prod/sast/coverity:202412.1
     name: postprocess
     script: |
       #!/bin/bash -e
