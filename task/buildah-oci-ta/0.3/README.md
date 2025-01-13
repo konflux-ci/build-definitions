@@ -35,6 +35,9 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|ENABLE_INDY_PROXY|Whether to enable indy generic proxy.|false|false|
+|INDY_PROXY_CLIENT_ID|The client ID used by indy proxy to communicate with Indy.|""|false|
+|INDY_PROXY_CLIENT_CREDENTIAL|The client credential used by indy proxy to communicate with Indy.|""|false|
 
 ## Results
 |name|description|

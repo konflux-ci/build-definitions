@@ -140,18 +140,6 @@ spec:
       description: The name of the ConfigMap to read CA bundle data from.
       type: string
       default: trusted-ca
-    - name: ENABLE_INDY_PROXY
-      type: string
-      description: Enable the indy generic proxy (true/false)
-      default: "false"
-    - name: INDY_PROXY_CLIENT_ID
-      type: string
-      description: The client ID used by indy proxy to communicate with Indy.
-      default: ""
-    - name: INDY_PROXY_CLIENT_CREDENTIAL
-      type: string
-      description: The client credential used by indy proxy to communicate with Indy.
-      default: ""
   results:
     - name: IMAGE_DIGEST
       description: Digest of the image just built
@@ -195,17 +183,6 @@ spec:
       emptyDir: {}
     - name: workdir
       emptyDir: {}
-    - name: indy-generic-proxy-secrets
-      secret:
-        optional: true
-        secretName: indy-generic-proxy-secrets
-    - name: indy-generic-proxy-config
-      configMap:
-        items:
-          - key: application.yaml
-            path: application.yaml
-        name: indy-generic-proxy-config
-        optional: true
   stepTemplate:
     computeResources:
       limits:
@@ -537,12 +514,6 @@ spec:
           done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
         fi
 
-        if [ -f "$ca_bundle" ]; then
-          cp -r --preserve=mode /mnt/trusted-ca /tmp/trusted-ca
-          VOLUME_MOUNTS+=(--volume /tmp/trusted-ca:/etc/pki/ca-trust/source/anchors)
-          echo "Adding the trusted-ca to the build"
-        fi
-
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
         declare IMAGE
 
@@ -789,26 +760,3 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-  sidecars:
-    - name: indy-generic-proxy
-      image: quay.io/factory2/indy-generic-proxy-service:latest-prod
-      volumeMounts:
-        - name: indy-generic-proxy-secrets
-          readOnly: true
-          mountPath: /mnt/secrets-generic-proxy
-        - name: indy-generic-proxy-config
-          readOnly: true
-          mountPath: /deployment/config
-      computeResources:
-        limits:
-          cpu: 1
-          memory: 2Gi
-        requests:
-          cpu: 200m
-          memory: 512Mi
-      script: |
-        if [ "$(params.ENABLE_INDY_PROXY)" == "true" ]; then
-          export QUARKUS_OIDC_CLIENT_CLIENT_ID="$(params.INDY_PROXY_CLIENT_ID)"
-          export QUARKUS_OIDC_CLIENT_CREDENTIALS_SECRET="$(params.INDY_PROXY_CLIENT_CREDENTIAL)"
-          /deployment/start-service.sh
-        fi
