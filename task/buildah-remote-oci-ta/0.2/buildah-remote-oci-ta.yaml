@@ -232,6 +232,11 @@ spec:
     computeResources: {}
     image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
     name: use-trusted-artifact
+    volumeMounts:
+    - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
   - args:
     - --build-args
     - $(params.BUILD_ARGS[*])

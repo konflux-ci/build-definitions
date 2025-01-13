@@ -307,6 +307,10 @@ spec:
       volumeMounts:
         - mountPath: /var/workdir
           name: workdir
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_EXPIRES_AFTER
           value: $(params.ociArtifactExpiresAfter)

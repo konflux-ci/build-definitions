@@ -159,8 +159,21 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 		Name:      "workdir",
 		MountPath: "/var/workdir",
 	}
+	trustedVolumeMount := core.VolumeMount{
+		Name:      "trusted-ca",
+		MountPath: "/etc/pki/tls/certs/ca-custom-bundle.crt",
+		SubPath:   "ca-bundle.crt",
+		ReadOnly:  true,
+	}
+
 	if len(recipe.AddVolumeMount) == 0 {
 		recipe.AddVolumeMount = []core.VolumeMount{workdirVolumeMount}
+	}
+	if len(recipe.AddTAVolumeMount) == 0 {
+		recipe.AddTAVolumeMount = []core.VolumeMount{trustedVolumeMount}
+	}
+	if !recipe.UseTAVolumeMount {
+		recipe.AddTAVolumeMount = []core.VolumeMount{}
 	}
 
 	removeEnv := func(env *[]string) func(core.EnvVar) bool {
@@ -305,9 +318,10 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 		}
 
 		task.Spec.Steps = append([]pipeline.Step{{
-			Name:  "use-trusted-artifact",
-			Image: image,
-			Args:  args,
+			Name:         "use-trusted-artifact",
+			Image:        image,
+			Args:         args,
+			VolumeMounts: recipe.AddTAVolumeMount,
 		}}, task.Spec.Steps...)
 	}
 	if recipe.createSource || recipe.createCachi2 {
@@ -348,7 +362,7 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 		}
 
 		if task.Spec.StepTemplate == nil && !recipe.PreferStepTemplate {
-			create.VolumeMounts = []core.VolumeMount{workdirVolumeMount}
+			create.VolumeMounts = append([]core.VolumeMount{workdirVolumeMount}, recipe.AddTAVolumeMount...)
 		}
 		task.Spec.Steps = append(task.Spec.Steps, create)
 	}

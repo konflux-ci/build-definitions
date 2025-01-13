@@ -55,10 +55,12 @@ The following is the list of supported options:
 | `addResult`          | sequence of Tekton [TaskResult]s                 | Additional Tekton Task results to add to the Task |
 | `addVolume`          | sequence of [Volume]s                            | Additional Volumes to add to the Task |
 | `addVolumeMount`     | sequence of [VolumeMount]s                       | Additional VolumeMount to add to the Task |
+| `addTAVolumeMount`   | sequence of [VolumeMount]s                       | Additional VolumeMount to add to the `use-trusted-artifact` and `create-trusted-artifact` steps in the Trusted Artifact Task |
 | `base`               | string                                           | Relative path from `recipe.yaml` to the Task definition of the non-Trusted Artifacts Task |
 | `description`        | string                                           | Description of the Trusted Artifacts Task |
 | `displaySuffix`      | string                                           | Additional text to place to the value of `tekton.dev/displayName` annotation from the non-Trusted Artifacts Task to the Trusted Artifacts Task (default: `" oci trusted artifacts"`) |
 | `preferStepTemplate` | boolean                                          | When `true` preference is set to configure common configuration on the `Task.spec.stepTemplate` rather than on each Task Step |
+| `useTAVolumeMount`   | boolean                                          | When `true` VolumeMounts are added to the `use-trusted-artifact` and `create-trusted-artifact` steps. If `addTAVolumeMount` is provided then those VolumeMounts are added. Otherwise, default VolumeMounts are added |
 | `regexReplacements`  | map of strings keys and string values            | Perform regular expression-based replacement with keys being the regular expression and the values being the replacement, see [Replacements](#replacements) |
 | `removeParams`       | sequence of strings                              | Names of Task parameters to remove |
 | `removeVolumes`      | sequence of strings                              | Names of Task Volumes to remove |
