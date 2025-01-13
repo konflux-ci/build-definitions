@@ -24,10 +24,12 @@ type Recipe struct {
 	AddResult          []pipeline.TaskResult `json:"addResult"`
 	AddVolume          []core.Volume         `json:"addVolume"`
 	AddVolumeMount     []core.VolumeMount    `json:"addVolumeMount"`
+	AddTAVolumeMount   []core.VolumeMount    `json:"addTAVolumeMount"`
 	Base               string                `json:"base"`
 	Description        string                `json:"description"`
 	DisplaySuffix      string                `json:"displaySuffix"`
 	PreferStepTemplate bool                  `json:"preferStepTemplate"`
+	UseTAVolumeMount   bool                  `json:"useTAVolumeMount"`
 	RegexReplacements  map[string]string     `json:"regexReplacements"`
 	RemoveParams       []string              `json:"removeParams"`
 	RemoveVolumes      []string              `json:"removeVolumes"`
