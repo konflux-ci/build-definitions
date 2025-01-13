@@ -73,6 +73,10 @@ spec:
     - name: ociStorage
       description: The OCI repository where the Trusted Artifacts are stored.
       type: string
+    - name: sbom-type
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx.'
+      default: cyclonedx
   results:
     - name: CACHI2_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
@@ -314,6 +318,8 @@ spec:
           value: $(params.dev-package-managers)
         - name: LOG_LEVEL
           value: $(params.log-level)
+        - name: SBOM_TYPE
+          value: $(params.sbom-type)
         - name: WORKSPACE_GIT_AUTH_BOUND
           value: $(workspaces.git-basic-auth.bound)
         - name: WORKSPACE_GIT_AUTH_PATH
@@ -385,6 +391,7 @@ spec:
           $dev_pacman_flag \
           --source=/var/workdir/source \
           --output=/var/workdir/cachi2/output \
+          --sbom-output-type="$SBOM_TYPE" \
           "${INPUT}"
 
         cachi2 --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \

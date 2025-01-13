@@ -45,6 +45,9 @@ spec:
       Note this needs to be passed as a YAML-formatted config dump, not as a file path!
     name: config-file-content
     default: ""
+  - name: sbom-type
+    default: cyclonedx
+    description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -241,6 +244,8 @@ spec:
       value: $(params.dev-package-managers)
     - name: LOG_LEVEL
       value: $(params.log-level)
+    - name: SBOM_TYPE
+      value: $(params.sbom-type)
     - name: WORKSPACE_GIT_AUTH_BOUND
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
@@ -325,6 +330,7 @@ spec:
       $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
       --output=$(workspaces.source.path)/cachi2/output \
+      --sbom-output-type="$SBOM_TYPE" \
       "${INPUT}"
 
       cachi2 --log-level="$LOG_LEVEL" generate-env $(workspaces.source.path)/cachi2/output \
