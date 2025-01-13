@@ -639,12 +639,6 @@ spec:
       echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
       python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom.json
 
-      echo "Adding base images data to sbom.json"
-      python3 /scripts/base_images_sbom_script.py \
-        --sbom=sbom.json \
-        --parsed-dockerfile=/shared/parsed_dockerfile.json \
-        --base-images-digests=/shared/base_images_digests
-
       echo "Adding image reference to sbom"
       IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
       IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
@@ -656,6 +650,12 @@ spec:
         --output-file /tmp/sbom.tmp.json
 
       mv /tmp/sbom.tmp.json sbom.json
+
+      echo "Adding base images data to sbom.json"
+      python3 /scripts/base_images_sbom_script.py \
+        --sbom=sbom.json \
+        --parsed-dockerfile=/shared/parsed_dockerfile.json \
+        --base-images-digests=/shared/base_images_digests
     workingDir: $(workspaces.source.path)
     securityContext:
       runAsUser: 0
