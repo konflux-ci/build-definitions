@@ -66,7 +66,7 @@
 - op: replace
   path: /spec/steps/0/image
   # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
-  value: quay.io/redhat-services-prod/sast/coverity:202409.1
+  value: quay.io/redhat-services-prod/sast/coverity:202412.1
 
 # Change build step resources
 - op: replace
@@ -153,7 +153,7 @@
   path: /spec/steps/0
   value:
     name: prepare
-    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    image: quay.io/redhat-services-prod/sast/coverity:202412.1
     workingDir: $(workspaces.source.path)
     env:
       - name: COV_ANALYZE_ARGS
@@ -208,6 +208,11 @@
       # if current directory is "/", fallback to an empty temp directory
       [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
 
+      # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
+      if ! [ -x /usr/bin/file ] && [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+        install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+      fi
+
       # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
       /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
         -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
@@ -260,7 +265,7 @@
   path: /spec/steps/2
   value:
     name: postprocess
-    image: quay.io/redhat-services-prod/sast/coverity:202409.1
+    image: quay.io/redhat-services-prod/sast/coverity:202412.1
     computeResources:
       limits:
         memory: 4Gi
