@@ -57,6 +57,10 @@ spec:
       type: string
       description: Write excluded records in file. Useful for auditing (defaults to false).
       default: "false"
+    - name: IGNORE_FILE_PATHS
+      type: string
+      description: Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.
+      default: ""
   volumes:
     - name: snyk-secret
       secret:
@@ -87,6 +91,8 @@ spec:
           value: $(params.SNYK_SECRET)
         - name: ARGS
           value: $(params.ARGS)
+        - name: IGNORE_FILE_PATHS
+          value: $(params.IGNORE_FILE_PATHS)
         - name: IMP_FINDINGS_ONLY
           value: $(params.IMP_FINDINGS_ONLY)
         - name: KFP_GIT_URL
@@ -142,6 +148,12 @@ spec:
         if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
           SEVERITY_THRESHOLD="low"
         fi
+
+        # We ignore files using snyk ignore if the user set up the IGNORE_FILE_PATHS variable.
+        (cd "${SOURCE_CODE_DIR}" && IFS="," && for path in $IGNORE_FILE_PATHS; do
+          snyk ignore --file-path="source/${path}"
+        done)
+
         set +e
         # We do want to expand ARGS (it can be multiple CLI flags, not just one)
         # shellcheck disable=SC2086
