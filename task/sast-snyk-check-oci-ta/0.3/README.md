@@ -13,6 +13,7 @@ See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information
 |---|---|---|---|
 |ARGS|Append arguments.|""|false|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
+|IGNORE_FILE_PATHS|Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.|""|false|
 |IMP_FINDINGS_ONLY|Report only important findings. Default is true. To report all findings, specify "false"|true|false|
 |KFP_GIT_URL|URL from repository to download known false positives files|""|false|
 |PROJECT_NAME|Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.|""|false|
