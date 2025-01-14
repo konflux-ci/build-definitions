@@ -8,8 +8,14 @@ Removes references to `jvm-build-service`
 
 ## Action from users
 
-The removed items are not in use, so their removal will not impact users.
+Before migrating, please check if your PipelineRun definitions contain the following results:
+- `JAVA_COMMUNITY_DEPENDENCIES`
+- `SBOM_JAVA_COMPONENTS_COUNT`
 
-A Renovate bot PR will be created with a warning icon for this task.
-
-This is expected, and no action from users is needed.
+They should look similar to this following code block:
+```
+    - description: ""
+      name: JAVA_COMMUNITY_DEPENDENCIES
+      value: $(tasks.build-container.results.JAVA_COMMUNITY_DEPENDENCIES)
+```
+If your PipelineRun definition contains the results, please delete them.
