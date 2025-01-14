@@ -4,21 +4,21 @@ The `build-paketo-builder-oci-ta` task builds a builder image (e.g. https://gith
 The task also produces the SBOM which is signed and added to the image.
 
 ## Parameters
-| name                 | description                                                                         | default value                                                              | required |
-|----------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------|----------|
-| BUILD_ARGS           | Array of --build-arg values ("arg=value" strings)                                   | []                                                                         | false    |
-| BUILDER_NAME         | Name of the paketo builder image containing the tools as: pack, jam, create-package |  | true     |
-| CACHI2_ARTIFACT      | The Trusted Artifact URI pointing to the artifact with the prefetched dependencies. | ""                                                                         | false    |
-| CONTEXT              | Path to the directory to use as context.                                            | .                                                                          | false    |
-| HERMETIC             | Determines if build will be executed without network access.                        | false                                                                      | false    |
-| IMAGE                | Reference of the image buildah will produce.                                        |                                                                            | true     |
-| PLATFORM             | The platform to build on                                                            |                                                                            | true     |
-| SOURCE_ARTIFACT      | The Trusted Artifact URI pointing to the artifact with the application source code. |                                                                            | true     |
-| SOURCE_CODE_DIR      | The subpath of the application source code.                                         | "."                                                                        | true     |
-| STORAGE_DRIVER       | Storage driver to configure for buildah                                             | vfs                                                                        | false    |
-| TLSVERIFY            | Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)       | true                                                                       | false    |
-| caTrustConfigMapKey  | The name of the key in the ConfigMap that contains the CA bundle data.              | ca-bundle.crt                                                              | false    |
-| caTrustConfigMapName | The name of the ConfigMap to read CA bundle data from.                              | trusted-ca                                                                 | false    |
+
+| name                 | description                                                                         | default value | required |
+|----------------------|-------------------------------------------------------------------------------------|---------------|----------|
+| BUILD_ARGS           | Array of --build-arg values ("arg=value" strings)                                   | []            | false    |
+| CACHI2_ARTIFACT      | The Trusted Artifact URI pointing to the artifact with the prefetched dependencies. | ""            | false    |
+| CONTEXT              | Path to the directory to use as context.                                            | .             | false    |
+| HERMETIC             | Determines if build will be executed without network access.                        | false         | false    |
+| IMAGE                | Reference of the image buildah will produce.                                        |               | true     |
+| PLATFORM             | The platform to build on                                                            |               | true     |
+| SOURCE_ARTIFACT      | The Trusted Artifact URI pointing to the artifact with the application source code. |               | true     |
+| SOURCE_CODE_DIR      | The subpath of the application source code.                                         | "."           | true     |
+| STORAGE_DRIVER       | Storage driver to configure for buildah                                             | vfs           | false    |
+| TLSVERIFY            | Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)       | true          | false    |
+| caTrustConfigMapKey  | The name of the key in the ConfigMap that contains the CA bundle data.              | ca-bundle.crt | false    |
+| caTrustConfigMapName | The name of the ConfigMap to read CA bundle data from.                              | trusted-ca    | false    |
 
 ## Results
 |name|description|
