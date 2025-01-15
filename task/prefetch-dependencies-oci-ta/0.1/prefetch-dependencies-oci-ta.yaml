@@ -161,150 +161,6 @@ spec:
           # https://github.com/containerbuildsystem/cachi2/issues/577
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
-    - name: check-prefetch-input
-      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
-      env:
-        - name: INPUT
-          value: $(params.input)
-      script: |
-        if [ -z "${INPUT}" ]; then
-          # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
-          echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
-          echo "skip" >/shared/skip
-        fi
-    - name: register-red-hat
-      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
-      results:
-        - name: registered
-          type: string
-      volumeMounts:
-        - mountPath: /activation-key
-          name: activation-key
-      env:
-        - name: INPUT
-          value: $(params.input)
-        - name: ACTIVATION_KEY
-          value: $(params.ACTIVATION_KEY)
-      script: |
-        #!/bin/bash
-        if [ -f /shared/skip ]; then
-          echo "Skipping."
-          exit 0
-        fi
-
-        echo "false" >/shared/registered
-        ACTIVATION_KEY_PATH="/activation-key"
-
-        mkdir -p /shared/rhsm/entitlement
-        mkdir -p /shared/rhsm/consumer
-
-        if [ -e /activation-key/org ]; then
-          cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
-
-          echo "Registering with Red Hat subscription manager."
-          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
-
-          # copy generated certificates to /shared/rhsm
-          cp /etc/pki/entitlement/*.pem /shared/rhsm/entitlement/
-          cp /etc/pki/consumer/*.pem /shared/rhsm/consumer/
-
-          file="$(find /shared/rhsm/entitlement -regextype egrep -regex '.*[0-9]+\.pem' -printf %f)"
-          echo "file: $file"
-          basename "$file" .pem >/shared/RHSM_ID
-          echo "./RHSM_ID:"
-          cat /shared/RHSM_ID
-
-          # trust the CA used for Red Hat CDN
-          cp /etc/rhsm-host/ca/redhat-uep.pem /shared/rhsm/redhat-uep.pem
-        fi
-    - name: preprocess-input
-      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
-      args:
-        - $(params.input)
-      env:
-        - name: INPUT
-          value: $(params.input)
-        - name: ACTIVATION_KEY
-          value: $(params.ACTIVATION_KEY)
-      script: |
-        #!/bin/python3
-        import json
-        import os
-        import sys
-
-
-        def string_to_json(input: str):
-            if input in ['bundler', 'generic', 'gomod', 'npm', 'pip', 'rpm', 'yarn-classic', 'yarn']:
-                input = '{"type": "%s"}' % input
-                print("json: %s" % input)
-            return input
-
-
-        def json_to_list(input: str):
-            input = json.loads(input)
-            if type(input) is dict:
-                input = [input]
-            return json.dumps(input)
-
-
-        def inject_certs(input: str, rhsm_id: str):
-            input_list: list = json.loads(input)
-
-            cert = ("/shared/rhsm/entitlement/%s.pem" % rhsm_id)
-            key = ("/shared/rhsm/entitlement/%s-key.pem" % rhsm_id)
-            ca_bundle = os.getenv("CA_BUNDLE", None)
-            for pkg_man in input_list:
-                if pkg_man["type"] == "rpm":
-
-                    # preserve verify setting
-                    verify = \
-                        pkg_man.get("options", {}).get("ssl", {}).get("ssl_verify", 1)
-
-                    # preserve other options
-                    options: dict = pkg_man.get('options', {})
-
-                    ssl_options = {
-                        "client_key": key,
-                        "client_cert": cert,
-                        "ca_bundle": ca_bundle,
-                        "ssl_verify": verify}
-
-                    options['ssl'] = ssl_options
-                    pkg_man["options"] = options
-            return (json.dumps(input_list))
-
-
-        def convert_input(input, rhsm_id):
-            input = string_to_json(input)
-            input = json_to_list(input)
-            input = inject_certs(input, rhsm_id)
-            return input
-
-
-        if __name__ == '__main__':
-
-            if os.path.isfile("/shared/skip"):
-                sys.exit()
-
-            rhsm_id = ""
-            input = ""
-
-            try:
-                f = open("/shared/RHSM_ID", "r")
-                rhsm_id = f.read().strip("\n")
-            except FileNotFoundError:
-                print("No RHSM ID found.")
-
-            if rhsm_id == "":
-                input = sys.argv[1]
-            else:
-                print("RHSM Cert ID is: %s" % rhsm_id)
-                print("Called with args: %s" % str(sys.argv))
-                input = convert_input(sys.argv[1], rhsm_id)
-
-            print("Preprocessing result: %s" % input)
-            with open('/shared/rhsm/preprocessed_input', 'w') as f:
-                f.write(input)
     - name: prefetch-dependencies
       image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       volumeMounts:
@@ -314,6 +170,8 @@ spec:
         - mountPath: /activation-key
           name: activation-key
       env:
+        - name: INPUT
+          value: $(params.input)
         - name: DEV_PACKAGE_MANAGERS
           value: $(params.dev-package-managers)
         - name: LOG_LEVEL
@@ -331,8 +189,73 @@ spec:
       script: |
         #!/bin/bash
 
-        if [ -f /shared/skip ]; then
-          echo "Skipping."
+        RHSM_ORG=""
+        RHSM_ACT_KEY=""
+        ENTITLEMENT_CERT_PATH=""
+        ENTITLEMENT_CERT_KEY_PATH=""
+
+        function rhsm_unregister {
+          # best effort:
+          #   - if the system was already successfully unregistered, the command returns 1
+          #   - if unregistering failed/fails, there's not much we can do about it anyway
+          subscription-manager unregister || true
+        }
+
+        function inject_ssl_opts {
+          input="$1"
+          ssl_options="$2"
+
+          # Check if input is plain string or JSON and if the request specifies RPMs
+          if [ "$input" == "rpm" ]; then
+            input="$(
+              jq -n --argjson ssl "$ssl_options" '
+                      {
+                        type: "rpm",
+                        options: {
+                          ssl: $ssl
+                        }
+                      }'
+            )"
+          elif (jq . 2>/dev/null 1>&2 <<<"$input"); then
+            # The input JSON can be in one of these forms:
+            # 1) '[{"type": "gomod"}, {"type": "bundler"}]'
+            # 2) '{"packages": [{"type": "gomod"}, {"type": "bundler"}]}'
+            # 3) '{"type": "gomod"}'
+            input_json_has_rpm="$(jq '
+                                    if (type == "array" or type == "object") | not then
+                                      false
+                                    elif type == "array" then
+                                      any(.[]; .type == "rpm")
+                                    elif has("packages") | not then
+                                      .type == "rpm"
+                                    elif (.packages | type == "array") then
+                                      any(.packages[]; .type == "rpm")
+                                    else
+                                      false
+                                    end' <<<"$input")"
+
+            # The output JSON may need the SSL options updated for the RPM backend
+            if [ "$input_json_has_rpm" == "true" ]; then
+              input="$(
+                jq \
+                  --argjson ssl "$ssl_options" '
+                            if type == "array" then
+                              map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                            elif has("packages") then
+                              .packages |= map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                            else
+                              .options.ssl += $ssl
+                            end' \
+                  <<<"$input"
+              )"
+            fi
+          fi
+          echo "$input"
+        }
+
+        if [ -z "${INPUT}" ]; then
+          # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
+          echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
           exit 0
         fi
 
@@ -346,16 +269,6 @@ spec:
           dev_pacman_flag=--dev-package-managers
         else
           dev_pacman_flag=""
-        fi
-
-        INPUT=$(cat /shared/rhsm/preprocessed_input)
-        export INPUT
-
-        # trust Red Hat CA cert used for Red Hat CDN
-        if [ -f /shared/rhsm/redhat-uep.pem ]; then
-          echo "Adding Red Hat CA certificate to trusted roots."
-          cp /shared/rhsm/redhat-uep.pem /etc/pki/ca-trust/source/anchors/
-          update-ca-trust
         fi
 
         # Copied from https://github.com/konflux-ci/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
@@ -387,6 +300,33 @@ spec:
           update-ca-trust
         fi
 
+        # RHSM HANDLING: REGISTER RHSM & CACHI2 CONFIGURATION
+        if [ -e /activation-key/org ]; then
+          RHSM_ORG=$(cat /activation-key/org)
+          RHSM_ACT_KEY=$(cat /activation-key/activationkey)
+
+          echo "Registering with Red Hat subscription manager."
+          subscription-manager register \
+            --org "${RHSM_ORG}" \
+            --activationkey "${RHSM_ACT_KEY}" || exit 1
+
+          entitlement_files="$(ls -1 /etc/pki/entitlement/*.pem)"
+          ENTITLEMENT_CERT_KEY_PATH="$(grep -e '-key.pem$' <<<"$entitlement_files")"
+          ENTITLEMENT_CERT_PATH="$(grep -v -e '-key.pem$' <<<"$entitlement_files")"
+          CA_BUNDLE_PATH="/etc/rhsm/ca/redhat-uep.pem"
+
+          CACHI2_SSL_OPTS="$(
+            jq -n \
+              --arg key "$ENTITLEMENT_CERT_KEY_PATH" \
+              --arg cert "$ENTITLEMENT_CERT_PATH" \
+              --arg ca_bundle "$CA_BUNDLE_PATH" \
+              '{client_key: $key, client_cert: $cert, ca_bundle: $ca_bundle}'
+          )"
+
+          # We need to modify the cachi2 params in place if we're processing RPMs
+          INPUT=$(inject_ssl_opts "$INPUT" "$CACHI2_SSL_OPTS")
+        fi
+
         cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
           $dev_pacman_flag \
           --source=/var/workdir/source \
@@ -401,24 +341,15 @@ spec:
 
         cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
           --for-output-dir=/cachi2/output
+
+        # UNREGISTER RHSM
+        rhsm_unregister
       computeResources:
         limits:
           memory: 3Gi
         requests:
           cpu: "1"
           memory: 3Gi
-    - name: unregister-rhsm
-      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
-      script: |
-        #!/bin/bash
-        if [ -f /shared/skip ]; then
-          echo "Skipping."
-          exit 0
-        fi
-
-        cp /shared/rhsm/consumer/* /etc/pki/consumer/
-        cp /shared/rhsm/entitlement/* /etc/pki/entitlement/
-        subscription-manager unregister || true
     - name: create-trusted-artifact
       image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
       args:
