@@ -228,6 +228,12 @@ spec:
             value: "$(tasks.build-bundles.results.custom-docker-build-multi-platform-oci-ta-bundle)"
           - name: fbc-builder-bundle
             value: "$(tasks.build-bundles.results.custom-fbc-builder-bundle)"
+          - name: artifact_dir
+            value: /workspace/artifact-dir
+          - name: pipelinerun_name
+            value: $(context.pipelineRun.name)
+          - name: revision
+            value: "{{revision}}"
         runAfter:
           - build-bundles
         taskRef:
@@ -298,6 +304,45 @@ spec:
                 # Perform cleanup of resources created by gitops service
                 oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
+      - name: pull-request-status-message
+        when:
+          - input: "tasks_pipelines"
+            operator: "in"
+            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+        taskRef:
+          resolver: git
+          params:
+            - name: url
+              value: https://github.com/konflux-ci/tekton-integration-catalog.git
+            - name: revision
+              value: main
+            - name: pathInRepo
+              value: common/tasks/pull-request-comment/0.1/pull-request-comment.yaml
+        params:
+          - name: test-name
+            value: "$(context.pipelineRun.name)"
+          - name: oci-container
+            value: "quay.io/konflux-test-storage/konflux-team/build-definitions:{{ revision }}"
+          - name: pipeline-aggregate-status
+            value: "$(tasks.status)"
+          - name: pull-request-author
+            value: "{{sender}}"
+          - name: pull-request-number
+            value: "{{pull_request_number}}"
+          - name: git-repo
+            value: "{{repo_name}}"
+          - name: git-org
+            value: "{{repo_owner}}"
+          - name: git-revision
+            value: "{{revision}}"
+          - name: junit-report-name
+            value: e2e-report.xml
+          - name: e2e-log-name
+            value: e2e-tests.log
+          - name: cluster-provision-log-name
+            value: cluster-provision.log
+          - name: enable-test-results-analysis
+            value: "true"
   # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
   # If this timeout increases, the age of stale resources should be increased too.
   # https://github.com/redhat-appstudio/infra-deployments/blob/main/components/tekton-ci/production/cleanup-cronjob.yaml
