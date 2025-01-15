@@ -139,6 +139,62 @@ spec:
       description: The name of the ConfigMap to read CA bundle data from.
       type: string
       default: trusted-ca
+    - name: BUILD_IMAGE
+      description: The buildah image to use.
+      type: string
+      default: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    - name: ENABLE_DOMAIN_PROXY
+      description: Determines if domain proxy will be used when hermetic mode is enabled.
+      type: string
+      default: "false"
+    - name: DOMAIN_PROXY_BYTE_BUFFER_SIZE
+      description: The byte buffer size to use for the domain proxy.
+      type: string
+      default: 32768
+    - name: DOMAIN_PROXY_DOMAIN_SOCKET
+      description: The domain socket to use for the domain proxy.
+      type: string
+      default: /tmp/domain-socket.sock
+    - name: DOMAIN_PROXY_CONNECTION_TIMEOUT
+      description: The connection timeout in milliseconds to use for the domain proxy.
+      type: string
+      default: 10000
+    - name: DOMAIN_PROXY_IDLE_TIMEOUT
+      description: The idle timeout in milliseconds to use for the domain proxy.
+      type: string
+      default: 30000
+    - name: DOMAIN_PROXY_TARGET_ALLOWLIST
+      description: Comma separated list of allowed target hosts for the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_ENABLE_INTERNAL_PROXY
+      description: Determines if internal proxy will be used when domain proxy is enabled.
+      type: string
+      default: "false"
+    - name: DOMAIN_PROXY_INTERNAL_PROXY_HOST
+      description: Host of proxy used internally by the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_INTERNAL_PROXY_PORT
+      description: Port of proxy used internally by the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_INTERNAL_PROXY_USER
+      description: User of proxy used internally by the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_INTERNAL_PROXY_PASSWORD
+      description: Password of proxy used internally by the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_INTERNAL_NON_PROXY_HOSTS
+      description: Comma separated list of target hosts that bypass the proxy used internally by the domain proxy.
+      type: string
+      default: ""
+    - name: DOMAIN_PROXY_HTTP_PORT
+      description: The HTTP port to use for the domain proxy.
+      type: string
+      default: 8080
   results:
     - name: IMAGE_DIGEST
       description: Digest of the image just built
@@ -227,6 +283,32 @@ spec:
         value: $(params.YUM_REPOS_D_SRC)
       - name: YUM_REPOS_D_TARGET
         value: $(params.YUM_REPOS_D_TARGET)
+      - name: ENABLE_DOMAIN_PROXY
+        value: $(params.ENABLE_DOMAIN_PROXY)
+      - name: DOMAIN_PROXY_BYTE_BUFFER_SIZE
+        value: $(params.DOMAIN_PROXY_BYTE_BUFFER_SIZE)
+      - name: DOMAIN_PROXY_DOMAIN_SOCKET
+        value: $(params.DOMAIN_PROXY_DOMAIN_SOCKET)
+      - name: DOMAIN_PROXY_CONNECTION_TIMEOUT
+        value: $(params.DOMAIN_PROXY_CONNECTION_TIMEOUT)
+      - name: DOMAIN_PROXY_IDLE_TIMEOUT
+        value: $(params.DOMAIN_PROXY_IDLE_TIMEOUT)
+      - name: DOMAIN_PROXY_TARGET_ALLOWLIST
+        value: $(params.DOMAIN_PROXY_TARGET_ALLOWLIST)
+      - name: DOMAIN_PROXY_ENABLE_INTERNAL_PROXY
+        value: $(params.DOMAIN_PROXY_ENABLE_INTERNAL_PROXY)
+      - name: DOMAIN_PROXY_INTERNAL_PROXY_HOST
+        value: $(params.DOMAIN_PROXY_INTERNAL_PROXY_HOST)
+      - name: DOMAIN_PROXY_INTERNAL_PROXY_PORT
+        value: $(params.DOMAIN_PROXY_INTERNAL_PROXY_PORT)
+      - name: DOMAIN_PROXY_INTERNAL_PROXY_USER
+        value: $(params.DOMAIN_PROXY_INTERNAL_PROXY_USER)
+      - name: DOMAIN_PROXY_INTERNAL_PROXY_PASSWORD
+        value: $(params.DOMAIN_PROXY_INTERNAL_PROXY_PASSWORD)
+      - name: DOMAIN_PROXY_INTERNAL_NON_PROXY_HOSTS
+        value: $(params.DOMAIN_PROXY_INTERNAL_NON_PROXY_HOSTS)
+      - name: DOMAIN_PROXY_HTTP_PORT
+        value: $(params.DOMAIN_PROXY_HTTP_PORT)
     volumeMounts:
       - mountPath: /shared
         name: shared
@@ -240,7 +322,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+      image: $(params.BUILD_IMAGE)
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -526,7 +608,43 @@ spec:
         # disable host subcription manager integration
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
-        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+        if [ "${HERMETIC}" == "true" ] && [ "${ENABLE_DOMAIN_PROXY}" == "true" ]; then
+          echo "Build will be executed with domain proxy"
+          /app/domain-proxy-server &
+          server_pid=$!
+
+          # Without expansion
+          cat >> /app/build-script.sh << 'EOF'
+        #!/bin/sh
+        /app/domain-proxy-client &
+        client_pid=$!
+        EOF
+
+          # With expansion
+          cat >> /app/build-script.sh << EOF
+        $command
+        EOF
+
+          # Without expansion
+          cat >> /app/build-script.sh << 'EOF'
+        set +e
+        kill $client_pid
+        wait $client_pid
+        set -e
+        EOF
+
+          cat /app/build-script.sh
+          chmod +x /app/build-script.sh
+
+          unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- /app/build-script.sh
+
+          set +e
+          kill $server_pid
+          wait $server_pid
+          set -e
+        else
+          unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+        fi
 
         container=$(buildah from --pull-never "$IMAGE")
 

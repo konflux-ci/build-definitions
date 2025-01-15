@@ -48,10 +48,24 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
 |BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
+|BUILD_IMAGE| The buildah image to use.| quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c| |
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
+|DOMAIN_PROXY_BYTE_BUFFER_SIZE| The byte buffer size to use for the domain proxy.| 32768| |
+|DOMAIN_PROXY_CONNECTION_TIMEOUT| The connection timeout in milliseconds to use for the domain proxy.| 10000| |
+|DOMAIN_PROXY_DOMAIN_SOCKET| The domain socket to use for the domain proxy.| /tmp/domain-socket.sock| |
+|DOMAIN_PROXY_ENABLE_INTERNAL_PROXY| Determines if internal proxy will be used when domain proxy is enabled.| false| |
+|DOMAIN_PROXY_HTTP_PORT| The HTTP port to use for the domain proxy.| 8080| |
+|DOMAIN_PROXY_IDLE_TIMEOUT| The idle timeout in milliseconds to use for the domain proxy.| 30000| |
+|DOMAIN_PROXY_INTERNAL_NON_PROXY_HOSTS| Comma separated list of target hosts that bypass the proxy used internally by the domain proxy.| | |
+|DOMAIN_PROXY_INTERNAL_PROXY_HOST| Host of proxy used internally by the domain proxy.| | |
+|DOMAIN_PROXY_INTERNAL_PROXY_PASSWORD| Password of proxy used internally by the domain proxy.| | |
+|DOMAIN_PROXY_INTERNAL_PROXY_PORT| Port of proxy used internally by the domain proxy.| | |
+|DOMAIN_PROXY_INTERNAL_PROXY_USER| User of proxy used internally by the domain proxy.| | |
+|DOMAIN_PROXY_TARGET_ALLOWLIST| Comma separated list of allowed target hosts for the domain proxy.| | |
+|ENABLE_DOMAIN_PROXY| Determines if domain proxy will be used when hermetic mode is enabled.| false| |
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
