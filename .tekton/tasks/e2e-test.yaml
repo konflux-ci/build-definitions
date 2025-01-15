@@ -28,6 +28,16 @@ spec:
       type: string
     - name: fbc-builder-bundle
       type: string
+    - name: artifact_dir
+      type: string
+    - name: pipelinerun_name
+      type: string
+    - name: revision
+      type: string
+  volumes:
+    - name: konflux-test-infra-volume
+      secret:
+        secretName: konflux-test-infra
   steps:
     - name: e2e-test
       image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:698910d2098c6bc8b5b92553eacc319859c812c1
@@ -36,6 +46,7 @@ spec:
       # against build-definitions to update this tag
       args: [
         "--ginkgo.label-filter=build-templates-e2e",
+        "--ginkgo.junit-report=$(params.artifact_dir)/e2e-report.xml",
         "--ginkgo.no-color",
         "--ginkgo.v",
         "--ginkgo.timeout=2h"
@@ -44,6 +55,7 @@ spec:
         capabilities:
           add:
           - SETFCAP
+      onError: continue
       env:
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
@@ -77,3 +89,38 @@ spec:
         value: "$(params.docker-build-multi-platform-oci-ta-bundle)"
       - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
         value: "$(params.fbc-builder-bundle)"
+    - name: capture-log
+      image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-$(params.revision)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "Storing e2e-tests pod log..."
+        artifact_dir=$(params.artifact_dir)
+        oc logs "$(params.pipelinerun_name)-e2e-tests-pod" --all-containers > "${artifact_dir}"/e2e-tests.log
+    - name: secure-push-oci
+      ref:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: stepactions/secure-push-oci/0.1/secure-push-oci.yaml
+      params:
+        - name: workdir-path
+          value: /workspace/artifact-dir
+        - name: oci-ref
+          value: quay.io/konflux-test-storage/konflux-team/build-definitions:$(params.revision)
+        - name: credentials-volume-name
+          value: konflux-test-infra-volume
+    - name: fail-if-any-step-failed
+      ref:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: stepactions/fail-if-any-step-failed/0.1/fail-if-any-step-failed.yaml
