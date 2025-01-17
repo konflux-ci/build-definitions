@@ -1,5 +1,8 @@
 # provision-env-with-ephemeral-namespace task
 
+> **Deprecated**: This task is deprecated, please remove it from your pipeline and replace it with
+the eaas-provision-space task. Deprecation date: 2025-01-17
+
 ## Description:
 This task generates a spaceRequest which in turn creates a namespace in the cluster.
 The namespace is intended to be used to run integration tests for components, in
