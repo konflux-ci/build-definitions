@@ -1,6 +1,6 @@
 # pnc-prebuild-git-clone-oci-ta task
 
-The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, apply PNC prebuild modifications and store it as a trusted artifact in the provided OCI repository.
+The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, apply PNC prebuild modifications from https://github.com/project-ncl/konflux-tooling and store it as a trusted artifact in the provided OCI repository.
 
 ## Parameters
 |name|description|default value|required|
@@ -28,7 +28,6 @@ The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, 
 |BUILD_TOOL|The build tool to use (ant, gradle, maven, sbt).||true|
 |BUILD_TOOL_VERSION|The build tool version to use (e.g. 3.9.5)||true|
 |JAVA_VERSION|Java version to use (7, 8, 9, 11, 17, 21, 22, 23)||true|
-|PNC_KONFLUX_TOOLING_IMAGE|Name of the tooling image.||true|
 |RECIPE_IMAGE|The image from the build recipe to use||true|
 
 ## Results

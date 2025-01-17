@@ -7,7 +7,8 @@
 - op: replace
   path: /spec/description
   value: The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, apply
-    PNC prebuild modifications and store it as a trusted artifact in the provided OCI repository.
+    PNC prebuild modifications from https://github.com/project-ncl/konflux-tooling and store
+    it as a trusted artifact in the provided OCI repository.
 
 - op: add
   path: /spec/params/-
@@ -36,12 +37,6 @@
 - op: add
   path: /spec/params/-
   value:
-    name: PNC_KONFLUX_TOOLING_IMAGE
-    description: Name of the tooling image.
-    type: string
-- op: add
-  path: /spec/params/-
-  value:
     name: RECIPE_IMAGE
     description: The image from the build recipe to use
     type: string
@@ -50,7 +45,7 @@
   path: /spec/steps/2
   value:
     name: preprocessor
-    image: $(params.PNC_KONFLUX_TOOLING_IMAGE)
+    image: quay.io/redhat-user-workloads/konflux-jbs-pnc-tenant/konflux-tooling:latest
     securityContext:
       runAsUser: 0
     computeResources:
@@ -65,7 +60,7 @@
       - --build-tool-version=$(params.BUILD_TOOL_VERSION)
       - --java-version=$(params.JAVA_VERSION)
       - --recipe-image=$(params.RECIPE_IMAGE)
-      - --tooling-image=$(params.PNC_KONFLUX_TOOLING_IMAGE)
+      - --tooling-image=quay.io/redhat-user-workloads/konflux-jbs-pnc-tenant/konflux-tooling:latest
       - --type=$(params.BUILD_TOOL)
       - /var/workdir/source
     volumeMounts:
