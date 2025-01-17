@@ -71,7 +71,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:4ea9ee652a035c341d00424ff6ebaf757f4b9391e016d3fdb542981bf0f537ef
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -100,7 +100,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      image: quay.io/konflux-ci/oras:latest@sha256:30d2037fa58653e9849a4ba60a69666dfca9b80a6807bbafd2dd5206c279a061
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -294,7 +294,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:4ea9ee652a035c341d00424ff6ebaf757f4b9391e016d3fdb542981bf0f537ef
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -332,7 +332,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:4ea9ee652a035c341d00424ff6ebaf757f4b9391e016d3fdb542981bf0f537ef
       workingDir: /var/workdir
       script: |
         #!/bin/bash
