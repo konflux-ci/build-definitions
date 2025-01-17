@@ -227,6 +227,7 @@ build_push_task() {
     local -r prepared_task_file=$2
     local -r task_bundle=$3
     local -r task_file_sha=$4
+    local -r has_migration=$5
 
     local -r task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
@@ -247,6 +248,9 @@ build_push_task() {
     fi
     if [ -f "${task_dir}/USAGE.md" ]; then
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
+    fi
+    if [ -n "$has_migration" ]; then
+        ANNOTATIONS+=("dev.konflux-ci.task.migration=true")
     fi
 
     local -a ANNOTATION_FLAGS=()
@@ -367,12 +371,7 @@ attach_migration_file() {
     local -r task_dir=$1
     local -r concrete_task_version=$2
     local -r task_bundle=$3
-
-    local -r migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
-
-    if [ ! -e "$migration_file" ]; then
-        return 0
-    fi
+    local -r migration_file=$4
 
     # Check if task bundle has an attached migration file.
     local filename
@@ -440,6 +439,7 @@ build_push_tasks() {
     local task_file_sha
     local task_bundle
     local output
+    local has_migration
 
     find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
@@ -467,21 +467,30 @@ build_push_tasks() {
         read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
         digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
 
+        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
+        migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
+
+        has_migration=false
+        if [ -f "$migration_file" ]; then
+            has_migration=yes
+        fi
+
         if [ -n "$digest" ]; then
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
         else
             echo "info: push new bundle $task_bundle" 1>&2
 
-            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha")
+            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" "$has_migration")
 
             task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
             task_bundle_with_digest=${task_bundle_with_digest##* }
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
         fi
 
-        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
-        attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest"
+        if [ "$has_migration" == "yes" ]; then
+            attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
+        fi
 
         # version placeholder is removed naturally by the substitution.
         echo "info: inject task bundle to pielines $task_bundle_with_digest" 1>&2
