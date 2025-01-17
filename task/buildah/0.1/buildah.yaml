@@ -383,7 +383,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: sbom-syft-generate
-    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.18.1@sha256:398f0ef395de137f05563d8de43e508bcb2e6810aa9d9adc638154b52c1a469c
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
@@ -415,7 +415,7 @@ spec:
       runAsUser: 0
 
   - name: merge-syft-sboms
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1734610342@sha256:dde5068ba8fd81eef41a9128ddad2b99e2e02e5869ffe925c605b609a0ad7bbb
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1736743782@sha256:36ae15329ade62cc7082d44db67f94494bf3836edb8b7cf733f7519168a6e9de
     script: |
       #!/bin/python3
       import json
@@ -464,7 +464,7 @@ spec:
       runAsUser: 0
 
   - name: create-purl-sbom
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1734610342@sha256:dde5068ba8fd81eef41a9128ddad2b99e2e02e5869ffe925c605b609a0ad7bbb
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1736743782@sha256:36ae15329ade62cc7082d44db67f94494bf3836edb8b7cf733f7519168a6e9de
     script: |
       #!/bin/python3
       import json
