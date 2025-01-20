@@ -739,9 +739,9 @@ spec:
         exit 0
       fi
       echo "Running syft on the source directory"
-      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="$(workspaces.source.path)/sbom-source.json"
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
-      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="$(workspaces.source.path)/sbom-image.json"
+      syft dir:"$(cat /shared/container_path)" --output cyclonedx-json@1.5="$(workspaces.source.path)/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers

@@ -642,9 +642,9 @@ spec:
           exit 0
         fi
         echo "Running syft on the source directory"
-        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
+        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json@1.5="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
-        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
+        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json@1.5="/var/workdir/sbom-image.json"
     - name: prepare-sboms
       image: quay.io/konflux-ci/sbom-utility-scripts@sha256:7f4ce55033077f37eda61c67b4289949471c36d23ae0cc66fd4113e615b3ef93
       workingDir: /var/workdir
