@@ -656,9 +656,9 @@ spec:
           exit 0
         fi
         echo "Running syft on the source directory"
-        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
+        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json@1.5="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
-        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json="/var/workdir/sbom-image.json"
+        syft dir:"$(cat /shared/container_path)" --output cyclonedx-json@1.5="/var/workdir/sbom-image.json"
     - name: analyse-dependencies-java-sbom
       image: quay.io/redhat-appstudio/hacbs-jvm-build-request-processor:127ee0c223a2b56a9bd20a6f2eaeed3bd6015f77
       volumeMounts:
