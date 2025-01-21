@@ -296,7 +296,7 @@ spec:
 
       dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
       BASE_IMAGES=$(
-          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not) | sub("\"?(?<image>[^\"]*)\"?" ; .image)' /shared/parsed_dockerfile.json
       )
 
       BUILDAH_ARGS=()
