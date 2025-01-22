@@ -12,13 +12,13 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+      - uses: actions/checkout@85e6279cec87321a52edac9c87bce653a07cf6c2
+      - uses: actions/setup-go@5a083d0e9a84784eb32078397cf5459adecb4c40
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@58eda26a511c265ee35b3ee4b101fb8adfd76480
+        uses: golangci/golangci-lint-action@7ec71f69b140deafe2ba0c477db8aacd59cdfe55
         with:
           working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
@@ -31,9 +31,9 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
+      - uses: actions/checkout@85e6279cec87321a52edac9c87bce653a07cf6c2
       - name: Install Go
-        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+        uses: actions/setup-go@5a083d0e9a84784eb32078397cf5459adecb4c40
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -72,8 +72,8 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+      - uses: actions/checkout@85e6279cec87321a52edac9c87bce653a07cf6c2
+      - uses: actions/setup-go@5a083d0e9a84784eb32078397cf5459adecb4c40
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -84,7 +84,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@3407610120cd5656b6fc71991415cb50748b9489
+        uses: github/codeql-action/upload-sarif@f89b8a7d5239ba6d1a0f243ead94ea9ca5775ae1
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif
