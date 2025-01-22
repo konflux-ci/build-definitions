@@ -15,7 +15,7 @@ See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |IGNORE_FILE_PATHS|Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.|""|false|
 |IMP_FINDINGS_ONLY|Report only important findings. Default is true. To report all findings, specify "false"|true|false|
-|KFP_GIT_URL|URL from repository to download known false positives files|""|false|
+|KFP_GIT_URL|Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.|SITE_DEFAULT|false|
 |PROJECT_NAME|Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.|""|false|
 |RECORD_EXCLUDED|Write excluded records in file. Useful for auditing (defaults to false).|false|false|
 |SNYK_SECRET|Name of secret which contains Snyk token.|snyk-secret|false|
