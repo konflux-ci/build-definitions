@@ -244,7 +244,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| | |
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
-|KFP_GIT_URL| URL from repository to download known false positives files| | |
+|KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
