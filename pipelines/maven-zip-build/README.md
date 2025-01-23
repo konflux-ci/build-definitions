@@ -69,6 +69,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+|sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| cyclonedx| |
 ### sast-coverity-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
