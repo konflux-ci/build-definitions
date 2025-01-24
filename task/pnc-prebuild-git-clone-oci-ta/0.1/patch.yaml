@@ -6,15 +6,17 @@
   value: pnc prebuild git clone oci trusted artifacts
 - op: replace
   path: /spec/description
-  value: The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, apply
-    PNC prebuild modifications from https://github.com/project-ncl/konflux-tooling and store
-    it as a trusted artifact in the provided OCI repository.
+  value: The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided url, apply
+    PNC prebuild modifications (from https://github.com/project-ncl/konflux-tooling) and store
+    it as a trusted artifact in the provided OCI repository. The prebuild modifications create
+    a Containerfile and suitable build script in order for the Java based project to be built
+    within a container given build parameters configured from PNC.
 
 - op: add
   path: /spec/params/-
   value:
     name: BUILD_SCRIPT
-    description: The build script to embed with the Containerfile
+    description: Middleware (Maven/Gradle/Ant/SBT) build script to build the project to embed with the Containerfile
     type: string
 - op: add
   path: /spec/params/-
