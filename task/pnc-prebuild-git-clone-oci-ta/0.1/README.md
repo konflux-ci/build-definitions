@@ -1,6 +1,6 @@
 # pnc-prebuild-git-clone-oci-ta task
 
-The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, apply PNC prebuild modifications from https://github.com/project-ncl/konflux-tooling and store it as a trusted artifact in the provided OCI repository.
+The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided url, apply PNC prebuild modifications (from https://github.com/project-ncl/konflux-tooling) and store it as a trusted artifact in the provided OCI repository. The prebuild modifications create a Containerfile and suitable build script in order for the Java based project to be built within a container given build parameters configured from PNC.
 
 ## Parameters
 |name|description|default value|required|
@@ -24,7 +24,7 @@ The pnc-prebuild-git-clone-oci-ta Task will clone a repo from the provided url, 
 |url|Repository URL to clone from.||true|
 |userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
 |verbose|Log the commands that are executed during `git-clone`'s operation.|false|false|
-|BUILD_SCRIPT|The build script to embed with the Containerfile||true|
+|BUILD_SCRIPT|Middleware (Maven/Gradle/Ant/SBT) build script to build the project to embed with the Containerfile||true|
 |BUILD_TOOL|The build tool to use (ant, gradle, maven, sbt).||true|
 |BUILD_TOOL_VERSION|The build tool version to use (e.g. 3.9.5)||true|
 |JAVA_VERSION|Java version to use (7, 8, 9, 11, 17, 21, 22, 23)||true|
