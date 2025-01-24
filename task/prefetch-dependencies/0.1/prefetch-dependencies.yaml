@@ -117,6 +117,7 @@ spec:
         memory: 3Gi
     script: |
       #!/bin/bash
+      set -euo pipefail
 
       RHSM_ORG=""
       RHSM_ACT_KEY=""
@@ -238,6 +239,8 @@ spec:
             --org "${RHSM_ORG}" \
             --activationkey "${RHSM_ACT_KEY}" || exit 1
 
+        trap rhsm_unregister EXIT
+
         entitlement_files="$(ls -1 /etc/pki/entitlement/*.pem)"
         ENTITLEMENT_CERT_KEY_PATH="$(grep -e '-key.pem$' <<< "$entitlement_files")"
         ENTITLEMENT_CERT_PATH="$(grep -v -e '-key.pem$' <<< "$entitlement_files")"
@@ -269,9 +272,10 @@ spec:
       cachi2 --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output
 
-      # UNREGISTER RHSM
-      rhsm_unregister
-
+      # hack: the OCI generator would delete the function since it doesn't consider trap a "usage"
+      if false; then
+        rhsm_unregister
+      fi
 
   workspaces:
   - name: source
