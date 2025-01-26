@@ -27,12 +27,14 @@ Element fields:
 
 Example:
 
+```yaml
 composes:
     - kind: ComposeSourceModule
       spec:
         modules:
           - squid:4:8090020231130092412:a75119d5
       additional_args: {}
+```
 
 [input structure]: https://pagure.io/odcs/blob/master/f/client/odcs/client/odcs.py#_115
 
