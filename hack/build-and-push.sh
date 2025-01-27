@@ -38,8 +38,11 @@ VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
 
 declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
-declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
 declare -r TEST_TASKS=${TEST_TASKS:-""}
+
+declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
+# The annotation value points to the task bundle which has a migration that's most recent to the task with the annotation
+declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
 
 AUTH_JSON=
 if [ -e "$XDG_RUNTIME_DIR/containers/auth.json" ]; then
@@ -228,6 +231,7 @@ build_push_task() {
     local -r task_bundle=$3
     local -r task_file_sha=$4
     local -r has_migration=$5
+    local -r prev_bundle_digest=$6
 
     local -r task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
@@ -250,8 +254,10 @@ build_push_task() {
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
     if [ "$has_migration" == "true" ]; then
-        ANNOTATIONS+=("dev.konflux-ci.task.migration=true")
+        ANNOTATIONS+=("${ANNOTATION_TASK_MIGRATION}=true")
     fi
+
+    ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${prev_bundle_digest}")
 
     local -a ANNOTATION_FLAGS=()
     for annotation in "${ANNOTATIONS[@]}"; do
@@ -431,6 +437,50 @@ attach_migration_file() {
     return 0
 }
 
+# Find previous bundle that has a migration and output its digest.
+find_previous_migration_bundle_digest() {
+    local -r task_name=${1:?Missing task name}
+    local -r task_version=${2:?Missing task version}
+
+    local bundle_ref
+    bundle_ref=$(generate_tagged_task_bundle "$task_name" "$task_version")
+    local ns_repo=${bundle_ref%:*}  # remove tag
+    ns_repo=${ns_repo#*/}  # remove registry
+    # Retain the tag used for matching tag names
+    local -r name_pattern="${bundle_ref##*:}-"
+    unset bundle_ref
+
+    local -r params="onlyActiveTags=true&filter_tag_name=like:${name_pattern}&limit=1"
+    local -r url_list_tags="https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}"
+
+    local manifest_digest
+    manifest_digest=$(curl --fail -sL "$url_list_tags" | jq -r '.tags[].manifest_digest')
+    if [ -z "$manifest_digest" ]; then
+        # There is no tag yet. That would mean this is the first time to build the task bundle.
+        return 0
+    fi
+    curl --fail -sL -o /tmp/manifest.json "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
+
+    local has_migration
+    has_migration=$(jq -r ".annotations.\"${ANNOTATION_TASK_MIGRATION}\"" </tmp/manifest.json)
+    if [ "$has_migration" == "true" ]; then
+        echo "$manifest_digest"
+        return 0
+    fi
+
+    local prev_bundle_digest
+    prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" </tmp/manifest.json)
+    if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
+        # This bundle points to a previous bundle that has migration.
+        echo "$prev_bundle_digest"
+        return 0
+    fi
+
+    # Otherwise, output empty to indicate not point any bundle.
+    echo
+    return 0
+}
+
 build_push_tasks() {
     local build_data
     local task_bundle_with_digest
@@ -440,6 +490,7 @@ build_push_tasks() {
     local task_bundle
     local output
     local has_migration
+    local previous_migration_bundle_digest
 
     find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
@@ -479,9 +530,15 @@ build_push_tasks() {
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
         else
+            echo "info: finding the previous task bundle that has a migration" 1>&2
+            previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
+
             echo "info: push new bundle $task_bundle" 1>&2
 
-            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" "$has_migration")
+            output=$(
+                build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
+                    "$has_migration" "$previous_migration_bundle_digest"
+            )
             echo "$output" >&2
             echo
 
@@ -502,7 +559,6 @@ build_push_tasks() {
 }
 
 build_push_tasks
-
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then
