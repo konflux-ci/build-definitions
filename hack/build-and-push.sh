@@ -249,7 +249,7 @@ build_push_task() {
     if [ -f "${task_dir}/USAGE.md" ]; then
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
-    if [ -n "$has_migration" ]; then
+    if [ "$has_migration" == "true" ]; then
         ANNOTATIONS+=("dev.konflux-ci.task.migration=true")
     fi
 
@@ -472,7 +472,7 @@ build_push_tasks() {
 
         has_migration=false
         if [ -f "$migration_file" ]; then
-            has_migration=yes
+            has_migration=true
         fi
 
         if [ -n "$digest" ]; then
@@ -490,7 +490,7 @@ build_push_tasks() {
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
         fi
 
-        if [ "$has_migration" == "yes" ]; then
+        if [ "$has_migration" == "true" ]; then
             attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
         fi
 
