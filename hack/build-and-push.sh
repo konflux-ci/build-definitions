@@ -482,6 +482,8 @@ build_push_tasks() {
             echo "info: push new bundle $task_bundle" 1>&2
 
             output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" "$has_migration")
+            echo "$output" >&2
+            echo
 
             task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
             task_bundle_with_digest=${task_bundle_with_digest##* }
