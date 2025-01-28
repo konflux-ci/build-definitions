@@ -143,7 +143,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.prefetch-input)
       operator: notin
@@ -181,7 +181,7 @@ spec:
     - prefetch-dependencies
     taskRef:
       name: buildah
-      version: "0.3"
+      version: "0.4"
     when:
     - input: $(tasks.init.results.build)
       operator: in
@@ -221,7 +221,7 @@ spec:
     - build-image-index
     taskRef:
       name: source-build
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(tasks.init.results.build)
       operator: in
@@ -244,7 +244,7 @@ spec:
     - build-image-index
     taskRef:
       name: deprecated-image-check
-      version: "0.4"
+      version: "0.5"
     when:
     - input: $(params.skip-checks)
       operator: in
