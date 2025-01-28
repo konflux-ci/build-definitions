@@ -131,7 +131,7 @@ spec:
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "$(workspaces.source.path)/cachi2/output/bom.json" ]; then
-        cp -vf "$(workspaces.source.path)/cachi2/output/bom.json" ./sbom-cyclonedx.json
+        cp -vf "$(workspaces.source.path)/cachi2/output/bom.json" ./sbom.json
       else
         echo "The SBOM file for fetched artifacts is not found!"
         exit 1
@@ -157,7 +157,13 @@ spec:
         update-ca-trust
       fi
 
-      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$IMAGE"
+      if jq -e '.bomFormat == "CycloneDX"' < sbom.json >/dev/null; then
+        sbom_type=cyclonedx
+      else
+        sbom_type=spdx
+      fi
+
+      cosign attach sbom --sbom sbom.json --type "$sbom_type" "$IMAGE"
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
