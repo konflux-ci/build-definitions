@@ -99,7 +99,7 @@ spec:
   stepTemplate:
     env:
       - name: BUILDER_IMAGE
-        value: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/paketo-container:ea8ddb8818bb4a55546927e7674b0362dabd6342"
+        value: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/paketo-container:2a51208449696d85b2f80444bee7bf7caa104f48 "
       - name: CONTEXT
         value: $(params.CONTEXT)
       - name: HERMETIC
@@ -129,7 +129,7 @@ spec:
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - args:
         - "$(params.BUILD_ARGS[*])"
-      image: "quay.io/konflux-ci/buildah-task:latest"
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
       name: "run-script"
       script: |-
         #!/usr/bin/env bash
@@ -216,9 +216,27 @@ spec:
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w source -- \
           pack builder create ${IMAGE} --config builder.toml ${PACK_ARGS}
 
-        BASE_IMAGE=$(tomljson source/builder.toml | jq '.stack."build-image"')
+        BASE_IMAGE=$(tomljson source/builder.toml | jq -r '.stack."build-image"')
         podman inspect ${BASE_IMAGE} | jq -r '.[].Digest' > /shared/BASE_IMAGES_DIGESTS
-        echo "$BASE_IMAGE" >/shared/base_images_from_dockerfile
+
+        echo "Create locally a Dockerfile using the build image defined part of the builder.toml file to include the BASE IMAGE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        cat <<EOF > $dockerfile_path
+        FROM $BASE_IMAGE
+        EOF
+
+        dockerfile-json "$dockerfile_path" >/shared/parsed_dockerfile.json
+
+        BASE_IMAGES=$(
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json
+        )
+
+        if [ "${HERMETIC}" == "true" ]; then
+          for image in $BASE_IMAGES; do
+            echo "Pull the base image: $image using unshare"
+            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+          done
+        fi
 
         REMOTESSHEOF
         chmod +x scripts/script-build.sh
@@ -238,7 +256,6 @@ spec:
         echo -n "$IMAGE" > $BUILD_DIR/volumes/shared/IMAGE_URL
         REMOTESSHEOF
         chmod +x scripts/script-post-build.sh
-
 
         echo "Step 3 :: Execute the bash script on the VM"
 
@@ -333,7 +350,6 @@ spec:
           export IMAGE
         fi
 
-
         echo "Merging contents of sbom-source.json and sbom-image.json into sbom-cyclonedx.json"
         python3 /scripts/merge_syft_sboms.py
 
@@ -343,13 +359,10 @@ spec:
           mv sbom-temp.json sbom-cyclonedx.json
         fi
 
-        echo "Creating sbom-purl.json"
-        python3 /scripts/create_purl_sbom.py
-
         echo "Adding base images data to sbom-cyclonedx.json"
         python3 /scripts/base_images_sbom_script.py \
           --sbom=sbom-cyclonedx.json \
-          --base-images-from-dockerfile=/shared/base_images_from_dockerfile \
+          --parsed-dockerfile=/shared/parsed_dockerfile.json \
           --base-images-digests=/shared/BASE_IMAGES_DIGESTS
       securityContext:
         runAsUser: 0
@@ -380,16 +393,13 @@ spec:
           update-ca-trust
         fi
 
-
         echo "Pull the image from the OCI storage."
-
         buildah --storage-driver "$STORAGE_DRIVER" pull "$IMAGE"
-
 
         echo "Copy within the container of the image the sbom files"
 
         container=$(buildah --storage-driver "$STORAGE_DRIVER" from --pull-never "$IMAGE")
-        buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom-cyclonedx.json sbom-purl.json /root/buildinfo/content_manifests/
+        buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom-cyclonedx.json /root/buildinfo/content_manifests/
 
         BUILDAH_ARGS=()
         if [ "${SQUASH}" == "true" ]; then
@@ -397,7 +407,6 @@ spec:
         fi
 
         buildah --storage-driver "$STORAGE_DRIVER" commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
-
 
         echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
 

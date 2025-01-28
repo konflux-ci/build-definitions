@@ -228,14 +228,14 @@ spec:
         echo "Fetch Dockerfile from $DOCKERFILE"
         dockerfile_path=$(mktemp --suffix=-Dockerfile)
         http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ $http_code != 200 ]; then
+        if [ "$http_code" != 200 ]; then
           echo "No Dockerfile is fetched. Server responds $http_code"
           exit 1
         fi
         http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
-        if [ $http_code = 200 ]; then
+        if [ "$http_code" = 200 ]; then
           echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" $SOURCE_CODE_DIR/$CONTEXT/.dockerignore
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
         fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
@@ -305,7 +305,7 @@ spec:
         UNSHARE_ARGS+=("--net")
 
         for image in $BASE_IMAGES; do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
         done
         echo "Build will be executed with network isolation"
       fi
@@ -358,14 +358,14 @@ spec:
 
       # if yum repofiles stored in git, copy them to mount point outside the source dir
       if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
-        mkdir -p ${YUM_REPOS_D_FETCHED}
-        cp -r ${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}/* ${YUM_REPOS_D_FETCHED}
+        mkdir -p "${YUM_REPOS_D_FETCHED}"
+        cp -r "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}"/* "${YUM_REPOS_D_FETCHED}"
       fi
 
       # if anything in the repofiles mount point (either fetched or from git), mount it
       if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
-        chmod -R go+rwX ${YUM_REPOS_D_FETCHED}
-        mount_point=$(realpath ${YUM_REPOS_D_FETCHED})
+        chmod -R go+rwX "${YUM_REPOS_D_FETCHED}"
+        mount_point=$(realpath "${YUM_REPOS_D_FETCHED}")
         VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
       fi
 
@@ -473,7 +473,7 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
-      buildah mount $container | tee /shared/container_path
+      buildah mount "$container" | tee /shared/container_path
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name

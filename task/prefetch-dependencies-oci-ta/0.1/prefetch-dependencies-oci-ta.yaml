@@ -73,6 +73,10 @@ spec:
     - name: ociStorage
       description: The OCI repository where the Trusted Artifacts are stored.
       type: string
+    - name: sbom-type
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx.'
+      default: cyclonedx
   results:
     - name: CACHI2_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
@@ -158,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: check-prefetch-input
-      image: quay.io/konflux-ci/cachi2:0.17.0@sha256:963870f04aeb4a207e79b8eacb47e16c8faa7451f52e92959e0e16cdbd258fb3
+      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
       env:
         - name: INPUT
           value: $(params.input)
@@ -169,7 +173,7 @@ spec:
           echo "skip" >/shared/skip
         fi
     - name: register-red-hat
-      image: quay.io/konflux-ci/cachi2:0.17.0@sha256:963870f04aeb4a207e79b8eacb47e16c8faa7451f52e92959e0e16cdbd258fb3
+      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
       results:
         - name: registered
           type: string
@@ -214,7 +218,7 @@ spec:
           cp /etc/rhsm-host/ca/redhat-uep.pem /shared/rhsm/redhat-uep.pem
         fi
     - name: preprocess-input
-      image: quay.io/konflux-ci/cachi2:0.17.0@sha256:963870f04aeb4a207e79b8eacb47e16c8faa7451f52e92959e0e16cdbd258fb3
+      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
       args:
         - $(params.input)
       env:
@@ -302,7 +306,7 @@ spec:
             with open('/shared/rhsm/preprocessed_input', 'w') as f:
                 f.write(input)
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/cachi2:0.17.0@sha256:963870f04aeb4a207e79b8eacb47e16c8faa7451f52e92959e0e16cdbd258fb3
+      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -314,6 +318,8 @@ spec:
           value: $(params.dev-package-managers)
         - name: LOG_LEVEL
           value: $(params.log-level)
+        - name: SBOM_TYPE
+          value: $(params.sbom-type)
         - name: WORKSPACE_GIT_AUTH_BOUND
           value: $(workspaces.git-basic-auth.bound)
         - name: WORKSPACE_GIT_AUTH_PATH
@@ -385,6 +391,7 @@ spec:
           $dev_pacman_flag \
           --source=/var/workdir/source \
           --output=/var/workdir/cachi2/output \
+          --sbom-output-type="$SBOM_TYPE" \
           "${INPUT}"
 
         cachi2 --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
@@ -401,7 +408,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: unregister-rhsm
-      image: quay.io/konflux-ci/cachi2:0.17.0@sha256:963870f04aeb4a207e79b8eacb47e16c8faa7451f52e92959e0e16cdbd258fb3
+      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
       script: |
         #!/bin/bash
         if [ -f /shared/skip ]; then

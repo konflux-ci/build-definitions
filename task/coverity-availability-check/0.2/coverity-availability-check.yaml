@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: coverity-availability-check
+spec:
+  description: >-
+    This task performs needed checks in order to use Coverity image in the pipeline. It will check for a Coverity license secret and an authentication secret for pulling the image.
+  results:
+    - description: Tekton task result output.
+      name: TEST_OUTPUT
+    - description: Tekton task simple status to be later checked
+      name: STATUS
+  params:
+    - name: COV_LICENSE
+      description: Name of secret which contains the Coverity license
+      default: cov-license
+    - name: AUTH_TOKEN_COVERITY_IMAGE
+      description: Name of secret which contains the authentication token for pulling the Coverity image.
+      default: "auth-token-coverity-image"
+  volumes:
+    - name: cov-license
+      secret:
+        secretName: $(params.COV_LICENSE)
+        optional: true
+    - name: auth-token-coverity-image
+      secret:
+        secretName: $(params.AUTH_TOKEN_COVERITY_IMAGE)
+        optional: true
+  steps:
+    - name: coverity-availability-check
+      image: quay.io/konflux-ci/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      volumeMounts:
+        - name: cov-license
+          mountPath: "/etc/secrets/cov"
+          readOnly: true
+        - name: auth-token-coverity-image
+          mountPath: "/etc/secrets/auth/config.json"
+          subPath: .dockerconfigjson
+      env:
+        - name: COV_LICENSE
+          value: $(params.COV_LICENSE)
+        - name: AUTH_TOKEN_COVERITY_IMAGE
+          value: $(params.AUTH_TOKEN_COVERITY_IMAGE)
+      script: |
+        #!/usr/bin/env bash
+        set -eo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        # Checking Coverity license
+        COV_LICENSE_PATH=/etc/secrets/cov/cov-license
+        if [ -f "${COV_LICENSE_PATH}" ] && [ -s "${COV_LICENSE_PATH}" ]; then
+          echo "Coverity license detected!"
+        else
+          echo 'No license file for Coverity was detected. Coverity scan will not be executed...'
+          echo 'Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
+          note="Task $(context.task.name) failed: No license file for Coverity was detected. Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo -n "failed" | tee "$(results.STATUS.path)"
+          exit 0
+        fi
+
+        # Checking authentication token for downloading coverity image
+        AUTH_TOKEN_COVERITY_IMAGE_PATH=/etc/secrets/auth/config.json
+        if [ -f "${AUTH_TOKEN_COVERITY_IMAGE_PATH}" ] && [ -s "${AUTH_TOKEN_COVERITY_IMAGE_PATH}" ]; then
+          echo "Authentication token detected!"
+        else
+          echo 'No authentication token for downloading Coverity image detected. Coverity scan will not be executed...'
+          echo 'Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image'
+          note="Task $(context.task.name) failed: No authentication token for downloading Coverity image detected. Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo -n "failed" | tee "$(results.STATUS.path)"
+          exit 0
+        fi
+
+        note="Task $(context.task.name) completed: Coverity availability checks finished succesfully."
+        # shellcheck disable=SC2034
+        TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
+        echo -n "success" | tee "$(results.STATUS.path)"
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
