@@ -37,6 +37,11 @@ spec:
       description: Path to the oci copy file.
       type: string
       default: ./oci-copy.yaml
+    - name: SBOM_TYPE
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx.'
+      type: string
+      default: cyclonedx
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -61,6 +66,8 @@ spec:
         value: $(params.IMAGE)
       - name: OCI_COPY_FILE
         value: $(params.OCI_COPY_FILE)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -294,43 +301,32 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        cat >sbom-cyclonedx.json <<EOL
-        {
-            "\$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
-            "bomFormat": "CycloneDX",
-            "specVersion": "1.5",
-            "version": 1,
-            "components": []
-            "metadata": {
-              "component": {
-                "type": "file",
-                "name": "${IMAGE%:*}@$(cat "$(results.IMAGE_DIGEST.path)")"
-              }
-            }
-        }
-        EOL
+        set -euo pipefail
 
-        for varfile in "/var/workdir"/vars/*; do
-          echo "Reading $varfile"
-          # shellcheck source=/dev/null
-          source $varfile
+        IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
+        IMAGE_DIGEST=$(cat "$(results.IMAGE_DIGEST.path)")
+        oci_copy_file_path="$(pwd)/source/$OCI_COPY_FILE"
 
-          ENCODED_URL=$(echo "${OCI_SOURCE}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
-          ENCODED_FILENAME=$(echo "${OCI_FILENAME}" | python3 -c 'import sys; import urllib.parse; print(urllib.parse.quote(sys.stdin.read().strip(), safe=":/"))')
-          purl="pkg:generic/${ENCODED_FILENAME}?download_url=${ENCODED_URL}&checksum=sha256:${OCI_ARTIFACT_DIGEST}"
+        python3 /scripts/sbom_for_oci_copy_task.py "$oci_copy_file_path" \
+          --sbom-type "$SBOM_TYPE" \
+          -o sbom.json
 
-          echo "Recording purl $purl"
-          yq -oj -i '.components += [ {"purl": "'$purl'", "type": "file", "name": "'$OCI_FILENAME'", "hashes": [{"alg": "SHA-256", "content": "'$OCI_ARTIFACT_DIGEST'"}], "externalReferences": [{"type": "distribution", "url": "'$OCI_SOURCE'"}]} ]' sbom-cyclonedx.json
-        done
+        python3 /scripts/add_image_reference.py \
+          --image-url "$IMAGE_URL" \
+          --image-digest "$IMAGE_DIGEST" \
+          --input-file sbom.json \
+          --output-file /tmp/sbom.tmp.json
+
+        mv /tmp/sbom.tmp.json sbom.json
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
       workingDir: /var/workdir
@@ -338,6 +334,6 @@ spec:
         #!/bin/bash
         REPO=${IMAGE%:*}
         echo "Found that ${REPO} is the repository for ${IMAGE}"
-        SBOM_DIGEST=$(sha256sum sbom-cyclonedx.json | awk '{ print $1 }')
+        SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
         echo "Found that ${SBOM_DIGEST} is the SBOM digest"
         echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee $(results.SBOM_BLOB_URL.path)
