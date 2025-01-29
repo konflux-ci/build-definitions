@@ -54,6 +54,12 @@ spec:
       description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
       type: string
       default: "true"
+    - name: SBOM_TYPE
+      description: >-
+        Select the SBOM format to generate. Valid values: spdx, cyclonedx.
+        Note: the SBOM from the prefetch task - if there is one - must be in the same format.
+      type: string
+      default: cyclonedx
     - name: caTrustConfigMapKey
       description: The name of the key in the ConfigMap that contains the CA bundle
         data.
@@ -114,6 +120,9 @@ spec:
         value: $(params.STORAGE_DRIVER)
       - name: TLSVERIFY
         value: $(params.TLSVERIFY)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
+
     volumeMounts:
       - mountPath: /shared
         name: shared
@@ -343,11 +352,22 @@ spec:
           export IMAGE
         fi
 
+        case $SBOM_TYPE in
+          cyclonedx)
+            syft_sbom_type=cyclonedx-json@1.5 ;;
+          spdx)
+            syft_sbom_type=spdx-json@2.3 ;;
+          *)
+            echo "Invalid SBOM type: $SBOM_TYPE. Valid: cyclonedx, spdx" >&2
+            exit 1
+            ;;
+        esac
+
         echo "Running syft on the source directory"
-        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output cyclonedx-json="/var/workdir/sbom-source.json"
+        syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type=/var/workdir/sbom-source.json"
 
         echo "Running syft on the image filesystem"
-        syft scan oci-dir:/shared/konflux-final-image -o cyclonedx-json > /var/workdir/sbom-image.json
+        syft scan oci-dir:/shared/konflux-final-image -o "$syft_sbom_type" > /var/workdir/sbom-image.json
       volumeMounts:
         - mountPath: /shared
           name: shared
@@ -374,12 +394,12 @@ spec:
           sboms_to_merge+=(cachi2:sbom-cachi2.json)
         fi
 
-        echo "Merging sboms: (${sboms_to_merge[*]}) => sbom-cyclonedx.json"
-        python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom-cyclonedx.json
+        echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
+        python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom.json
 
-        echo "Adding base images data to sbom-cyclonedx.json"
+        echo "Adding base images data to sbom.json"
         python3 /scripts/base_images_sbom_script.py \
-          --sbom=sbom-cyclonedx.json \
+          --sbom=sbom.json \
           --parsed-dockerfile=/shared/parsed_dockerfile.json \
           --base-images-digests=/shared/BASE_IMAGES_DIGESTS
       securityContext:
@@ -417,7 +437,7 @@ spec:
         echo "Copy within the container of the image the sbom files"
 
         container=$(buildah --storage-driver "$STORAGE_DRIVER" from --pull-never "$IMAGE")
-        buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom-cyclonedx.json /root/buildinfo/content_manifests/
+        buildah --storage-driver "$STORAGE_DRIVER" copy "$container" sbom.json /root/buildinfo/content_manifests/
 
         BUILDAH_ARGS=()
         if [ "${SQUASH}" == "true" ]; then
@@ -464,7 +484,7 @@ spec:
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"
-        sbom_digest="$(sha256sum sbom-cyclonedx.json | cut -d' ' -f1)"
+        sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
         echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
 
@@ -505,7 +525,7 @@ spec:
           update-ca-trust
         fi
 
-        cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca

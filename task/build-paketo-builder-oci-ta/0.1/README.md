@@ -17,6 +17,7 @@ The task also produces the SBOM which is signed and added to the image.
 | SOURCE_CODE_DIR      | The subpath of the application source code.                                         | "."           | true     |
 | STORAGE_DRIVER       | Storage driver to configure for buildah                                             | vfs           | false    |
 | TLSVERIFY            | Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)       | true          | false    |
+| SBOM_TYPE            | Select the SBOM format to generate. Valid values: spdx, cyclonedx.                  | cyclonedx     | false    |
 | caTrustConfigMapKey  | The name of the key in the ConfigMap that contains the CA bundle data.              | ca-bundle.crt | false    |
 | caTrustConfigMapName | The name of the ConfigMap to read CA bundle data from.                              | trusted-ca    | false    |
 
