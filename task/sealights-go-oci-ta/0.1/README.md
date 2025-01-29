@@ -16,7 +16,7 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 
 | Name                  | Type     | Default       | Description                                                                                   |
 |-----------------------|----------|---------------|-----------------------------------------------------------------------------------------------|
-| `source-artifact`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
+| `SOURCE_ARTIFACT`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
 | `go-version`          | `string` | -             | The Go version to use (e.g., `1.21.3`).                                                       |
 | `sealights-secret`    | `string` | -             | The name of the OpenShift secret containing Sealights credentials.                            |
 | `component`           | `string` | -             | The name of the Konflux component associated with the integration tests.                      |
@@ -35,7 +35,7 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 |---------------------|----------|-----------------------------------------------------------------------------|
 | `build-session-id`  | `string` | A unique identifier for the Sealights build session.                       |
 | `build-name`        | `string` | A unique build name generated using the commit SHA and current date.       |
-| `source-artifact`   | `string` | The URI of the trusted artifact with the application source code.          |
+| `SOURCE_ARTIFACT`   | `string` | The URI of the trusted artifact with the application source code.          |
 
 ## Volumes
 
