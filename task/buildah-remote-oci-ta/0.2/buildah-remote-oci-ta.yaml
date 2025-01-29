@@ -232,6 +232,11 @@ spec:
     computeResources: {}
     image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
     name: use-trusted-artifact
+    volumeMounts:
+    - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
   - args:
     - --build-args
     - $(params.BUILD_ARGS[*])
@@ -656,6 +661,8 @@ spec:
       else
         bash scripts/script-build.sh "$@"
       fi
+      echo "Build on remote host $SSH_HOST finished"
+
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
       buildah mount "$container" | tee /shared/container_path
@@ -820,7 +827,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:7f4ce55033077f37eda61c67b4289949471c36d23ae0cc66fd4113e615b3ef93
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
     name: prepare-sboms
     script: |
       #!/bin/bash

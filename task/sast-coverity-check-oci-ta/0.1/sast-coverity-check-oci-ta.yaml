@@ -264,8 +264,8 @@ spec:
         csgrep --mode=sarif --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
           --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
           --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
-          --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}"
-        filtered_sast_coverity_buildless_check_all_findings.json \
+          --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}" \
+          filtered_sast_coverity_buildless_check_all_findings.json \
           >"/var/workdir"/coverity-results.sarif
 
         if [[ -z "$(csgrep --mode=evtstat filtered_sast_coverity_buildless_check_all_findings.json)" ]]; then
@@ -282,7 +282,6 @@ spec:
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
       computeResources:
         limits:
-          cpu: "16"
           memory: 32Gi
         requests:
           cpu: "8"
