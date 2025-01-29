@@ -16,7 +16,7 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 
 | Name                  | Type     | Default       | Description                                                                                   |
 |-----------------------|----------|---------------|-----------------------------------------------------------------------------------------------|
-| `source-artifact`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
+| `SOURCE_ARTIFACT`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
 | `nodejs-version`      | `string` | -             | The Node.js version to use with the 'ubi8/nodejs' image, in the format (e.g., '311').          |                                             |
 | `component`           | `string` | -             | The name of the Konflux component associated with the integration tests.                      |
 | `is-frontend`           | `string` | "false"             | In case of frontend application the scanning part is skipped (it needs to be performed during deployment)                      |
@@ -72,46 +72,4 @@ metadata:
 type: Opaque
 data:
   token: <BASE64_ENCODED_SEALIGHTS_TOKEN>
-```
-### Example Pipeline
-Here's an example of how you can use the `sealights-nodejs-instrumentation` Task for a **non-frontend** type of application in a Tekton pipelinerun during Konflux CI build.
-
-```yaml
-    - name: sealights-instrumentation
-      runAfter:
-        - clone-repository
-      taskRef:
-        resolver: git
-        params:
-          - name: url
-            value: https://github.com/konflux-ci/tekton-integration-catalog.git
-          - name: revision
-            value: main
-          - name: pathInRepo
-            value: tasks/sealights/nodejs-instrumentation/0.1/nodejs-instrumentation.yaml
-      params:
-        - name: source-artifact
-          value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
-        - name: nodejs-version
-          value: "20"
-        - name: component
-          value: '{{ repo_name }}'
-        - name: is-frontend
-          value: 'false'
-        - name: branch
-          value: '{{ source_branch }}'
-        - name: revision
-          value: '{{ revision }}'
-        - name: repository-url
-          value: '{{ repo_url }}'
-        - name: test-event
-          value: '{{ event_type }}'
-        - name: pull-request-number
-          value: '{{ pull_request_number }}'
-        - name: target-branch
-          value: '{{ target_branch }}'
-        - name: exclude
-          value: ['test/*']
-        - name: workspace-path
-          value: "backend"
 ```
