@@ -8,9 +8,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.1:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.1:ociStorage ; build-oci-artifact:0.1:IMAGE|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| generic| prefetch-dependencies:0.1:input|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-oci-artifact:0.1:IMAGE|
+|prefetch-input| Build dependencies to be prefetched by Cachi2| generic| prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
@@ -59,7 +59,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
-### prefetch-dependencies-oci-ta:0.1 task parameters
+### prefetch-dependencies-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -72,7 +72,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
-|sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| cyclonedx| |
+|sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### sast-coverity-check-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -186,7 +186,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.1:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
@@ -195,7 +195,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### prefetch-dependencies-oci-ta:0.1 task results
+### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-oci-artifact:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.3:CACHI2_ARTIFACT ; sast-coverity-check:0.2:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
@@ -220,8 +220,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.1:netrc|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.2:netrc|
 |workspace| |False| |
 ## Available workspaces from tasks
 ### git-clone-oci-ta:0.1 task workspaces
@@ -229,7 +229,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies-oci-ta:0.1 task workspaces
+### prefetch-dependencies-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|

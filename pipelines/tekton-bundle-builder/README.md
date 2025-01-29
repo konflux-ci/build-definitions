@@ -11,7 +11,7 @@
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.1:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; build-image-index:0.1:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT ; push-dockerfile:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.1:input|
+|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
@@ -63,7 +63,7 @@
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
-### prefetch-dependencies:0.1 task parameters
+### prefetch-dependencies:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -73,7 +73,7 @@
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
-|sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| cyclonedx| |
+|sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### push-dockerfile:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -211,9 +211,9 @@
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.1:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.1:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.1:source ; build-container:0.1:source ; sast-coverity-check:0.2:source ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.2:netrc|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:source ; sast-coverity-check:0.2:source ; sast-unicode-check:0.1:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -221,7 +221,7 @@
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |output| The git repo will be cloned onto the volume backing this Workspace.| False| workspace|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies:0.1 task workspaces
+### prefetch-dependencies:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
