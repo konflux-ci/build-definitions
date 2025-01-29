@@ -355,7 +355,6 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 					core.ResourceMemory: resource.MustParse("3Gi"),
 				},
 				Limits: core.ResourceList{
-					core.ResourceCPU:    resource.MustParse("1"),
 					core.ResourceMemory: resource.MustParse("3Gi"),
 				},
 			},
