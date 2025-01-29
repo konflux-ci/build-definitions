@@ -205,7 +205,6 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        cpu: "4"
         memory: 4Gi
       requests:
         cpu: "1"
@@ -328,19 +327,13 @@ spec:
           install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
         fi
 
+        # always remove Coverity's intermediate directory so that it can be recreated with different ownership
+        trap 'rm -fr /tmp/idir' EXIT
+
         # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
         /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
           -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
           - "\$@"
-
-        # always remove Coverity's intermediate directory so that it can be recreated with different ownership
-        trap 'rm -fr /tmp/idir' EXIT
-
-        # assign a unique file name for scan results
-        json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
-
-        # obtain capture stats to process them later on
-        /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
 
         # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
         $(declare -p COV_ANALYZE_ARGS)
@@ -348,10 +341,18 @@ spec:
         # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
         /opt/coverity/bin/cov-analyze --dir=/tmp/idir \$COV_ANALYZE_ARGS
 
-        # export scan results and embed source code context into the scan results
-        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
-          | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
-          > "\${json_file}"
+        if [ \$? -eq 0 ]; then
+          # assign a unique file name for scan results
+          json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
+
+          # obtain capture stats to process them later on
+          /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
+
+          # export scan results and embed source code context into the scan results
+          /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+            | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
+            > "\${json_file}"
+        fi
 
         # propagate the original exit code of the wrapped command
         exit "\$(</tmp/idir/build-cmd-ec.txt)"
@@ -362,7 +363,16 @@ spec:
         chmod -v 0755 /shared/cmd-wrap.sh
 
         # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
-        cstrans-df-run --verbose /shared/cmd-wrap.sh <"$dockerfile_path" >/shared/Containerfile
+        cstrans-df-run --verbose /shared/cmd-wrap.sh <"$dockerfile_path" >/shared/Containerfile 2>/tmp/cstrans-df-run.log
+        EC=$?
+
+        # if we have no RUN lines to instrument, it is not a reason to make the task fail
+        if [ $EC -eq 1 ] && [ "cstrans-df-run: error: no RUN line found" = "$(</tmp/cstrans-df-run.log)" ]; then
+          echo "no RUN directive found in \"$dockerfile_path\", falling back to buildless capture..." >&2
+        else
+          cat /tmp/cstrans-df-run.log >&2
+          exit $EC
+        fi
     - name: build
       image: quay.io/redhat-services-prod/sast/coverity:202412.1
       args:
