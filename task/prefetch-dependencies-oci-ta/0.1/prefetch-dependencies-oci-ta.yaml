@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: check-prefetch-input
-      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       env:
         - name: INPUT
           value: $(params.input)
@@ -173,7 +173,7 @@ spec:
           echo "skip" >/shared/skip
         fi
     - name: register-red-hat
-      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       results:
         - name: registered
           type: string
@@ -218,7 +218,7 @@ spec:
           cp /etc/rhsm-host/ca/redhat-uep.pem /shared/rhsm/redhat-uep.pem
         fi
     - name: preprocess-input
-      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       args:
         - $(params.input)
       env:
@@ -306,7 +306,7 @@ spec:
             with open('/shared/rhsm/preprocessed_input', 'w') as f:
                 f.write(input)
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -408,7 +408,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: unregister-rhsm
-      image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
       script: |
         #!/bin/bash
         if [ -f /shared/skip ]; then
