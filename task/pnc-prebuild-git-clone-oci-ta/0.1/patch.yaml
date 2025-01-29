@@ -47,7 +47,7 @@
   path: /spec/steps/2
   value:
     name: preprocessor
-    image: quay.io/redhat-user-workloads/konflux-jbs-pnc-tenant/konflux-tooling:latest
+    image: quay.io/konflux-ci/pnc-konflux-tooling@sha256:5c11e8168d13267e12edf7329cd67d993f3ed708e5c57aa1319e3354dd8b2bcf
     securityContext:
       runAsUser: 0
     computeResources:
@@ -62,7 +62,7 @@
       - --build-tool-version=$(params.BUILD_TOOL_VERSION)
       - --java-version=$(params.JAVA_VERSION)
       - --recipe-image=$(params.RECIPE_IMAGE)
-      - --tooling-image=quay.io/redhat-user-workloads/konflux-jbs-pnc-tenant/konflux-tooling:latest
+      - --tooling-image=quay.io/konflux-ci/pnc-konflux-tooling@sha256:5c11e8168d13267e12edf7329cd67d993f3ed708e5c57aa1319e3354dd8b2bcf
       - --type=$(params.BUILD_TOOL)
       - /var/workdir/source
     volumeMounts:
