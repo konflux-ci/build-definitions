@@ -128,7 +128,7 @@ spec:
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - args:
         - "$(params.BUILD_ARGS[*])"
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
       name: "run-script"
       script: |-
         #!/usr/bin/env bash
@@ -333,7 +333,7 @@ spec:
         requests:
           cpu: 500m
           memory: 1Gi
-      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.18.1@sha256:398f0ef395de137f05563d8de43e508bcb2e6810aa9d9adc638154b52c1a469c
       name: sbom-syft-generate
       script: |
         #!/bin/bash
@@ -358,7 +358,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:8f6e3348367e5dd418f49e4394afec92c9d7ff7cf3d333ba96ccba3f07eede0b
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
       name: prepare-sboms
       script: |
         #!/bin/bash
@@ -394,7 +394,7 @@ spec:
         requests:
           cpu: "1"
           memory: 1Gi
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
       name: inject-sbom-and-push
       script: |
         #!/bin/bash
