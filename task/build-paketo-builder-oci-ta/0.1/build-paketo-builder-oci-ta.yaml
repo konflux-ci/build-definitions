@@ -99,7 +99,7 @@ spec:
   stepTemplate:
     env:
       - name: BUILDER_IMAGE
-        value: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/paketo-container:a256a321e4d7212a71bb197cf393ef818638443c"
+        value: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/paketo-container:4d2806e47184fe434bc9f91e070e817b825aba0b"
       - name: CONTEXT
         value: $(params.CONTEXT)
       - name: HERMETIC
@@ -114,7 +114,6 @@ spec:
         value: $(params.STORAGE_DRIVER)
       - name: TLSVERIFY
         value: $(params.TLSVERIFY)
-
     volumeMounts:
       - mountPath: /shared
         name: shared
@@ -250,7 +249,6 @@ spec:
           jq 'del(.lifecycle.version) | .lifecycle.uri = "lifecycle-v'"${LIFECYCLE_VERSION}"'+linux.x86-64.tgz"' source/builder.json > source/new-builder.json
 
           PACK_BUILDER_FILE="source/new-builder.toml"
-          pip install tomli_w
           python -c "import json, tomli_w, sys; tomli_w.dump(json.load(open('source/new-builder.json')), open('${PACK_BUILDER_FILE}', 'wb'))"
         fi
 
