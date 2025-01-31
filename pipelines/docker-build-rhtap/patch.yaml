@@ -127,18 +127,30 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  apply-tags
-#     12  push-dockerfile
-#     13  rpms-signature-scan
+#     11  sast-coverity-check
+#     12  coverity-availability-check
+#     13  sast-shell-check
+#     14  sast-unicode-check
+#     15  apply-tags
+#     16  push-dockerfile
+#     17  rpms-signature-scan
 - op: replace
-  path: /spec/tasks/3/runAfter/0
+  path: /spec/tasks/3/runAfter/0  # build-container
   value: clone-repository
 - op: remove
-  path: /spec/tasks/13  # rpms-signature-scan
+  path: /spec/tasks/17  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/12  # push-dockerfile
+  path: /spec/tasks/16  # push-dockerfile
 - op: remove
-  path: /spec/tasks/11  # apply-tags
+  path: /spec/tasks/15  # apply-tags
+- op: remove
+  path: /spec/tasks/14  # sast-unicode-check
+- op: remove
+  path: /spec/tasks/13  # sast-shell-check
+- op: remove
+  path: /spec/tasks/12  # coverity-availability-check
+- op: remove
+  path: /spec/tasks/11  # sast-coverity-check
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
