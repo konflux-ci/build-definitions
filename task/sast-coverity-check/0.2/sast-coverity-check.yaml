@@ -152,8 +152,12 @@ spec:
       specify "false"
     name: IMP_FINDINGS_ONLY
     type: string
-  - default: ""
-    description: URL from repository to download known false positives files
+  - default: SITE_DEFAULT
+    description: Known False Positives (KFP) git URL (optionally taking a revision
+      delimited by \#). Defaults to "SITE_DEFAULT", which means the default value
+      "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
+      instance and empty string for external Konflux instance. If set to an empty
+      string, the KFP filtering is disabled.
     name: KFP_GIT_URL
     type: string
   results:
@@ -669,6 +673,10 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.labels['appstudio.openshift.io/component']
+    - name: BUILD_PLR_LOG_URL
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
     image: quay.io/redhat-services-prod/sast/coverity:202412.2
     name: postprocess
     script: |
@@ -742,6 +750,21 @@ spec:
         --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}") \
         | tee coverity-results-raw.json \
         | csgrep --mode=evtstat
+
+      # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instance
+      # p01 will be decommissionned due to lack of IBM support
+      if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+        case "${BUILD_PLR_LOG_URL}" in
+        *konflux.apps.stone-prod-p02.hjvn.p1.openshiftapps.com* | *konflux.apps.stone-prod-p01.wcfb.p1.openshiftapps.com*)
+          echo "the task is running within Red Hat network, set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          ;;
+        *)
+          echo "the task is not running within Red Hat network, set KFP_GIT_URL to empty string"
+          KFP_GIT_URL=
+          ;;
+        esac
+      fi
 
       # We check if the KFP_GIT_URL variable is set to apply the filters or not
       if [[ -z "${KFP_GIT_URL}" ]]; then

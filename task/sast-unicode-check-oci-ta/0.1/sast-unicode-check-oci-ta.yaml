@@ -26,9 +26,13 @@ spec:
       type: string
       default: https://github.com/siddhesh/find-unicode-control.git#c2accbfbba7553a8bc1ebd97089ae08ad8347e58
     - name: KFP_GIT_URL
-      description: URL from repository to download known false positives files.
+      description: Known False Positives (KFP) git URL (optionally taking
+        a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
+        the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+        for internal Konflux instance and empty string for external Konflux
+        instance. If set to an empty string, the KFP filtering is disabled.
       type: string
-      default: ""
+      default: SITE_DEFAULT
     - name: PROJECT_NAME
       description: Name of the scanned project, used to find path exclusions.
         By default, the Konflux component name will be used.
@@ -105,6 +109,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['appstudio.openshift.io/component']
+        - name: BUILD_PLR_LOG_URL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
       script: |
         #!/usr/bin/env bash
         set -exuo pipefail
@@ -201,6 +209,21 @@ spec:
         fi
 
         csgrep --mode=evtstat processed_sast_unicode_check_out.json
+
+        # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instance
+        # p01 will be decommissionned due to lack of IBM support
+        if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+          case "${BUILD_PLR_LOG_URL}" in
+          *konflux.apps.stone-prod-p02.hjvn.p1.openshiftapps.com* | *konflux.apps.stone-prod-p01.wcfb.p1.openshiftapps.com*)
+            echo "the task is running within Red Hat network, set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+            KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+            ;;
+          *)
+            echo "the task is not running within Red Hat network, set KFP_GIT_URL to empty string"
+            KFP_GIT_URL=
+            ;;
+          esac
+        fi
 
         # Filter known false positives if KFP_GIT_URL is set
         if [ -n "${KFP_GIT_URL}" ]; then
