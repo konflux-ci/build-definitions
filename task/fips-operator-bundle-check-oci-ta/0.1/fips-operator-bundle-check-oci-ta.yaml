@@ -156,7 +156,14 @@ spec:
           cpu: 100m
           memory: 256Mi
       ref:
-        name: fips-operator-check-step-action
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions
+          - name: revision
+            value: c366291f484f2510767a51d0f45d7bc37877e94e
+          - name: pathInRepo
+            value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
+        resolver: git
     - name: parse-images-processed-result
       image: quay.io/redhat-appstudio/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
       script: |
