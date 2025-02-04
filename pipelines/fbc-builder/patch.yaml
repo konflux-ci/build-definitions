@@ -98,3 +98,25 @@
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE_DIGEST
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-target-index-pruning-check
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - validate-fbc
+    taskRef:
+      name: fbc-target-index-pruning-check
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: TARGET_INDEX
+      value: registry.redhat.io/redhat/redhat-operator-index
+    - name: RENDERED_CATALOG_DIGEST
+      value: $(tasks.validate-fbc.results.RENDERED_CATALOG_DIGEST)
