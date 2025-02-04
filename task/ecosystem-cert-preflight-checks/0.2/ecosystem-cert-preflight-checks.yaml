@@ -1,0 +1,233 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ecosystem-cert-preflight-checks
+spec:
+  description: >-
+    Scans container images for certification readiness. Note that running this
+    against an operatorbundle will result in a skip, as bundle validation is not
+    executed through this task.
+  params:
+    - name: image-url
+      description: Image url to scan.
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+    - name: artifact-type
+      type: string
+      description: The type of artifact. Select from application, operatorbundle, or introspect.
+      default: "introspect"
+  results:
+    - name: TEST_OUTPUT
+      description: Ecosystem checks pass or fail outcome.
+      value: $(steps.final-outcome.results.test-output)
+    - name: ARTIFACT_TYPE
+      description: The artifact type, either introspected or set.
+      value: $(steps.introspect.results.artifact-type)
+    - name: ARTIFACT_TYPE_SET_BY
+      description: How the artifact type was set.
+      value: $(steps.introspect.results.artifact-type-set-by)
+  steps:
+    - name: introspect
+      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      results:
+        - name: artifact-type
+          description: The type of artifact this task is considering.
+        - name: artifact-type-set-by
+          description: |
+            The process that sets the artifact type. Informational.
+            Values from: introspection, parameter.
+      env:
+      - name: PARAM_ARTIFACT_TYPE
+        value: $(params.artifact-type)
+      - name: PARAM_IMAGE_URL
+        value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        _SET_BY=parameter
+        # If the parameter is invalid, we'll introspect
+        if [[ "${PARAM_ARTIFACT_TYPE}" != "application" ]] && [[ "${PARAM_ARTIFACT_TYPE}" != "operatorbundle" ]]; then
+          echo "Artifact type will be determined by introspection."
+          _SET_BY=introspection
+        fi
+        printf "%s" "${_SET_BY}" > "$(step.results.artifact-type-set-by.path)"
+
+        if [[ "${_SET_BY}" == "parameter" ]]; then
+          # short circuit if the artifact type was set via parameter.
+          echo "Skipping introspection because the artifact-type parameter is explicitly set to \"${PARAM_ARTIFACT_TYPE}\"."
+          printf "%s" "${PARAM_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
+          exit 0
+        fi
+
+        # Introspect based on minimum count of operator-framework related bundle labels.
+        echo "Looking for image labels that indicate this might be an operator bundle..."
+        skopeo inspect "docker://${PARAM_IMAGE_URL}" \
+          | jq '.Labels | keys | .[]' -r \
+          | { grep operators.operatorframework.io.bundle || true ;} \
+          | tee /tmp/ecosystem-image-labels
+
+        _OPFW_LABEL_COUNT=$(grep -c operators.operatorframework.io.bundle /tmp/ecosystem-image-labels || true)
+        _MIN_LABELS=3
+
+        echo "Found ${_OPFW_LABEL_COUNT} matching labels."
+        echo "Expecting ${_MIN_LABELS} or more to identify this image as an operator bundle."
+
+        # If the image has several labels, assume it is an operator
+        _ARTIFACT_TYPE=application
+        (( _OPFW_LABEL_COUNT >= _MIN_LABELS )) && _ARTIFACT_TYPE=operatorbundle
+
+        printf "%s" "${_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
+        echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
+
+    - name: set-skip-for-bundles
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
+      results:
+      - name: test-output
+        description: A skipped tekton result for bundles.
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["operatorbundle"]
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        NOTE="This ecosystem check is not executed for operatorbundles."
+
+        # shellcheck source=/dev/null
+        . /utils.sh # gives us the make_result_json helper used below.
+
+        # Generate TEST_OUTPUT
+        TEST_OUTPUT=$(make_result_json -r "SKIPPED" -t "${NOTE}")
+
+        printf "%s" "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /bundle/konflux.results.json
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /bundle
+
+    - name: app-check
+      image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
+      args: ["check", "container", "$(params.image-url)"]
+      env:
+        - name: PFLT_DOCKERCONFIG
+          value: /root/.docker/config.json
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["application"]
+
+    - name: app-set-outcome
+      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      results:
+      - name: test-output
+        description: The overall outcome of this task.
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["application"]
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        # Declare Supported architectures
+        declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
+
+        # Initialize result vars
+        PFLT_PASS_COUNT=0
+        PFLT_FAIL_COUNT=0
+        PFLT_ERROR_COUNT=0
+        PFLT_RESULT="SUCCESS"
+
+        # Loop over SUPPORTED_ARCHES and process results
+        for ARCH in "${SUPPORTED_ARCHES[@]}"
+        do
+            # Check if results directory exits
+            RESULT_JSON_PATH=artifacts/${ARCH}/results.json
+            if ! [ -f "${RESULT_JSON_PATH}" ]; then
+                continue
+            fi
+            # Process results
+            if jq -e '.passed == false' "${RESULT_JSON_PATH}" > /dev/null; then PFLT_RESULT="FAILURE"; fi
+            PFLT_PASS_COUNT=$((PFLT_PASS_COUNT+$(jq -r '.results.passed | length' "${RESULT_JSON_PATH}")))
+            PFLT_FAIL_COUNT=$((PFLT_FAIL_COUNT+$(jq -r '.results.failed | length' "${RESULT_JSON_PATH}")))
+            PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
+        done
+
+        if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
+        PFLT_NOTE="Task preflight is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
+
+        # Generate TEST_OUTPUT
+        TEST_OUTPUT=$(jq -rce \
+        --arg date "$(date +%s)" \
+        --arg note "${PFLT_NOTE}" \
+        --arg result "${PFLT_RESULT}" \
+        --arg successes "${PFLT_PASS_COUNT}" \
+        --arg failures "${PFLT_FAIL_COUNT}" \
+        --arg warnings "0" \
+        --null-input \
+        '{  result: $result,
+            timestamp: $date,
+            note: $note,
+            successes: $successes|tonumber,
+            failures: $failures|tonumber,
+            warnings: $warnings|tonumber
+        }')
+        echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
+
+    - name: final-outcome
+      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      results:
+        - name: test-output
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /mount
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+        set -o xtrace
+
+        if [[ ! -f /mount/konflux.results.json ]]; then
+          printf "Unable to populate the right test log output because the artifact's type is not recorded correctly. Please file a bug." | tee "$(step.results.test-output.path)"
+          exit 91
+        fi
+
+        tee "$(step.results.test-output.path)" < /mount/konflux.results.json
+  volumes:
+    - name: pfltoutputdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
