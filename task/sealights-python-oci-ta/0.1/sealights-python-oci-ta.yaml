@@ -5,6 +5,10 @@ metadata:
   labels:
     konflux-ci/sealights: "true"
     konflux-ci/sealights-language: "python"
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
 spec:
   description: >-
     This Tekton task automates the process of configuring your Python application with Sealights for quality analytics and testing.
@@ -79,7 +83,7 @@ spec:
     - name: sealights-python-instrumentation
       computeResources:
         limits:
-          cpu: 500m
+          memory: 512Mi
         requests:
           cpu: 100m
           memory: 256Mi
