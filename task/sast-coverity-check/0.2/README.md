@@ -23,7 +23,7 @@ The characteristics of these tasks are:
 | COV_LICENSE               | Name of secret which contains the Coverity license                                                                                    | cov-license               | no       |
 | AUTH_TOKEN_COVERITY_IMAGE | Name of secret which contains the authentication token for pulling the Coverity image                                                 | auth-token-coverity-image | no       |
 | IMP_FINDINGS_ONLY         | Report only important findings. Default is true. To report all findings, specify "false"                                              | true                      | no       |
-| KFP_GIT_URL               | Known False Positives git URL, optionally taking a revision delimited by #; If empty, filtering of known false positives is disabled. | ""                        | no       |
+| KFP_GIT_URL               | Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.|SITE_DEFAULT|false|
 | PROJECT_NAME              | Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.                       | ""                        | no       |
 | RECORD_EXCLUDED           | If set to `true`, excluded findings will be written to a file named `excluded-findings.json` for auditing purposes.                   | false                     | no       |
 
