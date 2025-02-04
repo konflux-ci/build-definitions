@@ -89,6 +89,12 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sealights-go-instrumentation
       image: registry.access.redhat.com/ubi8/go-toolset:$(params.go-version)
+      computeResources:
+        limits:
+          cpu: 500m
+        requests:
+          cpu: 100m
+          memory: 256Mi
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
