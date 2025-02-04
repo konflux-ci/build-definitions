@@ -36,6 +36,8 @@ spec:
       description: Digest for attached json file containing related images
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
+    - name: RENDERED_CATALOG_DIGEST
+      description: Digest for attached json file containing the FBC fragment's opm rendered catalog.
   volumes:
     - name: shared
       emptyDir: {}
@@ -365,7 +367,7 @@ spec:
           TESTPASSED=false
         fi
 
-        OPM_RENDERED_CATALOG=/tmp/catalog.json
+        OPM_RENDERED_CATALOG=/shared/catalog.json
         ${OPM_BINARY} render ."${conffolder}" > ${OPM_RENDERED_CATALOG}
         if [ ! -f ${OPM_RENDERED_CATALOG} ]; then
           echo "!FAILURE! - unable to render the fragment FBC."
@@ -491,3 +493,10 @@ spec:
         set -euo pipefail
         attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "related-images+json" --digestfile "$(results.RELATED_IMAGES_DIGEST.path)" \
           /shared/related-images.json
+    - name: save-rendered-catalog
+      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "rendered-catalog+json" --digestfile "$(results.RENDERED_CATALOG_DIGEST.path)" \
+          /shared/catalog.json
