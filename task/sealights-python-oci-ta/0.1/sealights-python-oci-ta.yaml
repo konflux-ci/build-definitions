@@ -77,6 +77,12 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/app/source
     - name: sealights-python-instrumentation
+      computeResources:
+        limits:
+          cpu: 500m
+        requests:
+          cpu: 100m
+          memory: 256Mi
       image: registry.access.redhat.com/ubi8/python-$(params.python-version):latest
       workingDir: /app/source
       securityContext:
