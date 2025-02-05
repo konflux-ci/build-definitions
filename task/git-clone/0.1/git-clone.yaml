@@ -279,7 +279,7 @@ spec:
       CHECKOUT_DIR="${WORKSPACE_OUTPUT_PATH}/${PARAM_SUBDIRECTORY}"
       check_symlinks() {
         FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=false
-        while read symlink
+        while read -r symlink
         do
           target=$(readlink -m "$symlink")
           if ! [[ "$target" =~ ^$CHECKOUT_DIR ]]; then
