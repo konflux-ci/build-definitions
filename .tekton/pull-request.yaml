@@ -69,15 +69,12 @@ spec:
             value:
               - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
               - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
-              - |
-                e2e_tests if {
-                  some file in input
-                  strings.any_prefix_match(file, ["task/", "pipelines/", "hack/", ".tekton/"])
-                  not endswith(file, "/OWNERS")
-                }
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
         runAfter:
           - build-appstudio-utils
+        workspaces:
+          - name: source
+            workspace: workspace
       - name: task-lint-check
         when:
           - input: "tasks"
@@ -208,9 +205,9 @@ spec:
             - name: source
       - name: e2e-tests
         when:
-          - input: "e2e_tests"
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
             operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+            values: ["execute_e2e"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
@@ -286,9 +283,9 @@ spec:
     finally:
       - name: e2e-cleanup
         when:
-          - input: "e2e_tests"
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
             operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+            values: ["execute_e2e"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
@@ -306,9 +303,9 @@ spec:
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
       - name: pull-request-status-message
         when:
-          - input: "tasks_pipelines"
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
             operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+            values: ["execute_e2e"]
         taskRef:
           resolver: git
           params:

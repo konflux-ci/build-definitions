@@ -21,6 +21,8 @@ spec:
   results:
     - name: bindings
       type: array
+    - name: run-e2e
+      type: string
   steps:
     - name: evaluate
       image: $(params.utils_image)
@@ -32,6 +34,7 @@ spec:
               key: "git-provider-token"
       args:
         - "$(params.expressions[*])"
+      workingDir: $(workspaces.source.path)/source
       script: |
         #!/bin/bash
         set -o errexit
@@ -53,3 +56,6 @@ spec:
         'data[_]' \
         | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
         | tee "$(results.bindings.path)"
+
+        # Output is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
+        .tekton/scripts/determine-if-e2e-execution-needed.py "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
