@@ -73,6 +73,10 @@ spec:
     - name: oci-storage
       description: The OCI repository where the Trusted Artifacts are stored.
       type: string
+    - name: debug
+      default: "false"
+      description: Enable debug for Sealights scanning.
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -95,11 +99,11 @@ spec:
       image: registry.access.redhat.com/ubi8/go-toolset:$(params.go-version)
       computeResources:
         limits:
-          memory: 512Mi
-          cpu: 500m
+          memory: 4Gi
+          cpu: "1"
         requests:
-          cpu: 100m
-          memory: 256Mi
+          cpu: 200m
+          memory: 512Mi
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -118,6 +122,8 @@ spec:
           value: $(params.pull-request-number)
         - name: TARGET_BRANCH
           value: $(params.target-branch)
+        - name: DEBUG
+          value: $(params.debug)
         - name: TEST_EVENT
           valueFrom:
             fieldRef:
@@ -155,7 +161,7 @@ spec:
         fi
 
         slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}"
+          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --debug="${DEBUG}"
 
         echo -n "$(cat buildSessionId.txt)" > "$(results.sealights-bsid.path)"
         echo -n "$BUILD_NAME" > "$(results.sealights-build-name.path)"
