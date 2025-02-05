@@ -1,0 +1,363 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/categories: Git
+    tekton.dev/displayName: pnc prebuild git clone oci trusted artifacts
+    tekton.dev/pipelines.minVersion: 0.21.0
+    tekton.dev/platforms: linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
+    tekton.dev/tags: git
+  labels:
+    app.kubernetes.io/version: "0.1"
+  name: pnc-prebuild-git-clone-oci-ta
+spec:
+  description: The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided
+    url, apply PNC prebuild modifications (from https://github.com/project-ncl/konflux-tooling)
+    and store it as a trusted artifact in the provided OCI repository. The prebuild
+    modifications create a Containerfile and suitable build script in order for the
+    Java based project to be built within a container given build parameters configured
+    from PNC.
+  params:
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data.
+    name: caTrustConfigMapKey
+    type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from.
+    name: caTrustConfigMapName
+    type: string
+  - default: "1"
+    description: Perform a shallow clone, fetching only the most recent N commits.
+    name: depth
+    type: string
+  - default: "true"
+    description: |
+      Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.
+    name: enableSymlinkCheck
+    type: string
+  - default: "false"
+    description: Fetch all tags for the repo.
+    name: fetchTags
+    type: string
+  - default: ""
+    description: HTTP proxy server for non-SSL requests.
+    name: httpProxy
+    type: string
+  - default: ""
+    description: HTTPS proxy server for SSL requests.
+    name: httpsProxy
+    type: string
+  - default: ""
+    description: Opt out of proxying HTTP/HTTPS requests.
+    name: noProxy
+    type: string
+  - default: ""
+    description: Expiration date for the trusted artifacts created in the OCI repository.
+      An empty string means the artifacts do not expire.
+    name: ociArtifactExpiresAfter
+    type: string
+  - description: The OCI repository where the Trusted Artifacts are stored.
+    name: ociStorage
+    type: string
+  - default: ""
+    description: Refspec to fetch before checking out revision.
+    name: refspec
+    type: string
+  - default: ""
+    description: Revision to checkout. (branch, tag, sha, ref, etc...)
+    name: revision
+    type: string
+  - default: "7"
+    description: Length of short commit SHA
+    name: shortCommitLength
+    type: string
+  - default: ""
+    description: Define the directory patterns to match or exclude when performing
+      a sparse checkout.
+    name: sparseCheckoutDirectories
+    type: string
+  - default: "true"
+    description: Set the `http.sslVerify` global git config. Setting this to `false`
+      is not advised unless you are sure that you trust your git remote.
+    name: sslVerify
+    type: string
+  - default: "true"
+    description: Initialize and fetch git submodules.
+    name: submodules
+    type: string
+  - description: Repository URL to clone from.
+    name: url
+    type: string
+  - default: /tekton/home
+    description: |
+      Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user.
+    name: userHome
+    type: string
+  - default: "false"
+    description: Log the commands that are executed during `git-clone`'s operation.
+    name: verbose
+    type: string
+  - description: Middleware (Maven/Gradle/Ant/SBT) build script to build the project
+      to embed with the Containerfile
+    name: BUILD_SCRIPT
+    type: string
+  - description: The build tool to use (ant, gradle, maven, sbt).
+    name: BUILD_TOOL
+    type: string
+  - description: The build tool version to use (e.g. 3.9.5)
+    name: BUILD_TOOL_VERSION
+    type: string
+  - description: Java version to use (7, 8, 9, 11, 17, 21, 22, 23)
+    name: JAVA_VERSION
+    type: string
+  - description: The image from the build recipe to use
+    name: RECIPE_IMAGE
+    type: string
+  results:
+  - description: The precise commit SHA that was fetched by this Task. This result
+      uses Chains type hinting to include in the provenance.
+    name: CHAINS-GIT_COMMIT
+  - description: The precise URL that was fetched by this Task. This result uses Chains
+      type hinting to include in the provenance.
+    name: CHAINS-GIT_URL
+  - description: The Trusted Artifact URI pointing to the artifact with the application
+      source code.
+    name: SOURCE_ARTIFACT
+    type: string
+  - description: The precise commit SHA that was fetched by this Task.
+    name: commit
+  - description: The commit timestamp of the checkout
+    name: commit-timestamp
+  - description: The commit SHA that was fetched by this Task limited to params.shortCommitLength
+      number of characters
+    name: short-commit
+  - description: The precise URL that was fetched by this Task.
+    name: url
+  steps:
+  - env:
+    - name: HOME
+      value: $(params.userHome)
+    - name: PARAM_URL
+      value: $(params.url)
+    - name: PARAM_REVISION
+      value: $(params.revision)
+    - name: PARAM_REFSPEC
+      value: $(params.refspec)
+    - name: PARAM_SUBMODULES
+      value: $(params.submodules)
+    - name: PARAM_DEPTH
+      value: $(params.depth)
+    - name: PARAM_SHORT_COMMIT_LENGTH
+      value: $(params.shortCommitLength)
+    - name: PARAM_SSL_VERIFY
+      value: $(params.sslVerify)
+    - name: PARAM_HTTP_PROXY
+      value: $(params.httpProxy)
+    - name: PARAM_HTTPS_PROXY
+      value: $(params.httpsProxy)
+    - name: PARAM_NO_PROXY
+      value: $(params.noProxy)
+    - name: PARAM_VERBOSE
+      value: $(params.verbose)
+    - name: PARAM_SPARSE_CHECKOUT_DIRECTORIES
+      value: $(params.sparseCheckoutDirectories)
+    - name: PARAM_USER_HOME
+      value: $(params.userHome)
+    - name: PARAM_FETCH_TAGS
+      value: $(params.fetchTags)
+    - name: WORKSPACE_SSH_DIRECTORY_BOUND
+      value: $(workspaces.ssh-directory.bound)
+    - name: WORKSPACE_SSH_DIRECTORY_PATH
+      value: $(workspaces.ssh-directory.path)
+    - name: WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND
+      value: $(workspaces.basic-auth.bound)
+    - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
+      value: $(workspaces.basic-auth.path)
+    - name: CHECKOUT_DIR
+      value: /var/workdir/source
+    image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
+    name: clone
+    script: |
+      #!/usr/bin/env sh
+      set -eu
+
+      if [ "${PARAM_VERBOSE}" = "true" ]; then
+        set -x
+      fi
+
+      if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ]; then
+        if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" ]; then
+          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.git-credentials" "${PARAM_USER_HOME}/.git-credentials"
+          cp "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/.gitconfig" "${PARAM_USER_HOME}/.gitconfig"
+        # Compatibility with kubernetes.io/basic-auth secrets
+        elif [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username" ] && [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password" ]; then
+          HOSTNAME=$(echo $PARAM_URL | awk -F/ '{print $3}')
+          echo "https://$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/username):$(cat ${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/password)@$HOSTNAME" >"${PARAM_USER_HOME}/.git-credentials"
+          echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" >"${PARAM_USER_HOME}/.gitconfig"
+        else
+          echo "Unknown basic-auth workspace format"
+          exit 1
+        fi
+        chmod 400 "${PARAM_USER_HOME}/.git-credentials"
+        chmod 400 "${PARAM_USER_HOME}/.gitconfig"
+      fi
+
+      # Should be called after the gitconfig is copied from the repository secret
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        git config --global http.sslCAInfo "$ca_bundle"
+      fi
+
+      if [ "${WORKSPACE_SSH_DIRECTORY_BOUND}" = "true" ]; then
+        cp -R "${WORKSPACE_SSH_DIRECTORY_PATH}" "${PARAM_USER_HOME}"/.ssh
+        chmod 700 "${PARAM_USER_HOME}"/.ssh
+        chmod -R 400 "${PARAM_USER_HOME}"/.ssh/*
+      fi
+
+      test -z "${PARAM_HTTP_PROXY}" || export HTTP_PROXY="${PARAM_HTTP_PROXY}"
+      test -z "${PARAM_HTTPS_PROXY}" || export HTTPS_PROXY="${PARAM_HTTPS_PROXY}"
+      test -z "${PARAM_NO_PROXY}" || export NO_PROXY="${PARAM_NO_PROXY}"
+
+      /ko-app/git-init \
+        -url="${PARAM_URL}" \
+        -revision="${PARAM_REVISION}" \
+        -refspec="${PARAM_REFSPEC}" \
+        -path="${CHECKOUT_DIR}" \
+        -sslVerify="${PARAM_SSL_VERIFY}" \
+        -submodules="${PARAM_SUBMODULES}" \
+        -depth="${PARAM_DEPTH}" \
+        -sparseCheckoutDirectories="${PARAM_SPARSE_CHECKOUT_DIRECTORIES}"
+      cd "${CHECKOUT_DIR}"
+      RESULT_SHA="$(git rev-parse HEAD)"
+      RESULT_SHA_SHORT="$(git rev-parse --short="${PARAM_SHORT_COMMIT_LENGTH}" HEAD)"
+      EXIT_CODE="$?"
+      if [ "${EXIT_CODE}" != 0 ]; then
+        exit "${EXIT_CODE}"
+      fi
+      printf "%s" "${RESULT_SHA}" >"$(results.commit.path)"
+      printf "%s" "${RESULT_SHA}" >"$(results.CHAINS-GIT_COMMIT.path)"
+      printf "%s" "${RESULT_SHA_SHORT}" >"$(results.short-commit.path)"
+      printf "%s" "${PARAM_URL}" >"$(results.url.path)"
+      printf "%s" "${PARAM_URL}" >"$(results.CHAINS-GIT_URL.path)"
+      printf "%s" "$(git log -1 --pretty=%ct)" >"$(results.commit-timestamp.path)"
+
+      if [ "${PARAM_FETCH_TAGS}" = "true" ]; then
+        echo "Fetching tags"
+        git fetch --tags
+      fi
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    - mountPath: /var/workdir
+      name: workdir
+  - env:
+    - name: PARAM_ENABLE_SYMLINK_CHECK
+      value: $(params.enableSymlinkCheck)
+    - name: CHECKOUT_DIR
+      value: /var/workdir/source
+    image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
+    name: symlink-check
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      check_symlinks() {
+        FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=false
+        while read symlink; do
+          target=$(readlink -m "$symlink")
+          if ! [[ "$target" =~ ^$CHECKOUT_DIR ]]; then
+            echo "The cloned repository contains symlink pointing outside of the cloned repository: $symlink"
+            FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=true
+          fi
+        done < <(find $CHECKOUT_DIR -type l -print)
+        if [ "$FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO" = true ]; then
+          return 1
+        fi
+      }
+
+      if [ "${PARAM_ENABLE_SYMLINK_CHECK}" = "true" ]; then
+        echo "Running symlink check"
+        check_symlinks
+      fi
+    volumeMounts:
+    - mountPath: /var/workdir
+      name: workdir
+  - args:
+    - prepare
+    - --build-tool-version=$(params.BUILD_TOOL_VERSION)
+    - --java-version=$(params.JAVA_VERSION)
+    - --recipe-image=$(params.RECIPE_IMAGE)
+    - --tooling-image=quay.io/konflux-ci/pnc-konflux-tooling@sha256:5c11e8168d13267e12edf7329cd67d993f3ed708e5c57aa1319e3354dd8b2bcf
+    - --type=$(params.BUILD_TOOL)
+    - /var/workdir/source
+    computeResources:
+      limits:
+        cpu: 300m
+        memory: 512Mi
+      requests:
+        cpu: 10m
+        memory: 512Mi
+    env:
+    - name: BUILD_SCRIPT
+      value: $(params.BUILD_SCRIPT)
+    image: quay.io/konflux-ci/pnc-konflux-tooling@sha256:5c11e8168d13267e12edf7329cd67d993f3ed708e5c57aa1319e3354dd8b2bcf
+    name: preprocessor
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /var/workdir
+      name: workdir
+  - args:
+    - create
+    - --store
+    - $(params.ociStorage)
+    - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+    computeResources:
+      limits:
+        memory: 3Gi
+      requests:
+        cpu: "1"
+        memory: 3Gi
+    env:
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.ociArtifactExpiresAfter)
+    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+    name: create-trusted-artifact
+    volumeMounts:
+    - mountPath: /var/workdir
+      name: workdir
+    - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
+  volumes:
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
+  - emptyDir: {}
+    name: workdir
+  workspaces:
+  - description: |
+      A Workspace containing a .gitconfig and .git-credentials file or username and password.
+      These will be copied to the user's home before any git commands are run. Any
+      other files in this Workspace are ignored. It is strongly recommended
+      to use ssh-directory over basic-auth whenever possible and to bind a
+      Secret to this Workspace over other volume types.
+    name: basic-auth
+    optional: true
+  - description: |
+      A .ssh directory with private key, known_hosts, config, etc. Copied to
+      the user's home before git commands are executed. Used to authenticate
+      with the git remote when performing the clone. Binding a Secret to this
+      Workspace is strongly recommended over other volume types.
+    name: ssh-directory
+    optional: true
