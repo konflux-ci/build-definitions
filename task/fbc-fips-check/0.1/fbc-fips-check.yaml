@@ -121,17 +121,16 @@ spec:
             fi
             subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["operators.openshift.io/valid-subscription"] != null) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
 
-            bundle_labels=$(get_image_labels "${bundle}")
-            fips_label=$(echo "${bundle_labels}" | grep '^features.operators.openshift.io/fips-compliant=' | cut -d= -f2 || true)
+            fips_annotation=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true") | .value.annotations["features.operators.openshift.io/fips-compliant"]')
 
             if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."
               echo "Subscription labels are : $subscription_label"
-              if [ -z "${fips_label}" ] || [ "${fips_label}" != "true" ]; then
-                echo "The label features.operators.openshift.io/fips-compliant is also not set to true. Skipping the FIPS static check for ${bundle}"
+              if [ -z "${fips_annotation}" ] || [ "${fips_annotation}" != "true" ]; then
+                echo "The annotation features.operators.openshift.io/fips-compliant is also not set to true. Skipping the FIPS static check for ${bundle}"
                 continue
               else
-                echo "The label features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
+                echo "The annotation features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
               fi
             else
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are present in operators.openshift.io/valid-subscription. Running the FIPS static check..."
