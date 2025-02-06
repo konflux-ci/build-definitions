@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1736404155@sha256:e408de45e95eed0539fe821d31aa4288fe430d94f09a24c13c567bf99044dace
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1738816775@sha256:e014f6a342c3790a07b771209b35713e3e4095ff631e4d8bb84966fab3d099e6
       env:
         - name: INPUT
           value: $(params.input)
@@ -153,7 +153,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:408913942efbec9cc72f7f91cd65a4f660eaa02079a465796deff9333f07c399
+      image: quay.io/konflux-ci/yq:latest@sha256:fcf901ff1985e1d594bef9ee0992cd7e379152dd3e7181f5df6171770021678c
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
+      image: quay.io/konflux-ci/cachi2:0.20.0@sha256:80402886bbc0f6b4deba65cf5f66dfe9a2c01ae0b57bf3454e3ea58e1a395720
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
