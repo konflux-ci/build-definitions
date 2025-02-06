@@ -478,6 +478,7 @@ build_push_tasks() {
         if [ -n "$digest" ]; then
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
+            echo "$task_bundle_with_digest" >> "$OUTPUT_TASK_BUNDLE_LIST"
         else
             echo "info: push new bundle $task_bundle" 1>&2
 
