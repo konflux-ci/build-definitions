@@ -14,7 +14,7 @@ Source image build.
 |name|description|
 |---|---|
 |BUILD_RESULT|Build result.|
-|IMAGE_REF|Image reference of the built image|
+|IMAGE_REF|Image reference of the built image.|
 |SOURCE_IMAGE_DIGEST|The source image digest.|
 |SOURCE_IMAGE_URL|The source image url.|
 
