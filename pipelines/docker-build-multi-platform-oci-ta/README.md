@@ -365,7 +365,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |BUILD_RESULT| Build result.| |
-|IMAGE_REF| Image reference of the built image| |
+|IMAGE_REF| Image reference of the built image.| |
 |SOURCE_IMAGE_DIGEST| The source image digest.| |
 |SOURCE_IMAGE_URL| The source image url.| |
 
