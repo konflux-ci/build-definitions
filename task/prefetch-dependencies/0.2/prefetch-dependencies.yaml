@@ -131,6 +131,31 @@ spec:
         subscription-manager unregister || true
       }
 
+      function is_json
+      {
+        jq . 2>/dev/null 1>&2 <<< "$1"
+      }
+
+      # The input JSON can be in one of these forms:
+      # 1) '[{"type": "gomod"}, {"type": "bundler"}]'
+      # 2) '{"packages": [{"type": "gomod"}, {"type": "bundler"}]}'
+      # 3) '{"type": "gomod"}'
+      function input_json_has_rpm
+      {
+        jq '
+          if (type == "array" or type == "object") | not then
+            false
+          elif type == "array" then
+            any(.[]; .type == "rpm")
+          elif has("packages") | not then
+            .type == "rpm"
+          elif (.packages | type == "array") then
+            any(.packages[]; .type == "rpm")
+          else
+            false
+          end' <<< "$1"
+      }
+
       function inject_ssl_opts
       {
         input="$1"
