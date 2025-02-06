@@ -59,6 +59,8 @@ spec:
       value: "$(params.timeout)"
     - name: IMAGE_CONTENT_SOURCES
       value: "$(params.imageContentSources)"
+    - name: TENANT
+      value: "$(context.taskRun.namespace)"
   script: |
     #!/bin/bash
     set -eo pipefail
@@ -69,6 +71,8 @@ spec:
     kind: ClusterTemplateInstance
     metadata:
       generateName: cluster-
+      labels:
+        eaas.konflux-ci.dev/tenant: $TENANT
     spec:
       clusterTemplateRef: hypershift-aws-cluster
       parameters: []
