@@ -171,38 +171,19 @@ spec:
                       }
                     }'
                   )"
-        elif (jq . 2>/dev/null 1>&2 <<< "$input"); then
-          # The input JSON can be in one of these forms:
-          # 1) '[{"type": "gomod"}, {"type": "bundler"}]'
-          # 2) '{"packages": [{"type": "gomod"}, {"type": "bundler"}]}'
-          # 3) '{"type": "gomod"}'
-          input_json_has_rpm="$(jq '
-                                  if (type == "array" or type == "object") | not then
-                                    false
-                                  elif type == "array" then
-                                    any(.[]; .type == "rpm")
-                                  elif has("packages") | not then
-                                    .type == "rpm"
-                                  elif (.packages | type == "array") then
-                                    any(.packages[]; .type == "rpm")
-                                  else
-                                    false
-                                  end' <<< "$input")"
-
+        elif is_json "$input" && input_json_has_rpm "$input"; then
           # The output JSON may need the SSL options updated for the RPM backend
-          if [ "$input_json_has_rpm" == "true" ]; then
-              input="$(jq \
-                        --argjson ssl "$ssl_options" '
-                          if type == "array" then
-                            map(if .type == "rpm" then .options.ssl += $ssl else . end)
-                          elif has("packages") then
-                            .packages |= map(if .type == "rpm" then .options.ssl += $ssl else . end)
-                          else
-                            .options.ssl += $ssl
-                          end' \
-                          <<< "$input"
-                      )"
-          fi
+          input="$(jq \
+                    --argjson ssl "$ssl_options" '
+                      if type == "array" then
+                        map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                      elif has("packages") then
+                        .packages |= map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                      else
+                        .options.ssl += $ssl
+                      end' \
+                      <<< "$input"
+                  )"
         fi
         echo "$input"
       }
