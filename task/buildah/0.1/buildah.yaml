@@ -383,7 +383,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: sbom-syft-generate
-    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.18.1@sha256:398f0ef395de137f05563d8de43e508bcb2e6810aa9d9adc638154b52c1a469c
+    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
@@ -450,7 +450,7 @@ spec:
       runAsUser: 0
 
   - name: merge-cachi2-sbom
-    image: quay.io/konflux-ci/cachi2:0.19.0@sha256:f67e7f9771c3d425bdd917313553c882d0ed942076dc31d9ce35524bdda1fb6e
+    image: quay.io/konflux-ci/cachi2:0.20.0@sha256:80402886bbc0f6b4deba65cf5f66dfe9a2c01ae0b57bf3454e3ea58e1a395720
     script: |
       if [ -f "sbom-cachi2.json" ]; then
         echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"

@@ -65,7 +65,7 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
   steps:
   - name: build
-    image: registry.access.redhat.com/ubi9/buildah@sha256:27d837f9bc69ad3c3651cf3315e2501b137c11baa553d9d46140e5cf7fa7873a
+    image: registry.access.redhat.com/ubi9/buildah@sha256:737482884ac5048778095fd2a013135782609987dd935a9ba33580d84728827b
     args:
       - $(params.BUILD_ARGS[*])
     script: |
@@ -130,7 +130,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: generate-sboms
-    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.0.1@sha256:27c268d678103a27b6964c2cd5169040941b7304d0078f9727789ffb8ffba370
+    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
