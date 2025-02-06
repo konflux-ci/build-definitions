@@ -14,3 +14,9 @@ sources:
         # Support legacy matchers for now
         - image
         - kind
+      exclude:
+        # https://issues.redhat.com/browse/EC-1038
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202412.2
+        - step_images.step_images_accessible:registry.access.redhat.com/ubi8/python-$(params.python-version):latest
+        - step_images.step_images_accessible:registry.access.redhat.com/ubi8/go-toolset:$(params.go-version)
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity@sha256:0d1b96fb08a901b2d0e340599c7fee7e1de25e2d6ba58f3d95db4983f32b5a3c
