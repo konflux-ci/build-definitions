@@ -188,6 +188,41 @@ spec:
         echo "$input"
       }
 
+      function inject_rpm_summary_flag
+      {
+        input="$1"
+
+        if [ "$input" == "rpm" ]; then
+          input="$(jq -n '{type: "rpm", include_summary_in_sbom: true}')"
+
+        elif is_json "$input" && input_json_has_rpm "$input"; then
+            input="$(jq '
+                      if type == "array" then
+                        map(
+                          if .type == "rpm" and (has("include_summary_in_sbom") | not) then
+                            .include_summary_in_sbom = true
+                          else
+                            .
+                          end)
+
+                      elif has("packages") then
+                        .packages |= map(
+                          if .type == "rpm" and (has("include_summary_in_sbom") | not) then
+                            .include_summary_in_sbom = true
+                          else
+                            .
+                          end)
+
+                      else
+                        if has("include_summary_in_sbom") | not then
+                          .include_summary_in_sbom = true
+                        end
+
+                      end' <<< "$input")"
+        fi
+        echo "$input"
+      }
+
       if [ -z "${INPUT}" ]; then
         # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
         echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
@@ -262,6 +297,8 @@ spec:
         # We need to modify the cachi2 params in place if we're processing RPMs
         INPUT=$(inject_ssl_opts "$INPUT" "$CACHI2_SSL_OPTS")
       fi
+
+      INPUT=$(inject_rpm_summary_flag "$INPUT")
 
       cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
       $dev_pacman_flag \
