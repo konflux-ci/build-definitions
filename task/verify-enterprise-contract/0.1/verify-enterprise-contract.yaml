@@ -111,12 +111,12 @@ spec:
 
   steps:
     - name: version
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [ec]
       args:
         - version
     - name: initialize-tuf
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       script: |-
         set -euo pipefail
 
@@ -132,7 +132,7 @@ spec:
         - name: TUF_MIRROR
           value: "$(params.TUF_MIRROR)"
     - name: validate
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [ec]
       args:
         - validate
@@ -180,23 +180,23 @@ spec:
         limits:
           memory: 2Gi
     - name: report
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report.yaml"
     - name: report-json
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report-json.json"
     - name: summary
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [jq]
       args:
         - "."
         - "$(results.TEST_OUTPUT.path)"
     - name: assert
-      image: registry.redhat.io/rhtas/ec-rhel9:0.2
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [jq]
       args:
         - "--argjson"
