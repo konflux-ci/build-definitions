@@ -273,6 +273,8 @@ if ! [[ $IS_LOCALHOST ]]; then
 else
   bash ` + containerScript + ` "$@"
 fi
+echo "Build on remote host $SSH_HOST finished"
+
 buildah images
 container=$(buildah from --pull-never "$IMAGE")
 buildah mount "$container" | tee /shared/container_path

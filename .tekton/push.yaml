@@ -94,6 +94,7 @@ spec:
         runAfter:
           - build-appstudio-utils
           - ec-task-checks
+          - create-repositories-if-missing
         workspaces:
           - name: source
             workspace: workspace
@@ -183,11 +184,11 @@ spec:
 
       - name: create-repositories-if-missing
         runAfter:
-          - build-bundles
+          - build-appstudio-utils
         taskSpec:
           steps:
             - name: run-create-bundle-repos
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: quay.io/konflux-ci/appstudio-utils:{{revision}}
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash

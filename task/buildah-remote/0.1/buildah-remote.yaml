@@ -182,7 +182,7 @@ spec:
     - name: SKIP_UNUSED_STAGES
       value: $(params.SKIP_UNUSED_STAGES)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -198,7 +198,7 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
     name: build
     script: |-
       #!/bin/bash
@@ -489,6 +489,8 @@ spec:
       else
         bash scripts/script-build.sh "$@"
       fi
+      echo "Build on remote host $SSH_HOST finished"
+
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
       buildah mount "$container" | tee /shared/container_path
@@ -516,7 +518,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.18.1@sha256:398f0ef395de137f05563d8de43e508bcb2e6810aa9d9adc638154b52c1a469c
+    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
     name: sbom-syft-generate
     script: |
       echo "Running syft on the source directory"
@@ -582,7 +584,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/konflux-ci/cachi2:0.18.0@sha256:7dd38ff89bcfaf1cd12cd69c2488a3163202efab82ecffd8b60c6928272dea34
+    image: quay.io/konflux-ci/cachi2:0.20.0@sha256:80402886bbc0f6b4deba65cf5f66dfe9a2c01ae0b57bf3454e3ea58e1a395720
     name: merge-cachi2-sbom
     script: |
       if [ -f "sbom-cachi2.json" ]; then
@@ -625,7 +627,7 @@ spec:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
     name: inject-sbom-and-push
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then

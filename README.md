@@ -91,6 +91,14 @@ Buildah also has a remote version, which can be generated with:
 ./hack/generate-buildah-remote.sh
 ```
 
+## Making changes to tasks and pipelines
+
+If your tasks or pipelines contains `kustomization.yaml`, after making changes to the tasks or pipelines, run `hack/build-manifests.sh` and
+commit the generated manifests as well to the same directory (in addition to your changes).
+It will help us to make sure the kustomize build of your changes is successful and nothing broken while review the changes.
+
+In CI, `hack/verify-manifests.sh` script will verify that you have submitted the built manifests as well while sending the PR. 
+
 ## Testing
 
 ### Prerequisites

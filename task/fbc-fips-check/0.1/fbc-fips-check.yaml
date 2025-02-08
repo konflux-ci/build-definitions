@@ -32,7 +32,6 @@ spec:
       computeResources:
         limits:
           memory: 8Gi
-          cpu: '2'
         requests:
           memory: 8Gi
           cpu: '1'
@@ -122,17 +121,16 @@ spec:
             fi
             subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["operators.openshift.io/valid-subscription"] != null) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
 
-            bundle_labels=$(get_image_labels "${bundle}")
-            fips_label=$(echo "${bundle_labels}" | grep '^features.operators.openshift.io/fips-compliant=' | cut -d= -f2 || true)
+            fips_annotation=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true") | .value.annotations["features.operators.openshift.io/fips-compliant"]')
 
             if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."
               echo "Subscription labels are : $subscription_label"
-              if [ -z "${fips_label}" ] || [ "${fips_label}" != "true" ]; then
-                echo "The label features.operators.openshift.io/fips-compliant is also not set to true. Skipping the FIPS static check for ${bundle}"
+              if [ -z "${fips_annotation}" ] || [ "${fips_annotation}" != "true" ]; then
+                echo "The annotation features.operators.openshift.io/fips-compliant is also not set to true. Skipping the FIPS static check for ${bundle}"
                 continue
               else
-                echo "The label features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
+                echo "The annotation features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
               fi
             else
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are present in operators.openshift.io/valid-subscription. Running the FIPS static check..."
@@ -171,13 +169,19 @@ spec:
     - name: fips-operator-check-step-action
       computeResources:
         limits:
-          memory: 512Mi
-          cpu: 200m
+          memory: 8Gi
         requests:
-          memory: 256Mi
-          cpu: 100m
+          memory: 8Gi
+          cpu: 500m
       ref:
-        name: fips-operator-check-step-action
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions
+          - name: revision
+            value: c366291f484f2510767a51d0f45d7bc37877e94e
+          - name: pathInRepo
+            value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
       image: quay.io/redhat-appstudio/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623

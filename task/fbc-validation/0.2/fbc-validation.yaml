@@ -1,0 +1,281 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-01-31T00:00:00Z"
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+  name: fbc-validation
+spec:
+  description: Ensures file-based catalog (FBC) components are uniquely linted for
+    proper construction as part of build pipeline.
+  params:
+  - description: Fully qualified image name.
+    name: IMAGE_URL
+  - description: Image digest.
+    name: IMAGE_DIGEST
+  - description: Fully qualified base image name.
+    name: BASE_IMAGE
+  results:
+  - description: Tekton task test output.
+    name: TEST_OUTPUT
+  steps:
+  - computeResources:
+      limits:
+        memory: 4Gi
+      requests:
+        cpu: 10m
+        memory: 512Mi
+    env:
+    - name: IMAGE_URL
+      value: $(params.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(params.IMAGE_DIGEST)
+    - name: BASE_IMAGE
+      value: $(params.BASE_IMAGE)
+    image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
+    name: extract-and-check-binaries
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      # shellcheck source=/dev/null
+      source /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      declare -a ALLOWED_BASE_IMAGES=(
+        "registry.redhat.io/openshift4/ose-operator-registry"
+        "registry.redhat.io/openshift4/ose-operator-registry-rhel9"
+        "brew.registry.redhat.io/rh-osbs/openshift-ose-operator-registry-rhel9"
+      )
+
+      ### FBC base image check
+      if [ -z "${BASE_IMAGE}" ]; then
+        echo "Base image is unknown. The file-based catalog must have base image defined. Check inspect-image task log."
+        note="Task $(context.task.name) failed: The file-based catalog must have base image defined. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      IMAGE_WITHOUT_TAG=$(echo "${BASE_IMAGE}" | sed "s/:.*$//" | sed "s/@.*$//")
+
+      allowed=false
+      for value in "${ALLOWED_BASE_IMAGES[@]}"
+      do
+        if [[ "${IMAGE_WITHOUT_TAG}" == "${value}" ]]; then
+          allowed=true
+          break
+        fi
+      done
+
+      if [[ "${allowed}" == false ]]; then
+        echo "Base image ${BASE_IMAGE} is not allowed for the file based catalog image. Allowed images: ${ALLOWED_BASE_IMAGES[*]}"
+        note="Task $(context.task.name) failed: Base image ${BASE_IMAGE} is not allowed for the file based catalog image. For details, check Tekton task logs"
+        TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      ### Try to extract binaries with configs > check binaries functionality > check opm validate ###
+      if [ ! -s ../inspect-image/image_inspect.json ]; then
+        echo "File $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. Check inspect-image task log."
+        note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      if [ ! -s ../inspect-image/raw_image_inspect.json ]; then
+        echo "File $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. Check inspect-image task log."
+        note="Task $(context.task.name) failed: $(workspaces.workspace.path)/hacbs/inspect-image/raw_image_inspect.json did not generate correctly. For details, check Tekton task result TEST_OUTPUT in task inspect-image."
+        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      echo "Getting base image for source image ${IMAGE_URL}."
+      base_image_name="$(jq -r ".annotations.\"org.opencontainers.image.base.name\"" ../inspect-image/raw_image_inspect.json)" || status=$?
+      if [ "$base_image_name" == 'null' ]; then
+        echo "Could not get annotations from inspect-image/raw_image_inspect.json. Make sure file exists and it contains this annotation: org.opencontainers.image.base.name"
+        echo "Try to get base image from label..."
+        base_image_name="$(jq -r ".Labels.\"org.opencontainers.image.base.name\"" ../inspect-image/image_inspect.json)" || status=$?
+        if [ "$base_image_name" == 'null' ]; then
+          echo "Cannot get base image info from Labels. For details, check source image ../inspect-image/image_inspect.json."
+          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+      fi
+      if [ -z "$base_image_name" ]; then
+        echo "Source image ${IMAGE_URL} is built from scratch, so there is no base image."
+        TEST_OUTPUT="$(make_result_json -r ERROR)"
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      status=0
+      conffolder=$(jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"' ../inspect-image/image_inspect.json) || status=$?
+      if [ $status -ne 0 ]; then
+        echo "Could not get labels from inspect-image/image_inspect.json. Make sure file exists and it contains this label: operators.operatorframework.io.index.configs.v1."
+        TEST_OUTPUT="$(make_result_json -r ERROR)"
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+      mkdir -p /tmp/image-content confdir
+      pushd /tmp/image-content
+      image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
+
+      if ! oc image extract --registry-config ~/.docker/config.json "${image_with_digest}" ; then
+        echo "Unable to extract or validate extracted binaries."
+        note="Task $(context.task.name) failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
+        ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        popd
+        exit 0
+      fi
+
+      # shellcheck disable=SC2086
+      if [ -z "$(ls -A .$conffolder)" ]; then
+        echo "$conffolder is missing catalog file."
+        TEST_OUTPUT="$(make_result_json -r ERROR)"
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        popd
+        exit 0
+      fi
+      # copy content of conffolder to confdir - will be used in next task - related image check
+      # shellcheck disable=SC2086
+      cp -r .$conffolder/* "$(workspaces.workspace.path)/hacbs/$(context.task.name)/confdir"
+
+      EXTRACT_DIR="/extracted_base_img"
+      mkdir "${EXTRACT_DIR}"
+      if ! oc image extract "${BASE_IMAGE}" --path /:"${EXTRACT_DIR}"; then
+        echo "Unable to extract opm binary"
+        note="Task $(context.task.name) failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
+        ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        exit 0
+      fi
+
+      OPM_BINARIES="$(find "${EXTRACT_DIR}" -type f -name opm)"
+      BINARIES_COUNT=$(wc -l <<< "${OPM_BINARIES}")
+      if [[ $BINARIES_COUNT -ne "1" ]]; then
+          note="Task $(context.task.name) failed: Expected exactly one opm binary in base image.  For details, check Tekton task log"
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          echo "found $BINARIES_COUNT opm binaries:"
+          echo "${OPM_BINARIES}"
+          exit 0
+      fi
+      OPM_BINARY=$(echo "${OPM_BINARIES}" | head -n 1)
+      echo "OPM_BINARY: '${OPM_BINARY}'"
+      chmod 775 "$OPM_BINARY"
+
+      # We have 6 total checks
+      check_num=6
+      failure_num=0
+      TESTPASSED=true
+
+      if [[ ! $(find . -name "grpc_health_probe") ]]; then
+        echo "!FAILURE! - grpc_health_probe binary presence check failed."
+        failure_num=$((failure_num + 1))
+        TESTPASSED=false
+      fi
+
+      if ! ${OPM_BINARY} validate ."${conffolder}"; then
+        echo "!FAILURE! - opm validate check failed."
+        failure_num=$((failure_num + 1))
+        TESTPASSED=false
+      fi
+
+      OPM_RENDERED_CATALOG=/tmp/catalog.json
+      ${OPM_BINARY} render ."${conffolder}" > ${OPM_RENDERED_CATALOG}
+      if [ ! -f ${OPM_RENDERED_CATALOG} ]; then
+        echo "!FAILURE! - unable to render the fragment FBC."
+        failure_num=$((failure_num + 1))
+        TESTPASSED=false
+      fi
+
+      if jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1' ${OPM_RENDERED_CATALOG}; then
+        echo "!FAILURE! - There are no olm package entries defined in this FBC fragment."
+        failure_num=$((failure_num + 1))
+        TESTPASSED=false
+      fi
+
+      # examines the base_image_name tag to derive the target OCP version
+      # assumes this is in the form
+      # image-path:[v]major-digits.minor-digits[@sha...]
+      OCP_VER_FROM_BASE=$(echo "${base_image_name}" | sed -e "s/@.*$//" -e "s/^.*://")   # strips hash first due to greedy match
+      # extracts major digits and filters out any leading alphabetic characters, for e.g. 'v4' --> '4'
+      OCP_VER_MAJOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 1 | sed "s/^[a-zA-Z]*//")
+      OCP_VER_MINOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 2)
+
+      RUN_OCP_VERSION_VALIDATION="false"
+      digits_regex='^[0-9]*$'
+      if [[ ${OCP_VER_MAJOR} =~ $digits_regex ]] && [[ ${OCP_VER_MINOR} =~ $digits_regex ]] ; then
+        RUN_OCP_VERSION_VALIDATION="true"
+      fi
+
+      if [ "${RUN_OCP_VERSION_VALIDATION}" == "false" ] ; then
+        echo "!WARNING! - unable to assess bundle metadata alignment with OCP version because we cannot extract version info from base_image_name: ${base_image_name}"
+      else
+        OCP_BUNDLE_METADATA_THRESHOLD_MAJOR=4
+        OCP_BUNDLE_METADATA_THRESHOLD_MINOR=17
+        OCP_BUNDLE_METADATA_FORMAT="olm.bundle.object"
+
+        if [[ "${OCP_VER_MAJOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MAJOR}" ]] && [[ "${OCP_VER_MINOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MINOR}" ]]; then
+           OCP_BUNDLE_METADATA_FORMAT="olm.csv.metadata"
+        fi
+
+        # enforce the presence of either olm.csv.metadata or olm.bundle.object based on OCP version
+        if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
+          if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
+            echo "!FAILURE! - olm.bundle.object bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must move to olm.csv.metadata bundle metadata."
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        else
+          if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
+            echo "!FAILURE! - olm.csv.metadata bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must only use olm.bundle.object bundle metadata."
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        fi
+
+        # enforce that each bundle has the OCP-version-appropriate bundle metadata.
+        BUNDLE_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema=="olm.bundle"))' ${OPM_RENDERED_CATALOG})
+        BUNDLE_BO_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object"))' ${OPM_RENDERED_CATALOG})
+        BUNDLE_CM_COUNT=$(jq -en 'def count(stream): reduce stream as $i (0; .+1); count(inputs|select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata"))' ${OPM_RENDERED_CATALOG})
+
+        if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
+          if [[ "${BUNDLE_COUNT}" -ne "${BUNDLE_CM_COUNT}" ]]; then
+            echo "!FAILURE! - every olm.bundle object in the fragment must have a corresponding olm.csv.metadata bundle property"
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        else
+          if [[ "${BUNDLE_BO_COUNT}" -lt "${BUNDLE_COUNT}" ]]; then
+            echo "!FAILURE! - every olm.bundle object in the fragment must have at least one olm.bundle.object bundle property"
+          failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+        fi
+      fi
+
+      note="Task $(context.task.name) completed: Check result for task result."
+      if [ $TESTPASSED == false ]; then
+        ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      else
+        TEST_OUTPUT=$(make_result_json -r SUCCESS -s $check_num -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      fi
+      popd
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+      runAsUser: 0
+    workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+  workspaces:
+  - name: workspace
