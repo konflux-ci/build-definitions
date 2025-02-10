@@ -66,11 +66,12 @@ spec:
           value: $(params.image)
         - name: PARAM_IMAGE_DIGEST
           value: $(params.image-digest)
+      onError: continue
       script: |
         #!/usr/bin/env bash
         set +x
 
-        # Check if rox API enpoint is configured
+        # Check if rox API endpoint is configured
         if test -f /rox-secret/rox-api-endpoint ; then
           export ROX_CENTRAL_ENDPOINT=$(</rox-secret/rox-api-endpoint)
         else
@@ -104,7 +105,7 @@ spec:
         fi
         received_filesize=$(stat -c%s ./roxctl)
         if (( $received_filesize < 10000 )); then
-          # Responce from ACS server is not a binary but error message
+          # Response from ACS server is not a binary but error message
           cat ./roxctl
           echo 'Failed to download roxctl'
           exit 2
@@ -118,7 +119,14 @@ spec:
           echo -n "--insecure-skip-tls-verify") \
           -e "${ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" --output json --force \
           > roxctl_image_check_output.json
+
+        ROXCTL_CHECK_STATUS=$?
+
         cp roxctl_image_check_output.json /steps-shared-folder/acs-image-check.json
+
+        if [ "$ROXCTL_CHECK_STATUS" -ne 0 ]; then
+          exit 3
+        fi
 
     - name: report
       image: registry.access.redhat.com/ubi8-minimal@sha256:d16d4445b1567f29449fba3b6d2bc37db467dc3067d33e940477e55aecdf6e8e
@@ -128,3 +136,17 @@ spec:
       script: |
         #!/usr/bin/env bash
         cat /steps-shared-folder/acs-image-check.json
+
+    - name: fail-if-rox-image-check-failed
+      image: registry.access.redhat.com/ubi8-minimal@sha256:d16d4445b1567f29449fba3b6d2bc37db467dc3067d33e940477e55aecdf6e8e
+      script: |
+        #!/usr/bin/env bash
+        ROX_IMAGE_CHECK_EXIT_CODE_PATH=$(steps.step-rox-image-check.exitCode.path)
+        ROX_IMAGE_CHECK_STATUS=$(cat "$ROX_IMAGE_CHECK_EXIT_CODE_PATH")
+
+        if [ "$ROX_IMAGE_CHECK_STATUS" -ne 0 ]; then
+          echo "rox-image-check step failed, please check its logs for errors"
+          exit "$ROX_IMAGE_CHECK_STATUS"
+        fi
+
+        echo "No errors occurred in rox-image-check step"
