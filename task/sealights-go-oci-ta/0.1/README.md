@@ -18,7 +18,6 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 |-----------------------|----------|---------------|-----------------------------------------------------------------------------------------------|
 | `SOURCE_ARTIFACT`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
 | `go-version`          | `string` | -             | The Go version to use (e.g., `1.21.3`).                                                       |
-| `sealights-secret`    | `string` | -             | The name of the OpenShift secret containing Sealights credentials.                            |
 | `component`           | `string` | -             | The name of the Konflux component associated with the integration tests.                      |
 | `scm-provider`        | `string` | `github`      | The SCM provider (e.g., `github`, `gitlab`).                                                  |
 | `packages-excluded`   | `array`  | `[]`          | List of Go packages to exclude from instrumentation (e.g., `pkg1`, `github.com/lib/concurrent`). |
