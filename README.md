@@ -224,7 +224,7 @@ modify pipeline in order to work with the new version of task.
 
 Historically, task maintainers write `MIGRATION.md` to notify users what changes
 have to be made to the pipeline. This mechanism is not deprecated. Besides
-writing the file, it is also recommended to write a migration so that the
+writing the document, it is also recommended to write a migration script so that the
 updates can be applied to user pipelines automatically.
 
 The following is the steps to write a migration:
@@ -237,14 +237,19 @@ The following is the steps to write a migration:
 
 The migration file is a normal Bash script file. It should
 
-- Accept one argument. The pipeline file path is passed to via this argument.
+- Accepts a single argument. The pipeline file path is provided via this
+  argument. The script must work with a Tekton Pipeline by modifying the
+  pipeline definition under the `.spec` field. In practice, regardless of whether
+  the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
+  extracted into a separate YAML file, the migration tool ensures that the
+  passed-in pipeline file contains the correct pipeline definition.
 - All modifications to the pipeline must be done in-place, i.e. using `yq
   -i` to operate the pipeline YAML.
 - Be idempotent as much as possible.
 - Be simple and small as much as possible.
 - Pass the `shellcheck` without customizing the default rules.
 
-Here are example script to create a migration for a task `task-a`:
+Here are example steps to create a migration for a task `task-a`:
 
 ```bash
 yq -i "(.metadata.labels.\"app.kubernetes.io/version\") |= \"0.2.2\"" task/task-a/0.2/task-a.yaml
