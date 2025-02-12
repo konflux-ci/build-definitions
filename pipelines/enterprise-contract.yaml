@@ -63,6 +63,10 @@ spec:
       type: string
       description: The name of the key in the ConfigMap that contains the CA bundle data.
       default: "ca-bundle.crt"
+    - name: EXTRA_RULE_DATA
+      type: string
+      description: Merge additional Rego variables into the policy data. Use syntax "key=value,key2=value2..."
+      default: ""
     - name: SINGLE_COMPONENT
       type: string
       description: Reduce the Snapshot to only the component whose build caused the Snapshot to be created
@@ -106,6 +110,8 @@ spec:
           value: "$(params.CA_TRUST_CONFIGMAP_NAME)"
         - name: CA_TRUST_CONFIG_MAP_KEY
           value: "$(params.CA_TRUST_CONFIG_MAP_KEY)"
+        - name: EXTRA_RULE_DATA
+          value: "$(params.EXTRA_RULE_DATA)"
         - name: SINGLE_COMPONENT
           value: "$(params.SINGLE_COMPONENT)"
         - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
