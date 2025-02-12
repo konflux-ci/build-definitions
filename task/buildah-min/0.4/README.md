@@ -1,0 +1,2 @@
+## This task is used during running e2e-tests when we have less memeory/cpu resources in the cluster
+## we replace buildah task with buildah-min in the docker-build pipeline before running test pipelines
