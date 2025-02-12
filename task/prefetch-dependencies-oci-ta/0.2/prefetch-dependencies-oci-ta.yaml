@@ -240,7 +240,7 @@ spec:
                         }
                       }'
             )"
-          elif is_json "$input" && input_json_has_rpm "$input"; then
+          elif is_json "$input" && [[ $(input_json_has_rpm "$input") == true ]]; then
             # The output JSON may need the SSL options updated for the RPM backend
             input="$(
               jq \
@@ -264,7 +264,7 @@ spec:
           if [ "$input" == "rpm" ]; then
             input="$(jq -n '{type: "rpm", include_summary_in_sbom: true}')"
 
-          elif is_json "$input" && input_json_has_rpm "$input"; then
+          elif is_json "$input" && [[ $(input_json_has_rpm "$input") == true ]]; then
             input="$(jq '
                         if type == "array" then
                           map(
