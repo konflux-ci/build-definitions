@@ -10,7 +10,7 @@
 # Use the template-build as a template replacing the Pipeline name and the
 # `build-container` step's task reference
 # Order of Tasks from the base template:
-# kustomize build pipelines/template-build/ | yq ".spec.tasks.[].name" | nl -v 0
+#  yq ".spec.tasks.[].name" pipelines/template-build/template-build.yaml | nl -v 0
 #      0  init
 #      1  clone-repository
 #      2  prefetch-dependencies
@@ -22,9 +22,13 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  apply-tags
-#     12  push-dockerfile
-#     13  rpms-signature-scan
+#     11  sast-coverity-check
+#     12  coverity-availability-check
+#     13  sast-shell-check
+#     14  sast-unicode-check
+#     15  apply-tags
+#     16  push-dockerfile
+#     17  rpms-signature-scan
 # Order of finally tasks from the base template:
 # kustomize build pipelines/template-build/ | yq ".spec.finally.[].name" | nl -v 0
 #      0  show-sbom
@@ -38,9 +42,9 @@
     value: $(params.path-context)
 # Remove tasks that assume a binary image
 - op: remove
-  path: /spec/tasks/13  # rpms-signature-scan
+  path: /spec/tasks/17  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/12  # push-dockerfile
+  path: /spec/tasks/16  # push-dockerfile
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
