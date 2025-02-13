@@ -38,8 +38,10 @@ VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
 
 declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
-declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
 declare -r TEST_TASKS=${TEST_TASKS:-""}
+
+declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
+declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
 
 AUTH_JSON=
 if [ -e "$XDG_RUNTIME_DIR/containers/auth.json" ]; then
@@ -251,10 +253,10 @@ build_push_task() {
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
     if [ "$has_migration" == "true" ]; then
-        ANNOTATIONS+=("dev.konflux-ci.task.migration=true")
+        ANNOTATIONS+=("${ANNOTATION_TASK_MIGRATION}=true")
     fi
 
-    ANNOTATIONS+=("dev.konflux-ci.task/previous-migration-bundle=${prev_bundle_digest}")
+    ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${prev_bundle_digest}")
 
     local -a ANNOTATION_FLAGS=()
     for annotation in "${ANNOTATIONS[@]}"; do
@@ -449,8 +451,8 @@ find_previous_migration_bundle_digest() {
         while read -r manifest_digest; do
             curl --fail -sL -o /tmp/manifest.json \
                 "https://quay.io/v2/${QUAY_NAMESPACE}/${repo}/manifests/${manifest_digest}"
-            prev_bundle_digest=$(jq -r '.annotations."dev.konflux-ci.task/previous-migration-bundle"' </tmp/manifest.json)
-            has_migration=$(jq -r '.annotations."dev.konflux-ci.task.migration"' </tmp/manifest.json)
+            prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" </tmp/manifest.json)
+            has_migration=$(jq -r ".annotations.\"${ANNOTATION_TASK_MIGRATION}\"" </tmp/manifest.json)
             if [ "$has_migration" == "true" ]; then
                 echo "$manifest_digest"
                 return
