@@ -178,38 +178,6 @@ spec:
       operator: in
       values:
       - "true"
-  - name: sast-coverity-check
-    params:
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    runAfter:
-    - coverity-availability-check
-    taskRef:
-      name: sast-coverity-check
-      version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
-    - input: $(tasks.coverity-availability-check.results.STATUS)
-      operator: in
-      values:
-      - success
-    workspaces:
-    - name: source
-      workspace: workspace
-  - name: coverity-availability-check
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: coverity-availability-check
-      version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: sast-shell-check
     params:
     - name: image-digest
