@@ -58,4 +58,6 @@ spec:
         | tee "$(results.bindings.path)"
 
         # Output is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
-        .tekton/scripts/determine-if-e2e-execution-needed.py "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
+        if [[ -n "${pr_number}" ]]; then
+          .tekton/scripts/determine-if-e2e-execution-needed.py "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
+        fi
