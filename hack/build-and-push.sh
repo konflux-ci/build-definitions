@@ -442,7 +442,7 @@ find_previous_migration_bundle_digest() {
     local -r task_version=${2:?Missing task version}
     local -r repo=${TEST_REPO_NAME:-task-${task_name}}
 
-    local -r url_list_recent_tags="https://quay.io/api/v1/repository/${QUAY_NAMESPACE}/${repo}/tag/?onlyActiveTags=true&limit=100"
+    local -r url_list_recent_tags="https://quay.io/api/v1/repository/${QUAY_NAMESPACE}/${repo}/tag/?onlyActiveTags=true&limit=30"
     local -r expr_filter_tags=".tags[] | select(.name | test(\"^(${task_name}-)?${task_version}-[0-9a-f]+\$\")) | .manifest_digest"
 
     local prev_bundle_digest has_migration
