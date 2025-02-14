@@ -70,7 +70,7 @@ spec:
         #!/usr/bin/env bash
         set +x
 
-        # Check if rox API enpoint is configured
+        # Check if rox API endpoint is configured
         if test -f /rox-secret/rox-api-endpoint ; then
           export ROX_CENTRAL_ENDPOINT=$(</rox-secret/rox-api-endpoint)
         else
@@ -104,7 +104,7 @@ spec:
         fi
         received_filesize=$(stat -c%s ./roxctl)
         if (( $received_filesize < 10000 )); then
-          # Responce from ACS server is not a binary but error message
+          # Response from ACS server is not a binary but error message
           cat ./roxctl
           echo 'Failed to download roxctl'
           exit 2
@@ -113,11 +113,15 @@ spec:
 
         echo "roxctl image check"
         IMAGE=${PARAM_IMAGE}@${PARAM_IMAGE_DIGEST}
-        ./roxctl image check \
+        if ! ./roxctl image check \
           $( [ "${PARAM_INSECURE_SKIP_TLS_VERIFY}" = "true" ] && \
           echo -n "--insecure-skip-tls-verify") \
           -e "${ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" --output json --force \
           > roxctl_image_check_output.json
+        then
+          echo "roxctl image check failed, see the errors above"
+          exit 3
+        fi
         cp roxctl_image_check_output.json /steps-shared-folder/acs-image-check.json
 
     - name: report
