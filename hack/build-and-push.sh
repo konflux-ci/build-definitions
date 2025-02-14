@@ -32,6 +32,11 @@
 #   testing purpose only. It is useful for checking the result task bundles
 #   generally. Note that, if used, the result pipelines are broken.
 
+# TODO: write smoke tests
+# TODO: consider moving build-and-push into separate file to avoid lots of export
+# TODO: handle task bundles injection for pipelines in parallel
+# TODO: is it worth caching task bundle taskRef to reduce the number of grep runs?
+
 set -e -o pipefail
 
 export VCS_URL=https://github.com/konflux-ci/build-definitions
@@ -537,12 +542,30 @@ build_push_tasks() {
 }
 
 inject_task_bundles_into_pipeilnes() {
-    # version placeholder is removed naturally by the substitution.
-    while read -r real_task_name task_version task_bundle_with_digest
-    do
-        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
-        inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
-    done </tmp/task_bundles_data
+    find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
+    while read -r pipeline_file; do
+        echo "info: injecting task bundles into pipeline $(yq '.metadata.name' "$pipeline_file") : $pipeline_file"
+        yq e '(.spec.tasks[], .spec.finally[]) | .taskRef | .name + " " + .version' "${pipeline_file}" | \
+        while read -r name version; do
+            regex="${name}.\+${version}@sha256"
+            if ! bundle_ref=$(grep "$regex" "$OUTPUT_TASK_BUNDLE_LIST"); then
+                echo "error: cannot find task bundle by regex '${regex}' for task ${name} and version ${version}" >&2
+                exit 1
+            fi
+            yq e "(
+                (.spec.tasks[], .spec.finally[]) | .taskRef |
+                select(.name == \"${name}\" and .version == \"${version}\")
+            ) |= {
+                \"resolver\": \"bundles\",
+                \"params\": [
+                    {\"name\": \"name\", \"value\": \"${name}\"},
+                    {\"name\": \"bundle\", \"value\": \"${bundle_ref}\"},
+                    {\"name\": \"kind\", \"value\": \"task\"}
+                ]
+            }
+            " -i "${pipeline_file}"
+        done
+    done
 }
 
 echo "start build and push tasks" >&2
