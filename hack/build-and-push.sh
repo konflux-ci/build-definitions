@@ -34,12 +34,13 @@
 
 set -e -o pipefail
 
-VCS_URL=https://github.com/konflux-ci/build-definitions
+export VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
+export VCS_REF
 
-declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
-declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
-declare -r TEST_TASKS=${TEST_TASKS:-""}
+export ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
+export ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
+export TEST_TASKS=${TEST_TASKS:-""}
 
 AUTH_JSON=
 if [ -e "$XDG_RUNTIME_DIR/containers/auth.json" ]; then
@@ -49,7 +50,7 @@ elif [ -e "$HOME/.docker/config.json" ]; then
 else
     echo "warning: cannot find registry authentication file." 1>&2
 fi
-declare -r AUTH_JSON
+export AUTH_JSON
 
 function is_official_repo() {
     # match e.g.
@@ -81,9 +82,10 @@ function should_skip_repo() {
 # local dev build script
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$SCRIPTDIR/.." || exit 1
+unset SCRIPTDIR
 
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
-declare -r WORKDIR
+export WORKDIR
 
 retry() {
     local status
@@ -158,11 +160,15 @@ fi
 # (This method is used in PR testing)
 : "${TEST_REPO_NAME:=}"
 
+export TEST_REPO_NAME
+
 APPSTUDIO_UTILS_IMG="quay.io/$QUAY_NAMESPACE/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
 
 OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
 OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
 rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
+
+export OUTPUT_TASK_BUNDLE_LIST OUTPUT_PIPELINE_BUNDLE_LIST
 
 # Build appstudio-utils image
 if [ "$SKIP_BUILD" == "" ]; then
@@ -431,8 +437,13 @@ attach_migration_file() {
     return 0
 }
 
-build_push_tasks() {
+build_push_single_task() {
+    local -r data_line=$1
+    # read from input data line
+    local task_dir task_name task_version
+
     local build_data
+    local concrete_task_version
     local task_bundle_with_digest
     local migration_file
     local prepared_task_file
@@ -440,6 +451,73 @@ build_push_tasks() {
     local task_bundle
     local output
     local has_migration
+
+    read -r task_dir task_name task_version <<<"$data_line"
+
+    echo "info: build and push task $task_dir" 1>&2
+
+    if is_normal_task "$task_dir" "$task_name";  then
+        build_data=$(generate_normal_task_build_data "$task_dir" "$task_name" "$task_version")
+    elif is_kustomized_task "$task_dir" "$task_name";  then
+        build_data=$(generate_kustomized_task_build_data "$task_dir" "$task_name" "$task_version")
+    else
+        echo "warning: skip handling task $task_dir since it does not follow a known task definition structure." 1>&2
+        return
+    fi
+
+    read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
+    digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
+
+    concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
+    migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
+
+    has_migration=false
+    if [ -f "$migration_file" ]; then
+        has_migration=true
+    fi
+
+    if [ -n "$digest" ]; then
+        task_bundle_with_digest=${task_bundle}@${digest}
+        echo "info: use existing $task_bundle_with_digest" 1>&2
+    else
+        echo "info: push new bundle $task_bundle" 1>&2
+
+        output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" "$has_migration")
+        echo "$output" >&2
+        echo
+
+        task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
+        task_bundle_with_digest=${task_bundle_with_digest##* }
+        cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
+    fi
+
+    if [ "$has_migration" == "true" ]; then
+        attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
+    fi
+
+    real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
+    echo "$real_task_name $task_version $task_bundle_with_digest" >>/tmp/task_bundles_data
+}
+
+export -f \
+    build_push_single_task \
+    build_push_task \
+    cache_get \
+    cache_set \
+    escape_tkn_bundle_arg \
+    fetch_image_digest \
+    generate_normal_task_build_data \
+    generate_tagged_task_bundle \
+    get_concrete_task_version \
+    is_kustomized_task \
+    is_normal_task \
+    is_official_repo \
+    retry \
+    save_ref \
+    attach_migration_file
+
+build_push_tasks() {
+    touch /tmp/task_bundles_data
 
     find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
@@ -449,60 +527,29 @@ build_push_tasks() {
         fi
 
         if should_skip_repo "$QUAY_NAMESPACE" "task-${task_name}"; then
-            echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated"
+            echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated" >&2
             continue
         fi
 
-        echo "info: build and push task $task_dir" 1>&2
-
-        if is_normal_task "$task_dir" "$task_name";  then
-            build_data=$(generate_normal_task_build_data "$task_dir" "$task_name" "$task_version")
-        elif is_kustomized_task "$task_dir" "$task_name";  then
-            build_data=$(generate_kustomized_task_build_data "$task_dir" "$task_name" "$task_version")
-        else
-            echo "warning: skip handling task $task_dir since it does not follow a known task definition structure." 1>&2
-            continue
-        fi
-
-        read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
-        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
-
-        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
-        migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
-
-        has_migration=false
-        if [ -f "$migration_file" ]; then
-            has_migration=true
-        fi
-
-        if [ -n "$digest" ]; then
-            task_bundle_with_digest=${task_bundle}@${digest}
-            echo "info: use existing $task_bundle_with_digest" 1>&2
-        else
-            echo "info: push new bundle $task_bundle" 1>&2
-
-            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" "$has_migration")
-            echo "$output" >&2
-            echo
-
-            task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
-            task_bundle_with_digest=${task_bundle_with_digest##* }
-            cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
-        fi
-
-        if [ "$has_migration" == "true" ]; then
-            attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
-        fi
-
-        # version placeholder is removed naturally by the substitution.
-        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
-        real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
-        inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
-    done
+        echo "$task_dir $task_name $task_version"
+    done | \
+    parallel -j 10 build_push_single_task
 }
 
+inject_task_bundles_into_pipeilnes() {
+    # version placeholder is removed naturally by the substitution.
+    while read -r real_task_name task_version task_bundle_with_digest
+    do
+        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
+        inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
+    done </tmp/task_bundles_data
+}
+
+echo "start build and push tasks" >&2
 build_push_tasks
 
+echo "inject task bundles into pipelines" >&2
+inject_task_bundles_into_pipeilnes
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then
@@ -516,9 +563,9 @@ if [ "$QUAY_NAMESPACE" == redhat-appstudio-tekton-catalog ]; then
     exit 0
 fi
 
-# Build Pipeline bundle with pipelines pointing to newly built task bundles
-for pipeline_yaml in "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml
-do
+build_push_pipeline() {
+    local -r pipeline_yaml=$1
+
     pipeline_name=$(yq e '.metadata.name' "$pipeline_yaml")
     pipeline_description=$(yq e '.spec.description' "$pipeline_yaml" | head -n 1)
     pipeline_dir="pipelines/${pipeline_name}/"
@@ -558,23 +605,38 @@ do
     retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
-    [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
-    [ "$pipeline_name" == "docker-build-oci-ta" ] && docker_oci_ta_pipeline_bundle=$pipeline_bundle
-    [ "$pipeline_name" == "docker-build-multi-platform-oci-ta" ] && docker_multi_platform_oci_ta_pipeline_bundle=$pipeline_bundle
-    [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
+    if [ "$pipeline_name" == "docker-build" ]; then
+        echo "$pipeline_bundle" >/tmp/docker-build-pipeline-bundle
+    fi
+    if [ "$pipeline_name" == "docker-build-oci-ta" ]; then
+        echo "$pipeline_bundle" >/tmp/docker-build-oci-ta-pipeline-bundle
+    fi
+    if [ "$pipeline_name" == "docker-build-multi-platform-oci-ta" ]; then
+        echo "$pipeline_bundle" >/tmp/docker-build-multi-platform-oci-ta-pipeline-bundle
+    fi
+    if [ "$pipeline_name" == "fbc-builder" ]; then
+        echo "$pipeline_bundle" >/tmp/fbc-builder-pipeline-bundle
+    fi
+
     if [ "$SKIP_DEVEL_TAG" == "" ] && is_official_repo "$QUAY_NAMESPACE" && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
     fi
-done
+}
+
+export -f build_push_pipeline
+
+# Build Pipeline bundle with pipelines pointing to newly built task bundles
+find "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml | parallel -j 5 build_push_pipeline
 
 if [ "$SKIP_INSTALL" == "" ]; then
     rm -f bundle_values.env
-
-    echo "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$docker_pipeline_bundle" >> bundle_values.env
-    echo "export CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE=$docker_oci_ta_pipeline_bundle" >> bundle_values.env
-    echo "export CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE=$docker_multi_platform_oci_ta_pipeline_bundle" >> bundle_values.env
-    echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" >> bundle_values.env
+    {
+        echo "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$(cat /tmp/docker-build-pipeline-bundle)"
+        echo "export CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE=$(cat /tmp/docker-build-oci-ta-pipeline-bundle)"
+        echo "export CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE=$(cat /tmp/docker-build-multi-platform-oci-ta-pipeline-bundle)"
+        echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$(cat /tmp/fbc-builder-pipeline-bundle)"
+    } >bundle_values.env
 fi
 
 
