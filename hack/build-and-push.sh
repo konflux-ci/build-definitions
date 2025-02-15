@@ -538,7 +538,7 @@ build_push_tasks() {
 
         echo "$task_dir $task_name $task_version"
     done | \
-    parallel -j 10 build_push_single_task
+    parallel -k -j 10 build_push_single_task
 }
 
 inject_task_bundles_into_pipeilnes() {
@@ -650,7 +650,7 @@ build_push_pipeline() {
 export -f build_push_pipeline
 
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
-find "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml | parallel -j 5 build_push_pipeline
+find "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml | parallel -k -j 5 build_push_pipeline
 
 if [ "$SKIP_INSTALL" == "" ]; then
     rm -f bundle_values.env
