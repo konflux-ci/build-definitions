@@ -608,6 +608,11 @@ spec:
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
+      PODMAN_NVIDIA_ARGS=()
+      if [[ "$PLATFORM" == "linux-g"* ]]; then
+          PODMAN_NVIDIA_ARGS+=("--device=nvidia.com/gpu=all" "--security-opt=label=disable")
+      fi
+
       if ! [[ $IS_LOCALHOST ]]; then
         PRIVILEGED_NESTED_FLAGS=()
         if [[ "${PRIVILEGED_NESTED}" == "true" ]]; then
@@ -654,7 +659,7 @@ spec:
           -v "$BUILD_DIR/results/:/tekton/results:Z" \
           -v "$BUILD_DIR/scripts:/scripts:Z" \
           "${PRIVILEGED_NESTED_FLAGS[@]}" \
-          --user=0  --rm  "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
