@@ -49,9 +49,9 @@ spec:
             printf "package rule\n%s\n" "${!i}" > "${rules}/$i.rego"
         done
 
-        git remote -v
         echo "SOURCE BRANCH: $(params.source_branch)"
-        git diff --name-only "$(params.source_branch)" main
+        echo "GET MERGE BASE:"
+        echo "$(git merge-base "$(params.source_branch)" main)"
 
         # ec opa check --v1-compatible "${rules}"
 
