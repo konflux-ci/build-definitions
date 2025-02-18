@@ -50,7 +50,7 @@ spec:
         done
 
         echo "SOURCE BRANCH: $(params.source_branch)"
-        git branch
+        git diff --name-only "$(params.source_branch)" FETCH_HEAD
         # ec opa check --v1-compatible "${rules}"
 
         # pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
