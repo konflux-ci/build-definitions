@@ -70,6 +70,8 @@ spec:
               - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
               - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
+          - name: source_branch
+            value: "{{ source_branch }}"
         runAfter:
           - build-appstudio-utils
         workspaces:
