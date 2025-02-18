@@ -63,7 +63,7 @@ spec:
         name: workdir
   steps:
     - name: inspect-image
-      image: quay.io/konflux-ci/konflux-test:v1.4.15@sha256:23a7e8c745a037da283f18f5e5108598efeaeb5263d599411b6c4a25c42c6f94
+      image: quay.io/arewm/konflux-test:latest@sha256:ca4124c55acdff77804bcfd2e1ad1c726615eb087d30ec27ec7b1190e390c212
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/inspect-image
@@ -205,7 +205,7 @@ spec:
             exit 0
         fi
     - name: extract-and-validate
-      image: quay.io/konflux-ci/konflux-test:v1.4.15@sha256:23a7e8c745a037da283f18f5e5108598efeaeb5263d599411b6c4a25c42c6f94
+      image: quay.io/arewm/konflux-test:latest@sha256:ca4124c55acdff77804bcfd2e1ad1c726615eb087d30ec27ec7b1190e390c212
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -216,9 +216,9 @@ spec:
             - SETFCAP
       computeResources:
         limits:
-          memory: 8Gi
+          memory: 4Gi
         requests:
-          memory: 8Gi
+          memory: 512Mi
           cpu: 10m
       script: |
         #!/usr/bin/env bash
