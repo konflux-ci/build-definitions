@@ -1,0 +1,81 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-sast-unicode-check
+spec:
+  description: |
+    Test the sast-unicode-check task with a customer repository
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-unicode-check:latest"
+    - name: clone-repository
+      runAfter:
+        - run-task
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      params:
+        - name: url
+          value: https://github.com/konflux-ci/test-data-sast
+        - name: revision
+          value: main
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/git-clone/0.1/git-clone.yaml
+    - name: scan-with-unicode
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: sast-unicode-check
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-unicode-check:latest"
+    - name: check-result
+      runAfter:
+        - scan-with-unicode
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+              echo "Check-result"
+              # Extract findings stats from the resulting SARIF data
+              output=$(csgrep --mode=evtstat "$(workspaces.workspace.path)"/hacbs/sast-unicode-check/sast_unicode_check_out.sarif | tr -d '\n')
+              expected="    196	UNICONTROL_WARNING                              	warning"
+              # Compare output with expected string
+              if [[ "$output" == "$expected" ]]; then
+                echo "Test passed!"
+              else
+                echo "Test failed!"
+                echo "Actual output: [$output]"
+                echo "Expected output: [$expected]"
+                return 1
+              fi
