@@ -63,7 +63,7 @@ spec:
         name: workdir
   steps:
     - name: inspect-image
-      image: quay.io/arewm/konflux-test:latest@sha256:ca4124c55acdff77804bcfd2e1ad1c726615eb087d30ec27ec7b1190e390c212
+      image: quay.io/konflux-ci/konflux-test:v1.4.16@sha256:c0e83dbc73921cc990994420d656c80a705da38feb2cdd57b5e8c4e4245ce703
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/inspect-image
@@ -205,7 +205,7 @@ spec:
             exit 0
         fi
     - name: extract-and-validate
-      image: quay.io/arewm/konflux-test:latest@sha256:ca4124c55acdff77804bcfd2e1ad1c726615eb087d30ec27ec7b1190e390c212
+      image: quay.io/konflux-ci/konflux-test:v1.4.16@sha256:c0e83dbc73921cc990994420d656c80a705da38feb2cdd57b5e8c4e4245ce703
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -216,9 +216,9 @@ spec:
             - SETFCAP
       computeResources:
         limits:
-          memory: 4Gi
+          memory: 6Gi
         requests:
-          memory: 512Mi
+          memory: 6Gi
           cpu: 10m
       script: |
         #!/usr/bin/env bash
@@ -255,7 +255,17 @@ spec:
 
         if [[ "${allowed}" == false ]]; then
           echo "Base image ${base_image_with_digest} is not allowed for the file based catalog image. Allowed images: " "${ALLOWED_BASE_IMAGES[@]}"
-          note="Step extract-and-validate failed: Base image ${base_image_with_digest} is not allowed for the file based catalog image. For details, check Tekton task logs"
+          note="Step extract-and-validate failed: Base image ${base_image_with_digest} is not allowed for the file based catalog image. For details, check Tekton task logs."
+          TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        status=0
+        OCP_VER_FROM_BASE=$(get_ocp_version_from_fbc_fragment "$image_with_digest") || status=$?
+        if [ $status -ne 0 ]; then
+          echo "!FAILURE! - Could not get OCP version. See https://konflux-ci.dev/architecture/ADR/0026-specifying-ocp-targets-for-fbc.html for defining the parent image."
+          note="Step extract-and-validate failed: Could not get the OCP version from the base.  For details, check Tekton task logs."
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
@@ -371,7 +381,6 @@ spec:
         # examines the base image tag to derive the target OCP version
         # assumes this is in the form
         # image-path:[v]major-digits.minor-digits[@sha...]
-        OCP_VER_FROM_BASE=$(get_ocp_version_from_fbc_fragment "$image_with_digest")
         # extracts major digits and filters out any leading alphabetic characters, for e.g. 'v4' --> '4'
         OCP_VER_MAJOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 1 | sed "s/^[a-zA-Z]*//")
         OCP_VER_MINOR=$(echo "${OCP_VER_FROM_BASE}" | cut -d '.' -f 2)
@@ -431,29 +440,32 @@ spec:
         # Get the new related images that are being added so that we can check them for validity
         echo "Rendering target index and finding unreleased related images."
         status=0
-        get_unreleased_fbc_related_images -i "$image_with_digest" > /shared/related-images.json || status=$?
+        related_images=$(get_unreleased_fbc_related_images -i "$image_with_digest") || status=$?
         if [ $status -ne 0 ]; then
+          get_unreleased_fbc_related_images -i "$image_with_digest"
           echo "!FAILURE! - Could not get related images."
           note="Step extract-and-validate failed: Could not fetch related images. Make sure you have catalog.yaml or catalog.json formatted correctly in your file-based catalog (FBC) fragment image."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
-        fi
+        else
+          echo -n "$related_images" > /shared/related-images.json
 
-        # A while loop executed in a subshell so we will check for failure based
-        # on whether /tmp/failedimages exists.
-        echo -e "Related images detected:\n$(jq -cr '.[]' /shared/related-images.json )."
-        echo "Testing related images for validity"
-        # cycle through those related images and show outputs
-        jq -cr '.[]' /shared/related-images.json | while read -r image; do
-          if ! skopeo inspect --no-tags "docker://${image}" 2>/dev/null; then
-            echo "Skopeo inspect failed on related image: ${image}." | tee -a /tmp/failedimages
+          # A while loop executed in a subshell so we will check for failure based
+          # on whether /tmp/failedimages exists.
+          echo -e "Related images detected:\n$(jq -cr '.[]' /shared/related-images.json )."
+          echo "Testing related images for validity"
+          # cycle through those related images and show outputs
+          jq -cr '.[]' /shared/related-images.json | while read -r image; do
+            if ! skopeo inspect --no-tags "docker://${image}" 2>/dev/null; then
+              echo "Skopeo inspect failed on related image: ${image}." | tee -a /tmp/failedimages
+            fi
+          done
+
+          if [ -s /tmp/failedimages ]; then
+            note="Step extract-and-validate failed: Command skopeo inspect could not inspect images. For details, check Tekton task log."
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
           fi
-        done
-
-        if [ -s /tmp/failedimages ]; then
-          note="Step extract-and-validate failed: Command skopeo inspect could not inspect images. For details, check Tekton task log."
-          failure_num=$((failure_num + 1))
-          TESTPASSED=false
         fi
 
         if [ $TESTPASSED == false ]; then
