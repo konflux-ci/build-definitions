@@ -30,13 +30,6 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
-    - name: go-version
-      default: "latest"
-      type: string
-      description: >-
-        "The Go version to use with the 'ubi8/go-toolset' image, in the format '1.x.y' (e.g., '1.21.3'). The go version should be
-        compatible with tags from the Red Hat catalog: https://catalog.redhat.com/software/containers/ubi8/go-toolset/5ce8713aac3db925c03774d1".
-        By default will use latest version of the go-toolset image.
     - name: component
       type: string
       description: "The name of the Konflux component associated with the integration tests."
@@ -93,7 +86,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sealights-go-instrumentation
-      image: registry.access.redhat.com/ubi8/go-toolset:$(params.go-version)
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:512a2d5359f8a7b36c73af3c24fc9e96721c80de75610b3d323085cb2ddd2b50
       computeResources:
         limits:
           memory: 6Gi
@@ -135,9 +128,6 @@ spec:
         SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
         BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
         PACKAGES_EXCLUDED_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
-
-        wget -qO- https://agents.sealights.co/slgoagent/latest/slgoagent-linux-amd64.tar.gz | tar -xzv -C /usr/local/bin
-        wget -qO- https://agents.sealights.co/slcli/latest/slcli-linux-amd64.tar.gz | tar -xzv -C /usr/local/bin
 
         slcli config init --lang go --token "${SEALIGHTS_TOKEN}"
 
