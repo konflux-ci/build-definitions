@@ -224,7 +224,7 @@ spec:
       value: $(params.COV_ANALYZE_ARGS)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
+    image: quay.io/redhat-services-prod/sast/coverity:202412.3
     name: prepare
     script: |
       #!/bin/bash
@@ -311,7 +311,7 @@ spec:
       chmod -v 0755 /shared/cmd-wrap.sh
 
       # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
-      cstrans-df-run --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile 2> /tmp/cstrans-df-run.log
+      cstrans-df-run --shell-form --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile 2> /tmp/cstrans-df-run.log
       EC=$?
 
       # if we have no RUN lines to instrument, it is not a reason to make the task fail
@@ -349,7 +349,7 @@ spec:
         /shared:/shared
         /shared/license.dat:/opt/coverity/bin/license.dat
         /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
+    image: quay.io/redhat-services-prod/sast/coverity:202412.3
     name: build
     script: |
       #!/bin/bash
@@ -678,7 +678,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
-    image: quay.io/redhat-services-prod/sast/coverity:202412.2
+    image: quay.io/redhat-services-prod/sast/coverity:202412.3
     name: postprocess
     script: |
       #!/bin/bash -e
