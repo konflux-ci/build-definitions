@@ -34,6 +34,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |PRIVILEGED_NESTED|Whether to enable privileged mode|false|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
+|BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
 
 ## Results
 |name|description|
