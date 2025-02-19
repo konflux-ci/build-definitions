@@ -12,6 +12,7 @@ This takes existing Image Manifests and combines them in an Image Index.
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |ALWAYS_BUILD_INDEX|Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.|true|false|
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
+|BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
 
 ## Results
 |name|description|

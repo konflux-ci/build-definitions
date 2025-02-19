@@ -133,6 +133,11 @@ spec:
       format.'
     name: SBOM_TYPE
     type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci (default) or docker.
+    name: BUILDAH_FORMAT
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -161,7 +166,7 @@ spec:
         memory: 1Gi
     env:
     - name: BUILDAH_FORMAT
-      value: oci
+      value: $(params.BUILDAH_FORMAT)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC

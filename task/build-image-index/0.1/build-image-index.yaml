@@ -38,6 +38,10 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
+  - name: BUILDAH_FORMAT
+    description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
+    type: string
+    default: oci
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -57,7 +61,7 @@ spec:
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
-      value: oci
+      value: $(params.BUILDAH_FORMAT)
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: IMAGE
