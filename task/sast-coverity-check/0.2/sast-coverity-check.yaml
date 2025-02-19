@@ -280,7 +280,12 @@ spec:
 
       # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
       /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
-        -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
+        -- /bin/bash -c "PS4='@\\\${SECONDS}s: \\\${BASH_COMMAND} --> '
+        set -x
+        pwd >&2  # print CWD set by coverity
+        cd '\${PWD}'  # restore original CWD
+        \\"\\\$@\\"  # run the instrumented shell command
+        echo \\\$? >/tmp/idir/build-cmd-ec.txt" \
         - "\$@"
 
       # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
