@@ -40,7 +40,8 @@ VCS_REF=$(git rev-parse HEAD)
 declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
 declare -r TEST_TASKS=${TEST_TASKS:-""}
 
-declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
+declare -r ANNOTATION_HAS_MIGRATION="dev.konflux-ci.task.has-migration"
+declare -r ANNOTATION_IS_MIGRATION="dev.konflux-ci.task.is-migration"
 # The annotation value points to the task bundle which has a migration that's most recent to the task with the annotation
 declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
 
@@ -254,7 +255,7 @@ build_push_task() {
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
     if [ "$has_migration" == "true" ]; then
-        ANNOTATIONS+=("${ANNOTATION_TASK_MIGRATION}=true")
+        ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
     fi
 
     ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${prev_bundle_digest}")
@@ -392,7 +393,7 @@ attach_migration_file() {
         retry oras discover "$task_bundle" --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" --format json | \
         jq -r "
             .manifests[]
-            | select(.annotations.\"${ANNOTATION_TASK_MIGRATION}\" == \"true\")
+            | select(.annotations.\"${ANNOTATION_IS_MIGRATION}\" == \"true\")
             | .reference"
     )
     while read -r artifact_ref; do
@@ -427,7 +428,7 @@ attach_migration_file() {
         retry oras attach \
             --registry-config "$AUTH_JSON" \
             --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
-            --annotation "$ANNOTATION_TASK_MIGRATION=true" \
+            --annotation "${ANNOTATION_IS_MIGRATION}=true" \
             "$task_bundle" "${migration_file##*/}"
     )
 
@@ -462,7 +463,7 @@ find_previous_migration_bundle_digest() {
     curl --fail -sL -o /tmp/manifest.json "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
 
     local has_migration
-    has_migration=$(jq -r ".annotations.\"${ANNOTATION_TASK_MIGRATION}\"" </tmp/manifest.json)
+    has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" </tmp/manifest.json)
     if [ "$has_migration" == "true" ]; then
         echo "$manifest_digest"
         return 0
