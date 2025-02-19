@@ -131,6 +131,11 @@ spec:
       format.'
     name: SBOM_TYPE
     type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci (default) or docker.
+    name: BUILDAH_FORMAT
+    type: string
   - name: image-url
     type: string
   - default: cov-license
@@ -171,8 +176,6 @@ spec:
         cpu: "1"
         memory: 1Gi
     env:
-    - name: BUILDAH_FORMAT
-      value: oci
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
@@ -366,7 +369,7 @@ spec:
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
       elif [ -e "$DOCKERFILE" ]; then
-        # Instrumented builds (SAST) use this custom dockerffile step as their base
+        # Instrumented builds (SAST) use this custom dockerfile step as their base
         dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"

@@ -29,6 +29,11 @@ spec:
       build'
     name: ADD_CAPABILITIES
     type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci (default) or docker.
+    name: BUILDAH_FORMAT
+    type: string
   - default: []
     description: Array of --build-arg values ("arg=value" strings)
     name: BUILD_ARGS
@@ -175,8 +180,6 @@ spec:
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
       value: $(params.ADD_CAPABILITIES)
-    - name: BUILDAH_FORMAT
-      value: oci
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
     - name: CONTEXT
@@ -324,7 +327,7 @@ spec:
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
       elif [ -e "$DOCKERFILE" ]; then
-        # Instrumented builds (SAST) use this custom dockerffile step as their base
+        # Instrumented builds (SAST) use this custom dockerfile step as their base
         dockerfile_path="$DOCKERFILE"
       elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
         echo "Fetch Dockerfile from $DOCKERFILE"
@@ -619,7 +622,6 @@ spec:
           -e ACTIVATION_KEY="$ACTIVATION_KEY" \
           -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
           -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
-          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
           -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
           -e CONTEXT="$CONTEXT" \
           -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
@@ -706,6 +708,9 @@ spec:
       name: varlibcontainers
     workingDir: /var/workdir
   - computeResources: {}
+    env:
+    - name: BUILDAH_FORMAT
+      value: $(params.BUILDAH_FORMAT)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
     name: push
     script: |
@@ -723,10 +728,19 @@ spec:
         update-ca-trust
       fi
 
+      # While we can build images with the desired format, we will simplify any local
+      # and remote build differences by just performing any necessary conversions at
+      # push time.
+      push_format=oci
+      if [ "${BUILDAH_FORMAT}" == "docker" ]; then
+        push_format=docker
+      fi
+
       retries=5
       # Push to a unique tag based on the TaskRun name to avoid race conditions
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
       if ! buildah push \
+        --format="$push_format" \
         --retry "$retries" \
         --tls-verify="$TLSVERIFY" \
         "$IMAGE" \
@@ -738,6 +752,7 @@ spec:
       # Push to a tag based on the git revision
       echo "Pushing to ${IMAGE}"
       if ! buildah push \
+        --format="$push_format" \
         --retry "$retries" \
         --tls-verify="$TLSVERIFY" \
         --digestfile "/var/workdir/image-digest" "$IMAGE" \
