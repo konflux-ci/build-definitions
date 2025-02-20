@@ -9,6 +9,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |depth|Perform a shallow clone, fetching only the most recent N commits.|1|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. |true|false|
+|fetchSubmoduleTags|Fetch all tags from all submodules.|false|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
 |httpProxy|HTTP proxy server for non-SSL requests.|""|false|
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
