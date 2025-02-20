@@ -14,6 +14,8 @@ SKIP_TASKS="generate-odcs-compose provision-env-with-ephemeral-namespace verify-
 
 SKIP_PIPELINES="gitops-pull-request-rhtap"
 
+warning_message="# WARNING: This is an auto generated file, do not modify this file directly"
+
 main() {
     local dirs
 
@@ -45,6 +47,8 @@ main() {
             echo "failed to build task: $task_name" >&2
             ret=1
         fi
+        # Add a warning message in the generated file
+        sed -i "1 i $warning_message" "task/$task_name/$task_version/$task_name.yaml"
     done
 
     find pipelines/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3 }' | \
@@ -73,6 +77,8 @@ main() {
             echo "failed to build pipeline: $pipeline_name" >&2
             ret=1
         fi
+        # Add a warning message in the generated file
+        sed -i "1 i $warning_message" "pipelines/$pipeline_name/$pipeline_name.yaml"
     done
 
     exit "$ret"
