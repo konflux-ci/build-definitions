@@ -29,9 +29,6 @@ spec:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code.
       type: string
-    - name: nodejs-version
-      type: string
-      description: "The Node.js version to use with the 'ubi8/nodejs' image, in the format (e.g., '20')."
     - name: component
       type: string
       description: "The name of the Konflux component associated with the integration tests."
@@ -100,7 +97,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: registry.access.redhat.com/ubi8/nodejs-$(params.nodejs-version):latest
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-nodejs:latest@sha256:f66fae63d45959c98e142bdd4c9fed14f970183257d631c372965de6e963df0f
       workingDir: /opt/app-root/src
       securityContext:
         runAsUser: 0
@@ -138,15 +135,6 @@ spec:
         SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
         BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
         PATHS_EXCLUDED_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
-
-        # Download jq in order to help determine the Agent version below
-        curl -Lso jq https://github.com/stedolan/jq/releases/download/jq-1.7.1/jq-linux64 && chmod +x jq && mkdir -p /opt/app-root/bin && mv jq /opt/app-root/bin/jq
-
-        # Installs Sealights Node.js agent.
-        # Fetch Agent version defined in Sealights dashboard settings
-        SL_VERSION=$(curl -X GET "https://redhat.sealights.co/api/v2/agents/slnodejs/recommended" -H "accept: application/json" -H "Authorization: Bearer $SEALIGHTS_TOKEN" -L | jq -r .agent.version)
-        # Install Sealights Agent (Recommended version)
-        npm i -g "slnodejs@$SL_VERSION"
 
         # In case build is coming from a /retest event then it's a pull_request
         # if event type is not push and pull_request_number is not empty then is a pull_request

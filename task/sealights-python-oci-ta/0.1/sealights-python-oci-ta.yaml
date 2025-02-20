@@ -26,9 +26,6 @@ spec:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code.
       type: string
-    - name: python-version
-      type: string
-      description: "The Python version to use with the 'ubi8/python' image, in the format (e.g., '311')."
     - name: component
       type: string
       description: "The name of the Konflux component associated with the integration tests."
@@ -88,7 +85,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: registry.access.redhat.com/ubi8/python-$(params.python-version):latest
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-python:latest@sha256:b26ce3d6237492d61edc13e73693c3d4d0e7b9446c4f02fa9ee04fbc0fcf9297
       workingDir: /app/source
       securityContext:
         runAsUser: 0
@@ -123,9 +120,6 @@ spec:
         SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
         BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
         EXCLUDE_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
-
-        # Installs Sealights Python agent.
-        pip install sealights-python-agent
 
         # In case build is coming from a /retest event then it's a pull_request
         # if event type is not push and pull_request_number is not empty then is a pull_request

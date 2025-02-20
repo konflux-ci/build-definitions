@@ -17,7 +17,6 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 | Name                  | Type     | Default       | Description                                                                                   |
 |-----------------------|----------|---------------|-----------------------------------------------------------------------------------------------|
 | `SOURCE_ARTIFACT`     | `string` | -             | The Trusted Artifact URI pointing to the source code.                                         |
-| `nodejs-version`      | `string` | -             | The Node.js version to use with the 'ubi8/nodejs' image, in the format (e.g., '311').          |                                             |
 | `component`           | `string` | -             | The name of the Konflux component associated with the integration tests.                      |
 | `is-frontend`           | `string` | "false"             | In case of frontend application the scanning part is skipped (it needs to be performed during deployment)                      |
 | `scm-provider`        | `string` | `Github`         | The SCM provider (e.g., `Github`).                                                               |
