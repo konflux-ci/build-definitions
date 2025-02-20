@@ -90,7 +90,7 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: set-skip-for-bundles
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.15@sha256:23a7e8c745a037da283f18f5e5108598efeaeb5263d599411b6c4a25c42c6f94
       results:
       - name: test-output
         description: A skipped tekton result for bundles.
@@ -119,7 +119,7 @@ spec:
           mountPath: /bundle
 
     - name: app-check
-      image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
+      image: quay.io/opdev/preflight:stable@sha256:245e8ed99dfc6ac8fb826d430edaab45915bd6659be1ae385367aed8316ff868
       args: ["check", "container", "$(params.image-url)"]
       env:
         - name: PFLT_DOCKERCONFIG
