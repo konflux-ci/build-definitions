@@ -271,7 +271,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.2
+      image: quay.io/redhat-services-prod/sast/coverity:202412.3
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -336,7 +336,12 @@ spec:
 
         # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
         /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
-          -- /bin/bash -c 'PS4="@\\\${SECONDS}s: \\\${BASH_COMMAND} --> "; set -x; "\$@"; echo \$? >/tmp/idir/build-cmd-ec.txt' \
+          -- /bin/bash -c "PS4='@\\\${SECONDS}s: \\\${BASH_COMMAND} --> '
+          set -x
+          pwd >&2  # print CWD set by coverity
+          cd '\${PWD}'  # restore original CWD
+          \\"\\\$@\\"  # run the instrumented shell command
+          echo \\\$? >/tmp/idir/build-cmd-ec.txt" \
           - "\$@"
 
         # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
@@ -367,7 +372,7 @@ spec:
         chmod -v 0755 /shared/cmd-wrap.sh
 
         # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
-        cstrans-df-run --verbose /shared/cmd-wrap.sh <"$dockerfile_path" >/shared/Containerfile 2>/tmp/cstrans-df-run.log
+        cstrans-df-run --shell-form --verbose /shared/cmd-wrap.sh <"$dockerfile_path" >/shared/Containerfile 2>/tmp/cstrans-df-run.log
         EC=$?
 
         # if we have no RUN lines to instrument, it is not a reason to make the task fail
@@ -378,7 +383,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.2
+      image: quay.io/redhat-services-prod/sast/coverity:202412.3
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -709,7 +714,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.2
+      image: quay.io/redhat-services-prod/sast/coverity:202412.3
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
