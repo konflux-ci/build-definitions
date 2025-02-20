@@ -85,6 +85,12 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
 |POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
+### fbc-fips-check-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+|image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### fbc-target-index-pruning-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -159,9 +165,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; validate-fbc:0.1:IMAGE_DIGEST ; fbc-target-index-pruning-check:0.1:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; validate-fbc:0.1:IMAGE_DIGEST ; fbc-target-index-pruning-check:0.1:IMAGE_DIGEST ; fbc-fips-check-oci-ta:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.1:IMAGE ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.1:IMAGE ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-remote-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -171,6 +177,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_URL| Image repository and tag where the built image was pushed| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### deprecated-image-check:0.5 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|TEST_OUTPUT| Tekton task test output.| |
+### fbc-fips-check-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
@@ -198,7 +209,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.4:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.4:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.4:SOURCE_ARTIFACT ; fbc-fips-check-oci-ta:0.1:SOURCE_ARTIFACT|
 ### validate-fbc:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|

@@ -120,3 +120,23 @@
       value: registry.redhat.io/redhat/redhat-operator-index
     - name: RENDERED_CATALOG_DIGEST
       value: $(tasks.validate-fbc.results.RENDERED_CATALOG_DIGEST)
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-fips-check-oci-ta
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - build-image-index
+    taskRef:
+      name: fbc-fips-check-oci-ta
+      version: "0.1"
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
