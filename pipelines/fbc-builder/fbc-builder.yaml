@@ -274,6 +274,24 @@ spec:
       operator: in
       values:
       - "false"
+  - name: fbc-fips-check-oci-ta
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: fbc-fips-check-oci-ta
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
   workspaces:
   - name: git-auth
     optional: true
