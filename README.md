@@ -223,3 +223,60 @@ Currently, there are three policy configurations.
 
 A build Task, e.g. one that produces a container image, must abide by both `all-tasks` and
 `build-tasks` policy configurations.
+
+## Task Migration
+
+Task migrations are Bash scripts defined in version-specific task
+directories. In general, a migration consists of a series of `yq` commands that
+modify pipeline in order to work with the new version of task.
+
+Historically, task maintainers write `MIGRATION.md` to notify users what changes
+have to be made to the pipeline. This mechanism is not deprecated. Besides
+writing the document, it is also recommended to write a migration script so that the
+updates can be applied to user pipelines automatically.
+
+The following is the steps to write a migration:
+
+- Bump task version. Modify label `app.kubernetes.io/version` in the task YAML file.
+- Ensure `migrations/` directory exists in the version-specific task directory.
+- Create a migration file under the `migrations/` directory. Its name is in
+  form `<new task version>.sh`. Note that the version must match the bumped
+  version.
+
+The migration file is a normal Bash script file. It should
+
+- Accepts a single argument. The pipeline file path is provided via this
+  argument. The script must work with a Tekton Pipeline by modifying the
+  pipeline definition under the `.spec` field. In practice, regardless of whether
+  the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
+  extracted into a separate YAML file, the migration tool ensures that the
+  passed-in pipeline file contains the correct pipeline definition.
+- All modifications to the pipeline must be done in-place, i.e. using `yq
+  -i` to operate the pipeline YAML.
+- Be idempotent as much as possible.
+- Be simple and small as much as possible.
+- Pass the `shellcheck` without customizing the default rules.
+
+Here are example steps to create a migration for a task `task-a`:
+
+```bash
+yq -i "(.metadata.labels.\"app.kubernetes.io/version\") |= \"0.2.2\"" task/task-a/0.2/task-a.yaml
+mkdir -p task/task-a/0.2/migrations || :
+cat >task/task-a/0.2/migrations/0.2.2.sh <<EOF
+#!/usr/bin/env bash
+set -e
+pipeline_file=\$1
+
+if ! yq -e '.spec.tasks[] | select(.name == "task-a") | .params[] | select(.name == "pipelinerun-name")' >/dev/null
+then
+  yq -i -e '
+    (.spec.tasks[] | select(.name == "task-a") | .params) +=
+    {"name": "pipelinerun-name", "value": "\$(context.pipelineRun.name)"}
+  ' "\$pipeline_file"
+fi
+EOF
+```
+
+To add a new task to the user pipelines, a migration can be created with a
+fictional task update. That is to select a task, e.g. `init`, bump its version
+and create a migration under `init` version-specific directory.
