@@ -35,15 +35,48 @@ The pipelines can be found in the `pipelines` directory.
 ### Tasks
 
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the cluster.
-For quick local inner-loop-style task development, you may install new Tasks in your local namespace manually and create your pipelines, as well as the base task image, to test new functionality. Tasks can be installed into the local namespace using `oc apply -k tasks/appstudio-utils/util-tasks`.
 
-There is a container used to support multiple sets of tasks called
-`quay.io/konflux-ci/appstudio-utils:GIT_SHA`. This is a single container used by
-multiple tasks. Tasks may also be in their own containers as well. However, many
-simple tasks are utilities and will be packaged for Konflux in a single
-container. Tasks can rely on other tasks in the system, which are co-packed in a
-container, allowing combined tasks (build-only vs. build-deploy) that use the
-same core implementations.
+#### Pushing task bundles for inner loop development
+
+A convenient way to try out Task changes is to simply replace the task bundle reference
+in a Konflux pipeline with your own task bundle.
+
+Prerequisites:
+
+- A repository onboarded to Konflux
+- The [`tkn`](https://tekton.dev/docs/cli/) CLI
+- An account in [quay.io](https://quay.io) (or other container registry)
+- Any container CLI tool that has a `login` command, e.g. `podman`
+
+How-to (example for pushing the `git-clone-oci-ta` task to quay.io):
+
+1. Build the task bundle and push it to quay.io
+
+    ```bash
+    podman login quay.io
+
+    tkn bundle push \
+      -f task/git-clone-oci-ta/0.1/git-clone-oci-ta.yaml \
+      quay.io/<USERNAME>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+    ```
+
+2. Go to <https://quay.io/USERNAME/tekton-catalog/task-git-clone-oci-ta>
+   and make the repository public (in the settings)
+
+3. Use the task bundle in a Konflux Pipeline
+
+    ```diff
+           - name: name
+             value: git-clone-oci-ta
+           - name: bundle
+    -        value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:aab5f0f4906ba2c2a64a67b591c7ecf57018d066f1206ebc56158476e29f2cf3
+    +        value: quay.io/<username>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+           - name: kind
+             value: task
+           resolver: bundles
+    ```
+
+4. Run the pipeline with your task bundle by opening a PR in your repo
 
 #### Trusted Artifact Task variants
 
