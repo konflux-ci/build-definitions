@@ -18,6 +18,8 @@ spec:
       type: string
     - name: expressions
       type: array
+    - name: source_branch
+      type: string
   results:
     - name: bindings
       type: array
@@ -47,17 +49,23 @@ spec:
             printf "package rule\n%s\n" "${!i}" > "${rules}/$i.rego"
         done
 
-        ec opa check --v1-compatible "${rules}"
+        # Fetch the remote main branch for comparison
+        git remote add upstream https://github.com/konflux-ci/build-definitions.git
+        git fetch upstream main
+        changed_files=$(git diff --name-only "upstream/main..HEAD" | tr "\n" " ")
+        echo "Changed files in PR: ${changed_files}"
 
-        pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
+        # ec opa check --v1-compatible "${rules}"
 
-        ec opa eval --v1-compatible --data "${rules}" --input \
-        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
-        'data[_]' \
-        | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
-        | tee "$(results.bindings.path)"
+        # pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
 
-        # Output is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
-        if [[ -n "${pr_number}" ]]; then
-          .tekton/scripts/determine-if-e2e-execution-needed.py "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
+        # ec opa eval --v1-compatible --data "${rules}" --input \
+        # <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
+        # 'data[_]' \
+        # | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
+        # | tee "$(results.bindings.path)"
+
+        # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
+        if [[ -n "${changed_files}" ]]; then
+          .tekton/scripts/determine-if-e2e-execution-needed.py "${changed_files}" | tr -d '\n' | tee "$(results.run-e2e.path)"
         fi
