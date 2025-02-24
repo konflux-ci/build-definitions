@@ -9,8 +9,8 @@ require (
 	github.com/google/go-containerregistry v0.20.3
 	github.com/tektoncd/pipeline v0.68.0
 	github.com/zregvart/tkn-fmt v0.0.0-20240614122620-a2995427266c
-	k8s.io/api v0.30.1
-	k8s.io/apimachinery v0.30.1
+	k8s.io/api v0.32.2
+	k8s.io/apimachinery v0.32.2
 	mvdan.cc/sh/v3 v3.10.0
 	sigs.k8s.io/kustomize/api v0.19.0
 	sigs.k8s.io/kustomize/kyaml v0.19.0
