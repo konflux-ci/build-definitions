@@ -35,15 +35,6 @@ The pipelines can be found in the `pipelines` directory.
 ### Tasks
 
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the cluster.
-For quick local inner-loop-style task development, you may install new Tasks in your local namespace manually and create your pipelines, as well as the base task image, to test new functionality. Tasks can be installed into the local namespace using `oc apply -k tasks/appstudio-utils/util-tasks`.
-
-There is a container used to support multiple sets of tasks called
-`quay.io/konflux-ci/appstudio-utils:GIT_SHA`. This is a single container used by
-multiple tasks. Tasks may also be in their own containers as well. However, many
-simple tasks are utilities and will be packaged for Konflux in a single
-container. Tasks can rely on other tasks in the system, which are co-packed in a
-container, allowing combined tasks (build-only vs. build-deploy) that use the
-same core implementations.
 
 #### Trusted Artifact Task variants
 
