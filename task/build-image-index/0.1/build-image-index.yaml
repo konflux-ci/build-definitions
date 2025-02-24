@@ -38,6 +38,10 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
+  - name: BUILDAH_FORMAT
+    description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
+    type: string
+    default: oci
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -57,7 +61,7 @@ spec:
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
-      value: oci
+      value: $(params.BUILDAH_FORMAT)
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: IMAGE
@@ -154,10 +158,10 @@ spec:
       } > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
 
-      IMAGE_DIGEST=$(cat image-digest)
-
-      INDEX_IMAGE_PULLSPEC="${IMAGE}@${IMAGE_DIGEST}"
-      buildah manifest inspect "$INDEX_IMAGE_PULLSPEC" > /index-build-data/manifest_data.json
+      # buildah manifest inspect will always give precedence to the local image.
+      # Since we built this image in the same place as we are inspecting it, we can
+      # just inspect it instead of finding the digest and inspecting the remote image.
+      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
