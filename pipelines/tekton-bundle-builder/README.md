@@ -110,6 +110,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|SOURCE_CODE_DIR| Source code directory in the working dir| source| |
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| | |
 
 ## Results
