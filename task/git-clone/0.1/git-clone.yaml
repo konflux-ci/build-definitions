@@ -257,7 +257,10 @@ spec:
 
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"
-        git fetch --tags
+        if ! git fetch --tags; then
+          echo "Retrying fetch command..."
+          git fetch --tags
+        fi
       fi
 
   - name: symlink-check
