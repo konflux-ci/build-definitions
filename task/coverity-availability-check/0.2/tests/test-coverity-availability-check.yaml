@@ -1,0 +1,39 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-coverity-availability-check
+spec:
+  description: |
+    Test the coverity-availability-check when expected Secrets are not available
+  tasks:
+    - name: coverity-check
+      taskRef:
+        name: coverity-availability-check
+    - name: check-result
+      runAfter:
+        - coverity-check
+      params:
+      - name: status
+        value: $(tasks.coverity-check.results.STATUS)
+      taskSpec:
+        params:
+        - name: status
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
+            env:
+            - name: STATUS
+              value: $(params.status)
+            script: |
+              #!/bin/bash
+
+              set -e
+
+              # The current behaviour when secrets are not available is
+              # - Task succeeds (exit 0)
+              # - writes "failed" to the STATUS result
+              # - does not write anything to TEST_OUTPUT result (not clear if this is intentional)
+              echo "Expected result: failed"
+              echo "Actual result: $STATUS"
+              [ "$STATUS" == "failed" ]
