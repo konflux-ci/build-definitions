@@ -27,6 +27,10 @@ spec:
     type: string
     description: An optional image to configure task steps with in the bundle
     default: ""
+  - name: SOURCE_CODE_DIR
+    type: string
+    description: Source code directory in the working dir
+    default: source
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -40,6 +44,8 @@ spec:
       value: "$(params.HOME)"
     - name: TASK_FILE
       value: tekton_task_files
+    - name: SOURCE_CODE_DIR
+      value: $(params.SOURCE_CODE_DIR)
   steps:
   - image: quay.io/konflux-ci/konflux-test:latest@sha256:d596724343a31c201a5c2e79f233f9ef78ac65726ae4ed5ffa41d76b3dac630f
     name: modify-task-files
@@ -69,11 +75,11 @@ spec:
           neg=1
           path="${path#\!}"
         fi
-        if [[ -d "$(workspaces.source.path)/${path}" ]]; then
+        if [[ -d "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}" ]]; then
           # for directories look for any .yaml or .yml files
           paths+=(
-            "$(workspaces.source.path)/${path}"/**/*.yaml
-            "$(workspaces.source.path)/${path}"/**/*.yml
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yaml
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yml
           )
         else
           # for files add the file to the collected paths
@@ -87,8 +93,8 @@ spec:
             # single negative path provided, first include everything then
             # subtract the negative elements
             FILES=(
-              "$(workspaces.source.path)"/**/*.yaml
-              "$(workspaces.source.path)"/**/*.yml
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yaml
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yml
             )
           fi
           for p in "${paths[@]}"; do
@@ -128,7 +134,7 @@ spec:
 
       mapfile -t FILES < "${TASK_FILE}"
       [[ ${#FILES[@]} -eq 0 ]] \
-        && echo "No YAML files matched by \"$CONTEXT\" in \"$(workspaces.source.path)\", aborting the build" \
+        && echo "No YAML files matched by \"$CONTEXT\" in \"$(workspaces.source.path)/${SOURCE_CODE_DIR}\", aborting the build" \
         && exit 1
       exec 3>&1;
 
