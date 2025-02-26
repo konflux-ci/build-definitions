@@ -18,7 +18,7 @@ jobs:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@0bc16cda6e51961f4eb7c2ee2a92b0a4a5ddfd4b
+        uses: golangci/golangci-lint-action@7b561e5ab6624d4582c82a4315e0d65ec7a6ad00
         with:
           working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
@@ -84,7 +84,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@1bb15d06a6fbb5d9d9ffd228746bf8ee208caec8
+        uses: github/codeql-action/upload-sarif@8c69433c34fe91b0644d83e6f14bb77eb3e46812
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif
