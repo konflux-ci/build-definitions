@@ -81,13 +81,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: sast-shell-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:3e2a8daead8ed5a1aa09878c74c2d5a7a77bdc1a946db5a6adb7ad238d813084
+      image: quay.io/konflux-ci/konflux-test:v1.4.17@sha256:c31f488d7fb8e0df2c44b293f78402829284ddd5b7ce552c72f5993ed5d6b183
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /mnt/trusted-ca
@@ -221,7 +221,7 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:30d2037fa58653e9849a4ba60a69666dfca9b80a6807bbafd2dd5206c279a061
+      image: quay.io/konflux-ci/oras:latest@sha256:6fac267f9e0bba447d2ed654312fa8fd7e100660ef8c3db041fc670cf7677213
       workingDir: /var/workdir/source
       env:
         - name: IMAGE_URL
