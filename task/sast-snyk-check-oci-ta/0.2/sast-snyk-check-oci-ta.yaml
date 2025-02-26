@@ -58,13 +58,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: sast-snyk-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
+      image: quay.io/konflux-ci/konflux-test:v1.4.17@sha256:36d3a2a6f4f96df41fc56c7c1c5a11c5d1c621f0f767607fda3f83cc21f638cc
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/secrets
@@ -121,7 +121,7 @@ spec:
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:30d2037fa58653e9849a4ba60a69666dfca9b80a6807bbafd2dd5206c279a061
+      image: quay.io/konflux-ci/oras:latest@sha256:6fac267f9e0bba447d2ed654312fa8fd7e100660ef8c3db041fc670cf7677213
       workingDir: /var/workdir/source
       env:
         - name: IMAGE_URL
