@@ -210,19 +210,17 @@ spec:
 
         csgrep --mode=evtstat processed_sast_unicode_check_out.json
 
-        # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instance
-        # p01 will be decommissionned due to lack of IBM support
         if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
-          case "${BUILD_PLR_LOG_URL}" in
-          *konflux.apps.stone-prod-p02.hjvn.p1.openshiftapps.com* | *konflux.apps.stone-prod-p01.wcfb.p1.openshiftapps.com*)
-            echo "the task is running within Red Hat network, set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
+          PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
+          echo -n "Probing ${PROBE_URL}... "
+          if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+            echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
             KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-            ;;
-          *)
-            echo "the task is not running within Red Hat network, set KFP_GIT_URL to empty string"
+          else
+            echo "Setting KFP_GIT_URL to empty string"
             KFP_GIT_URL=
-            ;;
-          esac
+          fi
         fi
 
         # Filter known false positives if KFP_GIT_URL is set
