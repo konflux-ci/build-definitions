@@ -82,9 +82,16 @@ function should_skip_repo() {
     [ "$http_code" != "200" ]
 }
 
+: "${HERE:=}"
+
 # local dev build script
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$SCRIPTDIR/.." || exit 1
+
+if [ -z "$HERE" ]; then
+    SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+    cd "$SCRIPTDIR/.." || exit 1
+else
+    cd "$HERE" || exit 1
+fi
 
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 declare -r WORKDIR
