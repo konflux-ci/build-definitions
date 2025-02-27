@@ -114,14 +114,24 @@ When a task update changes the interface (e.g., change of parameters, workspaces
 Adding a new parameter with a default value does not require a task version increase.
 
 ## Local development
-Tasks can have a TA (Trusted Artifact) version.
-The recommended workflow is to only edit the base version and let the other versions get generated automatically.
-```
-./hack/generate-ta-tasks.sh
-```
-Buildah also has a remote version, which can be generated with:
-```
-./hack/generate-buildah-remote.sh
+
+Build-definitions uses various mechanisms for automatically generating Tasks, Pipelines
+and other files. For example:
+
+- Tasks can have a TA (Trusted Artifact) version.
+  The TA variants can be identified by the `-oci-ta` suffix in the name.
+- We also use [Kustomize](https://kustomize.io/) to generate some Tasks and Pipelines.
+  Kustomize-generated resources can be identified by the existence of a `kustomization.yaml`
+  file next to the Task/Pipeline yaml file.
+  - Unless the kustomization file references only the Task/Pipeline yaml itself.
+    Such a kustomization file is there for the sole purpose of allowing other
+    Tasks/Pipelines to reference this one as a base.
+
+The generation mechanisms each have their own script under the `hack/` directory,
+but we recommend running them all at once via [hack/generate-everything.sh](hack/generate-everything.sh).
+
+```bash
+./hack/generate-everything.sh
 ```
 
 ## Making changes to tasks and pipelines
