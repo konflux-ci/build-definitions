@@ -29,6 +29,10 @@ spec:
       build'
     name: ADD_CAPABILITIES
     type: string
+  - default: []
+    description: Additional key=value annotations that should be applied to the image
+    name: ANNOTATIONS
+    type: array
   - default: oci
     description: The format for the resulting image's mediaType. Valid values are
       oci (default) or docker.
@@ -245,6 +249,8 @@ spec:
     - $(params.BUILD_ARGS[*])
     - --labels
     - $(params.LABELS[*])
+    - --annotations
+    - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
         memory: 8Gi
@@ -371,6 +377,7 @@ spec:
       fi
 
       LABELS=()
+      ANNOTATIONS=()
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
         case $1 in
@@ -388,6 +395,13 @@ spec:
           shift
           while [[ $# -gt 0 && $1 != --* ]]; do
             LABELS+=("--label" "$1")
+            shift
+          done
+          ;;
+        --annotations)
+          shift
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            ANNOTATIONS+=("--annotation" "$1")
             shift
           done
           ;;
@@ -560,6 +574,7 @@ spec:
         "${VOLUME_MOUNTS[@]}"
         "${BUILDAH_ARGS[@]}"
         "${LABELS[@]}"
+        "${ANNOTATIONS[@]}"
         --tls-verify="$TLSVERIFY" --no-cache
         --ulimit nofile=4096:4096
         -f "$dockerfile_copy" -t "$IMAGE" .
