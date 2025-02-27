@@ -35,7 +35,8 @@ emit() {
 msg="File is out of date and has been updated"
 if [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
   # shellcheck disable=SC2016
-  msg='File is out of date, run `hack/generate-ta-tasks.sh` and include the updated file with your changes'
+  msg='File is out of date, run `hack/generate-ta-tasks.sh` and include the updated file with your changes.'
+  msg+=' Or run ./hack/generate-everything.sh to run all the generators at once.'
 fi
 
 cd "${TASK_DIR}"
