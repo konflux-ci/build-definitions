@@ -16,15 +16,20 @@ spec:
       params:
       - name: status
         value: $(tasks.coverity-check.results.STATUS)
+      - name: test_output
+        value: $(tasks.coverity-check.results.TEST_OUTPUT)
       taskSpec:
         params:
         - name: status
+        - name: test_output
         steps:
           - name: check-result
             image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
             env:
             - name: STATUS
               value: $(params.status)
+            - name: TEST_OUTPUT
+              value: $(params.test_output)
             script: |
               #!/bin/bash
 
@@ -33,7 +38,8 @@ spec:
               # The current behaviour when secrets are not available is
               # - Task succeeds (exit 0)
               # - writes "failed" to the STATUS result
-              # - does not write anything to TEST_OUTPUT result (not clear if this is intentional)
-              echo "Expected result: failed"
-              echo "Actual result: $STATUS"
-              [ "$STATUS" == "failed" ]
+              # - TEST_OUTPUT result is Error, with a single failure
+              echo -n "Expected STATUS: "
+              [ "$STATUS" == "failed" ] && echo "true"
+              echo -n "Expected TEST_OUTPUT: "
+              echo "$TEST_OUTPUT" | jq -e '.result == "ERROR" and .failures == 1'
