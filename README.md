@@ -109,7 +109,11 @@ The StepActions can be found in the `stepactions` directory. StepActions are not
 
 ### Versioning
 
-When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created. The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created.
+We restructure the task definitions so that each version is maintained in its own directory. Instead of a single flat task file, the task is now versioned by placing its YAML into a version-specific folder.
+Within the newly versioned YAMLs a label should be added to the tasks metadata for identifying the specific version of the task.
+The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+Since tasks are now organized by version, any pipelines that reference these tasks must be updated to point to the newly versioned path.
 
 Adding a new parameter with a default value does not require a task version increase.
 
