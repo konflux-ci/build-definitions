@@ -107,7 +107,7 @@
 ### tkn-bundle:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
+|CONTEXT| Path to the directory to use as context.| .| 'source/$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| | |
