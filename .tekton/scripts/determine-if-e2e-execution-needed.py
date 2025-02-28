@@ -6,6 +6,7 @@ import json
 import urllib.error
 import urllib.request
 import subprocess
+import argparse
 
 # Pipelines currently covered by e2e tests
 pipelines_covered_by_e2e = ["docker-build", "docker-build-oci-ta", "docker-build-multi-platform-oci-ta", "fbc-builder"]
@@ -14,7 +15,7 @@ pipelines_covered_by_e2e = ["docker-build", "docker-build-oci-ta", "docker-build
 tasks_covered_by_e2e = []
 
 # Otherthan tasks and pipelines, related files for which e2e tests needs to be executed
-files_covered_by_e2e = [".tekton/pull-request.yaml", ".tekton/tasks/e2e-test.yaml", ".tekton/scripts/determine-if-e2e-execution-needed.py"]
+files_covered_by_e2e = [".tekton/pull-request.yaml", ".tekton/tasks/e2e-test.yaml", ".tekton/tasks/task-switchboard.yaml", ".tekton/scripts/determine-if-e2e-execution-needed.py"]
 
 def add_only_unique_task_names(task_list):
     for task_name in task_list:
@@ -81,12 +82,18 @@ def does_updated_files_covered_by_e2e(updated_files):
     return required_to_run_e2e
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        sys.stderr.write("[ERROR] provide correct number of arguments\n")
-        sys.exit(1)
-    pr_number = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Script to determine e2e-tests execution needed or not')
+    parser.add_argument('--pr_number', action="store", dest='pr_number', help='pr number to get changed files')
+    parser.add_argument('--changed_files', metavar='N', type=str, nargs='+', dest='changed_files', help='a list of changed files')
+    args = parser.parse_args()
+
+    if args.pr_number != None:
+        updated_files = get_changed_files_from_pr(args.pr_number)
+    else:
+        updated_files = args.changed_files
+    
     get_tasks_covered_by_e2e()
-    updated_files = get_changed_files_from_pr(pr_number)
+    
     required_to_run_e2e = does_updated_files_covered_by_e2e(updated_files)
     if required_to_run_e2e:
         print("execute_e2e")
