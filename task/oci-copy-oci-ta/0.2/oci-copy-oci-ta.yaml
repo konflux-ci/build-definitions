@@ -73,12 +73,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:73830bba569b44df1e0f4bd8fe501f1731035d1a939ccbfc9d974a0daf5e8d23
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -107,7 +107,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      image: quay.io/konflux-ci/oras:latest@sha256:6fac267f9e0bba447d2ed654312fa8fd7e100660ef8c3db041fc670cf7677213
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -301,7 +301,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:6dc75d3cdac794dfef90a4296a43a1506bd80c4ac0d897293439563b0dd5ac41
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -328,7 +328,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:73830bba569b44df1e0f4bd8fe501f1731035d1a939ccbfc9d974a0daf5e8d23
       workingDir: /var/workdir
       script: |
         #!/bin/bash
