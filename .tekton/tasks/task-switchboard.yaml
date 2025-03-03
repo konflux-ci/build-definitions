@@ -51,13 +51,28 @@ spec:
 
         pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
 
-        ec opa eval --v1-compatible --data "${rules}" --input \
-        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
-        'data[_]' \
-        | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
-        | tee "$(results.bindings.path)"
+        if [[ -z "${pr_number}" ]]; then
+          # Fetch the main branch for comparison
+          git fetch origin main
+          changed_files=$(git diff --name-only "origin/main...HEAD" | tr "\n" " ")
+          echo "Changed files in PR: ${changed_files}"
+          echo "${changed_files}" | jq -Rs 'rtrimstr("\n") | split(" ")' > input.json
+          ec opa eval --v1-compatible --data "${rules}" --input input.json 'data[_]' \
+          | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
+          | tee "$(results.bindings.path)"
 
-        # Output is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
-        if [[ -n "${pr_number}" ]]; then
-          .tekton/scripts/determine-if-e2e-execution-needed.py "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
+          # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
+          # shellcheck disable=SC2086
+          .tekton/scripts/determine-if-e2e-execution-needed.py --changed_files ${changed_files} | tr -d '\n' | tee "$(results.run-e2e.path)"
+
+        else
+          ec opa eval --v1-compatible --data "${rules}" --input \
+          <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
+          'data[_]' \
+          | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
+          | tee "$(results.bindings.path)"
+
+          # get changes with pr_number
+          # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
+          .tekton/scripts/determine-if-e2e-execution-needed.py --pr_number "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
         fi
