@@ -54,7 +54,7 @@ spec:
         if [[ -z "${pr_number}" ]]; then
           # Fetch the main branch for comparison
           git fetch origin main
-          changed_files=$(git diff --name-only "origin/main..HEAD" | tr "\n" " ")
+          changed_files=$(git diff --name-only "origin/main...HEAD" | tr "\n" " ")
           echo "Changed files in PR: ${changed_files}"
           echo "${changed_files}" | jq -Rs 'rtrimstr("\n") | split(" ")' > input.json
           ec opa eval --v1-compatible --data "${rules}" --input input.json 'data[_]' \
