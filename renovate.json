@@ -33,7 +33,7 @@
         "task/acs-image-check/**",
         "task/acs-image-scan/**",
         "task/apply-tags/**",
-        "task/build-image-index/**",
+         "task/build-image-index/**",
         "task/build-image-manifest/**",
         "task/buildah-10gb/**",
         "task/buildah-20gb/**",
@@ -239,6 +239,16 @@
       ],
       "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": ["^task/build-vm-image/.*/build-vm-image.yaml"],
+      "matchStrings": [
+        "default: (?<depName>.*):(?<currentValue>.*)"
+      ],
+      "depNameTemplate": "registry.access.redhat.com/ubi9/buildah",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "redhat"
     }
   ]
 }
