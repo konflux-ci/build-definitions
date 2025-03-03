@@ -214,13 +214,12 @@ spec:
           -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
 
-        # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/.docker:/.docker -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/scripts/script-push.sh:/script-push.sh \
           -v $BUILD_DIR/tekton-results:/tekton-results \
-          registry.fedoraproject.org/fedora \
+          registry.access.redhat.com/ubi9/buildah:9.5 \
           /script-push.sh
 
         REMOTESSHEOF
