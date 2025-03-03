@@ -9,7 +9,7 @@ spec:
   workspaces:
     - name: tests-workspace
   tasks:
-    - name: run-task
+    - name: init
       taskRef:
         resolver: git
         params:
@@ -24,7 +24,7 @@ spec:
           value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-shell-check:latest"
     - name: clone-repository
       runAfter:
-        - run-task
+        - init
       workspaces:
         - name: output
           workspace: tests-workspace
