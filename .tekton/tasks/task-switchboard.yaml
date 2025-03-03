@@ -49,10 +49,18 @@ spec:
 
         ec opa check --v1-compatible "${rules}"
 
-        pr_number=$(gh search prs --repo konflux-ci/build-definitions "$(params.revision)" --json number --jq '.[].number')
+        rev="$(params.revision)"
+        changed_files=()
+        for pr_number in $(gh search prs --repo konflux-ci/build-definitions "${rev}" --json number --jq '.[].number'); do
+            echo "Found revision ${rev} in pull request number ${pr_number}"
 
-        ec opa eval --v1-compatible --data "${rules}" --input \
-        <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
+            changed="$(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path'])"
+            echo Changed files:
+            echo "${changed}" | jq -r '.[]'
+            changed_files+=("${changed}")
+        done
+
+        echo "${changed_files[@]}" | jq -s 'add | unique' | ec opa eval --v1-compatible --data "${rules}" --stdin-input \
         'data[_]' \
         | jq '[.result.[].expressions.[].value | to_entries | .[] | select(.value == true) | .key]' \
         | tee "$(results.bindings.path)"
