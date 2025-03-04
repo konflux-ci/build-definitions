@@ -68,17 +68,22 @@
 ### verify-enterprise-contract:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|CA_TRUST_CONFIGMAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |EFFECTIVE_TIME| Run policy checks with the provided time.| now| |
+|EXTRA_RULE_DATA| Merge additional Rego variables into the policy data. Use syntax "key=value,key2=value2..."| | |
 |HOMEDIR| Value for the HOME environment variable.| /tekton/home| |
 |IGNORE_REKOR| Skip Rekor transparency log checks during validation.| false| |
-|IMAGES| Spec section of an ApplicationSnapshot resource. Not all fields of the resource are required. A minimal example:   {     "components": [       {         "containerImage": "quay.io/example/repo:latest"       }     ]   } Each "containerImage" in the "components" array is validated. | None| '$(tasks.get-images-to-verify.results.IMAGES_TO_VERIFY)'|
-|INFO| Include rule titles and descriptions in the output. Set to "false" to disable it.| true| |
-|POLICY_CONFIGURATION| Name of the policy configuration (EnterpriseContractPolicy resource) to use. `namespace/name` or `name` syntax supported. If namespace is omitted the namespace where the task runs is used. | enterprise-contract-service/default| '$(params.ec-policy-configuration)'|
+|IMAGES| Spec section of an ApplicationSnapshot resource. Not all fields of the resource are required. A minimal example:  ```json   {     "components": [       {         "containerImage": "quay.io/example/repo:latest"       }     ]   } ```  Each `containerImage` in the `components` array is validated. | None| '$(tasks.get-images-to-verify.results.IMAGES_TO_VERIFY)'|
+|INFO| Include rule titles and descriptions in the output. Set to `"false"` to disable it.| true| |
+|POLICY_CONFIGURATION| Name of the policy configuration (EnterpriseContractPolicy resource) to use. `namespace/name` or `name` syntax supported. If namespace is omitted the namespace where the task runs is used. You can also specify a policy configuration using a git url, e.g. `github.com/enterprise-contract/config//slsa3`. | enterprise-contract-service/default| '$(params.ec-policy-configuration)'|
 |PUBLIC_KEY| Public key used to verify signatures. Must be a valid k8s cosign reference, e.g. k8s://my-space/my-secret where my-secret contains the expected cosign.pub attribute.| | '$(params.ec-public-key)'|
 |REKOR_HOST| Rekor host for transparency log lookups| | '$(params.ec-rekor-host)'|
-|SSL_CERT_DIR| Path to a directory containing SSL certs to be used when communicating with external services. This is useful when using the integrated registry and a local instance of Rekor on a development cluster which may use certificates issued by a not-commonly trusted root CA. In such cases, "/var/run/secrets/kubernetes.io/serviceaccount" is a good value. Multiple paths can be provided by using the ":" separator. | | |
-|STRICT| Fail the task if policy fails. Set to "false" to disable it.| true| '$(params.ec-strict)'|
+|SSL_CERT_DIR| Path to a directory containing SSL certs to be used when communicating with external services. This is useful when using the integrated registry and a local instance of Rekor on a development cluster which may use certificates issued by a not-commonly trusted root CA. In such cases, `/var/run/secrets/kubernetes.io/serviceaccount` is a good value. Multiple paths can be provided by using the `:` separator. | | |
+|STRICT| Fail the task if policy fails. Set to `"false"` to disable it.| true| '$(params.ec-strict)'|
+|TIMEOUT| Timeout setting for `ec validate`.| 5m0s| |
 |TUF_MIRROR| TUF mirror URL. Provide a value when NOT using public sigstore deployment.| | '$(params.ec-tuf-mirror)'|
+|WORKERS| Number of parallel workers to use for policy evaluation.| 1| |
 
 ## Results
 |name|description|value|

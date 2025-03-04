@@ -16,6 +16,7 @@ metadata:
     tekton.dev/tags: ec, chains, signature, conftest
   labels:
     app.kubernetes.io/version: "0.1"
+
 spec:
   description: Verify the enterprise contract is met
   params:
@@ -24,6 +25,8 @@ spec:
       description: |
         Spec section of an ApplicationSnapshot resource. Not all fields of the
         resource are required. A minimal example:
+
+        ```json
           {
             "components": [
               {
@@ -31,13 +34,17 @@ spec:
               }
             ]
           }
-        Each "containerImage" in the "components" array is validated.
+        ```
+
+        Each `containerImage` in the `components` array is validated.
     - name: POLICY_CONFIGURATION
       type: string
       description: |
         Name of the policy configuration (EnterpriseContractPolicy
         resource) to use. `namespace/name` or `name` syntax supported. If
         namespace is omitted the namespace where the task runs is used.
+        You can also specify a policy configuration using a git url, e.g.
+        `github.com/enterprise-contract/config//slsa3`.
       default: "enterprise-contract-service/default"
 
     - name: PUBLIC_KEY
@@ -71,18 +78,28 @@ spec:
         with external services. This is useful when using the integrated registry
         and a local instance of Rekor on a development cluster which may use
         certificates issued by a not-commonly trusted root CA. In such cases,
-        "/var/run/secrets/kubernetes.io/serviceaccount" is a good value. Multiple
-        paths can be provided by using the ":" separator.
+        `/var/run/secrets/kubernetes.io/serviceaccount` is a good value. Multiple
+        paths can be provided by using the `:` separator.
       default: ""
+
+    - name: CA_TRUST_CONFIGMAP_NAME
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
 
     - name: INFO
       type: string
-      description: Include rule titles and descriptions in the output. Set to "false" to disable it.
+      description: Include rule titles and descriptions in the output. Set to `"false"` to disable it.
       default: "true"
 
     - name: STRICT
       type: string
-      description: Fail the task if policy fails. Set to "false" to disable it.
+      description: Fail the task if policy fails. Set to `"false"` to disable it.
       default: "true"
 
     - name: HOMEDIR
@@ -94,6 +111,20 @@ spec:
       type: string
       description: Run policy checks with the provided time.
       default: "now"
+    - name: EXTRA_RULE_DATA
+      type: string
+      description: Merge additional Rego variables into the policy data. Use syntax "key=value,key2=value2..."
+      default: ""
+
+    - name: TIMEOUT
+      type: string
+      description: Timeout setting for `ec validate`.
+      default: "5m0s"
+
+    - name: WORKERS
+      type: string
+      description: Number of parallel workers to use for policy evaluation.
+      default: "1"
 
   workspaces:
     - name: data
@@ -110,29 +141,27 @@ spec:
         value: "$(params.HOMEDIR)"
 
   steps:
-    - name: version
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
-      command: [ec]
-      args:
-        - version
+
     - name: initialize-tuf
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
       script: |-
         set -euo pipefail
 
         if [[ -z "${TUF_MIRROR:-}" ]]; then
-            echo 'TUF_MIRROR not set. Skipping TUF root initialization.'
+            echo 'TUF_MIRROR parameter not provided. Skipping TUF root initialization.'
             exit
         fi
 
         echo 'Initializing TUF root...'
-        cosign initialize --mirror "${TUF_MIRROR}" --root "${TUF_MIRROR}/root.json"
+        ec sigstore initialize --mirror "${TUF_MIRROR}" --root "${TUF_MIRROR}/root.json"
         echo 'Done!'
       env:
         - name: TUF_MIRROR
           value: "$(params.TUF_MIRROR)"
+
     - name: validate
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      onError: continue # progress even if the step fails so we can see the debug logs
       command: [ec]
       args:
         - validate
@@ -147,17 +176,24 @@ spec:
         - "--rekor-url"
         - "$(params.REKOR_HOST)"
         - "--ignore-rekor=$(params.IGNORE_REKOR)"
+        - "--workers"
+        - "$(params.WORKERS)"
         # NOTE: The syntax below is required to negate boolean parameters
         - "--info=$(params.INFO)"
+        - "--timeout=$(params.TIMEOUT)"
         - "--strict=false"
         - "--show-successes"
         - "--effective-time=$(params.EFFECTIVE_TIME)"
+        - "--extra-rule-data=$(params.EXTRA_RULE_DATA)"
+        - "--output"
+        - "text?show-successes=false"
         - "--output"
         - "yaml=$(params.HOMEDIR)/report.yaml"
         - "--output"
         - "appstudio=$(results.TEST_OUTPUT.path)"
         - "--output"
         - "json=$(params.HOMEDIR)/report-json.json"
+        - "--logfile=$(params.HOMEDIR)/debug.log"
       env:
         - name: SSL_CERT_DIR
           # The Tekton Operator automatically sets the SSL_CERT_DIR env to the value below but,
@@ -179,22 +215,52 @@ spec:
           memory: 2Gi
         limits:
           memory: 2Gi
+      volumeMounts:
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
+
     - name: report
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      onError: continue  # progress even if the step fails so we can see the debug logs
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report.yaml"
+
     - name: report-json
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      onError: continue  # progress even if the step fails so we can see the debug logs
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report-json.json"
+
     - name: summary
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      onError: continue  # progress even if the step fails so we can see the debug logs
       command: [jq]
       args:
         - "."
         - "$(results.TEST_OUTPUT.path)"
+
+    - name: info
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      command: [printf]
+      args:
+        - "----- DEBUG OUTPUT -----\n"
+
+    - name: version
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      command: [ec]
+      args:
+        - version
+
+    - name: debug-log
+      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      command: [cat]
+      args:
+        - "$(params.HOMEDIR)/debug.log"
+
     - name: assert
       image: registry.redhat.io/rhtas/ec-rhel9:0.5
       command: [jq]
@@ -206,3 +272,12 @@ spec:
         - >
           .result == "SUCCESS" or .result == "WARNING" or ($strict | not)
         - "$(results.TEST_OUTPUT.path)"
+
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.CA_TRUST_CONFIGMAP_NAME)
+        items:
+          - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+            path: ca-bundle.crt
+        optional: true
