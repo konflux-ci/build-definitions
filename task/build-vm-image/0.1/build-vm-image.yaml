@@ -38,10 +38,6 @@ spec:
       description: Storage driver to configure for buildah
       type: string
       default: vfs
-    - name: BUILDAH_IMAGE
-      description: Buildah image to use for the build process
-      type: string
-      default: registry.access.redhat.com/ubi9/buildah:9.5-1739778322
   results:
     - description: Digest of the manifest list just built
       name: IMAGE_DIGEST
@@ -61,7 +57,8 @@ spec:
         value: $(params.ENTITLEMENT_SECRET)
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
-
+      - name: BUILDAH_IMAGE
+        value: 'registry.access.redhat.com/ubi9/buildah:9.5-1739778322'
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -223,7 +220,7 @@ spec:
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/scripts/script-push.sh:/script-push.sh \
           -v $BUILD_DIR/tekton-results:/tekton-results \
-          "$(params.BUILDAH_IMAGE)" \
+          "$BUILDAH_IMAGE" \
           /script-push.sh
 
         REMOTESSHEOF
