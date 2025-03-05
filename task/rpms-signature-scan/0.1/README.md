@@ -1,5 +1,8 @@
 # rpms-signature-scan.yaml task
 
+> **Deprecated**: This version of the task is deprecated. Please remove it from your
+  pipeline and replace it in favor of a newer version. Deprecation date: 2025-03-31
+
 ## Description:
 This tasks scans RPMs in an image and provide information about RPMs signatures.
 
