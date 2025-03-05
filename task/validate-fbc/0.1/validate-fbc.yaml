@@ -63,7 +63,7 @@ spec:
         name: workdir
   steps:
     - name: inspect-image
-      image: quay.io/konflux-ci/konflux-test:v1.4.17@sha256:36d3a2a6f4f96df41fc56c7c1c5a11c5d1c621f0f767607fda3f83cc21f638cc
+      image: quay.io/konflux-ci/konflux-test:v1.4.18@sha256:78c76869d0b171e9bfa5e931e5e6ecbe92b32f61c6ec627c57cbb9d1aad75aab
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/inspect-image
@@ -205,7 +205,7 @@ spec:
             exit 0
         fi
     - name: extract-and-validate
-      image: quay.io/konflux-ci/konflux-test:v1.4.17@sha256:36d3a2a6f4f96df41fc56c7c1c5a11c5d1c621f0f767607fda3f83cc21f638cc
+      image: quay.io/konflux-ci/konflux-test:v1.4.18@sha256:78c76869d0b171e9bfa5e931e5e6ecbe92b32f61c6ec627c57cbb9d1aad75aab
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -483,7 +483,7 @@ spec:
         fi
         popd
     - name: save-related-images
-      image: quay.io/konflux-ci/oras:latest@sha256:6fac267f9e0bba447d2ed654312fa8fd7e100660ef8c3db041fc670cf7677213
+      image: quay.io/konflux-ci/oras:latest@sha256:3536c6ca42a9168e0c7791b130fdee9793a317b306525bb609dca23d07186e9b
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -494,7 +494,7 @@ spec:
         attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "related-images+json" --digestfile "$(results.RELATED_IMAGES_DIGEST.path)" \
           /shared/related-images.json
     - name: save-rendered-catalog
-      image: quay.io/konflux-ci/oras:latest@sha256:6fac267f9e0bba447d2ed654312fa8fd7e100660ef8c3db041fc670cf7677213
+      image: quay.io/konflux-ci/oras:latest@sha256:3536c6ca42a9168e0c7791b130fdee9793a317b306525bb609dca23d07186e9b
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
