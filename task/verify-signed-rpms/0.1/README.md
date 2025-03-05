@@ -1,5 +1,14 @@
 # verify-signed-rpms.yaml task
 
+## Deprecation notice
+
+This task is deprecated with set deprecation date on 2025-03-15.
+
+As it was never included in any Conforma policy under the current name, there are no
+expected changes in the way violations are reported for using the task.
+
+Please use [task rpms-signature-scan](https://quay.io/repository/konflux-ci/tekton-catalog/task-rpms-signature-scan) instead.
+
 ## Description:
 This tasks checks whether the images it is provided with contain any unsigned RPMs.
 
