@@ -19,14 +19,14 @@ var (
 	image = ""
 
 	resolveImage = func() string {
-		ref := name.MustParseReference("quay.io/redhat-appstudio/build-trusted-artifacts:latest")
+		ref := name.MustParseReference("quay.io/konflux-ci/build-trusted-artifacts:latest")
 
 		desc, err := remote.Head(ref, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 		if err != nil {
 			panic(err)
 		}
 
-		return "quay.io/redhat-appstudio/build-trusted-artifacts:latest@" + desc.Digest.String()
+		return "quay.io/konflux-ci/build-trusted-artifacts:latest@" + desc.Digest.String()
 	}
 )
 
