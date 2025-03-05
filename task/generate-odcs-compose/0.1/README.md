@@ -1,5 +1,8 @@
 # generate-odcs-compose task
 
+> **Deprecated**: This task is deprecated. Please remove it from your pipeline.
+  Deprecation date: 2025-03-15
+
 ## Description:
 This task generates compose (yum repository) files that can be later on mounted during
 build tasks and used for installing RPMs. It uses ODCS (On Demand Compose Service) for
