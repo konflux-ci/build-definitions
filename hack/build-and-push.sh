@@ -55,6 +55,12 @@ else
 fi
 declare -r AUTH_JSON
 
+# ES stands for exit status
+declare -r ES_SUCCESS=0
+declare -r SKOPEO_ES_GENERIC_ERR=1
+declare -r SKOPEO_ES_IMAGE_NOT_FOUND=2
+
+
 function is_official_repo() {
     # match e.g.
     #   redhat-appstudio-tekton-catalog
@@ -277,6 +283,7 @@ build_push_task() {
 
     # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
     # even when original tag is updated
+    # TODO: retry this
     skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
 }
 
@@ -366,14 +373,19 @@ cache_set() {
 # Fetch image digest.
 # Arguments: image
 # The digest is output to stdout.
+# Return 0 if digest is fetched from the registry, otherwise the exit status of
+# skopeo will be returned.
 fetch_image_digest() {
     local -r image=$1
     local digest=
     digest=$(cache_get "$image")
     if [ -z "$digest" ]; then
-        digest=$(skopeo inspect --no-tags --format='{{.Digest}}' "docker://${image}" 2>/dev/null)
-        if [ -n "$digest" ]; then
-            cache_set "$image" "$digest"
+        if digest=$(retry skopeo inspect --no-tags --format='{{.Digest}}' "docker://${image}"); then
+            if [ -n "$digest" ]; then
+                cache_set "$image" "$digest"
+            fi
+        else
+            return $?
         fi
     fi
     echo "$digest"
@@ -524,7 +536,6 @@ build_push_tasks() {
         fi
 
         read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
-        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
 
         concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
         migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
@@ -534,10 +545,16 @@ build_push_tasks() {
             has_migration=true
         fi
 
-        if [ -n "$digest" ]; then
+        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
+        skopeo_status=$?
+
+        if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
-        else
+        elif [[ $skopeo_status -eq $SKOPEO_ES_GENERIC_ERR ]]; then
+            echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
+            return $skopeo_status
+        elif [[ $skopeo_status -eq $SKOPEO_ES_IMAGE_NOT_FOUND ]]; then
             echo "info: finding the previous task bundle that has a migration" 1>&2
             previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
 
@@ -553,6 +570,9 @@ build_push_tasks() {
             task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
             task_bundle_with_digest=${task_bundle_with_digest##* }
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
+        else
+            echo "error: unknown skopeo exit status $skopeo_status" >&2
+            return 1
         fi
 
         if [ "$has_migration" == "true" ]; then
@@ -566,7 +586,11 @@ build_push_tasks() {
     done
 }
 
-build_push_tasks
+if ! build_push_tasks; then
+    status=$?
+    echo "error: failed to build tasks. exit status: $status" >&2
+    exit $status
+fi
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then
