@@ -81,7 +81,7 @@ spec:
         mountPath: /usr/local/sealights-credentials
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -156,7 +156,7 @@ spec:
         # Temporary solution. Remove tokens to not build them
         rm -rf build.json slcmd_config.json
     - name: create-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
       args:
         - create
         - --store
