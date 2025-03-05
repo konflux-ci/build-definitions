@@ -73,7 +73,7 @@ spec:
         echo -n "${SOURCE_ARTIFACT}" > $(results.SOURCE_ARTIFACT.path)
         echo -n "" > $(results.CACHI2_ARTIFACT.path)
       fi
-  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved
+  - image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
     name: use-trusted-artifact
     args:
       - use
@@ -147,7 +147,7 @@ spec:
 
       cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
-  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved
+  - image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
     name: create-trusted-artifact
     env:
     - name: IMAGE_EXPIRES_AFTER
