@@ -89,6 +89,9 @@ spec:
         printf "%s" "${_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
+        echo "Selecting auth for $PARAM_IMAGE_URL"
+        select-oci-auth "$PARAM_IMAGE_URL" > /root/.docker/config.json
+
     - name: set-skip-for-bundles
       image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
       results:
