@@ -22,6 +22,7 @@ spec:
       type: string
       description: The type of artifact. Select from application, operatorbundle, or introspect.
       default: "introspect"
+
   results:
     - name: TEST_OUTPUT
       description: Ecosystem checks pass or fail outcome.
@@ -89,6 +90,26 @@ spec:
         printf "%s" "${_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
+    - name: generate-container-auth
+      image: quay.io/konflux-ci/oras:latest@sha256:fdf6e7156d4dec42ab2d20cf229eaf4bef886e93b1fd562d7734dc6a5bddd6e8
+      env:
+      - name: PARAM_IMAGE_URL
+        value: $(params.image-url)
+      results:
+        - name: auth-json-path
+          description: Path to auth.json
+      script: |
+        _AUTH_JSON_PATH="/auth/auth.json"
+        echo "Selecting auth for $PARAM_IMAGE_URL"
+        # `select-oci-auth` here assumes the input credentials are at path ~/.docker/config.json
+        select-oci-auth "$PARAM_IMAGE_URL" > "${_AUTH_JSON_PATH}"
+
+        printf "%s" "${_AUTH_JSON_PATH}" > "$(step.results.auth-json-path.path)"
+        echo "Auth json written to \"${_AUTH_JSON_PATH}\"."
+      volumeMounts:
+        - name: auth
+          mountPath: /auth
+
     - name: set-skip-for-bundles
       image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
       results:
@@ -123,13 +144,16 @@ spec:
       args: ["check", "container", "$(params.image-url)"]
       env:
         - name: PFLT_DOCKERCONFIG
-          value: /root/.docker/config.json
+          value: "$(steps.generate-container-auth.results.auth-json-path)"
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
         - name: trusted-ca
           mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           subPath: ca-bundle.crt
+          readOnly: true
+        - name: auth
+          mountPath: /auth
           readOnly: true
       when:
       - input: "$(steps.introspect.results.artifact-type)"
@@ -231,3 +255,5 @@ spec:
           - key: $(params.ca-trust-config-map-key)
             path: ca-bundle.crt
         optional: true
+    - name: auth
+      emptyDir: {}
