@@ -264,6 +264,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| | |
 |BINARY_IMAGE| Binary image name from which to generate the source image name.| None| '$(params.output-image)'|
+|IGNORE_UNSIGNED_IMAGE| When set to "true", source build task won't fail when source image is missing signatures (this can be used for development)| false| |
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
