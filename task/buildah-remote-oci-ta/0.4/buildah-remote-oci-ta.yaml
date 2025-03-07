@@ -322,12 +322,17 @@ spec:
       #!/bin/bash
       set -euo pipefail
       cd /var/workdir
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -356,6 +361,8 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      echo "[$(date --utc -Ins)] Prepare system"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -464,6 +471,8 @@ spec:
 
       VOLUME_MOUNTS=()
 
+      echo "[$(date --utc -Ins)] Setup prefetched"
+
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -509,6 +518,8 @@ spec:
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      echo "[$(date --utc -Ins)] Register sub-man"
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -559,6 +570,8 @@ spec:
         done <<<"$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
+      echo "[$(date --utc -Ins)] Add secrets"
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -594,7 +607,11 @@ spec:
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+      echo "[$(date --utc -Ins)] Run buildah build"
+
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      echo "[$(date --utc -Ins)] Add metadata"
 
       container=$(buildah from --pull-never "$IMAGE")
 
@@ -619,6 +636,8 @@ spec:
           echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
+
+      echo "[$(date --utc -Ins)] End"
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
       REMOTESSHEOF
@@ -744,12 +763,16 @@ spec:
         export IMAGE
       fi
 
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Convert image"
 
       # While we can build images with the desired format, we will simplify any local
       # and remote build differences by just performing any necessary conversions at
@@ -758,6 +781,8 @@ spec:
       if [ "${BUILDAH_FORMAT}" == "docker" ]; then
         push_format=docker
       fi
+
+      echo "[$(date --utc -Ins)] Push image with unique tag"
 
       retries=5
       # Push to a unique tag based on the TaskRun name to avoid race conditions
@@ -771,6 +796,8 @@ spec:
         echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
         exit 1
       fi
+
+      echo "[$(date --utc -Ins)] Push image with git revision"
 
       # Push to a tag based on the git revision
       echo "Pushing to ${IMAGE}"
@@ -790,6 +817,8 @@ spec:
         echo -n "${IMAGE}@"
         cat "/var/workdir/image-digest"
       } >"$(results.IMAGE_REF.path)"
+
+      echo "[$(date --utc -Ins)] End"
     securityContext:
       capabilities:
         add:
@@ -812,6 +841,8 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      echo "[$(date --utc -Ins)] Generate SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -834,6 +865,8 @@ spec:
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
       syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+
+      echo "[$(date --utc -Ins)] End"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -855,6 +888,8 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+
+      echo "[$(date --utc -Ins)] Prepare SBOM"
 
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
@@ -887,6 +922,8 @@ spec:
         --sbom=sbom.json \
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
+
+      echo "[$(date --utc -Ins)] End"
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
@@ -900,10 +937,13 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
+
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      echo "[$(date --utc -Ins)] Upload SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -923,6 +963,8 @@ spec:
       sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+      echo "[$(date --utc -Ins)] End"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca
