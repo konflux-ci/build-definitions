@@ -436,12 +436,17 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Update CA trust"
+
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then
           echo "INFO: Using mounted CA bundle: $ca_bundle"
           cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
           update-ca-trust
         fi
+
+        echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
         if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -470,6 +475,8 @@ spec:
 
         dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
         cp "$dockerfile_path" "$dockerfile_copy"
+
+        echo "[$(date --utc -Ins)] Prepare system"
 
         # Fixing group permission on /var/lib/containers
         chown root:root /var/lib/containers
@@ -578,6 +585,8 @@ spec:
 
         VOLUME_MOUNTS=()
 
+        echo "[$(date --utc -Ins)] Setup prefetched"
+
         if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
           cp -r "/var/workdir/cachi2" /tmp/
           chmod -R go+rwX /tmp/cachi2
@@ -621,6 +630,8 @@ spec:
 
         # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
         LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+        echo "[$(date --utc -Ins)] Register sub-man"
 
         ACTIVATION_KEY_PATH="/activation-key"
         ENTITLEMENT_PATH="/entitlement"
@@ -671,6 +682,8 @@ spec:
           done <<<"$ADDITIONAL_VOLUME_MOUNTS"
         fi
 
+        echo "[$(date --utc -Ins)] Add secrets"
+
         ADDITIONAL_SECRET_PATH="/additional-secret"
         ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
         if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -706,7 +719,11 @@ spec:
         # disable host subcription manager integration
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+        echo "[$(date --utc -Ins)] Run buildah build"
+
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+        echo "[$(date --utc -Ins)] Add metadata"
 
         container=$(buildah from --pull-never "$IMAGE")
 
@@ -731,6 +748,8 @@ spec:
             echo "$image $base_image_digest" | tee -a /shared/base_images_digests
           fi
         done
+
+        echo "[$(date --utc -Ins)] End"
       computeResources:
         limits:
           memory: 16Gi
