@@ -550,8 +550,9 @@ build_push_tasks() {
             echo "$output" >&2
             echo
 
-            task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
-            task_bundle_with_digest=${task_bundle_with_digest##* }
+            # Grab just the digest of the bundle from the ouput. The tag is NOT included in the ouput.
+            digest="$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null | grep -o -m 1 'sha256:[0-9a-f]*')"
+            task_bundle_with_digest="${task_bundle}@${digest}"
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
         fi
 
