@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1738816775@sha256:e014f6a342c3790a07b771209b35713e3e4095ff631e4d8bb84966fab3d099e6
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1739420147@sha256:fb77e447ab97f3fecd15d2fa5361a99fe2f34b41422e8ebb3612eecd33922fa0
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,12 +148,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:85a04f04bb1b84e0ea5aedd74962e9516694a3575b47bc3f9c004dd0fc3e0fa7
+      image: quay.io/konflux-ci/yq:latest@sha256:a87f2bfedda1dab63a2567ab067dba2b6f300af1920db3eec462be18deb4148a
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/cachi2:0.20.0@sha256:80402886bbc0f6b4deba65cf5f66dfe9a2c01ae0b57bf3454e3ea58e1a395720
+      image: quay.io/konflux-ci/cachi2:0.21.0@sha256:dabaeed7101209cfc7066e26301b12de2b72a2d943691537f598f7ad8c818dc9
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -398,7 +398,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - create
         - --store
