@@ -42,7 +42,7 @@ spec:
         readOnly: true
   steps:
     - name: get-image-manifests
-      image: quay.io/konflux-ci/konflux-test:v1.4.18@sha256:78c76869d0b171e9bfa5e931e5e6ecbe92b32f61c6ec627c57cbb9d1aad75aab
+      image: quay.io/konflux-ci/konflux-test:v1.4.19@sha256:6cecc96de443a5c6b3906091656cef504833797dfd2aa132d1eeabc5483b2fb9
       # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
       computeResources:
         limits:
@@ -123,7 +123,7 @@ spec:
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
         echo "$images_processed" > /tekton/home/images-processed.json
     - name: conftest-vulnerabilities
-      image: quay.io/konflux-ci/konflux-test:v1.4.18@sha256:78c76869d0b171e9bfa5e931e5e6ecbe92b32f61c6ec627c57cbb9d1aad75aab
+      image: quay.io/konflux-ci/konflux-test:v1.4.19@sha256:6cecc96de443a5c6b3906091656cef504833797dfd2aa132d1eeabc5483b2fb9
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       computeResources:
