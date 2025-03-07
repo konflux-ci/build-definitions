@@ -3,10 +3,11 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: verify-signed-rpms
-  build.appstudio.redhat.com/expires-on: "2025-03-15T00:00:00Z"
-  build.appstudio.redhat.com/expiry-message: 'Instead of using this task, switch
-    to task rpms-signature-scan
-    (https://quay.io/repository/konflux-ci/tekton-catalog/task-rpms-signature-scan)'
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-03-15T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'Instead of using this task, switch
+      to task rpms-signature-scan
+      (https://quay.io/repository/konflux-ci/tekton-catalog/task-rpms-signature-scan)'
 spec:
   params:
     - name: INPUT
