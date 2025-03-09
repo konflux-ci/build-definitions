@@ -255,5 +255,5 @@ spec:
           echo "Selecting auth"
           select-oci-auth "$IMAGE_URL" >"$HOME/auth.json"
           echo "Attaching to ${IMAGE_URL}"
-          oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+          oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
         done
