@@ -19,7 +19,7 @@ func TestGolden(t *testing.T) {
 	}
 
 	resolveImage = func() string {
-		return "quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved"
+		return "quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved"
 	}
 
 	for _, dir := range dirs {
@@ -40,7 +40,7 @@ func TestGolden(t *testing.T) {
 			image = "" // force resolve
 			if dir.Name() == "git-clone" {
 				// use existing, simulates image being set from main from the parsed Task Step
-				image = "quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:existing"
+				image = "quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:existing"
 			}
 
 			if err := perform(task, recipe); err != nil {
