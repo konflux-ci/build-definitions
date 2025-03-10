@@ -16,6 +16,7 @@ The task supports the following input parameters.
 | IMAGE   | registry.io/my-task:tag | Reference of the image task will produce |
 | CONTEXT | my-task/0.1             | Paths to include in the bundle image     |
 | HOME    | /tekton/home            | Value for the HOME environment variable  |
+|SOURCE_CODE_DIR|/source|Source code directory in the working dir|
 
 `CONTEXT` can include multiple directories or files separated by comma or space.
 Paths can be negated with exclamation mark to prevent inclusion of certain
