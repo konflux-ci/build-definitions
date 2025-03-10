@@ -21,6 +21,12 @@ spec:
     - name: sealights-build-name
       type: string
       description: "A unique build name generated using the commit SHA and current date to prevent conflicts during test reruns."
+    - name: sealights-agent-version
+      type: string
+      description: "A version of the Sealights Go Agent"
+    - name: sealights-cli-version
+      type: string
+      description: "A version of the Sealights Go CLI"
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -70,6 +76,10 @@ spec:
       default: "false"
       description: Enable debug for Sealights scanning.
       type: string
+    - name: disable-token-save
+      default: "false"
+      description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -115,6 +125,8 @@ spec:
           value: $(params.pull-request-number)
         - name: TARGET_BRANCH
           value: $(params.target-branch)
+        - name: DISABLE_TOKEN_SAVE
+          value: $(params.disable-token-save)
         - name: DEBUG
           value: $(params.debug)
         - name: TEST_EVENT
@@ -125,6 +137,11 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        echo -n "${AGENT_VERSION}" > "$(results.sealights-agent-version.path)"
+        echo -n "${CLI_VERSION}" > "$(results.sealights-cli-version.path)"
+
+        export SEALIGHTS_TOKEN BUILD_NAME BSID PACKAGES_EXCLUDED_ENUM
 
         SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
         BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
@@ -166,7 +183,7 @@ spec:
         fi
 
         if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}"; then
+          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
           handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
         fi
 
