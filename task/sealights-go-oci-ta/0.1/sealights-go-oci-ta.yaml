@@ -154,14 +154,14 @@ spec:
 
         if [ -n "${TEST_EVENT}" ] && [ "${TEST_EVENT}" = "pull_request" ]; then
           echo "[INFO] Creating build session id from a ${TEST_EVENT} event source code: [ component: ${COMPONENT}, target-branch: ${TARGET_BRANCH}, pull-request-number ${PULL_REQUEST_NUMBER}, latest-commit: ${REVISION} ]"
-          if ! slcli config create-pr-bsid --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
-            --pull-request-number "${PULL_REQUEST_NUMBER}" --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"; then
-            echo -e "[ERROR] Failed to create PR-based build session ID."
+          if ! slcli config create-pr-bsid --fail-build --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
+            --pull-request-number "${PULL_REQUEST_NUMBER}"  --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"; then
+            handle_error "[ERROR] Failed to create PR-based build session ID."
           fi
         else
           echo "[INFO] Creating build session ID (BSID) ${TEST_EVENT} event source code [ component: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME} ]"
-          if ! slcli config create-bsid --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"; then
-            echo -e "[ERROR] Failed to create build session ID."
+          if ! slcli config create-bsid --fail-build --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"; then
+            handle_error "[ERROR] Failed to create build session ID."
           fi
         fi
 
