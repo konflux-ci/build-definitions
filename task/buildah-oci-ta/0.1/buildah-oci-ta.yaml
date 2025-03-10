@@ -215,7 +215,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -456,7 +456,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: merge-syft-sboms
-      image: registry.access.redhat.com/ubi9/python-39:9.5-1739190709@sha256:08d36504594394fc17d515cf89bf5d4acc08d5fd42afea2d7b6aa478f6a95f54
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
       workingDir: /var/workdir
       script: |
         #!/bin/python3
@@ -490,7 +490,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: merge-cachi2-sbom
-      image: quay.io/konflux-ci/cachi2:0.20.0@sha256:80402886bbc0f6b4deba65cf5f66dfe9a2c01ae0b57bf3454e3ea58e1a395720
+      image: quay.io/konflux-ci/cachi2:0.21.0@sha256:dabaeed7101209cfc7066e26301b12de2b72a2d943691537f598f7ad8c818dc9
       workingDir: /var/workdir
       script: |
         if [ -f "sbom-cachi2.json" ]; then
@@ -503,7 +503,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: create-purl-sbom
-      image: registry.access.redhat.com/ubi9/python-39:9.5-1739190709@sha256:08d36504594394fc17d515cf89bf5d4acc08d5fd42afea2d7b6aa478f6a95f54
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
       workingDir: /var/workdir
       script: |
         #!/bin/python3
