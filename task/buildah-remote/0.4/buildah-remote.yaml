@@ -609,9 +609,10 @@ spec:
         fi
       done
 
-      echo "[$(date --utc -Ins)] End"
+      echo "[$(date --utc -Ins)] End build"
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      echo "[$(date --utc -Ins)] End push remote"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -687,6 +688,7 @@ spec:
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
+      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
@@ -797,7 +799,8 @@ spec:
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
 
-      echo "[$(date --utc -Ins)] End"
+      echo
+      echo "[$(date --utc -Ins)] End push"
     securityContext:
       capabilities:
         add:
@@ -843,7 +846,7 @@ spec:
       echo "Running syft on the image filesystem"
       syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
 
-      echo "[$(date --utc -Ins)] End"
+      echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -900,7 +903,7 @@ spec:
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
 
-      echo "[$(date --utc -Ins)] End"
+      echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
@@ -941,7 +944,8 @@ spec:
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
 
-      echo "[$(date --utc -Ins)] End"
+      echo
+      echo "[$(date --utc -Ins)] End upload-sbom"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca

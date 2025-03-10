@@ -602,7 +602,7 @@ spec:
           fi
         done
 
-        echo "[$(date --utc -Ins)] End"
+        echo "[$(date --utc -Ins)] End build"
       computeResources:
         limits:
           memory: 8Gi
@@ -698,7 +698,8 @@ spec:
           cat "/var/workdir/image-digest"
         } >"$(results.IMAGE_REF.path)"
 
-        echo "[$(date --utc -Ins)] End"
+        echo
+        echo "[$(date --utc -Ins)] End push"
       securityContext:
         capabilities:
           add:
@@ -738,7 +739,7 @@ spec:
         echo "Running syft on the image filesystem"
         syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
 
-        echo "[$(date --utc -Ins)] End"
+        echo "[$(date --utc -Ins)] End sbom-syft-generate"
     - name: prepare-sboms
       image: quay.io/konflux-ci/sbom-utility-scripts@sha256:6dc75d3cdac794dfef90a4296a43a1506bd80c4ac0d897293439563b0dd5ac41
       workingDir: /var/workdir
@@ -780,7 +781,7 @@ spec:
           --parsed-dockerfile=/shared/parsed_dockerfile.json \
           --base-images-digests=/shared/base_images_digests
 
-        echo "[$(date --utc -Ins)] End"
+        echo "[$(date --utc -Ins)] End prepare-sboms"
       computeResources:
         limits:
           memory: 512Mi
@@ -821,7 +822,8 @@ spec:
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
         echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
 
-        echo "[$(date --utc -Ins)] End"
+        echo
+        echo "[$(date --utc -Ins)] End upload-sbom"
       computeResources:
         limits:
           memory: 512Mi
