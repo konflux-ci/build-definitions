@@ -22,6 +22,9 @@ spec:
     - name: sealights-build-name
       type: string
       description: "A unique build name generated using the commit SHA and current date to prevent conflicts during test reruns."
+    - name: sealights-agent-version
+      type: string
+      description: "A version of the Sealights Python Agent"
   params:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code.
@@ -114,6 +117,8 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        echo -n "${AGENT_VERSION}" > "$(results.sealights-agent-version.path)"
 
         export SEALIGHTS_TOKEN BUILD_NAME EXCLUDE_ENUM
 
