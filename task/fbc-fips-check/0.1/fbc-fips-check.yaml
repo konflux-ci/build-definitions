@@ -101,18 +101,36 @@ spec:
           for bundle in ${unreleased_bundles}; do
             echo "Processing bundle image : ${bundle}"
 
-            if [ -n "${image_mirror_map}" ]; then
-              reg_and_repo=$(echo "${bundle}" | sed -E 's/^([^:@]+).*$/\1/')
-              first_mirror=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][0]')
-              if [ "$first_mirror" != "null" ]; then
-                replaced_image=$(replace_image_pullspec "$bundle" "$first_mirror")
-                echo "Replacing $bundle with $replaced_image"
-                bundle="$replaced_image"
+            image_accessible=0
+            if ! bundle_out=$(opm render "$bundle"); then
+              echo "Could not inspect original pullspec $bundle. Checking if there's a mirror present"
+              if [ -n "${image_mirror_map}" ]; then
+                reg_and_repo=$(get_image_registry_and_repository "${bundle}")
+                echo "Mirror Map is $image_mirror_map"
+                mirrors=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][]')
+                echo "Mirrors for $reg_and_repo are $mirrors"
+
+                for mirror in "${mirrors[@]}"; do
+                  echo "Attempting to use mirror ${mirror}"
+                  replaced_image=$(replace_image_pullspec "$bundle" "$mirror")
+                  if ! bundle_out=$(opm render "$replaced_image"); then
+                    echo "Mirror $mirror is inaccessible."
+                    continue
+                  fi
+                  image_accessible=1
+                  echo "Replacing $bundle with $replaced_image"
+                  bundle="$replaced_image"
+                  break
+                done
+
               fi
+            else
+              image_accessible=1
+              echo "Successfully inspected $bundle. Mirror not required."
             fi
 
             # Run the FIPS check only if the bundle is part of the Openshift Subscription or has the fips label set
-            if ! bundle_out=$(opm render "$bundle"); then
+            if [[ $image_accessible -eq 0 ]]; then
               note="Task $(context.task.name) failed: Could not render unreleased bundle image: ${bundle}. Make sure the image is accessible or a mirror is provided for the same in images-mirror-set.yaml"
               echo "${note}"
               TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -179,7 +197,7 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 4692a3811cf2cf319208729aa864b186f5f3743d
+            value: 982c1f0239f64393eb7c885e8f7e282ef0c6adfd
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
