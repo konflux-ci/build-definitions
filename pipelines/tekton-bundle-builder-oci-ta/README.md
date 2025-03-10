@@ -90,7 +90,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check-oci-ta:0.1 task parameters
+### sast-unicode-check-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
@@ -102,6 +102,7 @@
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
@@ -131,9 +132,9 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE|
+|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.1:IMAGE|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -152,13 +153,13 @@
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.2:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.2:SOURCE_ARTIFACT|
 ### sast-shell-check-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check-oci-ta:0.1 task results
+### sast-unicode-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |

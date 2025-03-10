@@ -86,7 +86,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.1 task parameters
+### sast-unicode-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -96,6 +96,7 @@
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
@@ -124,9 +125,9 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE|
+|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.1:IMAGE|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -145,7 +146,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.1 task results
+### sast-unicode-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -161,7 +162,7 @@
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.2:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -179,7 +180,7 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.1 task workspaces
+### sast-unicode-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
