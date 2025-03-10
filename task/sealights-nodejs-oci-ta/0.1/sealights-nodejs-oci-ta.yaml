@@ -146,16 +146,16 @@ spec:
         # Configures the app for Sealights using vars from your pipeline run.
         if [[ -n "${TEST_EVENT}" && "${TEST_EVENT}" == "pull_request" ]]; then
           echo "[INFO] Generate build session id from a Pull Request source code"
-          npx slnodejs prConfig --appname "${COMPONENT}" --targetBranch "${TARGET_BRANCH}" \
+          slnodejs prConfig --appname "${COMPONENT}" --targetBranch "${TARGET_BRANCH}" \
             --pullRequestNumber "${PULL_REQUEST_NUMBER}" --latestCommit "${REVISION}" --repositoryUrl "${REPOSITORY_URL}" --token "${SEALIGHTS_TOKEN}"
         else
           echo "[INFO] Creating build session ID (BSID) for app: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME}..."
-          npx slnodejs config --appname "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}" --token "${SEALIGHTS_TOKEN}"
+          slnodejs config --appname "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}" --token "${SEALIGHTS_TOKEN}"
         fi
         # Skip scanning frontend applications
         if [ "$IS_FRONTEND" != "true" ]; then
           # Scans all .js files that are not in the --excludedpaths step above and reports scan to sealights.
-          npx slnodejs scan --buildsessionidfile buildSessionId --scm "${SCM}" --scmProvider "${SCM_PROVIDER}" --excludedpaths "${PATHS_EXCLUDED_ENUM}" --build "${BUILD_NAME}" --es6Modules --workspacepath "${WORKSPACE_PATH}" --projectroot "${WORKSPACE_PATH}" --token "${SEALIGHTS_TOKEN}"
+          slnodejs scan --buildsessionidfile buildSessionId --scm "${SCM}" --scmProvider "${SCM_PROVIDER}" --excludedpaths "${PATHS_EXCLUDED_ENUM}" --build "${BUILD_NAME}" --es6Modules --workspacepath "${WORKSPACE_PATH}" --projectroot "${WORKSPACE_PATH}" --token "${SEALIGHTS_TOKEN}"
         fi
         # Stores results to be used in future tasks for testing.
         echo -n "$(cat buildSessionId)" > "$(results.sealights-bsid.path)"
