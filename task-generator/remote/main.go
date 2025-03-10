@@ -237,6 +237,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		ret += step.Script
 		ret += "\nbuildah push \"$IMAGE\" \"oci:konflux-final-image:$IMAGE\""
+		ret += "\necho \"[$(date --utc -Ins)] End push remote\""
 		ret += "\nREMOTESSHEOF"
 		ret += "\nchmod +x " + script + "\n"
 		ret += "\nPODMAN_NVIDIA_ARGS=()"
@@ -296,7 +297,8 @@ container=$(buildah from --pull-never "$IMAGE")
 buildah mount "$container" | tee /shared/container_path
 # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
 find $(cat /shared/container_path) -xtype l -delete
-echo $container > /shared/container_name`
+echo $container > /shared/container_name
+echo "[$(date --utc -Ins)] End remote"`
 
 		for _, i := range strings.Split(ret, "\n") {
 			if strings.HasSuffix(i, " ") {

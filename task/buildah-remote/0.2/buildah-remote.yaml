@@ -584,6 +584,7 @@ spec:
       done
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      echo "[$(date --utc -Ins)] End push remote"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -659,6 +660,7 @@ spec:
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
+      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
