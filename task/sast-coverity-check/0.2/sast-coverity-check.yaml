@@ -231,7 +231,7 @@ spec:
       value: $(params.COV_ANALYZE_ARGS)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/redhat-services-prod/sast/coverity:202412.3
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
     name: prepare
     script: |
       #!/bin/bash
@@ -278,8 +278,13 @@ spec:
       [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
 
       # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
-      if ! [ -x /usr/bin/file ] && [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
-        install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+      if ! [ -x /usr/bin/file ]; then
+        if [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+          install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+        elif [ -e /opt/cov-sa-2024.12/bin/cov-override-access.so ]; then
+          export LD_PRELOAD="/opt/cov-sa-2024.12/bin/cov-override-access.so"
+          export PATH="\${PATH}:/opt/cov-sa-2024.12/bin"
+        fi
       fi
 
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
@@ -364,7 +369,7 @@ spec:
         /shared:/shared
         /shared/license.dat:/opt/coverity/bin/license.dat
         /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
-    image: quay.io/redhat-services-prod/sast/coverity:202412.3
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
     name: build
     script: |
       #!/bin/bash
@@ -699,7 +704,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
-    image: quay.io/redhat-services-prod/sast/coverity:202412.3
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
     name: postprocess
     script: |
       #!/bin/bash -e
