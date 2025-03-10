@@ -149,25 +149,25 @@ spec:
         fi
 
         if ! slcli config init --lang go --token "${SEALIGHTS_TOKEN}"; then
-          handle_error "Failed to initialize Sealights configuration."
+          echo -e "[ERROR] Failed to initialize Sealights configuration."
         fi
 
         if [ -n "${TEST_EVENT}" ] && [ "${TEST_EVENT}" = "pull_request" ]; then
           echo "[INFO] Creating build session id from a ${TEST_EVENT} event source code: [ component: ${COMPONENT}, target-branch: ${TARGET_BRANCH}, pull-request-number ${PULL_REQUEST_NUMBER}, latest-commit: ${REVISION} ]"
           if ! slcli config create-pr-bsid --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
             --pull-request-number "${PULL_REQUEST_NUMBER}" --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"; then
-            handle_error "Failed to create PR-based build session ID."
+            echo -e "[ERROR] Failed to create PR-based build session ID."
           fi
         else
           echo "[INFO] Creating build session ID (BSID) ${TEST_EVENT} event source code [ component: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME} ]"
           if ! slcli config create-bsid --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"; then
-            handle_error "Failed to create build session ID."
+            echo -e "[ERROR] Failed to create build session ID."
           fi
         fi
 
         if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
           --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}"; then
-          handle_error "Sealights scan failed."
+          handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
         fi
 
         echo "{\"result\": \"SUCCESS\"}" > "$(results.TEST_OUTPUT.path)"
