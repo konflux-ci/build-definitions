@@ -279,7 +279,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.3
+      image: quay.io/redhat-services-prod/sast/coverity:202412.5
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -335,8 +335,13 @@ spec:
         [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
 
         # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
-        if ! [ -x /usr/bin/file ] && [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
-          install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+        if ! [ -x /usr/bin/file ]; then
+          if [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+            install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+          elif [ -e /opt/cov-sa-2024.12/bin/cov-override-access.so ]; then
+            export LD_PRELOAD="/opt/cov-sa-2024.12/bin/cov-override-access.so"
+            export PATH="\${PATH}:/opt/cov-sa-2024.12/bin"
+          fi
         fi
 
         # always remove Coverity's intermediate directory so that it can be recreated with different ownership
@@ -345,12 +350,16 @@ spec:
         # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
         /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
           -- /bin/bash -c "PS4='@\\\${SECONDS}s: \\\${BASH_COMMAND} --> '
-          set -x
+          set -mx
           pwd >&2  # print CWD set by coverity
           cd '\${PWD}'  # restore original CWD
-          \\"\\\$@\\"  # run the instrumented shell command
-          echo \\\$? >/tmp/idir/build-cmd-ec.txt" \
-          - "\$@"
+          \\"\\\$@\\" &  # run the instrumented shell command in background (to create a process group)
+          pid=\\\$!  # store its PID
+          wait \\\${pid}  # wait for the command to finish
+          ec=\\\$?  # store its exit status
+          kill -KILL -\\\${pid} 2>/dev/null  # kill orphan background processes
+          echo \\\${ec} >/tmp/idir/build-cmd-ec.txt  # propagate the exit status
+          " - "\$@"
 
         # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
         $(declare -p COV_ANALYZE_ARGS)
@@ -391,7 +400,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.3
+      image: quay.io/redhat-services-prod/sast/coverity:202412.5
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -734,7 +743,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.3
+      image: quay.io/redhat-services-prod/sast/coverity:202412.5
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca

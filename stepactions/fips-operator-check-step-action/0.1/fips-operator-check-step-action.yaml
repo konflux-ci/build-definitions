@@ -56,18 +56,35 @@ spec:
     for related_image in ${related_images}; do
       echo "Processing related image : ${related_image}"
 
-      # Replace original pullspec with mirror, if present
-      if [ -n "${image_mirror_map}" ]; then
-        reg_and_repo=$(echo "${related_image}" | sed -E 's/^([^:@]+).*$/\1/')
-        first_mirror=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][0]')
-        if [ "$first_mirror" != "null" ]; then
-          replaced_image=$(replace_image_pullspec "$related_image" "$first_mirror")
-          echo "Replacing $related_image with $replaced_image"
-          related_image="$replaced_image"
+      image_accessible=0
+      if ! image_labels=$(get_image_labels "$related_image"); then
+        echo "Could not inspect original pullspec $related_image. Checking if there's a mirror present"
+        if [ -n "${image_mirror_map}" ]; then
+          reg_and_repo=$(get_image_registry_and_repository "${related_image}")
+          echo "Mirror Map is $image_mirror_map"
+          mirrors=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][]')
+          echo "Mirrors for $reg_and_repo are $mirrors"
+
+          for mirror in "${mirrors[@]}"; do
+            echo "Attempting to use mirror ${mirror}"
+            replaced_image=$(replace_image_pullspec "$related_image" "$mirror")
+            if ! image_labels=$(get_image_labels "$replaced_image"); then
+              echo "Mirror $mirror is inaccessible."
+              continue
+            fi
+            image_accessible=1
+            echo "Replacing $related_image with $replaced_image"
+            related_image="$replaced_image"
+            break
+          done
+
         fi
+      else
+        image_accessible=1
+        echo "Successfully inspected $related_image. Mirror not required."
       fi
 
-      if ! image_labels=$(get_image_labels "${related_image}"); then
+      if [[ $image_accessible -eq 0 ]]; then
         echo "Error: Could not inspect image ${related_image} for labels"
         error_counter=$((error_counter + 1))
         continue
