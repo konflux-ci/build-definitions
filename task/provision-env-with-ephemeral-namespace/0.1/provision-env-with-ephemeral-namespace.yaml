@@ -3,6 +3,12 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: provision-env-with-ephemeral-namespace
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-01-17T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'This task is deprecated, please remove
+      it from your pipeline and replace it with the eaas-provision-space task.'
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   params:
   - name: KONFLUXNAMESPACE
