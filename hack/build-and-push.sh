@@ -530,7 +530,9 @@ build_push_tasks() {
         migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
 
         has_migration=false
-        if [ -f "$migration_file" ]; then
+        if [ -f "$migration_file" ] && git show "$task_file_sha" --oneline --name-only | grep -q "$migration_file"; then
+            # There is a migration file matching the task concrete version and
+            # is included in the same commit with the task.
             has_migration=true
         fi
 
