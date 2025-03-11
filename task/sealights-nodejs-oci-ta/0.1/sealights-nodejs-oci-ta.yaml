@@ -79,7 +79,7 @@ spec:
       emptyDir: {}
   stepTemplate:
     volumeMounts:
-      - mountPath: /opt/app-root
+      - mountPath: /opt/app-root/src/app
         name: workdir
       - name: sealights-credentials
         mountPath: /usr/local/sealights-credentials
@@ -88,7 +88,7 @@ spec:
       image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
       args:
         - use
-        - $(params.SOURCE_ARTIFACT)=/opt/app-root/src
+        - $(params.SOURCE_ARTIFACT)=/opt/app-root/src/app
     - name: sealights-nodejs-instrumentation
       computeResources:
         limits:
@@ -98,7 +98,7 @@ spec:
           cpu: 100m
           memory: 256Mi
       image: quay.io/konflux-ci/tekton-integration-catalog/sealights-nodejs:latest@sha256:cb3ba4e3e4956bdf05fd896f55c389f429801bb62ae6bdf9fbcdd332b96d5d0c
-      workingDir: /opt/app-root/src
+      workingDir: /opt/app-root/src/app
       securityContext:
         runAsUser: 0
       env:
