@@ -50,7 +50,7 @@ spec:
         echo 'No license file for Coverity was detected. Coverity scan will not be executed...'
         echo 'Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
         note="Task $(context.task.name) failed: No license file for Coverity was detected. Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license"
-        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note" -f 1)
+        TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
         echo -n "failed" | tee "$(results.STATUS.path)"
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         exit 0
@@ -64,7 +64,7 @@ spec:
         echo 'No authentication token for downloading Coverity image detected. Coverity scan will not be executed...'
         echo 'Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image'
         note="Task $(context.task.name) failed: No authentication token for downloading Coverity image detected. Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image"
-        TEST_OUTPUT=$(make_result_json -r ERROR -t "$note" -f 1)
+        TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
         echo -n "failed" | tee "$(results.STATUS.path)"
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         exit 0
