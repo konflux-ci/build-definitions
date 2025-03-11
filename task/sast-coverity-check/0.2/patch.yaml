@@ -75,9 +75,6 @@
 
 # Change build step resources
 - op: replace
-  path: /spec/steps/0/computeResources/limits/cpu
-  value: 16
-- op: replace
   path: /spec/steps/0/computeResources/limits/memory
   value: 16Gi
 - op: replace
@@ -302,10 +299,10 @@
     image: quay.io/redhat-services-prod/sast/coverity:202412.5
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 16Gi
       requests:
-        memory: 2Gi
-        cpu: 2
+        memory: 4Gi
+        cpu: 4
     volumeMounts:
       - name: trusted-ca
         mountPath: "/mnt/trusted-ca"
