@@ -38,8 +38,8 @@ spec:
               # The current behaviour when secrets are not available is
               # - Task succeeds (exit 0)
               # - writes "failed" to the STATUS result
-              # - TEST_OUTPUT result is Error, with a single failure
+              # - TEST_OUTPUT result is FAILURE, with a single failure
               echo -n "Expected STATUS: "
               [ "$STATUS" == "failed" ] && echo "true"
               echo -n "Expected TEST_OUTPUT: "
-              echo "$TEST_OUTPUT" | jq -e '.result == "ERROR" and .failures == 1'
+              echo "$TEST_OUTPUT" | jq -e '.result == "FAILURE" and .failures == 1'
