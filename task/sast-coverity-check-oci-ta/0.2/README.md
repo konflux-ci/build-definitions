@@ -6,6 +6,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |name|description|default value|required|
 |---|---|---|---|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
+|ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
