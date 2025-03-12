@@ -1,0 +1,19 @@
+---
+base: ../../build-helm-chart/0.1/build-helm-chart.yaml
+add:
+  - use-source
+removeWorkspaces:
+  - source
+useTAVolumeMount: true
+preferStepTemplate: true
+replacements:
+  workspaces.source.path: /var/workdir
+description: |-
+  The task packages and pushes a Helm chart to an OCI repository.
+  As Helm charts require to have a semver-compatible version to be packaged, the
+  task relies on git tags in order to determine the chart version during runtime.
+
+  The task computes the version based on the git commit SHA distance from the latest
+  tag prefixed with the value of TAG_PREFIX. The value of that tag will be used as
+  the version's X.Y values, and the Z value will be computed by the commit's distance
+  from the tag, followed by an abbreviated SHA as build metadata.
