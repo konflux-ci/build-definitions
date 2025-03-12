@@ -19,6 +19,11 @@ spec:
     description: Name of secret which contains subscription activation key
     name: ACTIVATION_KEY
     type: string
+  - default: []
+    description: Additional base image references to include to the SBOM. Array of
+      image_reference_with_digest strings
+    name: ADDITIONAL_BASE_IMAGES
+    type: array
   - default: does-not-exist
     description: Name of a secret which will be made available to the build with 'buildah
       build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -888,7 +893,10 @@ spec:
     - mountPath: /shared
       name: shared
     workingDir: /var/workdir/source
-  - computeResources:
+  - args:
+    - --additional-base-images
+    - $(params.ADDITIONAL_BASE_IMAGES[*])
+    computeResources:
       limits:
         memory: 512Mi
       requests:
@@ -937,6 +945,34 @@ spec:
         --sbom=sbom.json \
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
+
+      ADDITIONAL_BASE_IMAGES=()
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+        --additional-base-images)
+          shift
+          while [[ $# -gt 0 && $1 != --* ]]; do
+            ADDITIONAL_BASE_IMAGES+=("$1")
+            shift
+          done
+          ;;
+        *)
+          echo "unexpected argument: $1" >&2
+          exit 2
+          ;;
+        esac
+      done
+
+      for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
+        IFS="@" read -ra BASE_IMAGE <<<"${ADDITIONAL_BASE_IMAGE}"
+        python3 /scripts/add_image_reference.py \
+          --builder-image \
+          --image-url "${BASE_IMAGE[0]}" \
+          --image-digest "${BASE_IMAGE[1]}" \
+          --input-file sbom.json \
+          --output-file /tmp/sbom.tmp.json
+        mv /tmp/sbom.tmp.json sbom.json
+      done
 
       echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:
