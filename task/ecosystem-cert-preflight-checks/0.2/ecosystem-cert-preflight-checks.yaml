@@ -35,7 +35,7 @@ spec:
       value: $(steps.introspect.results.artifact-type-set-by)
   steps:
     - name: introspect
-      computeResources:
+      resources:
         limits:
           memory: 512Mi
         requests:
@@ -117,7 +117,7 @@ spec:
           mountPath: /auth
 
     - name: set-skip-for-bundles
-      computeResources:
+      resources:
         limits:
           memory: 256Mi
         requests:
@@ -154,7 +154,7 @@ spec:
     - name: app-check
       image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
       args: ["check", "container", "$(params.image-url)"]
-      computeResources:
+      resources:
         limits:
           memory: 4Gi
         requests:
@@ -179,7 +179,7 @@ spec:
         values: ["application"]
 
     - name: app-set-outcome
-      computeResources:
+      resources:
         limits:
           memory: 256Mi
         requests:
@@ -249,7 +249,7 @@ spec:
         echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
 
     - name: final-outcome
-      computeResources:
+      resources:
         limits:
           memory: 256Mi
         requests:
