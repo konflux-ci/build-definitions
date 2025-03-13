@@ -73,6 +73,10 @@ spec:
       default: "false"
       description: Enable debug for Sealights scanning.
       type: string
+    - name: disable-token-save
+      default: "false"
+      description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -120,6 +124,8 @@ spec:
           value: $(params.target-branch)
         - name: DEBUG
           value: $(params.debug)
+        - name: DISABLE_TOKEN_SAVE
+          value: $(params.disable-token-save)
         - name: TEST_EVENT
           valueFrom:
             fieldRef:
@@ -157,7 +163,7 @@ spec:
         fi
 
         slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --debug="${DEBUG}"
+          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"
 
         echo -n "$(cat buildSessionId.txt)" > "$(results.sealights-bsid.path)"
         echo -n "$BUILD_NAME" > "$(results.sealights-build-name.path)"
