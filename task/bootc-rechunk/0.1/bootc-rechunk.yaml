@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: bootc-rechunk
+  namespace: konflux-ci
+spec:
+  params:
+    - name: IMAGE_TAG
+      type: string
+      description: "Tag for the OCI image"
+    - name: OUTPUT_PATH
+      type: string
+      description: "Path to store the chunked OCI image"
+      default: "/buildcontext"
+  steps:
+    - name: rechunk
+      image: quay.io/coreos-assembler/coreos-assembler:latest
+      script: |
+        #!/bin/sh
+        set -eux
+        mkdir -p $(params.OUTPUT_PATH)
+        rpm-ostree experimental compose build-chunked-oci \
+          --bootc \
+          --format-version=1 \
+          --rootfs /target-rootfs \
+          --output oci-dir:$(params.OUTPUT_PATH)/out.ociarchive
