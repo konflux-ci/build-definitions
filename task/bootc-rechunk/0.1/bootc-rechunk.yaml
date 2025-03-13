@@ -1,0 +1,201 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux, bootc, rechunk
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: docker
+  name: bootc-rechunk
+spec:
+  description: |
+    This task takes existing container images and rechunks them using rpm-ostree 
+    to create bootc-ready (ostree container) images. It preserves provenance 
+    information and handles multi-architecture images efficiently.
+  params:
+    - name: IMAGE
+      description: The target image and tag where the rechunked image will be pushed to
+      type: string
+    - name: COMMIT_SHA
+      description: Git commit SHA for tagging
+      type: string
+    - name: OUTPUT_REGISTRY
+      description: Registry to push rechunked images to
+      type: string
+      default: "quay.io/redhat-user-workloads"
+    - name: FORMAT_VERSION
+      description: Format version for chunked output (1 or 2)
+      type: string
+      default: "1"
+    - name: TLSVERIFY
+      description: Verify TLS on the registry endpoint
+      type: string
+      default: "true"
+    - name: IMAGES
+      description: List of images with their digests, for different architectures
+      type: array
+  results:
+    - name: IMAGE_URL_AMD64
+      description: URL of the rechunked image for amd64 architecture
+    - name: IMAGE_DIGEST_AMD64
+      description: Digest of the rechunked image for amd64 architecture
+    - name: IMAGE_URL_ARM64
+      description: URL of the rechunked image for arm64 architecture
+    - name: IMAGE_DIGEST_ARM64
+      description: Digest of the rechunked image for arm64 architecture
+    - name: IMAGE_URL_PPC64LE
+      description: URL of the rechunked image for ppc64le architecture
+    - name: IMAGE_DIGEST_PPC64LE
+      description: Digest of the rechunked image for ppc64le architecture
+    - name: IMAGE_URL_S390X
+      description: URL of the rechunked image for s390x architecture
+    - name: IMAGE_DIGEST_S390X
+      description: Digest of the rechunked image for s390x architecture
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+  steps:
+    - name: rechunk
+      image: quay.io/buildah/stable:latest
+      args:
+        - $(params.IMAGES[*])
+      securityContext:
+        runAsUser: 0
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        
+        # Install required packages
+        dnf install -y podman rpm-ostree jq
+        
+        # Set variables
+        OUTPUT_IMAGE=$(params.IMAGE)
+        COMMIT_SHA=$(params.COMMIT_SHA)
+        OUTPUT_REGISTRY=$(params.OUTPUT_REGISTRY)
+        FORMAT_VERSION=$(params.FORMAT_VERSION)
+        TLSVERIFY=$(params.TLSVERIFY)
+        
+        echo "Starting rechunking process..."
+        
+        # Store arguments as an array
+        IMAGES=("$@")
+        
+        # Declare associative array for architecture mapping
+        declare -A IMAGE_MAP
+        
+        # Process each input image
+        for IMAGE_INFO in "${IMAGES[@]}"; do
+          
+          # Extract architecture from image name (e.g., image-amd64@sha256:...)
+          ARCH=$(echo "$IMAGE_INFO" | sed -E 's/.*-([^-]+)@sha256:.*/\1/')
+          
+          if [ -z "$ARCH" ]; then
+            echo "ERROR: Could not extract architecture from $IMAGE_INFO"
+            echo "Expected format: image-name-arch@sha256:digest"
+            exit 1
+          fi
+          
+          # Validate architecture
+          case "$ARCH" in
+            amd64|arm64|ppc64le|s390x)
+              ;;
+            *)
+              echo "ERROR: Unsupported architecture: $ARCH"
+              echo "Supported architectures: amd64, arm64, ppc64le, s390x"
+              exit 1
+              ;;
+          esac
+          
+          IMAGE_MAP[$ARCH]="$IMAGE_INFO"
+        done
+        
+        # Rechunk each architecture
+        for ARCH in "${!IMAGE_MAP[@]}"; do
+          IMAGE_INFO="${IMAGE_MAP[$ARCH]}"
+          
+          IMAGE_URL=$(echo "$IMAGE_INFO" | cut -d '@' -f1)
+          IMAGE_DIGEST=$(echo "$IMAGE_INFO" | cut -d '@' -f2)
+          
+          # Generate rechunked image name and URL
+          RECHUNKED_IMAGE_NAME="${OUTPUT_IMAGE}-${ARCH}-rechunked"
+          RECHUNKED_IMAGE_TAG="${COMMIT_SHA}"
+          RECHUNKED_IMAGE_URL="${OUTPUT_REGISTRY}/${RECHUNKED_IMAGE_NAME}:${RECHUNKED_IMAGE_TAG}"
+          
+          
+          # Retry logic for rechunking
+          MAX_RETRIES=3
+          RETRY_DELAY=10
+          RECHUNK_SUCCESS=false
+          
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            if [ $attempt -gt 1 ]; then
+              sleep $RETRY_DELAY
+            fi
+            
+            # Perform rechunking with error handling
+            if rpm-ostree experimental compose build-chunked-oci \
+              --bootc \
+              --format-version="${FORMAT_VERSION}" \
+              --from="${IMAGE_URL}@${IMAGE_DIGEST}" \
+              --output="containers-storage:${RECHUNKED_IMAGE_NAME}"; then
+              
+              RECHUNK_SUCCESS=true
+              break
+            else
+              if [ $attempt -eq $MAX_RETRIES ]; then
+                echo "ERROR: Rechunking failed for $ARCH after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+          
+          if [ "$RECHUNK_SUCCESS" = false ]; then
+            echo "ERROR: Rechunking failed for $ARCH"
+            exit 1
+          fi
+          
+          # Commit rechunked image
+          buildah commit --rm \
+            "containers-storage:${RECHUNKED_IMAGE_NAME}" \
+            "${RECHUNKED_IMAGE_URL}"
+          
+          # Push with retry logic
+          MAX_PUSH_RETRIES=5
+          PUSH_DELAY=10
+          PUSH_SUCCESS=false
+          
+          for attempt in $(seq 1 $MAX_PUSH_RETRIES); do
+            if [ $attempt -gt 1 ]; then
+              sleep $PUSH_DELAY
+            fi
+            
+            if buildah push \
+              --tls-verify="${TLSVERIFY}" \
+              --digestfile "/var/workdir/image-digest-${ARCH}" \
+              "${RECHUNKED_IMAGE_URL}" \
+              "docker://${RECHUNKED_IMAGE_URL}"; then
+              
+              PUSH_SUCCESS=true
+              break
+            fi
+          done
+          
+          if [ "$PUSH_SUCCESS" = false ]; then
+            echo "ERROR: Failed to push rechunked image for $ARCH after $MAX_PUSH_RETRIES attempts"
+            exit 1
+          fi
+          
+          # Write results
+          cat "/var/workdir/image-digest-${ARCH}" | tee "/tekton/results/IMAGE_DIGEST_${ARCH^^}"
+          echo -n "${RECHUNKED_IMAGE_URL}" | tee "/tekton/results/IMAGE_URL_${ARCH^^}"
+        done
+        
+        echo "Rechunking process completed successfully for all architectures"
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: /var/workdir
+          name: workdir
