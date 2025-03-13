@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: bootc-rechunk
+  namespace: konflux-ci
+spec:
+  params:
+    - name: IMAGE
+      type: string
+      description: "The image to rechunk"
+    - name: OUTPUT_PATH
+      type: string
+      description: "Path to store the chunked OCI image"
+      default: "/buildcontext"
+  steps:
+    - name: rechunk
+      image: $(params.IMAGE)  # Using the image passed via params
+      script: |
+        #!/bin/sh
+        set -eux
+        mkdir -p $(params.OUTPUT_PATH)
+        
+        # Running the rechunking process
+        rpm-ostree experimental compose build-chunked-oci \
+          --bootc \
+          --format-version=1 \
+          --rootfs /target-rootfs \
+          --output oci-dir:$(params.OUTPUT_PATH)/out.ociarchive
