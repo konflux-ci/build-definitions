@@ -47,6 +47,12 @@ spec:
         value: $(params.artifact-type)
       - name: PARAM_IMAGE_URL
         value: $(params.image-url)
+      computeResources:
+        limits:
+          memory: 384Mi
+        requests:
+          memory: 384Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
 
@@ -98,6 +104,12 @@ spec:
       - input: "$(steps.introspect.results.artifact-type)"
         operator: in
         values: ["operatorbundle"]
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          memory: 64Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
 
@@ -120,6 +132,12 @@ spec:
 
     - name: app-check
       image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          memory: 2Gi
+          cpu: 1200m
       args: ["check", "container", "$(params.image-url)"]
       env:
         - name: PFLT_DOCKERCONFIG
@@ -148,6 +166,12 @@ spec:
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          memory: 64Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
 
@@ -207,6 +231,12 @@ spec:
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /mount
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          memory: 64Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
 
