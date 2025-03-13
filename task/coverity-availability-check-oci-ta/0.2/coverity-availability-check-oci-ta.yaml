@@ -29,7 +29,13 @@ spec:
   - description: Tekton task simple status to be later checked
     name: STATUS
   steps:
-  - env:
+  - computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
     - name: COV_LICENSE
       value: $(params.COV_LICENSE)
     - name: AUTH_TOKEN_COVERITY_IMAGE
