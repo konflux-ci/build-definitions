@@ -120,6 +120,12 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+      computeResources:
+        limits:
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 1Gi
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:76f2f7682d32902fec34753c11f414756d0e88070d07658a35e71760ef928b71
       workingDir: /var/workdir/source
@@ -148,3 +154,9 @@ spec:
         select-oci-auth $IMAGE_URL >$HOME/auth.json
         echo "Attaching to ${IMAGE_URL}"
         oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
