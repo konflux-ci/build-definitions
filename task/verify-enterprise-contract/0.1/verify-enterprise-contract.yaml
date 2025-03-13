@@ -118,13 +118,34 @@ spec:
 
     - name: TIMEOUT
       type: string
-      description: Timeout setting for `ec validate`.
-      default: "5m0s"
+      description: >
+        This param is deprecated and will be removed in future. Its value is ignored. EC will
+        be run without a timeout. (If you do want to apply a timeout use the Tekton task timeout.)
+      default: ""
 
     - name: WORKERS
       type: string
       description: Number of parallel workers to use for policy evaluation.
       default: "1"
+
+    - name: SINGLE_COMPONENT
+      description: Reduce the Snapshot to only the component whose build caused the Snapshot to be created
+      type: string
+      default: "false"
+
+    - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
+      description: >
+        Name, including kind, of the Kubernetes resource to query for labels when single
+        component mode is enabled, e.g. pr/somepipeline.
+      type: string
+      default: "unknown"
+
+    - name: SINGLE_COMPONENT_CUSTOM_RESOURCE_NS
+      description: >
+        Kubernetes namespace where the SINGLE_COMPONENT_NAME is found. Only used
+        when single component mode is enabled.
+      type: string
+      default: ""
 
   workspaces:
     - name: data
@@ -143,24 +164,50 @@ spec:
   steps:
 
     - name: initialize-tuf
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
-      script: |-
-        set -euo pipefail
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
+      command: [ec]
+      args:
+        - sigstore
+        - initialize
+        - --mirror
+        - $(params.TUF_MIRROR)
+        - --root
+        - $(params.TUF_MIRROR)/root.json
+      when:
+        - input: $(params.TUF_MIRROR)
+          operator: "notin"
+          values: [""]
 
-        if [[ -z "${TUF_MIRROR:-}" ]]; then
-            echo 'TUF_MIRROR parameter not provided. Skipping TUF root initialization.'
-            exit
-        fi
-
-        echo 'Initializing TUF root...'
-        ec sigstore initialize --mirror "${TUF_MIRROR}" --root "${TUF_MIRROR}/root.json"
-        echo 'Done!'
+    - name: reduce
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
       env:
-        - name: TUF_MIRROR
-          value: "$(params.TUF_MIRROR)"
+        - name: SNAPSHOT
+          value: $(params.IMAGES)
+        - name: SINGLE_COMPONENT
+          value: $(params.SINGLE_COMPONENT)
+        - name: CUSTOM_RESOURCE
+          value: $(params.SINGLE_COMPONENT_CUSTOM_RESOURCE)
+        - name: CUSTOM_RESOURCE_NAMESPACE
+          value: $(params.SINGLE_COMPONENT_CUSTOM_RESOURCE_NS)
+        - name: SNAPSHOT_PATH
+          value: $(params.HOMEDIR)/snapshot.json
+      image: quay.io/enterprise-contract/ec-cli:snapshot
+      onError: continue # progress even if the step fails so we can see the debug logs
+      command: [reduce-snapshot.sh]
 
     - name: validate
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       onError: continue # progress even if the step fails so we can see the debug logs
       command: [ec]
       args:
@@ -168,7 +215,7 @@ spec:
         - image
         - "--verbose"
         - "--images"
-        - "$(params.IMAGES)"
+        - "/tekton/home/snapshot.json"
         - "--policy"
         - "$(params.POLICY_CONFIGURATION)"
         - "--public-key"
@@ -180,15 +227,17 @@ spec:
         - "$(params.WORKERS)"
         # NOTE: The syntax below is required to negate boolean parameters
         - "--info=$(params.INFO)"
-        - "--timeout=$(params.TIMEOUT)"
+        # Fresh versions of ec support "--timeout=0" to indicate no timeout, but this would break
+        # the task if it's used with an older version of ec. In an abundance of caution, let's set
+        # an arbitrary high value instead of using 0 here. In future we can change it to 0.
+        # (The reason to not use an explicit timeout for ec is so Tekton can handle the timeouts).
+        - "--timeout=100h"
         - "--strict=false"
         - "--show-successes"
         - "--effective-time=$(params.EFFECTIVE_TIME)"
         - "--extra-rule-data=$(params.EXTRA_RULE_DATA)"
         - "--output"
         - "text?show-successes=false"
-        - "--output"
-        - "yaml=$(params.HOMEDIR)/report.yaml"
         - "--output"
         - "appstudio=$(results.TEST_OUTPUT.path)"
         - "--output"
@@ -221,22 +270,27 @@ spec:
           subPath: ca-bundle.crt
           readOnly: true
 
-    - name: report
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
-      onError: continue  # progress even if the step fails so we can see the debug logs
-      command: [cat]
-      args:
-        - "$(params.HOMEDIR)/report.yaml"
-
     - name: report-json
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 2Gi
+        limits:
+          memory: 2Gi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report-json.json"
 
     - name: summary
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [jq]
       args:
@@ -244,25 +298,49 @@ spec:
         - "$(results.TEST_OUTPUT.path)"
 
     - name: info
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       command: [printf]
       args:
         - "----- DEBUG OUTPUT -----\n"
 
     - name: version
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       command: [ec]
       args:
         - version
 
     - name: debug-log
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       command: [cat]
       args:
         - "$(params.HOMEDIR)/debug.log"
 
     - name: assert
-      image: registry.redhat.io/rhtas/ec-rhel9:0.5
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      image: quay.io/enterprise-contract/ec-cli:snapshot
       command: [jq]
       args:
         - "--argjson"
