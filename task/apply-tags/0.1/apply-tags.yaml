@@ -34,6 +34,12 @@ spec:
         readOnly: true
   steps:
     - name: apply-additional-tags-from-parameter
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       image: registry.access.redhat.com/ubi9/skopeo:9.5-1745865345@sha256:d91eb0dac7308ddfb12193368a42009509925edba80da9ffd3b82d03427dc3ed
       args:
         - $(params.ADDITIONAL_TAGS[*])
@@ -54,6 +60,12 @@ spec:
         fi
 
     - name: apply-additional-tags-from-image-label
+      resources:
+        limits:
+        requests:
+          memory: 256Mi
+          cpu: 100m
+          memory: 256Mi
       image: registry.access.redhat.com/ubi9/skopeo:9.5-1745865345@sha256:d91eb0dac7308ddfb12193368a42009509925edba80da9ffd3b82d03427dc3ed
       env:
       - name: IMAGE
