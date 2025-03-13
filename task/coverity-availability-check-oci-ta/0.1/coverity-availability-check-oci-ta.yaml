@@ -109,3 +109,9 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
         echo -n "success" | tee "$(results.STATUS.path)"
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
