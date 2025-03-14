@@ -6,6 +6,13 @@
 
     _Uses `buildah` to create a container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
     This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-oci-ta?tab=tags)_
+- op: add
+  path: /spec/params/-
+  value:
+    name: privileged-nested
+    description: Whether to enable privileged mode
+    type: string
+    default: "false"
 - op: replace
   path: /metadata/name
   value: docker-build-oci-ta
@@ -92,6 +99,11 @@
   value:
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: PRIVILEGED_NESTED
+    value: "$(params.privileged-nested)"
 - op: remove
   path: /spec/tasks/3/workspaces/0
 
