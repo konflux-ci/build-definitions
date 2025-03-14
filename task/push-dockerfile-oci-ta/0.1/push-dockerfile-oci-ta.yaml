@@ -17,6 +17,15 @@ spec:
       description: Artifact type of the Dockerfile image.
       type: string
       default: application/vnd.konflux.dockerfile
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: CA_TRUST_CONFIG_MAP_NAME
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
     - name: CONTEXT
       description: Path to the directory to use as context.
       type: string
@@ -45,10 +54,21 @@ spec:
     - name: IMAGE_REF
       description: Digest-pinned image reference to the Dockerfile image.
   volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+            path: ca-bundle.crt
+        name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+        optional: true
     - name: workdir
       emptyDir: {}
   stepTemplate:
     volumeMounts:
+      - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        name: trusted-ca
+        readOnly: true
+        subPath: ca-bundle.crt
       - mountPath: /var/workdir
         name: workdir
   steps:
@@ -58,7 +78,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: push
-      image: quay.io/konflux-ci/oras:latest@sha256:8bc04c510d6f15b223227d7e7050726bc6a8b83822c344df1f94d566f99d2e14
+      image: quay.io/konflux-ci/oras:latest@sha256:fdf6e7156d4dec42ab2d20cf229eaf4bef886e93b1fd562d7734dc6a5bddd6e8
       workingDir: /var/workdir
       env:
         - name: IMAGE
