@@ -268,6 +268,9 @@ spec:
       #!/bin/bash
       set -e
       set -o verbose
+
+      echo "[$(date --utc -Ins)] Prepare connection"
+
       mkdir -p ~/.ssh
       if [ -e "/ssh/error" ]; then
         #no server could be provisioned
@@ -289,6 +292,8 @@ spec:
       mkdir -p scripts
 
       if ! [[ $IS_LOCALHOST ]]; then
+        echo "[$(date --utc -Ins)] Setup VM"
+
         chmod 0400 ~/.ssh/id_rsa
         export BUILD_DIR=$(cat /ssh/user-dir)
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
@@ -302,6 +307,8 @@ spec:
           PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
           PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
         fi
+
+        echo "[$(date --utc -Ins)] Rsync data"
 
         rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
         rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
@@ -321,12 +328,17 @@ spec:
       #!/bin/bash
       set -euo pipefail
       cd /var/workdir
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -355,6 +367,8 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      echo "[$(date --utc -Ins)] Prepare system"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -463,6 +477,8 @@ spec:
 
       VOLUME_MOUNTS=()
 
+      echo "[$(date --utc -Ins)] Setup prefetched"
+
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -506,6 +522,8 @@ spec:
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      echo "[$(date --utc -Ins)] Register sub-man"
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -556,6 +574,8 @@ spec:
         done <<<"$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
+      echo "[$(date --utc -Ins)] Add secrets"
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -591,7 +611,11 @@ spec:
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+      echo "[$(date --utc -Ins)] Run buildah build"
+
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      echo "[$(date --utc -Ins)] Add metadata"
 
       container=$(buildah from --pull-never "$IMAGE")
 
@@ -617,7 +641,10 @@ spec:
         fi
       done
 
+      echo "[$(date --utc -Ins)] End build"
+
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      echo "[$(date --utc -Ins)] End push remote"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -636,6 +663,7 @@ spec:
           PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
         fi
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        echo "[$(date --utc -Ins)] Build via ssh"
         # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
@@ -673,14 +701,18 @@ spec:
           -v "$BUILD_DIR/scripts:/scripts:Z" \
           "${PRIVILEGED_NESTED_FLAGS[@]}" \
           --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+        echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        echo "[$(date --utc -Ins)] Buildah pull"
         buildah pull "oci:konflux-final-image:$IMAGE"
       else
         bash scripts/script-build.sh "$@"
       fi
       echo "Build on remote host $SSH_HOST finished"
+
+      echo "[$(date --utc -Ins)] Final touches"
 
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
@@ -688,6 +720,7 @@ spec:
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
+      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
@@ -741,12 +774,16 @@ spec:
         export IMAGE
       fi
 
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Convert image"
 
       # While we can build images with the desired format, we will simplify any local
       # and remote build differences by just performing any necessary conversions at
@@ -755,6 +792,8 @@ spec:
       if [ "${BUILDAH_FORMAT}" == "docker" ]; then
         push_format=docker
       fi
+
+      echo "[$(date --utc -Ins)] Push image with unique tag"
 
       retries=5
       # Push to a unique tag based on the TaskRun name to avoid race conditions
@@ -768,6 +807,8 @@ spec:
         echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
         exit 1
       fi
+
+      echo "[$(date --utc -Ins)] Push image with git revision"
 
       # Push to a tag based on the git revision
       echo "Pushing to ${IMAGE}"
@@ -787,6 +828,9 @@ spec:
         echo -n "${IMAGE}@"
         cat "/var/workdir/image-digest"
       } >"$(results.IMAGE_REF.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End push"
     securityContext:
       capabilities:
         add:
@@ -809,6 +853,8 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      echo "[$(date --utc -Ins)] Generate SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -831,6 +877,8 @@ spec:
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
       syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+
+      echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -852,6 +900,8 @@ spec:
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+
+      echo "[$(date --utc -Ins)] Prepare SBOM"
 
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
@@ -884,6 +934,8 @@ spec:
         --sbom=sbom.json \
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
+
+      echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:
       runAsUser: 0
     workingDir: /var/workdir
@@ -897,10 +949,13 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
+
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+      echo "[$(date --utc -Ins)] Upload SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -920,6 +975,9 @@ spec:
       sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End upload-sbom"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca

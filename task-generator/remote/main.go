@@ -143,6 +143,9 @@ fi
 		ret = `#!/bin/bash
 set -e
 set -o verbose
+
+echo "[$(date --utc -Ins)] Prepare connection"
+
 mkdir -p ~/.ssh
 if [ -e "/ssh/error" ]; then
   #no server could be provisioned
@@ -164,6 +167,8 @@ fi
 mkdir -p scripts
 
 if ! [[ $IS_LOCALHOST ]]; then
+  echo "[$(date --utc -Ins)] Setup VM"
+
   chmod 0400 ~/.ssh/id_rsa
   export BUILD_DIR=$(cat /ssh/user-dir)
   export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
@@ -177,6 +182,8 @@ if ! [[ $IS_LOCALHOST ]]; then
     PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
     PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
   fi
+
+  echo "[$(date --utc -Ins)] Rsync data"
 `
 		env := "$PODMAN_PORT_FORWARD \\\n"
 
@@ -230,6 +237,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		ret += step.Script
 		ret += "\nbuildah push \"$IMAGE\" \"oci:konflux-final-image:$IMAGE\""
+		ret += "\necho \"[$(date --utc -Ins)] End push remote\""
 		ret += "\nREMOTESSHEOF"
 		ret += "\nchmod +x " + script + "\n"
 		ret += "\nPODMAN_NVIDIA_ARGS=()"
@@ -257,11 +265,13 @@ if ! [[ $IS_LOCALHOST ]]; then
 		for _, e := range step.Env {
 			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
 		}
+		ret += "\n  echo \"[$(date --utc -Ins)] Build via ssh\""
 		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
 		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]}\" \\\n"
 		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]}\" --rm \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
+		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""
 		for _, workspace := range task.Spec.Workspaces {
 			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
 		}
@@ -273,18 +283,22 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
 		ret += `
+  echo "[$(date --utc -Ins)] Buildah pull"
   buildah pull "oci:konflux-final-image:$IMAGE"
 else
   bash ` + containerScript + ` "$@"
 fi
 echo "Build on remote host $SSH_HOST finished"
 
+echo "[$(date --utc -Ins)] Final touches"
+
 buildah images
 container=$(buildah from --pull-never "$IMAGE")
 buildah mount "$container" | tee /shared/container_path
 # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
 find $(cat /shared/container_path) -xtype l -delete
-echo $container > /shared/container_name`
+echo $container > /shared/container_name
+echo "[$(date --utc -Ins)] End remote"`
 
 		for _, i := range strings.Split(ret, "\n") {
 			if strings.HasSuffix(i, " ") {
