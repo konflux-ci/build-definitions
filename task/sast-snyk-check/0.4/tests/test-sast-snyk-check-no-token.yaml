@@ -15,6 +15,9 @@ spec:
           workspace: tests-workspace
       taskRef:
         name: sast-snyk-check
+      params:
+        - name: image-url
+          value: "https://github.com/konflux-ci/build-definitions.git"
     - name: check-result
       runAfter:
         - scan-with-snyk
@@ -22,11 +25,11 @@ spec:
         - name: workspace
           workspace: tests-workspace
       params:
-        - name: results
-          value: $(tasks.scan-with-snyk.results.TEST_OUTPUT)
+      - name: results
+        value: $(tasks.scan-with-snyk.results.TEST_OUTPUT)
       taskSpec:
         params:
-          - name: results
+        - name: results
         steps:
           - name: check-result
             image: quay.io/konflux-ci/konflux-test:v1.4.12@sha256:b42202199805420527c2552dea22b02ab0f051b79a4b69fbec9a77f8832e5623
