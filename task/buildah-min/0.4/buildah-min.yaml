@@ -105,7 +105,7 @@ spec:
       as per --squash
     name: SQUASH
     type: string
-  - default: vfs
+  - default: overlay
     description: Storage driver to configure for buildah
     name: STORAGE_DRIVER
     type: string
@@ -368,7 +368,7 @@ spec:
         UNSHARE_ARGS+=("--net")
 
         for image in $BASE_IMAGES; do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
         done
         echo "Build will be executed with network isolation"
       fi
@@ -538,22 +538,15 @@ spec:
       echo "[$(date --utc -Ins)] Run buildah build"
       echo "[$(date --utc -Ins)] ${command}"
 
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
 
       echo "[$(date --utc -Ins)] Add metadata"
-
-      container=$(buildah from --pull-never "$IMAGE")
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
         echo "Making copy of sbom-cachi2.json"
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
-
-      buildah mount "$container" | tee /shared/container_path
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
-      echo $container > /shared/container_name
 
       touch /shared/base_images_digests
       echo "Recording base image digests used"
@@ -565,6 +558,10 @@ spec:
           echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
+
+      image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
+      buildah push "$IMAGE" oci-archive:"/shared/$image_name.tar"
+      echo "/shared/$image_name.tar" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
     securityContext:
@@ -687,8 +684,8 @@ spec:
 
       echo "Running syft on the source directory"
       syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
-      echo "Running syft on the image filesystem"
-      syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
+      echo "Running syft on the image"
+      syft oci-archive:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
@@ -696,6 +693,10 @@ spec:
       name: varlibcontainers
     - mountPath: /shared
       name: shared
+    - mountPath: /etc/pki/tls/certs/ca-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
     workingDir: $(workspaces.source.path)/source
   - args:
     - --additional-base-images
