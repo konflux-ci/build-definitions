@@ -36,7 +36,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
-|STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
+|STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
