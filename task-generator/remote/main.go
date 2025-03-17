@@ -296,11 +296,6 @@ echo "Build on remote host $SSH_HOST finished"
 echo "[$(date --utc -Ins)] Final touches"
 
 buildah images
-container=$(buildah from --pull-never "$IMAGE")
-buildah mount "$container" | tee /shared/container_path
-# delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-find $(cat /shared/container_path) -xtype l -delete
-echo $container > /shared/container_name
 echo "[$(date --utc -Ins)] End remote"`
 
 		for _, i := range strings.Split(ret, "\n") {
