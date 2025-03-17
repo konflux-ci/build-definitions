@@ -621,22 +621,15 @@ spec:
 
       echo "[$(date --utc -Ins)] Run buildah build"
 
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
 
       echo "[$(date --utc -Ins)] Add metadata"
-
-      container=$(buildah from --pull-never "$IMAGE")
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
         echo "Making copy of sbom-cachi2.json"
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
-
-      buildah mount "$container" | tee /shared/container_path
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
-      echo $container >/shared/container_name
 
       touch /shared/base_images_digests
       echo "Recording base image digests used"
@@ -723,11 +716,6 @@ spec:
       echo "[$(date --utc -Ins)] Final touches"
 
       buildah images
-      container=$(buildah from --pull-never "$IMAGE")
-      buildah mount "$container" | tee /shared/container_path
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
-      echo $container > /shared/container_name
       echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
@@ -883,8 +871,8 @@ spec:
 
       echo "Running syft on the source directory"
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
-      echo "Running syft on the image filesystem"
-      syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+      echo "Running syft on the image"
+      syft image:$IMAGE --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
