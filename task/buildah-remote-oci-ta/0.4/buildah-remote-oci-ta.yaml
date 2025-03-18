@@ -446,7 +446,7 @@ spec:
       if [ "${PRIVILEGED_NESTED}" == "true" ]; then
         BUILDAH_ARGS+=("--security-opt=label=disable")
         BUILDAH_ARGS+=("--cap-add=all")
-        #BUILDAH_ARGS+=("--device=/dev/fuse")
+        BUILDAH_ARGS+=("--device=/dev/fuse")
       fi
 
       if [ -n "${ADD_CAPABILITIES}" ]; then
@@ -827,8 +827,9 @@ spec:
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
 
       cat >./script-sbom-image.sh <<'SBOMIMAGEEOF'
-      container=$(cat /shared/container_name)
-      buildah mount $container
+      #!/bin/bash
+      set -euo pipefail
+      buildah mount $(cat /shared/container_name)
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo "Running syft on the image filesystem"
@@ -836,7 +837,7 @@ spec:
       SBOMIMAGEEOF
       chmod a+x ./script-sbom-image.sh
 
-      unshare -Uf --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount ./script-sbom-image.sh 
+      unshare -Uf --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount ./script-sbom-image.sh
     securityContext:
       runAsUser: 0
       capabilities:
