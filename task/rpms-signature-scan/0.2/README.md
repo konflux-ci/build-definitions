@@ -28,7 +28,7 @@ The task will fail in case one or more image have failed the scan
 | IMAGES_PROCESSED  | Images processed in the task |
 
 ## Source repository for image:
-https://github.com/redhat-appstudio/tools
+https://github.com/konflux-ci/tools
 
 ## Source repository for task:
-https://github.com/redhat-appstudio/tekton-tools
+https://github.com/konflux-ci/tekton-tools
