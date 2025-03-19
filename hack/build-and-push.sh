@@ -33,7 +33,9 @@
 #   generally. Note that, if used, the result pipelines are broken.
 
 set -e -o pipefail
+set -ex
 
+# comment
 VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
 
