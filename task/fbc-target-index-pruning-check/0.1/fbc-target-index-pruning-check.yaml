@@ -47,7 +47,7 @@ spec:
         name: workdir
   steps:
     - name: pull-rendered-catalog
-      image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+      image: quay.io/konflux-ci/oras:latest@sha256:5027a3de76ef24b9309cde83a5309352a6dd1203f0f7086cd49380df0936877a
       workingDir: /shared
       securityContext:
         runAsUser: 0
@@ -66,7 +66,7 @@ spec:
         ARTIFACT_URL="${IMAGE_URL}@${RENDERED_CATALOG_DIGEST}"
         oras pull --registry-config <(select-oci-auth "${IMAGE_URL}") --no-tty "${ARTIFACT_URL}"
     - name: run-pruning-check
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.20@sha256:f9db697d8a45870b862252de61b3c29d9d6f79272ef8bf61ecb645f8bca27705
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.21@sha256:ddce6bc954694b55808507c1f92dfe9d094d52c636c8154c3fee441faff19f90
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir
