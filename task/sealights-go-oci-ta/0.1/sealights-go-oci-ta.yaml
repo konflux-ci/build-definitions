@@ -31,6 +31,9 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: TEST_OUTPUT
+      type: string
+      description: "Stores the sealights results in json format to warn users in case of any Sealights glitches."
   params:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
@@ -73,6 +76,10 @@ spec:
       default: "false"
       description: Enable debug for Sealights scanning.
       type: string
+    - name: disable-token-save
+      default: "false"
+      description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -87,7 +94,7 @@ spec:
         mountPath: /usr/local/sealights-credentials
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -118,6 +125,8 @@ spec:
           value: $(params.pull-request-number)
         - name: TARGET_BRANCH
           value: $(params.target-branch)
+        - name: DISABLE_TOKEN_SAVE
+          value: $(params.disable-token-save)
         - name: DEBUG
           value: $(params.debug)
         - name: TEST_EVENT
@@ -138,7 +147,16 @@ spec:
         BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
         PACKAGES_EXCLUDED_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
 
-        slcli config init --lang go --token "${SEALIGHTS_TOKEN}"
+        handle_error() {
+          local error_message=$1
+
+          echo -e "[ERROR]: Sealights scanning failed due reason: ${error_message}"
+          TEST_OUTPUT="{\"result\": \"ERROR\"}"
+          echo "${TEST_OUTPUT}" > "$(results.TEST_OUTPUT.path)"
+
+          # We should not to let fail sealights scans. If for some reason is down Konflux CI should not fail.
+          exit 0
+        }
 
         # In case is coming from /retest event then it's a pull_request
         # if event type is not push and pull_request_number is not empty then is a pull_request
@@ -147,17 +165,29 @@ spec:
           TEST_EVENT="pull_request"
         fi
 
-        if [ -n "${TEST_EVENT}" ] && [ "${TEST_EVENT}" = "pull_request" ]; then
-          echo "[INFO] Creating build session id from a ${TEST_EVENT} event source code: [ component: ${COMPONENT}, target-branch: ${TARGET_BRANCH}, pull-request-number ${PULL_REQUEST_NUMBER}, latest-commit: ${REVISION} ]"
-          slcli config create-pr-bsid --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
-            --pull-request-number "${PULL_REQUEST_NUMBER}" --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"
-        else
-          echo "[INFO] Creating build session ID (BSID) ${TEST_EVENT} event source code [ component: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME} ]"
-          slcli config create-bsid --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"
+        if ! slcli config init --lang go --token "${SEALIGHTS_TOKEN}"; then
+          echo -e "[ERROR] Failed to initialize Sealights configuration."
         fi
 
-        slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --debug="${DEBUG}"
+        if [ -n "${TEST_EVENT}" ] && [ "${TEST_EVENT}" = "pull_request" ]; then
+          echo "[INFO] Creating build session id from a ${TEST_EVENT} event source code: [ component: ${COMPONENT}, target-branch: ${TARGET_BRANCH}, pull-request-number ${PULL_REQUEST_NUMBER}, latest-commit: ${REVISION} ]"
+          if ! slcli config create-pr-bsid --fail-build --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
+            --pull-request-number "${PULL_REQUEST_NUMBER}"  --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"; then
+            handle_error "[ERROR] Failed to create PR-based build session ID."
+          fi
+        else
+          echo "[INFO] Creating build session ID (BSID) ${TEST_EVENT} event source code [ component: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME} ]"
+          if ! slcli config create-bsid --fail-build --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"; then
+            handle_error "[ERROR] Failed to create build session ID."
+          fi
+        fi
+
+        if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
+          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
+          handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
+        fi
+
+        echo "{\"result\": \"SUCCESS\"}" > "$(results.TEST_OUTPUT.path)"
 
         echo -n "$(cat buildSessionId.txt)" > "$(results.sealights-bsid.path)"
         echo -n "$BUILD_NAME" > "$(results.sealights-build-name.path)"
@@ -165,7 +195,7 @@ spec:
         # Temporary solution. Remove tokens to not build them
         rm -rf build.json slcmd_config.json
     - name: create-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
       args:
         - create
         - --store
