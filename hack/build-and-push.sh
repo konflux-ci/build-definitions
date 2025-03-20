@@ -4,11 +4,9 @@
 #
 # - Normal tasks, which are written as Tekton Task resource.
 #
-# - kustomized tasks, which are customized by kustomization based on normal
-#   tasks. kustomized tasks can be customized either based on another normal
-#   task, e.g. task buildah-24gb is based on task buildah. This type of
-#   kustomized task inherits the interface without change. Or based on itself,
-#   e.g. task inspect-image.
+# - kustomized tasks. A kustomized task is based on another task by
+#   kustomization, e.g. task pnc-prebuild-git-clone-oci-ta is based on task 
+#   git-clone-oci-ta.
 #
 # Task are built and pushed to the registry as Tekton task bundles. There are
 # two kinds of tags in a single task bundle repository.
