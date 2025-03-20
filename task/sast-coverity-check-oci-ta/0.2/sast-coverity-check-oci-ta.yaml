@@ -278,6 +278,11 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
     - name: prepare
       image: quay.io/redhat-services-prod/sast/coverity:202412.5
       workingDir: /var/workdir
