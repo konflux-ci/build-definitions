@@ -239,12 +239,12 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "^task/.*/recipe\\.yaml$"
+        "^task/.*/recipe\\.yaml$",
+        "^task/.+/patch\\.yaml$"
       ],
       "matchStrings": [
-        "image: (?:['\"])?(?<depName>.*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
+        "(?:image: |tooling-image=)(?:['\"])?(?<depName>[0-9a-z.\/-]+)(?::(?<currentValue>[0-9a-z.-]+))?@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
       ],
-      "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
     },
     {
