@@ -521,6 +521,8 @@ build_push_tasks() {
     local output
     local has_migration
     local previous_migration_bundle_digest
+    local build_new_bundle
+    local regex
 
     find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
@@ -557,16 +559,30 @@ build_push_tasks() {
             has_migration=true
         fi
 
-        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
+        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}" 2>/tmp/build_and_push_stderr.log)
         skopeo_status=$?
+
+        build_new_bundle=false
 
         if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
         elif [[ $skopeo_status -eq $SKOPEO_ES_GENERIC_ERR ]]; then
-            echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
-            return $skopeo_status
+            regex="unknown: Tag ${task_bundle##*:}-${task_file_sha} was deleted or has expired"
+            if grep -q "$regex" /tmp/build_and_push_stderr.log; then
+                build_new_bundle=true
+            else
+                echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
+                return $skopeo_status
+            fi
         elif [[ $skopeo_status -eq $SKOPEO_ES_IMAGE_NOT_FOUND ]]; then
+            build_new_bundle=true
+        else
+            echo "error: unknown skopeo exit status $skopeo_status" >&2
+            return 1
+        fi
+
+        if [[ $build_new_bundle == true ]]; then
             echo "info: finding the previous task bundle that has a migration" 1>&2
             previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
 
@@ -583,9 +599,6 @@ build_push_tasks() {
             digest="$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null | grep -o -m 1 'sha256:[0-9a-f]*')"
             task_bundle_with_digest="${task_bundle}@${digest}"
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
-        else
-            echo "error: unknown skopeo exit status $skopeo_status" >&2
-            return 1
         fi
 
         if [ "$has_migration" == "true" ]; then
