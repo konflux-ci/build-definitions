@@ -26,6 +26,12 @@ spec:
   steps:
     - name: init
       image: registry.access.redhat.com/ubi9/skopeo:9.5-1741630331@sha256:fd1203306628a07749973cded3e2a352a250f6db5be15e7d6d6ff750f763f119
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
