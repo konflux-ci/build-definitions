@@ -35,6 +35,12 @@ spec:
       value: $(steps.introspect.results.artifact-type-set-by)
   steps:
     - name: introspect
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 512Mi
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       results:
         - name: artifact-type
@@ -111,6 +117,12 @@ spec:
           mountPath: /auth
 
     - name: set-skip-for-bundles
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
       results:
       - name: test-output
@@ -142,6 +154,12 @@ spec:
     - name: app-check
       image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
       args: ["check", "container", "$(params.image-url)"]
+      resources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: '1'
+          memory: 4Gi
       env:
         - name: PFLT_DOCKERCONFIG
           value: "$(steps.generate-container-auth.results.auth-json-path)"
@@ -161,6 +179,12 @@ spec:
         values: ["application"]
 
     - name: app-set-outcome
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       results:
       - name: test-output
@@ -225,6 +249,12 @@ spec:
         echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
 
     - name: final-outcome
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
       results:
         - name: test-output
