@@ -82,9 +82,9 @@ spec:
     name: build
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 1Gi
       requests:
-        memory: 512Mi
+        memory: 1Gi
         cpu: 250m
     args: ["$(params.IMAGES[*])"]
     script: |
@@ -179,7 +179,7 @@ spec:
     name: create-sbom
     computeResources:
       limits:
-        memory: 512Mi
+        memory: 256Mi
       requests:
         memory: 256Mi
         cpu: 100m
@@ -223,7 +223,7 @@ spec:
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
     computeResources:
       limits:
-        memory: 512Mi
+        memory: 256Mi
       requests:
         memory: 256Mi
         cpu: 100m
