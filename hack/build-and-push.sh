@@ -196,14 +196,14 @@ rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
     docker build -t "$APPSTUDIO_UTILS_IMG" "appstudio-utils/"
-    docker push "$APPSTUDIO_UTILS_IMG"
+    retry docker push "$APPSTUDIO_UTILS_IMG"
 
     # This isn't needed during PR testing
     if [[ "$BUILD_TAG" != "latest" && -z "$TEST_REPO_NAME" ]]; then
         # tag with latest
         IMAGE_NAME="${APPSTUDIO_UTILS_IMG%:*}:latest"
         docker tag "$APPSTUDIO_UTILS_IMG" "$IMAGE_NAME"
-        docker push "$IMAGE_NAME"
+        retry docker push "$IMAGE_NAME"
     fi
 
 fi
