@@ -68,6 +68,11 @@ spec:
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      computeResources:
+        requests:
+          memory: "8Gi"
+        limits:
+          memory: "16Gi"
       volumeMounts:
         - name: trusted-ca
           mountPath: /mnt/trusted-ca
