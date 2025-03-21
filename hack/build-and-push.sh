@@ -6,9 +6,9 @@
 #
 # - kustomized tasks, which are customized by kustomization based on normal
 #   tasks. kustomized tasks can be customized either based on another normal
-#   task, e.g. task buildah-24gb is based on task buildah. This type of
-#   kustomized task inherits the interface without change. Or based on itself,
-#   e.g. task inspect-image.
+#   task, e.g. task pnc-prebuild-git-clone-oci-ta is based on task buildah. This
+#   type of kustomized task inherits the interface without change. Or based on
+#   itself, e.g. task inspect-image.
 #
 # Task are built and pushed to the registry as Tekton task bundles. There are
 # two kinds of tags in a single task bundle repository.
