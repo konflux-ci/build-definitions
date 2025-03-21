@@ -23,6 +23,12 @@ spec:
     - name: check-container
       image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
       args: ["check", "container", "$(params.image-url)"]
+      resources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: 100m
+          memory: 4Gi
       env:
         - name: PFLT_DOCKERCONFIG
           value: /root/.docker/config.json
@@ -35,6 +41,12 @@ spec:
           readOnly: true
     - name: gather-pflt-results
       image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
