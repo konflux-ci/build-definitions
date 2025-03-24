@@ -62,8 +62,9 @@ spec:
         if [ -n "${image_mirror_map}" ]; then
           reg_and_repo=$(get_image_registry_and_repository "${related_image}")
           echo "Mirror Map is $image_mirror_map"
-          mirrors=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][]')
-          echo "Mirrors for $reg_and_repo are $mirrors"
+          mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image][]')
+          echo "Mirrors for $reg_and_repo are:"
+          printf "%s\n" "${mirrors[@]}"
 
           for mirror in "${mirrors[@]}"; do
             echo "Attempting to use mirror ${mirror}"
