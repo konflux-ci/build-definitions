@@ -11,6 +11,9 @@ This operation requires about 2 times the size of the model files' size (as oppo
 like podman or buildah where the requirement is of about 2-3 times the model files size), allowing
 to build ModelCar images with lower disk footprint during the build.
 
+Future optimisations might eventually leverage the capability of OLOT to remove each file once
+layered on top of the base image, using the [`--remove-originals` feature flag](https://github.com/containers/olot/pull/17). 
+
 The task also generates a limited SBOM and pushes that into the OCI registry alongside the image.
 
 The relationship of the components of the SBOM report is the following:
