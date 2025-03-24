@@ -47,6 +47,10 @@ spec:
     - name: MODEL_IMAGE
       description: OCI artifact reference with the model files
       type: string
+    - name: MODELCARD_PATH
+      description: path to the Model Card
+      type: string
+  results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
     - name: IMAGE_REF
@@ -99,6 +103,7 @@ spec:
         volumeMounts:
           - mountPath: /additional-secret
             name: additional-secret
+        workingDir: /var/workdir
         script: |
           #!/bin/bash
           set -eu
@@ -112,7 +117,7 @@ spec:
         script: |
           #!/bin/bash
           set -eu
-          set -o pipefail
+          set -o pipefail              
           oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
           chmod -R g+w "$TARGET_OCI"
 
@@ -122,13 +127,15 @@ spec:
         env:
           - name: OLOT_VERSION
             value: 0.1.4
+          - name: MODELCARD_PATH
+            value: $(params.MODELCARD_PATH)
         script: |
           #!/bin/bash
           set -eu
           set -o pipefail
 
           pip install olot==${OLOT_VERSION}
-          olot -m models/README.md "$TARGET_OCI" models/*
+          olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
       - name: push-image
         image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
@@ -166,6 +173,7 @@ spec:
           --base-image "$BASE_IMAGE" \
           --model-image "$MODEL_IMAGE" \
           --output-file sbom.json \
+
       - name: upload-sbom
         image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
         workingDir: /var/workdir
