@@ -117,7 +117,7 @@ spec:
         script: |
           #!/bin/bash
           set -eu
-          set -o pipefail              
+          set -o pipefail
           oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
           chmod -R g+w "$TARGET_OCI"
 
@@ -134,7 +134,7 @@ spec:
           set -eu
           set -o pipefail
 
-          pip install olot==${OLOT_VERSION}
+          pip install olot=="${OLOT_VERSION}"
           olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
       - name: push-image
@@ -188,4 +188,4 @@ spec:
           echo "Found that ${REPO} is the repository for ${IMAGE}"
           SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
           echo "Found that ${SBOM_DIGEST} is the SBOM digest"
-          echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee $(results.SBOM_BLOB_URL.path)
+          echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee "$(results.SBOM_BLOB_URL.path)"
