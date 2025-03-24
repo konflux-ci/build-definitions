@@ -1,0 +1,225 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.4"
+    build.appstudio.redhat.com/build_type: docker
+  name: sast-coverity-check
+spec:
+  description: Scans source code for security vulnerabilities, including common issues
+    such as SQL injection, cross-site scripting (XSS), and code injection attacks
+    using Coverity.
+  params:
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from.
+    name: caTrustConfigMapName
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data.
+    name: caTrustConfigMapKey
+    type: string
+  - default: cov-license
+    description: Name of secret which contains the Coverity license
+    name: COV_LICENSE
+    type: string
+  - default: ""
+    name: PROJECT_NAME
+    type: string
+  - default: "false"
+    name: RECORD_EXCLUDED
+    type: string
+  - default: --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096
+    description: Arguments to be appended to the cov-analyze command
+    name: COV_ANALYZE_ARGS
+    type: string
+  - default: "true"
+    description: Report only important findings. Default is true. To report all findings,
+      specify "false"
+    name: IMP_FINDINGS_ONLY
+    type: string
+  - default: SITE_DEFAULT
+    description: Known False Positives (KFP) git URL (optionally taking a revision
+      delimited by \#). Defaults to "SITE_DEFAULT", which means the default value
+      "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
+      instance and empty string for external Konflux instance. If set to an empty
+      string, the KFP filtering is disabled.
+    name: KFP_GIT_URL
+    type: string
+  results:
+  - description: Tekton task test output.
+    name: TEST_OUTPUT
+  steps:
+  - name: analyze
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    computeResources:
+      limits:
+        memory: 32Gi
+      requests:
+        cpu: 12
+        memory: 12Gi
+    env:
+    - name: COV_ANALYZE_ARGS
+      value: $(params.COV_ANALYZE_ARGS)
+    - name: KFP_GIT_URL
+      value: $(params.KFP_GIT_URL)
+    - name: IMP_FINDINGS_ONLY
+      value: $(params.IMP_FINDINGS_ONLY)
+    - name: PROJECT_NAME
+      value: $(params.PROJECT_NAME)
+    - name: RECORD_EXCLUDED
+      value: $(params.RECORD_EXCLUDED)
+    - name: COMPONENT_LABEL
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['appstudio.openshift.io/component']
+    script: |
+      #!/bin/bash -e
+      # shellcheck source=/dev/null
+      set -o pipefail
+
+      . /usr/local/share/konflux-test/utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      [ -n "${PROJECT_NAME}" ] || PROJECT_NAME="${COMPONENT_LABEL}"
+      echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+      # Installation of Red Hat certificates for cloning Red Hat internal repositories
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -z "$(ls ./sast-results/)" ]; then (
+        set +e
+        set -x
+
+        # fallback to buildless scan if we have no scan results from buildful
+        # shellcheck disable=SC2086
+        env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
+
+        /opt/coverity/bin/coverity list --dir=/tmp/idir > "./sast-results/coverity-buildless-summary.txt"
+
+        # install Coverity license file
+        install -vm0644 /etc/secrets/cov/cov-license /opt/coverity/bin/license.dat
+
+        # shellcheck disable=SC2086
+        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
+
+        # export scan results
+        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+          | csgrep --mode=json --embed-context=3 \
+          > ./sast-results/coverity-buildless.json
+      ) fi
+
+      # collect capture stats (FIXME: this doe not take findings deduplication into account)
+      set +e
+      for file in ./sast-results/*-summary.txt; do
+        ((SUCCEEDED     += $(grep "^ *SUCCEEDED:"     "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((INCOMPLETE    += $(grep "^ *INCOMPLETE:"    "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((FAILED        += $(grep "^ *FAILED:"        "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((LINES_OF_CODE += $(grep "^ *LINES OF CODE:" "${file}" | grep -oE '[0-9]+' || echo 0)))
+      done
+
+      # calculate the total number of files
+      ((TOTAL_FILES = SUCCEEDED + INCOMPLETE + FAILED))
+
+      # calculate the ratio of successful files to total files
+      ((COVERAGE_RATIO = (TOTAL_FILES == 0) ? 0 : (SUCCEEDED * 100 / TOTAL_FILES)))
+      set -e
+
+      # reflect the IMP_FINDINGS_ONLY parameter in csgrep arguments
+      IMP_LEVEL=1
+      if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
+        IMP_LEVEL=0
+      fi
+
+      # collect scan results
+      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob './sast-results/*.json' \
+        --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
+        --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
+        --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
+        --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}") \
+        | tee coverity-results-raw.json \
+        | csgrep --mode=evtstat
+
+      if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+        # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
+        PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
+        echo -n "Probing ${PROBE_URL}... "
+        if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+          echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+        else
+          echo "Setting KFP_GIT_URL to empty string"
+          KFP_GIT_URL=
+        fi
+      fi
+
+      # We check if the KFP_GIT_URL variable is set to apply the filters or not
+      if [[ -z "${KFP_GIT_URL}" ]]; then
+        echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+        mv coverity-results{-raw,}.json
+      else
+        echo "Filtering false positives in results files using csfilter-kfp..."
+        CMD=(
+          csfilter-kfp
+          --verbose
+          --kfp-git-url="${KFP_GIT_URL}"
+          --project-nvr="${PROJECT_NAME}"
+        )
+
+        if [ "${RECORD_EXCLUDED}" == "true" ]; then
+          CMD+=(--record-excluded="./excluded-findings.json")
+        fi
+
+        "${CMD[@]}" coverity-results-raw.json \
+          | tee coverity-results.json \
+          | csgrep --mode=evtstat
+      fi
+
+      # convert the scan results into SARIF
+      csgrep --mode=sarif coverity-results.json > "./coverity-results.sarif"
+
+      if [[ -z "$(csgrep --mode=stat coverity-results.json)" ]]; then
+        note="Task $(context.task.name) success: No finding was detected"
+        ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      else
+        TEST_OUTPUT=
+        parse_test_output "$(context.task.name)" sarif "./coverity-results.sarif" || true
+        note="Task $(context.task.name) failed: For details, check Tekton task log."
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      fi
+
+      echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+    volumeMounts:
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+    - mountPath: /etc/secrets/cov
+      name: cov-license
+      readOnly: true
+    workingDir: $(workspaces.sast-results.path)
+  volumes:
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
+  - name: cov-license
+    secret:
+      optional: false
+      secretName: $(params.COV_LICENSE)
+  workspaces:
+  - description: Workspace containing the source code to build.
+    name: source
+  - description: Workspace containing the SAST scanning results.
+    name: sast-results
