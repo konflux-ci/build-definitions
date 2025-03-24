@@ -268,6 +268,11 @@ spec:
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
