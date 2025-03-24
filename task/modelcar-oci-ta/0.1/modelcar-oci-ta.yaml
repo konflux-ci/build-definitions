@@ -93,7 +93,6 @@ spec:
           #!/bin/bash
           set -eu
           set -o pipefail
-
           oras pull "$MODEL_IMAGE" \
             --registry-config /additional-secret/.dockerconfigjson --output /var/workdir/models
       - name: create-modelcar-base-image
@@ -102,10 +101,9 @@ spec:
         script: |
           #!/bin/bash
           set -eu
-          set -o pipefail              
+          set -o pipefail
           oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
           chmod -R g+w "$TARGET_OCI"
-
       - name: copy-model-files
         image: registry.access.redhat.com/ubi9/python-311:9.5-1741020859
         workingDir: /var/workdir
@@ -116,10 +114,8 @@ spec:
           #!/bin/bash
           set -eu
           set -o pipefail
-
           pip install olot==${OLOT_VERSION}
           olot -m models/README.md "$TARGET_OCI" models/*
-
       - name: push-image
         image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
         workingDir: /var/workdir
@@ -127,12 +123,9 @@ spec:
           #!/bin/bash
           set -eu
           set -o pipefail
-
           select-oci-auth "$IMAGE" >auth.json
-
           echo "Pushing complete artifact manifest to ${IMAGE}"
           oras cp --to-registry-config auth.json --from-oci-layout "${TARGET_OCI}:latest" "$IMAGE"
-
           echo "Push complete!"
           RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
           echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
@@ -140,26 +133,19 @@ spec:
           echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
           echo
           echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
-
       - name: sbom-generate
         image: quay.io/konflux-ci/sbom-utility-scripts@sha256:d90b3ed72cff083ab8238241df8b91d86d270b92d5d10eda16c70d55d02c211d
         workingDir: /var/workdir
-        script: |                      
+        script: |
           #!/bin/bash
           set -euo pipefail
-
           MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
-
           python3 /scripts/sbom_for_modelcar_task.py \
           --sbom-type "$SBOM_TYPE" \
           --modelcar-image "$MODELCAR_IMAGE" \
           --base-image "$BASE_IMAGE" \
           --model-image "$MODEL_IMAGE" \
           --output-file sbom.json \
-
-          #TODO: remove debug:
-          cat sbom.json
-
       - name: upload-sbom
         image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
         workingDir: /var/workdir
