@@ -11,6 +11,16 @@ metadata:
 spec:
   description: |-
     Given a base image and a OCI artifact reference with the model files, builds a ModelCar image.
+
+    A ModelCar is a containerized approach to deploying machine learning models. It involves packaging
+    model artifacts within a container image, enabling efficient and standardized deployment in
+    Kubernetes environments, used as Sidecar containers (secondary containers that run alongside the
+    main application container within the same Pod)
+
+    The ModelCar image is built using the specified BASE_IMAGE parameter, which is extracted to an
+    OCI image layout directory. Then all files included in the OCI artifact specified with the
+    MODEL_IMAGE parameter are copied on top.
+
     An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
     generated in the process.
   params:
