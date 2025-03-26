@@ -280,17 +280,22 @@ A build Task, e.g. one that produces a container image, must abide by both `all-
 
 ## Task Migration
 
-Task migrations are Bash scripts defined in version-specific task
-directories. In general, a migration consists of a series of `yq` commands that
-modify pipeline in order to work with the new version of task. Developers can
-do more with task migrations on the pipelines, e.g. add/review a task,
-add/remove/update task parameters, change execution order of a task, etc.
+Task migrations allow task maintainers to introduce changes to Konflux standard
+pipelines according to the task updates. By creating migrations, task
+maintainers are able to add/remove/update task parameters, change task
+execution order, add/remove mandatory task to/from pipelines, etc.
 
 Historically, task maintainers write `MIGRATION.md` to notify users what changes
 have to be made to the pipeline. This mechanism is not deprecated. Besides
 writing the document, it is also recommended to write a migration script so that the
 updates can be applied to user pipelines automatically, that is done by the
 [pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
+
+Task migrations are Bash scripts defined in version-specific task
+directories. In general, a migration consists of a series of `yq` commands that
+modify pipeline in order to work with the new version of task. Developers can
+do more with task migrations on the pipelines, e.g. add/review a task,
+add/remove/update task parameters, change execution order of a task, etc.
 
 ### Create a migration
 
@@ -316,6 +321,13 @@ The migration file is a normal Bash script file:
 - It should be idempotent as much as possible to ensure that the changes are
   not duplicated to the pipeline when run the migration multiple times.
 - Pass the `shellcheck` without customizing the default rules.
+- Check whether the migration is for all kinds of Konflux pipelines or not. If
+  no, skip the pipeline properly in the script, e.g. skip FBC pipeline due
+  to [many tasks are removed](https://github.com/konflux-ci/build-definitions/blob/main/pipelines/fbc-builder/patch.yaml)
+  from template-build.yaml.
+- The pipeline file path and name can be arbitrary. Please do not use the input
+  value to check pipeline type or do test in `if-then-else` statement for
+  conditional operations.
 
 Here are example steps to create a migration for a task `task-a`:
 
@@ -359,3 +371,52 @@ To create a migration for the latest major.minor version of task `push-dockerfil
 ```
 
 To get a complete usage: `./hack/create-task-migration.sh -h`
+
+### Add tasks to Konflux pipelines
+
+Fictional task updates is a way to add tasks to Konflux pipelines. Following
+is the workflow:
+
+- Add the new task to build-definitions. Going through the whole process until
+  task bundle is pushed to the registry. If the task to be added exists
+  already, skip this step.
+
+- Create a migration for the task:
+
+  - Choose an existing task to act as a fictional update, e.g. `init`.
+  - Create a migration for it:
+
+    ```bash
+    ./hack/create-task-migration.sh -t init
+    ```
+
+  - Edit the generated migration file, write script to add the task. Here is an
+    example using `yq`:
+
+    ```bash
+    #!/usr/bin/env bash
+    pipeline=$1
+    name="<task name>"
+    if ! yq -e ".spec.tasks[] | select(.name == \"${name}\")" "$pipeline" >/dev/null 2>&1
+    then
+      task_def="{
+        \"name\": \"${name}\",
+        \"taskRef\": {
+          \"params\": [
+            {\"name\": \"name\", \"value\": \"${name}\"},
+            {\"name\": \"bundle\", \"value\": \"<bundle reference>\"},
+            {\"name\": \"kind\", \"value\": \"task\"}
+          ]
+        },
+        \"runAfter\": [\"<task name>\"]
+      }"
+      yq -i ".spec.tasks += ${task_def}" "$pipeline"
+    fi
+    ```
+
+    Add necessary additional code to make the migration work well.
+
+- Commit the updated task YAML file and the migration file and go through the
+  review process.
+
+The migration will be applied during next Renovate run scheduled by MintMaker.
