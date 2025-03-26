@@ -316,12 +316,19 @@ spec:
       operator: in
       values:
       - "false"
-  - name: sast-coverity-check
+  - name: coverity-availability-check
+    runAfter:
+    - prefetch-dependencies
+    taskRef:
+      name: coverity-availability-check
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-coverity-check-build
     params:
-    - name: image-digest
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE
       value: $(params.output-image)
     - name: DOCKERFILE
@@ -344,8 +351,8 @@ spec:
     runAfter:
     - coverity-availability-check
     taskRef:
-      name: sast-coverity-check
-      version: "0.3"
+      name: sast-coverity-check-build
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -358,17 +365,44 @@ spec:
     workspaces:
     - name: source
       workspace: workspace
-  - name: coverity-availability-check
+    - name: sast-results
+      workspace: sast-results
+  - name: sast-coverity-check
     runAfter:
-    - build-image-index
+    - sast-coverity-check-build
     taskRef:
-      name: coverity-availability-check
-      version: "0.2"
+      name: sast-coverity-check
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
       values:
       - "false"
+    workspaces:
+    - name: source
+      workspace: workspace
+    - name: sast-results
+      workspace: sast-results
+  - name: sast-coverity-check-upload
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    - sast-coverity-check
+    taskRef:
+      name: sast-coverity-check-upload
+      version: "0.4"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: sast-results
+      workspace: sast-results
   - name: sast-shell-check
     params:
     - name: image-digest
@@ -452,6 +486,7 @@ spec:
       - "false"
   workspaces:
   - name: workspace
+  - name: sast-results
   - name: git-auth
     optional: true
   - name: netrc
