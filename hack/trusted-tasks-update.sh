@@ -25,7 +25,7 @@ set -o pipefail
 
 mapfile -td ' ' COLLECT < <(echo -n "${COLLECT:-git oci}")
 mapfile -td ' ' QUAY_NAMESPACES < <(
-    echo -n "${QUAY_NAMESPACES:-'redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog'}"
+    echo -n "${QUAY_NAMESPACES:-"redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog"}"
 )
 
 INPUT_IMAGE=${INPUT_IMAGE:-quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest}
