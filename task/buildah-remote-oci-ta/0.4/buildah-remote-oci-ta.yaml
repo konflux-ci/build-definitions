@@ -534,8 +534,7 @@ spec:
           # user is not running registration in the Containerfile: pre-register.
           echo "Pre-registering with subscription manager."
           sed -i 's/INFO/DEBUG/g' /etc/rhsm/rhsm.conf
-          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
-          cat /var/log/rhsm/rhsm.log || true
+          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)" || cat /var/log/rhsm/rhsm.log
           trap 'subscription-manager unregister || true' EXIT
 
           # copy generated certificates to /shared volume
