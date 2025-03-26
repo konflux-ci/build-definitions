@@ -27,13 +27,15 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
+#     11  coverity-availability-check
+#     12  sast-coverity-check-build
+#     13  sast-coverity-check
+#     14  sast-coverity-check-upload
+#     15  sast-shell-check
+#     16  sast-unicode-check
+#     17  apply-tags
+#     18  push-dockerfile
+#     19  rpms-signature-scan
 
 # build-container
 - op: test
@@ -81,53 +83,29 @@
   - name: BUILD_ARGS_FILE
     value: "$(params.build-args-file)"
 
-# FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
+# FIXME: duplicate the "add" operations for sast-coverity-check-build, which is based on build-container
 - op: test
-  path: /spec/tasks/11/name
-  value: sast-coverity-check
+  path: /spec/tasks/12/name
+  value: sast-coverity-check-build
 - op: add
-  path: /spec/tasks/11/params/-
+  path: /spec/tasks/12/params
   value:
-    name: IMAGE
-    value: $(params.output-image)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: DOCKERFILE
-    value: $(params.dockerfile)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: CONTEXT
-    value: $(params.path-context)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: HERMETIC
-    value: "$(params.hermetic)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: PREFETCH_INPUT
-    value: "$(params.prefetch-input)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: IMAGE_EXPIRES_AFTER
-    value: "$(params.image-expires-after)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: COMMIT_SHA
-    value: "$(tasks.clone-repository.results.commit)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: BUILD_ARGS
-    value:
-      - $(params.build-args[*])
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: BUILD_ARGS_FILE
-    value: "$(params.build-args-file)"
+    - name: IMAGE
+      value: $(params.output-image)
+    - name: DOCKERFILE
+      value: $(params.dockerfile)
+    - name: CONTEXT
+      value: $(params.path-context)
+    - name: HERMETIC
+      value: "$(params.hermetic)"
+    - name: PREFETCH_INPUT
+      value: "$(params.prefetch-input)"
+    - name: IMAGE_EXPIRES_AFTER
+      value: "$(params.image-expires-after)"
+    - name: COMMIT_SHA
+      value: "$(tasks.clone-repository.results.commit)"
+    - name: BUILD_ARGS
+      value:
+        - $(params.build-args[*])
+    - name: BUILD_ARGS_FILE
+      value: "$(params.build-args-file)"

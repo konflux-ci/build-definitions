@@ -238,7 +238,17 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
       - name: image-url
         value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: sast-coverity-check
+    - name: coverity-availability-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+      runAfter:
+        - prefetch-dependencies
+      taskRef:
+        name: coverity-availability-check
+        version: "0.2"
+    - name: sast-coverity-check-build
       when:
         - input: $(params.skip-checks)
           operator: in
@@ -249,26 +259,47 @@ spec:
       runAfter:
         - coverity-availability-check
       taskRef:
-        name: sast-coverity-check
-        version: "0.3"
-      params:
-        - name: image-digest
-          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-        - name: image-url
-          value: $(tasks.build-image-index.results.IMAGE_URL)
+        name: sast-coverity-check-build
+        version: "0.4"
       workspaces:
         - name: source
           workspace: workspace
-    - name: coverity-availability-check
+        - name: sast-results
+          workspace: sast-results
+    - name: sast-coverity-check
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values: ["false"]
+      runAfter:
+        - sast-coverity-check-build
+      taskRef:
+        name: sast-coverity-check
+        version: "0.4"
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: sast-results
+          workspace: sast-results
+    - name: sast-coverity-check-upload
       when:
         - input: $(params.skip-checks)
           operator: in
           values: ["false"]
       runAfter:
         - build-image-index
+        - sast-coverity-check
       taskRef:
-        name: coverity-availability-check
-        version: "0.2"
+        name: sast-coverity-check-upload
+        version: "0.4"
+      params:
+        - name: image-digest
+          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+        - name: image-url
+          value: $(tasks.build-image-index.results.IMAGE_URL)
+      workspaces:
+        - name: sast-results
+          workspace: sast-results
     - name: sast-shell-check
       when:
         - input: $(params.skip-checks)
@@ -382,6 +413,7 @@ spec:
       value: "$(tasks.clone-repository.results.commit)"
   workspaces:
     - name: workspace
+    - name: sast-results
     - name: git-auth
       optional: true
     - name: netrc
