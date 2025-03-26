@@ -531,6 +531,7 @@ spec:
         if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
           # user is not running registration in the Containerfile: pre-register.
           echo "Pre-registering with subscription manager."
+          sleep 1d
           subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
           trap 'subscription-manager unregister || true' EXIT
 
