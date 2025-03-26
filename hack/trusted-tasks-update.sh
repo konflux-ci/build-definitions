@@ -101,4 +101,5 @@ ec track bundle \
   --input "oci:${INPUT_IMAGE}" \
   --output "oci:${OUTPUT_IMAGE}" \
   "${git_params[@]}" \
-  "${oci_params[@]}"
+  "${oci_params[@]}" \
+  --timeout 0
