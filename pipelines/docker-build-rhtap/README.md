@@ -138,7 +138,8 @@
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth|
+|netrc| |True| |
+|sast-results| |False| |
 |workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; build-container:0.1:source|
 ## Available workspaces from tasks
 ### acs-deploy-check:0.1 task workspaces
