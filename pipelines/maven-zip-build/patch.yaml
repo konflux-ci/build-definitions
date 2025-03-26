@@ -57,20 +57,22 @@
 #  8	ecosystem-cert-preflight-checks
 #  9	sast-snyk-check
 # 10	clamav-scan
-# 11	sast-coverity-check
-# 12	coverity-availability-check
-# 13	sast-shell-check
-# 14	sast-unicode-check
-# 15	apply-tags
-# 16	push-dockerfile
-# 17	rpms-signature-scan
+# 11	coverity-availability-check
+# 12	sast-coverity-check-build
+# 13	sast-coverity-check
+# 14	sast-coverity-check-upload
+# 15	sast-shell-check
+# 16	sast-unicode-check
+# 17	apply-tags
+# 18	push-dockerfile
+# 19	rpms-signature-scan
 
 - op: remove
-  path: /spec/tasks/17  # rpms-signature-scan
+  path: /spec/tasks/19  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/16  # push-dockerfile
+  path: /spec/tasks/18  # push-dockerfile
 - op: remove
-  path: /spec/tasks/15  # apply-tags
+  path: /spec/tasks/17  # apply-tags
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
@@ -107,6 +109,9 @@
     - name: source
       workspace: workspace
 # Replace the params set and runAfter of sast-snyk-check
+- op: test
+  path: /spec/tasks/4/name
+  value: sast-snyk-check
 - op: replace
   path: /spec/tasks/4/params/0/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
@@ -117,34 +122,66 @@
   path: /spec/tasks/4/runAfter
   value:
   - build-oci-artifact
-# Replace the params set and runAfter of sast-coverity-check
+# Replace the runAfter of coverity-availability-check
+- op: test
+  path: /spec/tasks/5/name
+  value: coverity-availability-check
 - op: replace
-  path: /spec/tasks/5/params/0/value
-  value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
-# Replace the params set and runAfter of coverity-availability-check
-- op: replace
-  path: /spec/tasks/6/runAfter
+  path: /spec/tasks/5/runAfter
   value:
   - build-oci-artifact
-# Replace the params set and runAfter of sast-shell-check
+# Replace the params set for sast-coverity-check-upload
+- op: test
+  path: /spec/tasks/8/name
+  value: sast-coverity-check-upload
+- op: test
+  path: /spec/tasks/8/params/0/name
+  value: image-digest
 - op: replace
-  path: /spec/tasks/7/params/0/value
+  path: /spec/tasks/8/params/0/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: test
+  path: /spec/tasks/8/params/1/name
+  value: image-url
 - op: replace
-  path: /spec/tasks/7/params/1/value
+  path: /spec/tasks/8/params/1/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
+# Replace the params set and runAfter of sast-shell-check
+- op: test
+  path: /spec/tasks/9/name
+  value: sast-shell-check
+- op: test
+  path: /spec/tasks/9/params/0/name
+  value: image-digest
+- op: replace
+  path: /spec/tasks/9/params/0/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: test
+  path: /spec/tasks/9/params/1/name
+  value: image-url
+- op: replace
+  path: /spec/tasks/9/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
 - op: replace
-  path: /spec/tasks/7/runAfter
+  path: /spec/tasks/9/runAfter
   value:
   - build-oci-artifact
 # Replace the params set and runAfter of sast-unicode-check
+- op: test
+  path: /spec/tasks/10/name
+  value: sast-unicode-check
+- op: test
+  path: /spec/tasks/10/params/0/name
+  value: image-digest
 - op: replace
-  path: /spec/tasks/8/params/0/value
+  path: /spec/tasks/10/params/0/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: test
+  path: /spec/tasks/10/params/1/name
+  value: image-url
+- op: replace
+  path: /spec/tasks/10/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
-- op: replace
-  path: /spec/tasks/8/runAfter
-  value:
-  - build-oci-artifact
 # change pipeline results
 - op: replace
   path: /spec/results/0/value
