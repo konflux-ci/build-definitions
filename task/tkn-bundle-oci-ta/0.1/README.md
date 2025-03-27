@@ -9,7 +9,6 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 |HOME|Value for the HOME environment variable.|/tekton/home|false|
 |IMAGE|Reference of the image task will produce.||true|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
-|SOURCE_CODE_DIR|Source code directory in the working dir|source|false|
 |STEPS_IMAGE|An optional image to configure task steps with in the bundle|""|false|
 
 ## Results

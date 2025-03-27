@@ -27,10 +27,6 @@ spec:
     type: string
     description: An optional image to configure task steps with in the bundle
     default: ""
-  - name: SOURCE_CODE_DIR
-    type: string
-    description: Source code directory in the working dir
-    default: source
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -45,7 +41,7 @@ spec:
     - name: TASK_FILE
       value: tekton_task_files
     - name: SOURCE_CODE_DIR
-      value: $(params.SOURCE_CODE_DIR)
+      value: source
   steps:
   - image: quay.io/konflux-ci/konflux-test:latest@sha256:d596724343a31c201a5c2e79f233f9ef78ac65726ae4ed5ffa41d76b3dac630f
     name: modify-task-files
