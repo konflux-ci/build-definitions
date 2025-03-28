@@ -1,0 +1,100 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: bootc-rechunk
+spec:
+  description: This takes existing Image Manifests and rechunks them using rpm-ostree.
+  params:
+    - description: The target image and tag where the image will be pushed to
+      name: IMAGE
+      type: string
+    - name: COMMIT_SHA
+      type: string
+    - name: IMAGES
+      type: array
+      description: List of images with their digests, for different architectures.
+  results:
+    - name: IMAGE_URL_AMD64
+      description: URL of the rechunked image for amd64 architecture
+    - name: IMAGE_DIGEST_AMD64
+      description: Digest of the rechunked image for amd64 architecture
+    - name: IMAGE_URL_ARM64
+      description: URL of the rechunked image for arm64 architecture
+    - name: IMAGE_DIGEST_ARM64
+      description: Digest of the rechunked image for arm64 architecture
+    - name: IMAGE_URL_PPC64LE
+      description: URL of the rechunked image for ppc64le architecture
+    - name: IMAGE_DIGEST_PPC64LE
+      description: Digest of the rechunked image for ppc64le architecture
+    - name: IMAGE_URL_S390X
+      description: URL of the rechunked image for s390x architecture
+    - name: IMAGE_DIGEST_S390X
+      description: Digest of the rechunked image for s390x architecture
+  steps:
+    - name: rechunk
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      script: |
+        #!/bin/bash
+        set -e
+
+        # Define the output image name and tags
+        OUTPUT_IMAGE=$(params.IMAGE)
+        COMMIT_SHA=$(params.COMMIT_SHA)
+
+        # Convert IMAGES array param to a Bash array
+        IFS=' ' read -r -a IMAGES <<< "$(echo ${params.IMAGES})"
+
+        echo "Rechunking images: ${IMAGES[@]}"
+
+        ARCHS=("amd64" "arm64" "ppc64le" "s390x")
+        for ARCH in "${ARCHS[@]}"; do
+          IMAGE_INFO=""
+          for IMG in "${IMAGES[@]}"; do
+            if echo "$IMG" | grep -q "${ARCH}"; then
+              IMAGE_INFO="$IMG"
+              break
+            fi
+          done
+
+          if [ -z "$IMAGE_INFO" ]; then
+            echo "No image found for $ARCH architecture"
+            continue
+          fi
+
+          IMAGE_URL=$(echo "$IMAGE_INFO" | cut -d '@' -f1)
+          IMAGE_DIGEST=$(echo "$IMAGE_INFO" | cut -d '@' -f2)
+
+          RECHUNKED_IMAGE_NAME="${OUTPUT_IMAGE}-${ARCH}-rechunked"
+          RECHUNKED_IMAGE_TAG="${COMMIT_SHA}"
+          RECHUNKED_IMAGE_URL="quay.io/konflux-ci/${RECHUNKED_IMAGE_NAME}:${RECHUNKED_IMAGE_TAG}"
+
+          echo "Rechunking image for $ARCH: ${IMAGE_URL}@${IMAGE_DIGEST}"
+
+          rpm-ostree compose build-chunked-oci --bootc --format-version=1 \
+            --from="${IMAGE_URL}@${IMAGE_DIGEST}" --output=containers-storage:${RECHUNKED_IMAGE_NAME}
+
+          buildah commit --rm containers-storage:${RECHUNKED_IMAGE_NAME} ${RECHUNKED_IMAGE_URL}
+
+          status=-1
+          max_run=5
+          sleep_sec=10
+          for run in $(seq 1 $max_run); do
+            status=0
+            [ "$run" -gt 1 ] && sleep $sleep_sec
+            echo "Pushing rechunked image for $ARCH to registry"
+            buildah push --tls-verify=false \
+              --digestfile "/var/workdir/image-digest-${ARCH}" \
+              ${RECHUNKED_IMAGE_URL} docker://${RECHUNKED_IMAGE_URL} && break || status=$?
+          done
+
+          if [ "$status" -ne 0 ]; then
+            echo "Failed to push rechunked image for $ARCH after ${max_run} tries"
+            exit 1
+          fi
+
+          cat "/var/workdir/image-digest-${ARCH}" | tee "/tekton/results/IMAGE_DIGEST_${ARCH^^}"
+          echo -n "${RECHUNKED_IMAGE_URL}" | tee "/tekton/results/IMAGE_URL_${ARCH^^}"
+        done
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
