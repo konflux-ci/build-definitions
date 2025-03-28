@@ -42,7 +42,8 @@ spec:
       # need to change user since 'oc image extract' requires more privileges when running as root permissions
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
       securityContext:
-        runAsUser: 1000
+        capabilities:
+          add: ["SETFCAP"]
       env:
         - name: HOME
           value: /work
