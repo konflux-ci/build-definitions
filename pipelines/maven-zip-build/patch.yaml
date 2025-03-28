@@ -120,6 +120,9 @@
 # Replace the params set and runAfter of sast-coverity-check
 - op: replace
   path: /spec/tasks/5/params/0/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: replace
+  path: /spec/tasks/5/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
 # Replace the params set and runAfter of coverity-availability-check
 - op: replace
@@ -140,6 +143,9 @@
 # Replace the params set and runAfter of sast-unicode-check
 - op: replace
   path: /spec/tasks/8/params/0/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: replace
+  path: /spec/tasks/8/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
 - op: replace
   path: /spec/tasks/8/runAfter

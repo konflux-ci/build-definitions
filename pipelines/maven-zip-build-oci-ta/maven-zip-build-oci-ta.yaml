@@ -145,7 +145,7 @@ spec:
     - build-oci-artifact
     taskRef:
       name: sast-snyk-check-oci-ta
-      version: "0.3"
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -154,6 +154,8 @@ spec:
     workspaces: []
   - name: sast-coverity-check
     params:
+    - name: image-digest
+      value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-oci-artifact.results.IMAGE_URL)
     - name: SOURCE_ARTIFACT
@@ -164,7 +166,7 @@ spec:
     - coverity-availability-check
     taskRef:
       name: sast-coverity-check-oci-ta
-      version: "0.2"
+      version: "0.3"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -209,6 +211,8 @@ spec:
     workspaces: []
   - name: sast-unicode-check
     params:
+    - name: image-digest
+      value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-oci-artifact.results.IMAGE_URL)
     - name: SOURCE_ARTIFACT
@@ -219,7 +223,7 @@ spec:
     - build-oci-artifact
     taskRef:
       name: sast-unicode-check-oci-ta
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in
