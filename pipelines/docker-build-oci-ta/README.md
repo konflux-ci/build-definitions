@@ -95,7 +95,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |AUTH_TOKEN_COVERITY_IMAGE| Name of secret which contains the authentication token for pulling the Coverity image.| auth-token-coverity-image| |
-|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|COV_LICENSE| Name of secret which contains the Coverity license. Only required for public Konflux instances.| cov-license| |
 ### deprecated-image-check:0.5 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -188,7 +188,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
-|COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
+|COV_LICENSE| Name of secret which contains the Coverity license. Only required for public Konflux instances.| cov-license| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|

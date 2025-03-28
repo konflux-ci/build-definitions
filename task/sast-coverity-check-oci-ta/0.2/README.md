@@ -16,7 +16,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |COMMIT_SHA|The image is built from this commit.|""|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |COV_ANALYZE_ARGS|Arguments to be appended to the cov-analyze command|--enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096|false|
-|COV_LICENSE|Name of secret which contains the Coverity license|cov-license|false|
+|COV_LICENSE|Name of secret which contains the Coverity license. Only required for public Konflux instances.|cov-license|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|

@@ -95,7 +95,7 @@
   value:
     name: COV_LICENSE
     type: string
-    description: Name of secret which contains the Coverity license
+    description: Name of secret which contains the Coverity license. Only required for public Konflux instances.
     default: "cov-license"
 - op: add
   path: /spec/params/-
@@ -142,7 +142,7 @@
     name: cov-license
     secret:
       secretName: $(params.COV_LICENSE)
-      optional: false
+      optional: true
 - op: add
   path: /spec/steps/0/env/-
   value:
@@ -167,8 +167,11 @@
       - name: DOCKERFILE
         value: $(params.DOCKERFILE)
     volumeMounts:
-      - name: cov-license
-        mountPath: "/etc/secrets/cov"
+      - name: $(params.COV_LICENSE)
+        mountPath: /etc/secrets/cov
+        readOnly: true
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
         readOnly: true
     script: |
       #!/bin/bash
@@ -198,7 +201,31 @@
       fi
 
       # install Coverity license file
-      install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
+      COV_LICENSE_PATH=/etc/secrets/cov/cov-license
+      if [ -f "${COV_LICENSE_PATH}" ] && [ -s "${COV_LICENSE_PATH}" ]; then
+        install -vm0644 "${COV_LICENSE_PATH}" /shared/license.dat
+      else
+        # try to retrieve from internal URL, requires trusting internal CA
+        CA_BUNDLE=/mnt/trusted-ca/ca-bundle.crt
+        TMP_LICENSE_PATH="/tmp/coverity-license.dat"
+        if [ -f "${CA_BUNDLE}" ]; then
+          echo "INFO: Using mounted CA bundle: ${CA_BUNDLE}"
+          cp -vf ${CA_BUNDLE} /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+
+          LICENSE_URL="https://cov01.lab.eng.brq2.redhat.com/coverity/license/license.dat"
+          echo -n "Trying to retrieve license at ${LICENSE_URL} ... "
+          curl -L --fail --max-time 30 --no-progress-meter "${LICENSE_URL}" -o "${TMP_LICENSE_PATH}" || rm -f "${TMP_LICENSE_PATH}"
+        fi
+
+        if [ -f "${TMP_LICENSE_PATH}" ] && [ -s "${TMP_LICENSE_PATH}" ]; then
+          install -vm0644 "${TMP_LICENSE_PATH}" /shared/license.dat
+        else
+          echo 'Could not retrieve Coverity license. Coverity scan will not be executed...'
+          echo 'Please, create a Secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
+          exit 1
+        fi
+      fi
 
       # pre-create directory for SAST scanning results
       install -vm1777 -d /shared/sast-results
