@@ -32,7 +32,13 @@ spec:
   - description: Tekton task test output.
     name: TEST_OUTPUT
   steps:
-  - env:
+  - computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
     - name: IMAGE_URL
       value: $(params.IMAGE_URL)
     - name: IMAGE_DIGEST
