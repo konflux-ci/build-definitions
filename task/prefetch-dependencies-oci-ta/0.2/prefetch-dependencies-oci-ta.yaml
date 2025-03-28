@@ -372,6 +372,11 @@ spec:
 
         INPUT=$(inject_rpm_summary_flag "$INPUT")
 
+        if [[ "${INPUT}}" == *"gomod"* ]] && [[ "$(cd "/var/workdir/source" && ! git fetch --tags)" ]]; then
+          echo "Retrying fetch command..."
+          "$(cd "/var/workdir/source" && git fetch --tags)"
+        fi
+
         cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
           $dev_pacman_flag \
           --source=/var/workdir/source \
