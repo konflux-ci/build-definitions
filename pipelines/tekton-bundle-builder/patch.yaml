@@ -22,13 +22,15 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
+#     11  coverity-availability-check
+#     12  sast-coverity-check
+#     13  sast-coverity-check
+#     14  sast-coverity-check
+#     15  sast-shell-check
+#     16  sast-unicode-check
+#     17  apply-tags
+#     18  push-dockerfile
+#     19  rpms-signature-scan
 # Order of finally tasks from the base template:
 # kustomize build pipelines/template-build/ | yq ".spec.finally.[].name" | nl -v 0
 #      0  show-sbom
@@ -42,13 +44,17 @@
     value: $(params.path-context)
 # Remove tasks that assume a binary image
 - op: remove
-  path: /spec/tasks/17  # rpms-signature-scan
+  path: /spec/tasks/19  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/16  # push-dockerfile
+  path: /spec/tasks/18  # push-dockerfile
 - op: remove
-  path: /spec/tasks/12  # coverity-availability-check
+  path: /spec/tasks/14  # sast-coverity-check-upload
 - op: remove
-  path: /spec/tasks/11  # sast-coverity-check
+  path: /spec/tasks/13  # sast-coverity-check
+- op: remove
+  path: /spec/tasks/12  # sast-coverity-check-build
+- op: remove
+  path: /spec/tasks/11  # coverity-availability-check
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
