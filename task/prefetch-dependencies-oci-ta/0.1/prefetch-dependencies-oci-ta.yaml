@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1741850109@sha256:8b314e254e9ab9a7a08b675fcfd3ed66a2943eeda7b26395210d451569976b9b
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1742914212@sha256:4c8830d349732ed8066544e1cbcf878ad64f39aa4364f13cf4a69954b0ccbda5
       env:
         - name: INPUT
           value: $(params.input)
@@ -153,7 +153,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:1b078faee108f1f9b447cce1c8b7c7ca6d5cfb4de7dc762c9743a3090c307eef
+      image: quay.io/konflux-ci/yq:latest@sha256:5ff4dd745c6f4cc67ae4f00fd2a38dd31f7d99c95dd7ad4476d6a6307a0f40a0
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
