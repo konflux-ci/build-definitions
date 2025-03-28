@@ -299,6 +299,9 @@ spec:
       # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
       export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
 
+      # always use a fresh temp directory for Coverity to avoid "Permission denied" errors on reuse
+      export COVERITY_TEMP="\$(mktemp -d /tmp/cov-XXXXXXXX)"
+
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
       trap 'rm -fr /tmp/idir' EXIT
 
