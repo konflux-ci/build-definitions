@@ -224,6 +224,9 @@
         fi
       fi
 
+      # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+      export COVERITY_DISENGAGE_EXES="dnf"
+
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
       trap 'rm -fr /tmp/idir' EXIT
 
