@@ -294,6 +294,11 @@ spec:
         fi
       fi
 
+      # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
+
+      # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+      export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
+
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
       trap 'rm -fr /tmp/idir' EXIT
 
