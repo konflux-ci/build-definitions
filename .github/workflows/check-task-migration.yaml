@@ -21,6 +21,10 @@ jobs:
           pipeline_version: latest
       - name: Run check
         run: |
+          DEBIAN_FRONTEND=noninteractive \
+          sudo apt-get install -y --no-install-recommends \
+              tzdata python3-ruamel.yaml
+
           kubectl get all -n tekton-pipelines
           # Require name main
           git branch main origin/main

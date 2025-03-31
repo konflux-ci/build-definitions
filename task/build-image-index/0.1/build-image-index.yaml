@@ -141,12 +141,29 @@ spec:
         echo "Pushing image to registry"
         buildah manifest push \
           --format="$push_format" \
-          --tls-verify=$TLSVERIFY \
-          --digestfile image-digest $IMAGE \
-          docker://$IMAGE && break || status=$?
+          --tls-verify="$TLSVERIFY" \
+          --digestfile image-digest \
+          "$IMAGE" \
+          "docker://$IMAGE" && break || status=$?
       done
       if [ "$status" -ne 0 ]; then
-          echo "Failed to push image to registry after ${max_run} tries"
+          echo "Failed to push image ${IMAGE} to registry after ${max_run} tries"
+          exit 1
+      fi
+
+      for run in $(seq 1 $max_run); do
+        status=0
+        [ "$run" -gt 1 ] && sleep $sleep_sec
+        echo "Pushing image to registry"
+        buildah manifest push \
+          --format="$push_format" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile image-digest \
+          "$IMAGE" \
+          "docker://${IMAGE%:*}:$(context.taskRun.name)" && break || status=$?
+      done
+      if [ "$status" -ne 0 ]; then
+          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry after ${max_run} tries"
           exit 1
       fi
 
