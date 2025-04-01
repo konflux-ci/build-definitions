@@ -47,6 +47,8 @@ spec:
     env:
       - name: HOME
         value: $(params.HOME)
+      - name: SOURCE_CODE_DIR
+        value: source
       - name: TASK_FILE
         value: tekton_task_files
     volumeMounts:
@@ -60,7 +62,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: modify-task-files
       image: quay.io/konflux-ci/konflux-test:latest@sha256:d596724343a31c201a5c2e79f233f9ef78ac65726ae4ed5ffa41d76b3dac630f
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       env:
         - name: CONTEXT
           value: $(params.CONTEXT)
@@ -87,11 +89,11 @@ spec:
             neg=1
             path="${path#\!}"
           fi
-          if [[ -d "/var/workdir/source/${path}" ]]; then
+          if [[ -d "/var/workdir/${SOURCE_CODE_DIR}/${path}" ]]; then
             # for directories look for any .yaml or .yml files
             paths+=(
-              "/var/workdir/source/${path}"/**/*.yaml
-              "/var/workdir/source/${path}"/**/*.yml
+              "/var/workdir/${SOURCE_CODE_DIR}/${path}"/**/*.yaml
+              "/var/workdir/${SOURCE_CODE_DIR}/${path}"/**/*.yml
             )
           else
             # for files add the file to the collected paths
@@ -105,8 +107,8 @@ spec:
               # single negative path provided, first include everything then
               # subtract the negative elements
               FILES=(
-                "/var/workdir/source"/**/*.yaml
-                "/var/workdir/source"/**/*.yml
+                "/var/workdir/${SOURCE_CODE_DIR}"/**/*.yaml
+                "/var/workdir/${SOURCE_CODE_DIR}"/**/*.yml
               )
             fi
             for p in "${paths[@]}"; do
@@ -131,7 +133,7 @@ spec:
         printf "%s\n" "${FILES[@]}" >"${TASK_FILE}"
     - name: build
       image: quay.io/konflux-ci/appstudio-utils@sha256:4dd23978070d02c567303d46bef1f03bfc16d77aef62e6899ac2ac022884b4b5
-      workingDir: /var/workdir/source
+      workingDir: /var/workdir
       env:
         - name: CONTEXT
           value: $(params.CONTEXT)
@@ -146,7 +148,7 @@ spec:
 
         mapfile -t FILES <"${TASK_FILE}"
         [[ ${#FILES[@]} -eq 0 ]] &&
-          echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/source\", aborting the build" &&
+          echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
           exit 1
         exec 3>&1
 

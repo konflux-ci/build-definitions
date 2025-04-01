@@ -90,7 +90,8 @@ spec:
     name: PREFETCH_INPUT
     type: string
   - default: "false"
-    description: Whether to enable privileged mode
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
     name: PRIVILEGED_NESTED
     type: string
   - default: spdx
@@ -479,7 +480,9 @@ spec:
         if [ -f "$prefetched_repo_for_my_arch" ]; then
           echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
           mkdir -p "$YUM_REPOS_D_FETCHED"
-          cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+            cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          fi
         fi
       fi
 
@@ -709,7 +712,7 @@ spec:
       readOnly: true
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:fcb5700160196b47a6df40bb7094a6d138b101717e7269d91826ce329a50c52f
+    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
     name: icm
     script: |
       #!/bin/bash
@@ -843,7 +846,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:6dc75d3cdac794dfef90a4296a43a1506bd80c4ac0d897293439563b0dd5ac41
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:d90b3ed72cff083ab8238241df8b91d86d270b92d5d10eda16c70d55d02c211d
     name: prepare-sboms
     script: |
       #!/bin/bash

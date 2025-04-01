@@ -42,7 +42,8 @@ spec:
       # need to change user since 'oc image extract' requires more privileges when running as root permissions
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
       securityContext:
-        runAsUser: 1000
+        capabilities:
+          add: ["SETFCAP"]
       env:
         - name: HOME
           value: /work
@@ -177,14 +178,18 @@ spec:
       workingDir: /work
       script: |
         #!/usr/bin/env bash
+        set -e
+
+        # Don't return a glob expression when no matches are found
+        shopt -s nullglob
 
         cd logs
 
-        for UPLOAD_FILE in $(find . -name "clamscan-result*.log"); do
+        for UPLOAD_FILE in clamscan-result*.log; do
           MEDIA_TYPE=text/vnd.clamav
           args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
         done
-        for UPLOAD_FILE in $(find . -name "clamscan-ec-test*.json"); do
+        for UPLOAD_FILE in clamscan-ec-test*.json; do
           MEDIA_TYPE=application/vnd.konflux.test_output+json
           args+=("${UPLOAD_FILE}:${MEDIA_TYPE}")
         done
@@ -201,6 +206,10 @@ spec:
       volumeMounts:
         - mountPath: /work
           name: work
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
   volumes:
     - name: dbfolder
       emptyDir: {}

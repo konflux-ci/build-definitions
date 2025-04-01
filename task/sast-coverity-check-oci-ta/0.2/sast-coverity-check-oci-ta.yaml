@@ -112,7 +112,8 @@ spec:
       type: string
       default: ""
     - name: PRIVILEGED_NESTED
-      description: Whether to enable privileged mode
+      description: Whether to enable privileged mode, should be used only
+        with remote VMs
       type: string
       default: "false"
     - name: PROJECT_NAME
@@ -278,6 +279,11 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
     - name: prepare
       image: quay.io/redhat-services-prod/sast/coverity:202412.5
       workingDir: /var/workdir
@@ -594,7 +600,9 @@ spec:
           if [ -f "$prefetched_repo_for_my_arch" ]; then
             echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
             mkdir -p "$YUM_REPOS_D_FETCHED"
-            cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+            if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+              cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+            fi
           fi
         fi
 

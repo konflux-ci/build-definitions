@@ -11,11 +11,13 @@ them as a Tekton Bundle to the image repository, name and tag specified by the
 
 The task supports the following input parameters.
 
-| Name    | Example                 | Description                              |
-|---------|-------------------------|------------------------------------------|
-| IMAGE   | registry.io/my-task:tag | Reference of the image task will produce |
-| CONTEXT | my-task/0.1             | Paths to include in the bundle image     |
-| HOME    | /tekton/home            | Value for the HOME environment variable  |
+## Parameters
+|name|description|default value|required|
+|---|---|---|---|
+|IMAGE|Reference of the image task will produce.||true|
+|CONTEXT|Path to the directory to use as context.|.|false|
+|HOME|Value for the HOME environment variable.|/tekton/home|false|
+|STEPS_IMAGE|An optional image to configure task steps with in the bundle|""|false|
 
 `CONTEXT` can include multiple directories or files separated by comma or space.
 Paths can be negated with exclamation mark to prevent inclusion of certain
@@ -50,3 +52,8 @@ The task emits the following results.
 | IMAGE_URL    | registry.io/my-task:tag               | Image repository and tag where the built image was pushed with tag only |
 | IMAGE_DIGEST | abc...                                | Digest of the image just built                                  |
 | IMAGE_REF    | registry.io/my-task:tag@sha256:abc... | Image reference of the built image                              |
+
+## Workspaces
+|name|description|optional|
+|---|---|---|
+|source||false|

@@ -38,6 +38,45 @@ declare -r DEFAULT_BRANCH
 : "${IN_CLUSTER:=""}"
 declare -r IN_CLUSTER
 
+info() {
+    echo "info: $*" >&2
+}
+
+error() {
+    echo "error: $*" >&2
+}
+
+warning() {
+    echo "warning: $*" >&2
+}
+
+format_yaml_in_python() {
+    local -r filepath=$1
+    python3 -c "
+import sys
+from ruamel.yaml import YAML
+yaml = YAML()
+# These settings are same as pipeline-migration-tool
+yaml.preserve_quotes = True
+yaml.width = 8192
+yaml_file = sys.argv[1]
+with open(yaml_file, 'r', encoding='utf-8') as f:
+    data = yaml.load(f)
+with open(yaml_file, 'w', encoding='utf-8') as f:
+    yaml.dump(data, f)
+" "$filepath"
+}
+
+wrapped_diff() {
+    set +e
+    echo "\`\`\`diff"
+    diff "$@"
+    status=$?
+    echo "\`\`\`"
+    return $status
+}
+
+
 prepare_pipelines() {
     local -a pl_names_in_config
     local pushed_pipelines
@@ -51,8 +90,9 @@ prepare_pipelines() {
 
     while read -r pl_name pl_bundle; do
         pl_names_in_config+=("$pl_name")
-        tkn bundle list "$pl_bundle" pipeline "$pl_name" -o yaml \
-            >"${WORK_DIR}/pipelines/pushed/${pl_name}.yaml"
+        pl_file="${WORK_DIR}/pipelines/pushed/${pl_name}.yaml"
+        info "fetch pipeline $pl_name from bundle $pl_bundle -> $pl_file"
+        tkn bundle list "$pl_bundle" pipeline "$pl_name" -o yaml >"$pl_file"
     done <<<"$pushed_pipelines"
 
     mkdir -p "${WORK_DIR}/pipelines/local"
@@ -86,6 +126,7 @@ prepare_pipelines() {
                     task_selector="(.spec.tasks[], .spec.finally[]) | select(.name == \"${task_name}\")"
                     yq -i "(${task_selector} | .taskRef) |= ${fake_bundle_ref}" "$file_path"
                 done
+                format_yaml_in_python "$file_path"
             fi
         done
 
@@ -109,16 +150,21 @@ check_apply_on_pipelines() {
     local failed=
     local file_path=
     local updated=
+    local pl_copy_file_path=
     while read -r file_path; do
-        cp "$file_path" "${file_path}.copy"
-        if ! bash -x "$migration_file" "${file_path}.copy" 2>"$run_log_file" >&2; then
-            echo "error: failed to run migration file $migration_file on pipeline $file_path:" >&2
+        pl_copy_file_path="${file_path}.copy"
+        cp "$file_path" "$pl_copy_file_path"
+        info "apply migration $migration_file to pipeline $pl_copy_file_path"
+        if ! bash -x "$migration_file" "$pl_copy_file_path" 2>"$run_log_file" >&2; then
+            error "failed to run migration file $migration_file on pipeline $file_path:"
             cat "$run_log_file" >&2
             failed=true
         else
-            if ! diff "$file_path" "${file_path}.copy" >/dev/null 2>&1; then
+            info "diff to see if pipeline is modified by the migration"
+            format_yaml_in_python "$pl_copy_file_path"
+            if ! wrapped_diff -u "$file_path" "$pl_copy_file_path"; then
                 updated=true
-                mv "${file_path}.copy" "${file_path}.modified"
+                mv "$pl_copy_file_path" "${file_path}.modified"
             fi
         fi
     done <<<"$prepared_pipelines"
@@ -130,7 +176,7 @@ check_apply_on_pipelines() {
             done <<<"$prepared_pipelines" \
                 | sort | uniq
         )
-        echo "${FUNCNAME[0]}: migration file does not modify any of pipelines ${pl_names[*]}" >&2
+        info "${FUNCNAME[0]}: migration file does not modify any of pipelines ${pl_names[*]}"
     fi
     if [ -n "$failed" ] || [ -z "$updated" ]; then
         return 1
@@ -190,7 +236,7 @@ check_migrations_is_in_task_version_specific_dir() {
     local -r parent_dir=$(resolve_migrations_parent_dir "$migration_file")
     local -r result=$(find task/*/* -type d -regex "$parent_dir" -print -quit)
     if [ -z "$result" ]; then
-        echo "${FUNCNAME[0]}: migrations/ directory is not created in a task version-specific directory. Current is under $parent_dir. To fix it, move it to a path like task/task-1/0.1/." >&2
+        info "${FUNCNAME[0]}: migrations/ directory is not created in a task version-specific directory. Current is under $parent_dir. To fix it, move it to a path like task/task-1/0.1/."
         exit 1
     fi
 }
@@ -221,8 +267,8 @@ check_version_match() {
         return 0
     fi
 
-    echo -n "${FUNCNAME[0]}: migration file does not match the task version '${task_version}'. " >&2
-    echo "Bump version in label '${LABEL_TASK_VERSION}' to match the migration." >&2
+    info "${FUNCNAME[0]}: migration file does not match the task version '${task_version}'. "
+    info "Bump version in label '${LABEL_TASK_VERSION}' to match the migration."
 
     return 1
 }
@@ -261,7 +307,7 @@ list_migration_files() {
             A)  # file is added
                 task_dir_path=$(awk -F '/' '{ OFS = "/"; print $1, $2 }' <<<"$origin_path")
                 if grep -q "^${task_dir_path}$" <<<"$seen"; then
-                    echo "error: There must be one migration file per task in a single pull request." >&2
+                    error "There must be one migration file per task in a single pull request."
                     return 1
                 else
                     seen="$seen
@@ -270,12 +316,12 @@ $task_dir_path"
                 fi
                 ;;
             D | M)
-                echo "error: It is not allowed to delete or modify existing migration file: $origin_path" >&2
-                echo "error: Please bump task version in the label '${LABEL_TASK_VERSION}' and create a new migration file." >&2
+                error "It is not allowed to delete or modify existing migration file: $origin_path"
+                error "Please bump task version in the label '${LABEL_TASK_VERSION}' and create a new migration file."
                 exit 1
                 ;;
             *)
-                echo "warning: unknown operation for status $status on file $origin_path" >&2
+                warning "unknown operation for status $status on file $origin_path"
                 ;;
         esac
     done <<<"$file_list"
@@ -290,15 +336,18 @@ declare -r K8S_TEST_NS
 # An easy way to set up a local cluster is running `kind create cluster'.
 check_apply_in_real_cluster() {
     if [ -z "$IN_CLUSTER" ]; then
+        info "environment variable IN_CLUSTER is not set, skip ${FUNCNAME[0]}"
         return 0
     fi
     if ! kubectl get crd pipelines.tekton.dev -n tekton-pipelines >/dev/null 2>&1; then
-        echo "error: cannot find CRD pipeline.tekton.dev from cluster. Please create a cluster and install tekton." >&2
+        error "cannot find CRD pipeline.tekton.dev from cluster. Please create a cluster and install tekton."
         exit 1
     fi
     if kubectl get namespaces ${K8S_TEST_NS} >/dev/null 2>&1; then
+        info "k8s namespace ${K8S_TEST_NS} exists, remove all pipelines from it."
         kubectl delete pipeline --all -n ${K8S_TEST_NS} >/dev/null
     else
+        info "create k8s namespace ${K8S_TEST_NS}"
         kubectl create namespace ${K8S_TEST_NS}
     fi
     local apply_logfile
@@ -306,13 +355,14 @@ check_apply_in_real_cluster() {
     apply_logfile=$(mktemp --suffix="-${FUNCNAME[0]}")
     modified_pipeline_files=$(find "${WORK_DIR}/pipelines" -type f -name "*.modified")
     if [ -z "$modified_pipeline_files" ]; then
-        echo "error: No modified pipeline file is found." >&2
-        echo "error: Please check if migrations work correctly to update pipelines." >&2
+        error "No modified pipeline file is found."
+        error "Please check if migrations work correctly to update pipelines."
         exit 1
     fi
     while read -r pl_file; do
+        info "apply pipeline with migrations in namespace ${K8S_TEST_NS}: ${pl_file}"
         if ! kubectl apply -f "$pl_file" -n ${K8S_TEST_NS} 2>"$apply_logfile" >/dev/null; then
-            echo "${FUNCNAME[0]}: failed to apply pipeline to cluster: $pl_file" >&2
+            error "${FUNCNAME[0]}: failed to apply pipeline to cluster: $pl_file"
             cat "$apply_logfile" >&2
             rm "$apply_logfile"
             exit 1
@@ -323,12 +373,12 @@ check_apply_in_real_cluster() {
 
 main() {
     if git status --porcelain | grep -qv "^??"; then
-        echo "There are uncommitted changes. Please commit them and run again." >&2
+        info "There are uncommitted changes. Please commit them and run again."
         exit 1
     fi
 
     if ! is_on_topic_branch; then
-        echo "Script must run on a topic branch rather than the main branch." >&2
+        info "Script must run on a topic branch rather than the main branch."
         return 1
     fi
 
@@ -336,19 +386,30 @@ main() {
     output="$(list_migration_files)"
 
     if [ -z "$output" ]; then
-        echo "No migration."
+        info "No migration."
         exit 0
     fi
 
+    info "prepare Konflux standard pipelines"
     prepare_pipelines
 
     for migration_file in $output; do
+        info "check pass shellcheck"
         check_pass_shellcheck "$migration_file"
+
+        info "check migrations/ is created in versioned-specific task directory"
         check_migrations_is_in_task_version_specific_dir "$migration_file"
+
+        info "check migration file name matches the concrete task version in the label"
         check_version_match "$migration_file"
-        # Cleanup any existing pipeline files modified previously.
+
+        info "cleanup any existing pipeline files modified previously."
         find "${WORK_DIR}/pipelines" -type f -name "*.modified" -delete
+
+        info "check apply migrations to standard pipelines included in the build-pipeline-config"
         check_apply_on_pipelines "$migration_file"
+
+        info "check apply pipelines with migrations into a cluster"
         check_apply_in_real_cluster
     done
 }
