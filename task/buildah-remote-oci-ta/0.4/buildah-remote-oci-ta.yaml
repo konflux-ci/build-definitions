@@ -599,11 +599,6 @@ spec:
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
-      # Export the image as an oci-archive
-      image_name=$(echo "${IMAGE##*/}" | cut -d ':' -f1)
-      buildah push $IMAGE oci-archive:/shared/$image_name
-      echo "/shared/$image_name" >/shared/container_path
-
       touch /shared/base_images_digests
       echo "Recording base image digests used"
       for image in $BASE_IMAGES; do
@@ -681,11 +676,6 @@ spec:
       echo "Build on remote host $SSH_HOST finished"
 
       buildah images
-      container=$(buildah from --pull-never "$IMAGE")
-      buildah mount "$container" | tee /shared/container_path
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
-      echo $container > /shared/container_name
     securityContext:
       capabilities:
         add:
@@ -828,7 +818,7 @@ spec:
       echo "Running syft on the source directory"
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
       echo "Running syft on the image filesystem"
-      syft oci-archive:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+      syft image:$IMAGE --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
