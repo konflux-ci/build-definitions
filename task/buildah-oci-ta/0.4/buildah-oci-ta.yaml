@@ -559,9 +559,7 @@ spec:
         # disable host subcription manager integration
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
-        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
-
-        container=$(buildah from --pull-never "$IMAGE")
+        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
 
         # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
         if [ -f "/tmp/cachi2/output/bom.json" ]; then
@@ -569,10 +567,10 @@ spec:
           cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
         fi
 
-        buildah mount "$container" | tee /shared/container_path
-        # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-        find $(cat /shared/container_path) -xtype l -delete
-        echo $container >/shared/container_name
+        # Export the image as an oci-archive
+        image_name=$(echo "${IMAGE##*/}" | cut -d ':' -f1)
+        buildah push $IMAGE oci-archive:/shared/$image_name
+        echo "/shared/$image_name" >/shared/container_path
 
         touch /shared/base_images_digests
         echo "Recording base image digests used"
@@ -705,7 +703,7 @@ spec:
         echo "Running syft on the source directory"
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
         echo "Running syft on the image filesystem"
-        syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+        syft oci-archive:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
     - name: prepare-sboms
       image: quay.io/konflux-ci/sbom-utility-scripts@sha256:6dc75d3cdac794dfef90a4296a43a1506bd80c4ac0d897293439563b0dd5ac41
       workingDir: /var/workdir

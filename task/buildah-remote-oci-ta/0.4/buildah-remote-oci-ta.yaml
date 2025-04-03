@@ -593,16 +593,16 @@ spec:
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
 
-      container=$(buildah from --pull-never "$IMAGE")
-
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
         echo "Making copy of sbom-cachi2.json"
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
 
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- sh -c "buildah mount $container | tee /shared/container_path"
-      echo $container >/shared/container_name
+      # Export the image as an oci-archive
+      image_name=$(echo "${IMAGE##*/}" | cut -d ':' -f1)
+      buildah push $IMAGE oci-archive:/shared/$image_name
+      echo "/shared/$image_name" >/shared/container_path
 
       touch /shared/base_images_digests
       echo "Recording base image digests used"
@@ -682,7 +682,9 @@ spec:
 
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- sh -c "buildah mount $container | tee /shared/container_path"
+      buildah mount "$container" | tee /shared/container_path
+      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
+      find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
     securityContext:
       capabilities:
@@ -825,24 +827,8 @@ spec:
 
       echo "Running syft on the source directory"
       syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
-
-      cat >./script-sbom-image.sh <<'SBOMIMAGEEOF'
-      #!/bin/bash
-      set -euo pipefail
-      buildah mount $(cat /shared/container_name)
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
       echo "Running syft on the image filesystem"
-      syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
-      SBOMIMAGEEOF
-      chmod a+x ./script-sbom-image.sh
-
-      unshare -Uf --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount ./script-sbom-image.sh
-    securityContext:
-      runAsUser: 0
-      capabilities:
-        add:
-          - SETFCAP
+      syft oci-archive:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
