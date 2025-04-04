@@ -1,0 +1,288 @@
+# Task name
+- op: replace
+  path: /metadata/name
+  value: sast-coverity-check-build
+
+# Task version
+- op: replace
+  path: /metadata/labels/app.kubernetes.io~1version
+  value: "0.4"
+
+# Task description
+- op: replace
+  path: /spec/description
+  value: |-
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Coverity.
+
+# Replace task results
+- op: replace
+  path: /spec/results
+  value:
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+
+###################
+# Task steps
+###################
+
+# Remove all buildah task steps except build
+
+# upload-sbom
+- op: test
+  path: /spec/steps/5/name
+  value: upload-sbom
+- op: remove
+  path: /spec/steps/5
+
+# prepare-sboms
+- op: test
+  path: /spec/steps/4/name
+  value: prepare-sboms
+- op: remove
+  path: /spec/steps/4
+
+# sbom-syft-generate
+- op: test
+  path: /spec/steps/3/name
+  value: sbom-syft-generate
+- op: remove
+  path: /spec/steps/3
+
+# push
+- op: test
+  path: /spec/steps/2/name
+  value: push
+- op: remove
+  path: /spec/steps/2
+
+# icm
+- op: test
+  path: /spec/steps/1/name
+  value: icm
+- op: remove
+  path: /spec/steps/1
+
+# Tune the build step (the only one left).
+- op: test
+  path: /spec/steps/0/name
+  value: build
+
+# Change build step image
+- op: replace
+  path: /spec/steps/0/image
+  # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
+  value: quay.io/redhat-services-prod/sast/coverity:202412.5
+
+# Change build step resources
+- op: replace
+  path: /spec/steps/0/computeResources/limits/memory
+  value: 32Gi
+- op: replace
+  path: /spec/steps/0/computeResources/requests/cpu
+  value: 12
+- op: replace
+  path: /spec/steps/0/computeResources/requests/memory
+  value: 12Gi
+
+# Additional parameters
+- op: add
+  path: /spec/params/-
+  value:
+    name: COV_LICENSE
+    type: string
+    description: Name of secret which contains the Coverity license
+    default: "cov-license"
+- op: add
+  path: /spec/params/-
+  value:
+    description: Arguments to be appended to the cov-analyze command
+    name: COV_ANALYZE_ARGS
+    type: string
+    default: "--enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096"
+
+# Additional volumes
+- op: add
+  path: /spec/volumes/-
+  value:
+    name: cov-license
+    secret:
+      secretName: $(params.COV_LICENSE)
+      optional: false
+- op: add
+  path: /spec/steps/0/env/-
+  value:
+    name: ADDITIONAL_VOLUME_MOUNTS
+    value: |-
+      /opt/coverity:/opt/coverity
+      /opt/cov-sa-2024.12:/opt/cov-sa-2024.12
+      /shared:/shared
+      /shared/license.dat:/opt/coverity/bin/license.dat
+      /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
+
+# Additional workspace for scan results
+- op: add
+  path: /spec/workspaces/-
+  value:
+    name: sast-results
+    description: Workspace containing the SAST scanning results.
+
+# Add prepare step
+- op: add
+  path: /spec/steps/0
+  value:
+    name: prepare
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    workingDir: $(workspaces.source.path)
+    env:
+      - name: COV_ANALYZE_ARGS
+        value: $(params.COV_ANALYZE_ARGS)
+      - name: DOCKERFILE
+        value: $(params.DOCKERFILE)
+    volumeMounts:
+      - name: cov-license
+        mountPath: "/etc/secrets/cov"
+        readOnly: true
+    script: |
+      #!/bin/bash
+
+      # FIXME: Dockerfile discovery logic is copied from buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      # install Coverity license file
+      install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
+
+      # pre-create directory for SAST scanning results
+      install -vm1777 -d /shared/sast-results
+
+      # create a wrapper script to instrument RUN lines
+      tee /shared/cmd-wrap.sh >&2 << EOF
+      #!/bin/bash -x
+      id >&2
+
+      # use current directory as project directory by default
+      proj_dir=\$(pwd)
+
+      # if current directory is "/", fallback to an empty temp directory
+      [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
+
+      # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
+      if ! [ -x /usr/bin/file ]; then
+        if [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+          install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+        elif [ -e /opt/cov-sa-2024.12/bin/cov-override-access.so ]; then
+          export LD_PRELOAD="/opt/cov-sa-2024.12/bin/cov-override-access.so"
+          export PATH="\${PATH}:/opt/cov-sa-2024.12/bin"
+        fi
+      fi
+
+      # always remove Coverity's intermediate directory so that it can be recreated with different ownership
+      trap 'rm -fr /tmp/idir' EXIT
+
+      # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
+      /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
+        -- /bin/bash -c "PS4='@\\\${SECONDS}s: \\\${BASH_COMMAND} --> '
+        set -mx
+        pwd >&2  # print CWD set by coverity
+        cd '\${PWD}'  # restore original CWD
+        \\"\\\$@\\" &  # run the instrumented shell command in background (to create a process group)
+        pid=\\\$!  # store its PID
+        wait \\\${pid}  # wait for the command to finish
+        ec=\\\$?  # store its exit status
+        kill -KILL -\\\${pid} 2>/dev/null  # kill orphan background processes
+        echo \\\${ec} >/tmp/idir/build-cmd-ec.txt  # propagate the exit status
+        " - "\$@"
+
+      # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
+      $(declare -p COV_ANALYZE_ARGS)
+
+      # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
+      /opt/coverity/bin/cov-analyze --dir=/tmp/idir \$COV_ANALYZE_ARGS
+
+      if [ \$? -eq 0 ]; then
+        # assign a unique file name for scan results
+        json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
+
+        # obtain capture stats to process them later on
+        /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
+
+        # export scan results and embed source code context into the scan results
+        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+          | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
+          > "\${json_file}"
+      fi
+
+      # propagate the original exit code of the wrapped command
+      exit "\$(</tmp/idir/build-cmd-ec.txt)"
+      EOF
+      echo >&2
+
+      # make the wrapper script executable
+      chmod -v 0755 /shared/cmd-wrap.sh
+
+      # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
+      cstrans-df-run --shell-form --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile 2> /tmp/cstrans-df-run.log
+      EC=$?
+
+      # if we have no RUN lines to instrument, it is not a reason to make the task fail
+      if [ $EC -eq 1 ] && [ "cstrans-df-run: error: no RUN line found" = "$(</tmp/cstrans-df-run.log)" ]; then
+        echo "no RUN directive found in \"$dockerfile_path\", falling back to buildless capture..." >&2
+      else
+        cat /tmp/cstrans-df-run.log >&2
+        exit $EC
+      fi
+
+# Make the buildah task use the instrumented Dockerfile
+- op: test
+  path: /spec/steps/1/env/1/name
+  value: DOCKERFILE
+- op: replace
+  path: /spec/steps/1/env/1/value  # steps -> build -> env -> DOCKERFILE
+  value: /shared/Containerfile
+
+# Add postprocess step to export the scan results
+- op: test
+  path: /spec/steps/1/name
+  value: build
+- op: add
+  path: /spec/steps/2
+  value:
+    name: postprocess
+    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    computeResources:
+      limits:
+        memory: 1Gi
+      requests:
+        memory: 1Gi
+        cpu: 100m
+    workingDir: $(workspaces.sast-results.path)
+    script: |
+      #!/bin/bash -ex
+      mv -v /shared/sast-results .
+      csgrep --mode=evtstat --remove-duplicates --file-glob './sast-results/*.json' || :
