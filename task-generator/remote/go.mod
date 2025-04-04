@@ -10,7 +10,7 @@ require (
 	k8s.io/apimachinery v0.32.1
 	k8s.io/cli-runtime v0.30.3
 	k8s.io/klog/v2 v2.130.1
-	sigs.k8s.io/controller-runtime v0.20.3
+	sigs.k8s.io/controller-runtime v0.20.4
 )
 
 require (
