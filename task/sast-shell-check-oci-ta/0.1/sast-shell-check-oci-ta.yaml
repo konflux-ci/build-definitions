@@ -92,7 +92,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: sast-shell-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:b046b1456077a2c15c51b1e0b83fde99a0a39bdf35872cde7437a857ef9d4ba7
+      image: quay.io/konflux-ci/konflux-test:v1.4.22@sha256:a0892028b9d1e3f14289b5c428f4b8ebc157be9e8c7d3d2315d6e2e1afbc6c50
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /mnt/trusted-ca
@@ -226,7 +226,7 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
