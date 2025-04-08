@@ -135,8 +135,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-unicode-check:0.1 task parameters
+|image-digest| Digest of the image to scan.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
+### sast-unicode-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -204,11 +205,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check:0.3 task results
+### sast-snyk-check:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.1 task results
+### sast-unicode-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |

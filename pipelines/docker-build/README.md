@@ -236,8 +236,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.1 task parameters
+|image-digest| Digest of the image to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### sast-unicode-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
