@@ -297,7 +297,7 @@ spec:
     - build-image-index
     taskRef:
       name: sast-snyk-check-oci-ta
-      version: "0.3"
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -320,10 +320,19 @@ spec:
       operator: in
       values:
       - "false"
-  - name: sast-coverity-check
+  - name: coverity-availability-check
+    runAfter:
+    - prefetch-dependencies
+    taskRef:
+      name: coverity-availability-check
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-coverity-check-build
     params:
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE
       value: $(params.output-image)
     - name: DOCKERFILE
@@ -350,8 +359,8 @@ spec:
     runAfter:
     - coverity-availability-check
     taskRef:
-      name: sast-coverity-check-oci-ta
-      version: "0.2"
+      name: sast-coverity-check-build-oci-ta
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -361,18 +370,48 @@ spec:
       operator: in
       values:
       - success
-    workspaces: []
-  - name: coverity-availability-check
+    workspaces:
+    - name: sast-results
+      workspace: sast-results
+  - name: sast-coverity-check
+    params:
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+    - name: CACHI2_ARTIFACT
+      value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
     runAfter:
-    - build-image-index
+    - sast-coverity-check-build
     taskRef:
-      name: coverity-availability-check
-      version: "0.2"
+      name: sast-coverity-check-oci-ta
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
       values:
       - "false"
+    workspaces:
+    - name: sast-results
+      workspace: sast-results
+  - name: sast-coverity-check-upload
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    - sast-coverity-check
+    taskRef:
+      name: sast-coverity-check-upload
+      version: "0.4"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: sast-results
+      workspace: sast-results
   - name: sast-shell-check
     params:
     - name: image-digest
@@ -396,6 +435,8 @@ spec:
     workspaces: []
   - name: sast-unicode-check
     params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: SOURCE_ARTIFACT
@@ -406,7 +447,7 @@ spec:
     - build-image-index
     taskRef:
       name: sast-unicode-check-oci-ta
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -457,6 +498,7 @@ spec:
       values:
       - "false"
   workspaces:
+  - name: sast-results
   - name: git-auth
     optional: true
   - name: netrc

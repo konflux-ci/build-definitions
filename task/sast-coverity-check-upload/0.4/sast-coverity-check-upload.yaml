@@ -1,0 +1,65 @@
+# WARNING: This is an auto generated file, do not modify this file directly
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.4"
+    build.appstudio.redhat.com/build_type: docker
+  name: sast-coverity-check-upload
+spec:
+  description: Upload SAST scanning results produced by Coverity.
+  params:
+  - name: image-digest
+    type: string
+    default: ""
+    description: Image digest to scan, default is empty string.
+  - name: image-url
+    type: string
+    description: Image URL to scan.
+  results:
+  - description: Tekton task test output.
+    name: TEST_OUTPUT
+  workspaces:
+  - description: Workspace containing the SAST scanning results.
+    name: sast-results
+  steps:
+  - name: upload
+    image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: IMAGE_URL
+      value: $(params.image-url)
+    - name: IMAGE_DIGEST
+      value: $(params.image-digest)
+    workingDir: $(workspaces.sast-results.path)
+    script: |
+      #!/bin/bash -e
+      # shellcheck source=/dev/null
+      set -o pipefail
+
+      # upload scan results
+      echo "Selecting auth for upload of scan results"
+      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+
+      upload_file() (
+        set -x
+        UPLOAD_FILE="$1"
+        MEDIA_TYPE="$2"
+        oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+      )
+
+      echo "Attaching scan results to ${IMAGE_URL}"
+      upload_file "coverity-results.sarif" "application/sarif+json"
+
+      # upload excluded-findings.json if enabled
+      if [ -f "excluded-findings.json" ]; then
+        upload_file "excluded-findings.json" "application/json"
+      fi

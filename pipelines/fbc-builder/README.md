@@ -229,6 +229,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
+|sast-results| |False| |
 ## Available workspaces from tasks
 ### git-clone-oci-ta:0.1 task workspaces
 |name|description|optional|workspace from pipeline
