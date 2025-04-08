@@ -92,7 +92,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check-oci-ta:0.1 task parameters
+### sast-unicode-check-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
@@ -157,13 +157,13 @@
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.2:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.2:SOURCE_ARTIFACT|
 ### sast-shell-check-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check-oci-ta:0.1 task results
+### sast-unicode-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
