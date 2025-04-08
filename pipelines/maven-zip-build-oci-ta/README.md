@@ -130,7 +130,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-snyk-check-oci-ta:0.3 task parameters
+### sast-snyk-check-oci-ta:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| | |
@@ -214,11 +214,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check-oci-ta:0.3 task results
+### sast-snyk-check-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check-oci-ta:0.1 task results
+### sast-unicode-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |

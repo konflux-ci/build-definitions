@@ -123,7 +123,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-snyk-check:0.3 task parameters
+### sast-snyk-check:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| | |
@@ -173,9 +173,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### build-maven-zip:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest ; sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.4:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest|
 |IMAGE_REF| OCI-Artifact reference of the built OCI-Artifact| |
-|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url ; sast-coverity-check:0.2:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url|
+|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.4:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### coverity-availability-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -244,11 +244,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-snyk-check:0.3 task workspaces
+### sast-snyk-check:0.4 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.1 task workspaces
+### sast-unicode-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
