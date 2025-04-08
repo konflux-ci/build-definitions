@@ -43,8 +43,8 @@ Scans source code for security vulnerabilities, including common issues such as 
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
-|image-digest|Image digest to scan, default is empty string.|""|false|
-|image-url|Image URL to scan.||true|
+|image-digest|Digest of the image to which the scan results should be associated.||true|
+|image-url|URL of the image to which the scan results should be associated.||true|
 
 ## Results
 |name|description|

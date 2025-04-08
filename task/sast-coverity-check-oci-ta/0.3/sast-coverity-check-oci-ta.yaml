@@ -188,11 +188,11 @@ spec:
       type: string
       default: trusted-ca
     - name: image-digest
-      description: Image digest to scan, default is empty string.
+      description: Digest of the image to which the scan results should be
+        associated.
       type: string
-      default: ""
     - name: image-url
-      description: Image URL to scan.
+      description: URL of the image to which the scan results should be associated.
       type: string
   results:
     - name: TEST_OUTPUT
@@ -284,13 +284,18 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.6
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -419,7 +424,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.6
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -495,7 +500,12 @@ spec:
         dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
         cp "$dockerfile_path" "$dockerfile_copy"
 
-        echo "[$(date --utc -Ins)] Prepare system"
+        # Inject the image content manifest into the container we are producing.
+        # This will generate the content-sets.json file and copy it by appending a COPY
+        # instruction to the Containerfile.
+        inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+        echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
         # Fixing group permission on /var/lib/containers
         chown root:root /var/lib/containers
@@ -741,6 +751,7 @@ spec:
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
         echo "[$(date --utc -Ins)] Run buildah build"
+        echo "[$(date --utc -Ins)] ${command}"
 
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
@@ -782,7 +793,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.6
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca

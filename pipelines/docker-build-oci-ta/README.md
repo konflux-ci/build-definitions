@@ -13,11 +13,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.4:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|hermetic| Execute the build with network isolation| false| build-container:0.4:HERMETIC ; sast-coverity-check:0.2:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-container:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.2:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.4:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.2:BINARY_IMAGE ; sast-coverity-check:0.2:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.4:CONTEXT ; sast-coverity-check:0.2:CONTEXT ; push-dockerfile:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.2:PREFETCH_INPUT|
+|hermetic| Execute the build with network isolation| false| build-container:0.4:HERMETIC ; sast-coverity-check:0.3:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-container:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.4:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.2:BINARY_IMAGE ; sast-coverity-check:0.3:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.4:CONTEXT ; sast-coverity-check:0.3:CONTEXT ; push-dockerfile:0.1:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.4:PRIVILEGED_NESTED|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -219,7 +219,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| | None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-digest| Digest of the image to which the scan results should be associated.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| URL of the image to which the scan results should be associated.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### sast-shell-check-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -261,6 +262,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
@@ -332,7 +334,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.4:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA ; sast-coverity-check:0.2:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.4:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA ; sast-coverity-check:0.3:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
