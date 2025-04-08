@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.3"
+    app.kubernetes.io/version: "0.4"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -11,7 +11,7 @@ spec:
   description: |-
     Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
 
-    Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+    Follow the steps given [here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
     The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
 
@@ -30,8 +30,9 @@ spec:
     - description: Image URL.
       name: image-url
       type: string
-      # In a future 0.4 version of the task, drop the default to make this required
-      default: ""
+    - name: image-digest
+      description: Digest of the image to scan.
+      type: string
     - name: caTrustConfigMapName
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
@@ -46,7 +47,11 @@ spec:
       default: "true"
     - name: KFP_GIT_URL
       type: string
-      description: Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.
+      description: Known False Positives (KFP) git URL (optionally taking
+        a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
+        the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
+        instance and empty string for external Konflux instance.
+        If set to an empty string, the KFP filtering is disabled.
       default: "SITE_DEFAULT"
     - name: PROJECT_NAME
       type: string
@@ -74,7 +79,7 @@ spec:
         optional: true
   steps:
     - name: sast-snyk-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
+      image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:f9db697d8a45870b862252de61b3c29d9d6f79272ef8bf61ecb645f8bca27705
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
@@ -138,7 +143,7 @@ spec:
         else
           # According to shellcheck documentation, the following error can be ignored as it is ignored through indirection: https://www.shellcheck.net/wiki/SC2034
           # shellcheck disable=SC2034
-          to_enable_snyk='[here](https://konflux-ci.dev/docs/testing/build/snyk/)'
+          to_enable_snyk='[here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/)'
           note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key 'snyk_token' containing the Snyk token by following the steps given ${to_enable_snyk}"
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
@@ -260,17 +265,15 @@ spec:
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
+      image: quay.io/konflux-ci/oras:latest@sha256:76f2f7682d32902fec34753c11f414756d0e88070d07658a35e71760ef928b71
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
-      volumeMounts:
-        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
-          name: trusted-ca
-          readOnly: true
-          subPath: ca-bundle.crt
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
       script: |
         #!/usr/bin/env bash
 
@@ -293,7 +296,8 @@ spec:
             echo "Selecting auth"
             select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
             echo "Attaching to ${IMAGE_URL}"
-            oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+            oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
         done
+
   workspaces:
     - name: workspace

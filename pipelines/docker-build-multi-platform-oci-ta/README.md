@@ -236,7 +236,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-snyk-check-oci-ta:0.3 task parameters
+### sast-snyk-check-oci-ta:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| | |
@@ -346,8 +346,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.4:CACHI2_ARTIFACT ; build-source-image:0.2:CACHI2_ARTIFACT ; sast-snyk-check:0.3:CACHI2_ARTIFACT ; sast-coverity-check:0.2:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.4:SOURCE_ARTIFACT ; build-source-image:0.2:SOURCE_ARTIFACT ; sast-snyk-check:0.3:SOURCE_ARTIFACT ; sast-coverity-check:0.2:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.4:CACHI2_ARTIFACT ; build-source-image:0.2:CACHI2_ARTIFACT ; sast-snyk-check:0.4:CACHI2_ARTIFACT ; sast-coverity-check:0.3:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.2:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.4:SOURCE_ARTIFACT ; build-source-image:0.2:SOURCE_ARTIFACT ; sast-snyk-check:0.4:SOURCE_ARTIFACT ; sast-coverity-check:0.3:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.2:SOURCE_ARTIFACT ; push-dockerfile:0.1:SOURCE_ARTIFACT|
 ### push-dockerfile-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -366,11 +366,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check-oci-ta:0.3 task results
+### sast-snyk-check-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check-oci-ta:0.1 task results
+### sast-unicode-check-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
