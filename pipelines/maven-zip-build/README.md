@@ -72,7 +72,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
-### sast-coverity-check:0.2 task parameters
+### sast-coverity-check:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -196,7 +196,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### sast-coverity-check:0.2 task results
+### sast-coverity-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -218,7 +218,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.2:workspace|
 ## Available workspaces from tasks
 ### build-maven-zip:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -236,7 +236,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, cachi2 artifacts will be stored on the workspace as well| False| workspace|
-### sast-coverity-check:0.2 task workspaces
+### sast-coverity-check:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
