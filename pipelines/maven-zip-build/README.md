@@ -111,7 +111,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| | None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
+|image-digest| Digest of the image to which the scan results should be associated.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| URL of the image to which the scan results should be associated.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### sast-shell-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -147,6 +148,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|

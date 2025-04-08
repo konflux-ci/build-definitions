@@ -147,11 +147,10 @@ spec:
       image_reference_with_digest strings
     name: ADDITIONAL_BASE_IMAGES
     type: array
-  - default: ""
-    description: Image digest to scan, default is empty string.
+  - description: Digest of the image to which the scan results should be associated.
     name: image-digest
     type: string
-  - description: Image URL to scan.
+  - description: URL of the image to which the scan results should be associated.
     name: image-url
     type: string
   - default: cov-license
@@ -243,7 +242,7 @@ spec:
       value: $(params.COV_ANALYZE_ARGS)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    image: quay.io/redhat-services-prod/sast/coverity:202412.6
     name: prepare
     script: |
       #!/bin/bash
@@ -392,7 +391,7 @@ spec:
         /shared:/shared
         /shared/license.dat:/opt/coverity/bin/license.dat
         /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
-    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    image: quay.io/redhat-services-prod/sast/coverity:202412.6
     name: build
     script: |
       #!/bin/bash
@@ -437,7 +436,12 @@ spec:
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
 
-      echo "[$(date --utc -Ins)] Prepare system"
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -674,6 +678,7 @@ spec:
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
       echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
@@ -750,7 +755,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
-    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    image: quay.io/redhat-services-prod/sast/coverity:202412.6
     name: postprocess
     script: |
       #!/bin/bash -e
