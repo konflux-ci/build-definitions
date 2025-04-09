@@ -663,7 +663,7 @@ spec:
       echo "Running syft on the source directory"
       syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image"
-      syft image:$IMAGE --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
+      syft image:"$IMAGE" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
