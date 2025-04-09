@@ -14,6 +14,10 @@ spec:
     - description: The platform to build on
       name: PLATFORM
       type: string
+    - default: "false"
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      name: IMAGE_APPEND_PLATFORM
+      type: string
     - name: OUTPUT_IMAGE
       type: string
       description: The output manifest list that points to the OCI artifact of the zipped image
@@ -43,6 +47,8 @@ spec:
       name: IMAGE_DIGEST
     - description: Image repository where the built manifest list was pushed
       name: IMAGE_URL
+    - description: Image reference (IMAGE_URL + IMAGE_DIGEST)
+      name: IMAGE_REFERENCE
   stepTemplate:
     env:
       - name: OUTPUT_IMAGE
@@ -59,6 +65,10 @@ spec:
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
         value: 'registry.access.redhat.com/ubi9/buildah:9.5-1739778322'
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -174,6 +184,14 @@ spec:
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
 
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export OUTPUT_IMAGE
+        fi
+
+        ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
+        echo "ARCH: '${ARCH}'"
+
         # form the --type arguments
         IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
 
@@ -281,6 +299,13 @@ spec:
         # Finally, record all that in our results
         echo -n "$OUTPUT_IMAGE" | tee /tekton-results/IMAGE_URL
         echo $MANIFEST_DIGEST | tee /tekton-results/IMAGE_DIGEST
+        # Saving also these two output in one unique variable. This task is using a matrix reference.
+        # Unfortunately it seems that in Tekton, when using a matrix, each task run is executed in isolation,
+        # and result values can't be dynamically constructed or reused across matrix combinations.
+        # In order to prevent that, we are preparing in the task itself what we'll call as `IMAGE_REFERENCE`
+        # so that we can reference that safely in the pipeline.
+        IMAGE_URL_CLEANED=$(echo -n "$OUTPUT_IMAGE" | tr -d '\n')
+        echo -n "${IMAGE_URL_CLEANED}@${MANIFEST_DIGEST}" | tee /tekton-results/IMAGE_REFERENCE
         REMOTESSHEOF
 
 
