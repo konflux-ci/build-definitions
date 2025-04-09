@@ -14,6 +14,10 @@ spec:
     - description: The platform to build on
       name: PLATFORM
       type: string
+    - default: "false"
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      name: IMAGE_APPEND_PLATFORM
+      type: string
     - name: OUTPUT_IMAGE
       type: string
       description: The output manifest list that points to the OCI artifact of the zipped image
@@ -59,6 +63,10 @@ spec:
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
         value: 'registry.access.redhat.com/ubi9/buildah:9.5-1739778322'
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -173,6 +181,11 @@ spec:
         rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export OUTPUT_IMAGE
+        fi
 
         # form the --type arguments
         IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
