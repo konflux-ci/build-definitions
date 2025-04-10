@@ -227,7 +227,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:97cba9cc7929c948bccf7bf8ce9aec9a039cfbb9a11ecf47fa9d25d8daf2356b
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -268,7 +268,7 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:97cba9cc7929c948bccf7bf8ce9aec9a039cfbb9a11ecf47fa9d25d8daf2356b
     name: build
     script: |-
       #!/bin/bash
@@ -373,6 +373,11 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
       echo "[$(date --utc -Ins)] Prepare system"
 
@@ -748,25 +753,6 @@ spec:
     - mountPath: /ssh
       name: ssh
       readOnly: true
-    workingDir: /var/workdir
-  - computeResources: {}
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
-    name: icm
-    script: |
-      #!/bin/bash
-      set -euo pipefail
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
-      /scripts/inject-icm.sh "$IMAGE"
-    securityContext:
-      capabilities:
-        add:
-        - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
     workingDir: /var/workdir
   - computeResources: {}
     env:
