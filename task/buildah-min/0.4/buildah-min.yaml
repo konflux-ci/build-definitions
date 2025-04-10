@@ -679,6 +679,10 @@ spec:
       name: varlibcontainers
     - mountPath: /shared
       name: shared
+    - mountPath: /etc/pki/tls/certs/ca-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
     workingDir: $(workspaces.source.path)/source
   - args:
     - --additional-base-images
