@@ -268,7 +268,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  echo \"[$(date --utc -Ins)] Build via ssh\""
 		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
 		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]}\" \\\n"
-		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]}\" --rm \"$BUILDER_IMAGE\" /" + containerScript + ` "$@"`
+		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]}\" --rm \"$BUILDER_IMAGE\" /" + containerScript + ` "${@@Q}"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""
