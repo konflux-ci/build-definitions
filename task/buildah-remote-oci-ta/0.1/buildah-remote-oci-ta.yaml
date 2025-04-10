@@ -502,7 +502,7 @@ spec:
           -v "$BUILD_DIR/results/:/tekton/results:Z" \
           -v "$BUILD_DIR/scripts:/scripts:Z" \
           "${PRIVILEGED_NESTED_FLAGS[@]}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
