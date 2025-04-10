@@ -188,4 +188,4 @@
 ### summary:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|workspace| The workspace where source code is included.| True| workspace|
+|workspace| The workspace where source code is included.| True| |
