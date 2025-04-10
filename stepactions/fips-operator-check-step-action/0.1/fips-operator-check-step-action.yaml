@@ -14,7 +14,7 @@ spec:
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
-  image: quay.io/redhat-appstudio/konflux-test:v1.4.18@sha256:78c76869d0b171e9bfa5e931e5e6ecbe92b32f61c6ec627c57cbb9d1aad75aab
+  image: quay.io/redhat-appstudio/konflux-test:v1.4.22@sha256:cc66bfdc4abc3eacfa74d77d2efcc2627722549bffa38d3731251631f13552bf
   securityContext:
     capabilities:
       add:
@@ -62,8 +62,9 @@ spec:
         if [ -n "${image_mirror_map}" ]; then
           reg_and_repo=$(get_image_registry_and_repository "${related_image}")
           echo "Mirror Map is $image_mirror_map"
-          mirrors=$(echo "$image_mirror_map" | jq -r --arg image "$reg_and_repo" '.[$image][]')
-          echo "Mirrors for $reg_and_repo are $mirrors"
+          mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image][]')
+          echo "Mirrors for $reg_and_repo are:"
+          printf "%s\n" "${mirrors[@]}"
 
           for mirror in "${mirrors[@]}"; do
             echo "Attempting to use mirror ${mirror}"

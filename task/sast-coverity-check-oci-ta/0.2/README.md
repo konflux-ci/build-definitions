@@ -6,6 +6,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |name|description|default value|required|
 |---|---|---|---|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
+|ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
@@ -26,7 +27,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |KFP_GIT_URL|Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.|SITE_DEFAULT|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
-|PRIVILEGED_NESTED|Whether to enable privileged mode|false|false|
+|PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
 |PROJECT_NAME||""|false|
 |RECORD_EXCLUDED||false|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|

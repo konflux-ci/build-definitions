@@ -19,6 +19,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.4:IMAGE ; build-image-index:0.1:IMAGE ; build-source-image:0.2:BINARY_IMAGE ; sast-coverity-check:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.4:CONTEXT ; sast-coverity-check:0.2:CONTEXT ; push-dockerfile:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-images:0.4:PREFETCH_INPUT ; sast-coverity-check:0.2:PREFETCH_INPUT|
+|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-images:0.4:PRIVILEGED_NESTED|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
@@ -46,6 +47,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|ADDITIONAL_BASE_IMAGES| Additional base image references to include to the SBOM. Array of image_reference_with_digest strings| []| |
 |ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
@@ -64,7 +66,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |PLATFORM| The platform to build on| None| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
-|PRIVILEGED_NESTED| Whether to enable privileged mode| false| |
+|PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
@@ -181,6 +183,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|ADDITIONAL_BASE_IMAGES| Additional base image references to include to the SBOM. Array of image_reference_with_digest strings| []| |
 |ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
@@ -201,7 +204,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
-|PRIVILEGED_NESTED| Whether to enable privileged mode| false| |
+|PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| |
 |PROJECT_NAME| | | |
 |RECORD_EXCLUDED| | false| |
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |

@@ -12,7 +12,7 @@ spec:
   description: |-
     Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
 
-    Follow the steps given [here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+    Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
     The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
 
@@ -103,6 +103,11 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
     - name: sast-snyk-check
       image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:f9db697d8a45870b862252de61b3c29d9d6f79272ef8bf61ecb645f8bca27705
       workingDir: /var/workdir/source
@@ -166,7 +171,7 @@ spec:
         else
           # According to shellcheck documentation, the following error can be ignored as it is ignored through indirection: https://www.shellcheck.net/wiki/SC2034
           # shellcheck disable=SC2034
-          to_enable_snyk='[here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/)'
+          to_enable_snyk='[here](https://konflux-ci.dev/docs/testing/build/snyk/)'
           note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key 'snyk_token' containing the Snyk token by following the steps given ${to_enable_snyk}"
           TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
@@ -291,6 +296,11 @@ spec:
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
       workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_URL
           value: $(params.image-url)

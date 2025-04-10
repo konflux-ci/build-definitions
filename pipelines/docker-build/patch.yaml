@@ -59,6 +59,13 @@
     type: string
     default: ""
 - op: add
+  path: /spec/params/-
+  value:
+    name: privileged-nested
+    description: Whether to enable privileged mode, should be used only with remote VMs
+    type: string
+    default: "false"
+- op: add
   path: /spec/tasks/3/params
   value:
   - name: IMAGE
@@ -80,6 +87,8 @@
       - $(params.build-args[*])
   - name: BUILD_ARGS_FILE
     value: "$(params.build-args-file)"
+  - name: PRIVILEGED_NESTED
+    value: "$(params.privileged-nested)"
 
 # FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
 - op: test

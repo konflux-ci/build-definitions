@@ -216,6 +216,9 @@ spec:
       #!/bin/bash
       set -e
       set -o verbose
+
+      echo "[$(date --utc -Ins)] Prepare connection"
+
       mkdir -p ~/.ssh
       if [ -e "/ssh/error" ]; then
         #no server could be provisioned
@@ -237,6 +240,8 @@ spec:
       mkdir -p scripts
 
       if ! [[ $IS_LOCALHOST ]]; then
+        echo "[$(date --utc -Ins)] Setup VM"
+
         chmod 0400 ~/.ssh/id_rsa
         export BUILD_DIR=$(cat /ssh/user-dir)
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
@@ -250,6 +255,8 @@ spec:
           PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
           PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
         fi
+
+        echo "[$(date --utc -Ins)] Rsync data"
 
         rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
         rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
@@ -443,6 +450,7 @@ spec:
       echo "$BASE_IMAGES" >/var/workdir/base_images_from_dockerfile
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      echo "[$(date --utc -Ins)] End push remote"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -461,6 +469,7 @@ spec:
           PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
         fi
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        echo "[$(date --utc -Ins)] Build via ssh"
         # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
@@ -494,14 +503,18 @@ spec:
           -v "$BUILD_DIR/scripts:/scripts:Z" \
           "${PRIVILEGED_NESTED_FLAGS[@]}" \
           --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+        echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        echo "[$(date --utc -Ins)] Buildah pull"
         buildah pull "oci:konflux-final-image:$IMAGE"
       else
         bash scripts/script-build.sh "$@"
       fi
       echo "Build on remote host $SSH_HOST finished"
+
+      echo "[$(date --utc -Ins)] Final touches"
 
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
@@ -509,6 +522,7 @@ spec:
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
+      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
@@ -561,7 +575,7 @@ spec:
     - mountPath: /shared
       name: shared
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
     name: merge-syft-sboms
     script: |
       #!/bin/python3
@@ -596,7 +610,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/cachi2:0.21.0@sha256:dabaeed7101209cfc7066e26301b12de2b72a2d943691537f598f7ad8c818dc9
+    image: quay.io/konflux-ci/cachi2:0.22.2@sha256:c24dbc207b0eca1fe742a53b50feca2182dc0f998e5b91af6a7c94c3132bdcd0
     name: merge-cachi2-sbom
     script: |
       if [ -f "sbom-cachi2.json" ]; then
@@ -610,7 +624,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
     name: create-purl-sbom
     script: |
       #!/bin/python3

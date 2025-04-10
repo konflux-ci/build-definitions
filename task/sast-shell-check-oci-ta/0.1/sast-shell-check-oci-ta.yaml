@@ -86,6 +86,11 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
     - name: sast-shell-check
       image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:b046b1456077a2c15c51b1e0b83fde99a0a39bdf35872cde7437a857ef9d4ba7
       workingDir: /var/workdir/source
@@ -223,6 +228,11 @@ spec:
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
       workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_URL
           value: $(params.image-url)

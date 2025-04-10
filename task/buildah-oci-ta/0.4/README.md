@@ -8,6 +8,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |name|description|default value|required|
 |---|---|---|---|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
+|ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
@@ -24,7 +25,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
-|PRIVILEGED_NESTED|Whether to enable privileged mode|false|false|
+|PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|

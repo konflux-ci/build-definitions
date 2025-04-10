@@ -46,7 +46,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/redhat-appstudio/tools@sha256:3bc3690d38fb42effa5e3dbcce1715301103f270d583684fdddd1cdde80c17ff
+      image: quay.io/konflux-ci/tools@sha256:124b826e5abcb45c0bd50f5d9e91d991f53b460686e309b8284ff2a3de58b3f1
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -71,7 +71,7 @@ spec:
           --image-digest "${IMAGE_DIGEST}" \
           --workdir "${WORKDIR}" \
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:f9db697d8a45870b862252de61b3c29d9d6f79272ef8bf61ecb645f8bca27705
+      image: quay.io/konflux-ci/konflux-test:v1.4.22@sha256:cc66bfdc4abc3eacfa74d77d2efcc2627722549bffa38d3731251631f13552bf
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
