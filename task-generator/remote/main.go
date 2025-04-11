@@ -174,7 +174,7 @@ if ! [[ $IS_LOCALHOST ]]; then
   export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
   echo "$BUILD_DIR"
   # shellcheck disable=SC2086
-  ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+  ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/workspaces" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/volumes"
 
   PORT_FORWARD=""
   PODMAN_PORT_FORWARD=""
@@ -193,23 +193,23 @@ if ! [[ $IS_LOCALHOST ]]; then
 		// Before the build we sync the contents of the workspace to the remote host
 		for _, workspace := range task.Spec.Workspaces {
 			ret += "\n  rsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
-			podmanArgs += "    -v \"$BUILD_DIR/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
+			podmanArgs += "    -v \"${BUILD_DIR@Q}/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
 		}
 		// Also sync the volume mounts from the template
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
 			ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-			podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+			podmanArgs += "    -v \"${BUILD_DIR@Q}/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 		}
 		for _, volume := range step.VolumeMounts {
 			if syncVolumes[volume.Name] {
 				ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
-				podmanArgs += "    -v \"$BUILD_DIR/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
+				podmanArgs += "    -v \"${BUILD_DIR@Q}/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 			}
 		}
 		ret += "\n  rsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
-		podmanArgs += "    -v \"$BUILD_DIR/.docker/:/root/.docker:Z\" \\\n"
+		podmanArgs += "    -v \"${BUILD_DIR@Q}/.docker/:/root/.docker:Z\" \\\n"
 		ret += "\n  rsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
-		podmanArgs += "    -v \"$BUILD_DIR/results/:/tekton/results:Z\" \\\n"
+		podmanArgs += "    -v \"${BUILD_DIR@Q}/results/:/tekton/results:Z\" \\\n"
 		ret += "\nfi\n"
 
 		if taskVersion != "0.1" {
@@ -247,7 +247,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 
 		if task.Spec.StepTemplate != nil {
 			for _, e := range task.Spec.StepTemplate.Env {
-				env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+				env += "    -e " + e.Name + "=\"${" + e.Name + "@Q}\" \\\n"
 			}
 		}
 		ret += "\nif ! [[ $IS_LOCALHOST ]]; then"
@@ -257,18 +257,18 @@ if ! [[ $IS_LOCALHOST ]]; then
     # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
     # https://github.com/coreos/rpm-ostree/discussions/4648
     # shellcheck disable=SC2086
-    ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/var/tmp"
+    ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/var/tmp"
     PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
   fi`
 		ret += "\n  rsync -ra scripts \"$SSH_HOST:$BUILD_DIR\""
 		containerScript := "scripts/script-" + step.Name + ".sh"
 		for _, e := range step.Env {
-			env += "    -e " + e.Name + "=\"$" + e.Name + "\" \\\n"
+			env += "    -e " + e.Name + "=\"${" + e.Name + "@Q}\" \\\n"
 		}
 		ret += "\n  echo \"[$(date --utc -Ins)] Build via ssh\""
-		podmanArgs += "    -v \"$BUILD_DIR/scripts:/scripts:Z\" \\\n"
-		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]}\" \\\n"
-		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]}\" --rm \"$BUILDER_IMAGE\" /" + containerScript + ` "${@@Q}"`
+		podmanArgs += "    -v \"${BUILD_DIR@Q}/scripts:/scripts:Z\" \\\n"
+		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]@Q}\" \\\n"
+		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]@Q}\" --rm \"${BUILDER_IMAGE@Q}\" /" + containerScript + ` "${@@Q}"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""

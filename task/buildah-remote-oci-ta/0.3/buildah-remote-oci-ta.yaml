@@ -292,7 +292,7 @@ spec:
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
         echo "$BUILD_DIR"
         # shellcheck disable=SC2086
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/workspaces" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/volumes"
 
         PORT_FORWARD=""
         PODMAN_PORT_FORWARD=""
@@ -624,7 +624,7 @@ spec:
           # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
           # https://github.com/coreos/rpm-ostree/discussions/4648
           # shellcheck disable=SC2086
-          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/var/tmp"
+          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/var/tmp"
           PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
         fi
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
@@ -632,41 +632,41 @@ spec:
         # shellcheck disable=SC2086
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
-          -e ACTIVATION_KEY="$ACTIVATION_KEY" \
-          -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
-          -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
-          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
-          -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
-          -e CONTEXT="$CONTEXT" \
-          -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-          -e HERMETIC="$HERMETIC" \
-          -e IMAGE="$IMAGE" \
-          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-          -e PRIVILEGED_NESTED="$PRIVILEGED_NESTED" \
-          -e SBOM_TYPE="$SBOM_TYPE" \
-          -e SKIP_SBOM_GENERATION="$SKIP_SBOM_GENERATION" \
-          -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
-          -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
-          -e SQUASH="$SQUASH" \
-          -e STORAGE_DRIVER="$STORAGE_DRIVER" \
-          -e TARGET_STAGE="$TARGET_STAGE" \
-          -e TLSVERIFY="$TLSVERIFY" \
-          -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
-          -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
-          -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
-          -e COMMIT_SHA="$COMMIT_SHA" \
-          -e DOCKERFILE="$DOCKERFILE" \
-          -v "$BUILD_DIR/volumes/shared:/shared:Z" \
-          -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
-          -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
-          -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
-          -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
-          -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
-          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-          -v "$BUILD_DIR/results/:/tekton/results:Z" \
-          -v "$BUILD_DIR/scripts:/scripts:Z" \
-          "${PRIVILEGED_NESTED_FLAGS[@]}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "${@@Q}"
+          -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
+          -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
+          -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e BUILDAH_FORMAT="${BUILDAH_FORMAT@Q}" \
+          -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
+          -e CONTEXT="${CONTEXT@Q}" \
+          -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
+          -e HERMETIC="${HERMETIC@Q}" \
+          -e IMAGE="${IMAGE@Q}" \
+          -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
+          -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e SBOM_TYPE="${SBOM_TYPE@Q}" \
+          -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
+          -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
+          -e SOURCE_CODE_DIR="${SOURCE_CODE_DIR@Q}" \
+          -e SQUASH="${SQUASH@Q}" \
+          -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
+          -e TARGET_STAGE="${TARGET_STAGE@Q}" \
+          -e TLSVERIFY="${TLSVERIFY@Q}" \
+          -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
+          -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
+          -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
+          -e COMMIT_SHA="${COMMIT_SHA@Q}" \
+          -e DOCKERFILE="${DOCKERFILE@Q}" \
+          -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
+          -v "${BUILD_DIR@Q}/volumes/workdir:/var/workdir:Z" \
+          -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
+          -v "${BUILD_DIR@Q}/volumes/activation-key:/activation-key:Z" \
+          -v "${BUILD_DIR@Q}/volumes/additional-secret:/additional-secret:Z" \
+          -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
+          -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
+          -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
+          "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
