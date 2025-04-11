@@ -356,7 +356,7 @@ spec:
       # instruction to the Containerfile.
       inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
-      echo "[$(date --utc -Ins)] Prepare system"
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -593,6 +593,7 @@ spec:
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
       echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
