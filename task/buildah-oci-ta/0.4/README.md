@@ -47,4 +47,5 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
+|SBOM_DIGEST|A reference to the digest of the SBOM blob|
 

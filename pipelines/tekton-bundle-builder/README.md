@@ -130,6 +130,7 @@
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
+|SBOM_DIGEST| A reference to the digest of the SBOM blob| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|

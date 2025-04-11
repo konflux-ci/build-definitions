@@ -176,6 +176,9 @@ spec:
       from provenance
     name: SBOM_BLOB_URL
     type: string
+  - description: A reference to the digest of the SBOM blob
+    name: SBOM_DIGEST
+    type: string
   stepTemplate:
     computeResources:
       limits:
@@ -1016,6 +1019,9 @@ spec:
       sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+      # Expose the SBOM digest as result to find the SBOM in Atlas.
+      echo -n "${sbom_digest}" | tee "$(results.SBOM_DIGEST.path)"
 
       echo
       echo "[$(date --utc -Ins)] End upload-sbom"
