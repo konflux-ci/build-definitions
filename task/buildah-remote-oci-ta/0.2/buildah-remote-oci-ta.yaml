@@ -634,6 +634,8 @@ spec:
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         echo "[$(date --utc -Ins)] Build via ssh"
         # shellcheck disable=SC2086
+        # Please note: all variables below the first ssh line must be quoted with ${var@Q}!
+        # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
           -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
