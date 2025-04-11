@@ -147,6 +147,18 @@ spec:
       description: The name of the ConfigMap to read CA bundle data from.
       type: string
       default: trusted-ca
+    - name: ENABLE_HTTP_PROXY
+      type: string
+      description: Enable the http proxy (true/false)
+      default: "false"
+    - name: HTTP_PROXY_CLIENT_ID
+      type: string
+      description: The client ID used by the http proxy to communicate with Indy.
+      default: ""
+    - name: HTTP_PROXY_CLIENT_CREDENTIAL
+      type: string
+      description: The client credential used by the http proxy to communicate with Indy.
+      default: ""
   results:
     - name: IMAGE_DIGEST
       description: Digest of the image just built
@@ -184,6 +196,17 @@ spec:
       emptyDir: {}
     - name: workdir
       emptyDir: {}
+    - name: http-proxy-secrets
+      secret:
+        optional: true
+        secretName: http-proxy-secrets
+    - name: http-proxy-config
+      configMap:
+        items:
+          - key: application.yaml
+            path: application.yaml
+        name: http-proxy-config
+        optional: true
   stepTemplate:
     computeResources:
       limits:
@@ -518,6 +541,12 @@ spec:
           done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
         fi
 
+        if [ -f "$ca_bundle" ]; then
+          cp -r --preserve=mode /mnt/trusted-ca /tmp/trusted-ca
+          VOLUME_MOUNTS+=(--volume /tmp/trusted-ca:/etc/pki/ca-trust/source/anchors)
+          echo "Adding the trusted-ca to the build"
+        fi
+
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
         declare IMAGE
 
@@ -756,3 +785,36 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
+  sidecars:
+    - name: http-proxy
+      image: quay.io/redhat-user-workloads/indy-spmm-tenant/indy-generic-proxy-service:bf3353b2b997201027b91c4f7b713703da6af64d
+      volumeMounts:
+        - name: http-proxy-secrets
+          readOnly: true
+          mountPath: /mnt/secrets-generic-proxy
+        - name: http-proxy-config
+          readOnly: true
+          mountPath: /deployment/config
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+      computeResources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      script: |
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        if [ "$(params.ENABLE_HTTP_PROXY)" == "true" ]; then
+          export QUARKUS_OIDC_CLIENT_CLIENT_ID="$(params.HTTP_PROXY_CLIENT_ID)"
+          export QUARKUS_OIDC_CLIENT_CREDENTIALS_SECRET="$(params.HTTP_PROXY_CLIENT_CREDENTIAL)"
+          /deployment/start-service.sh
+        fi
