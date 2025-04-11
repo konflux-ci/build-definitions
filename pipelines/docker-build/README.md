@@ -10,7 +10,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.4:BUILD_ARGS ; sast-coverity-check:0.3:BUILD_ARGS|
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.4:BUILD_ARGS_FILE ; sast-coverity-check:0.3:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
-|build-source-image| Build a source image.| false| |
+|build-source-image| Build a source image.| true| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.4:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.4:HERMETIC ; sast-coverity-check:0.3:HERMETIC|
