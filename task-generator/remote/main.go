@@ -268,7 +268,10 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  echo \"[$(date --utc -Ins)] Build via ssh\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/scripts:/scripts:Z\" \\\n"
 		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]@Q}\" \\\n"
-		ret += "\n  # shellcheck disable=SC2086\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]@Q}\" --rm \"${BUILDER_IMAGE@Q}\" /" + containerScript + ` "${@@Q}"`
+		ret += "\n  # shellcheck disable=SC2086"
+		ret += "\n  # Please note: all variables below the first ssh line must be quoted with ${var@Q}!"
+		ret += "\n  # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters"
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]@Q}\" --rm \"${BUILDER_IMAGE@Q}\" /" + containerScript + ` "${@@Q}"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""
