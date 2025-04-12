@@ -42,6 +42,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |gitInitImage| Deprecated. Has no effect. Will be removed in the future.| | |
 |httpProxy| HTTP proxy server for non-SSL requests.| | |
 |httpsProxy| HTTPS proxy server for SSL requests.| | |
+|mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
@@ -50,6 +51,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
 |submodules| Initialize and fetch git submodules.| true| |
+|targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
@@ -74,6 +76,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|ADDITIONAL_BASE_IMAGES| Additional base image references to include to the SBOM. Array of image_reference_with_digest strings| []| |
 |ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
@@ -93,7 +96,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | |
-|PRIVILEGED_NESTED| Whether to enable privileged mode| false| |
+|PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| |
 |PROJECT_NAME| | | |
 |RECORD_EXCLUDED| | false| |
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
@@ -186,6 +189,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
+|merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results

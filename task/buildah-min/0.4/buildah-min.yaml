@@ -123,7 +123,8 @@ spec:
     name: ANNOTATIONS
     type: array
   - default: "false"
-    description: Whether to enable privileged mode
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
     name: PRIVILEGED_NESTED
     type: string
   - default: "false"
@@ -142,6 +143,11 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - default: []
+    description: Additional base image references to include to the SBOM. Array of
+      image_reference_with_digest strings
+    name: ADDITIONAL_BASE_IMAGES
+    type: array
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -225,17 +231,22 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:97cba9cc7929c948bccf7bf8ce9aec9a039cfbb9a11ecf47fa9d25d8daf2356b
     name: build
     script: |
       #!/bin/bash
       set -euo pipefail
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -264,6 +275,13 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -363,6 +381,8 @@ spec:
 
       VOLUME_MOUNTS=()
 
+      echo "[$(date --utc -Ins)] Setup prefetched"
+
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -379,7 +399,9 @@ spec:
         if [ -f "$prefetched_repo_for_my_arch" ]; then
           echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
           mkdir -p "$YUM_REPOS_D_FETCHED"
-          cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+            cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          fi
         fi
       fi
 
@@ -406,6 +428,8 @@ spec:
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      echo "[$(date --utc -Ins)] Register sub-man"
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -456,6 +480,8 @@ spec:
         done <<< "$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
+      echo "[$(date --utc -Ins)] Add secrets"
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -491,7 +517,12 @@ spec:
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+      echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
+
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      echo "[$(date --utc -Ins)] Add metadata"
 
       container=$(buildah from --pull-never "$IMAGE")
 
@@ -516,6 +547,8 @@ spec:
           echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
+
+      echo "[$(date --utc -Ins)] End build"
     securityContext:
       capabilities:
         add:
@@ -533,20 +566,6 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:fcb5700160196b47a6df40bb7094a6d138b101717e7269d91826ce329a50c52f
-    name: icm
-    script: |
-      #!/bin/bash
-      set -euo pipefail
-      /scripts/inject-icm.sh "$IMAGE"
-    securityContext:
-      capabilities:
-        add:
-        - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
   - env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -556,12 +575,16 @@ spec:
       #!/bin/bash
       set -e
 
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Convert image"
 
       # While we can build images with the desired format, we will simplify any local
       # and remote build differences by just performing any necessary conversions at
@@ -570,6 +593,8 @@ spec:
       if [ "${BUILDAH_FORMAT}" == "docker" ]; then
         push_format=docker
       fi
+
+      echo "[$(date --utc -Ins)] Push image with unique tag"
 
       retries=5
       # Push to a unique tag based on the TaskRun name to avoid race conditions
@@ -584,6 +609,8 @@ spec:
         echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
         exit 1
       fi
+
+      echo "[$(date --utc -Ins)] Push image with git revision"
 
       # Push to a tag based on the git revision
       echo "Pushing to ${IMAGE}"
@@ -604,6 +631,9 @@ spec:
         echo -n "${IMAGE}@"
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End push"
     securityContext:
       capabilities:
         add:
@@ -619,6 +649,8 @@ spec:
   - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
     name: sbom-syft-generate
     script: |
+      echo "[$(date --utc -Ins)] Generate SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -639,23 +671,30 @@ spec:
       syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
       echo "Running syft on the image filesystem"
       syft dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
+
+      echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     - mountPath: /shared
       name: shared
     workingDir: $(workspaces.source.path)/source
-  - computeResources:
+  - args:
+    - --additional-base-images
+    - $(params.ADDITIONAL_BASE_IMAGES[*])
+    computeResources:
       limits:
         memory: 256Mi
       requests:
         cpu: 10m
         memory: 128Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:6dc75d3cdac794dfef90a4296a43a1506bd80c4ac0d897293439563b0dd5ac41
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:55a6cd6b6653af365d1627569b0c77a7eb9f8d5ea14406eb455253a421b7f6b6
     name: prepare-sboms
     script: |
       #!/bin/bash
       set -euo pipefail
+
+      echo "[$(date --utc -Ins)] Prepare SBOM"
 
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
@@ -688,6 +727,37 @@ spec:
         --sbom=sbom.json \
         --parsed-dockerfile=/shared/parsed_dockerfile.json \
         --base-images-digests=/shared/base_images_digests
+
+      ADDITIONAL_BASE_IMAGES=()
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+          --additional-base-images)
+            shift
+            while [[ $# -gt 0 && $1 != --* ]]
+            do
+              ADDITIONAL_BASE_IMAGES+=("$1")
+              shift
+            done
+            ;;
+          *)
+            echo "unexpected argument: $1" >&2
+            exit 2
+            ;;
+        esac
+      done
+
+      for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
+        IFS="@" read -ra BASE_IMAGE <<< "${ADDITIONAL_BASE_IMAGE}"
+        python3 /scripts/add_image_reference.py \
+          --builder-image \
+          --image-url "${BASE_IMAGE[0]}" \
+          --image-digest "${BASE_IMAGE[1]}" \
+          --input-file sbom.json \
+          --output-file /tmp/sbom.tmp.json
+        mv /tmp/sbom.tmp.json sbom.json
+      done
+
+      echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:
       runAsUser: 0
     workingDir: $(workspaces.source.path)
@@ -701,6 +771,9 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
+
+      echo "[$(date --utc -Ins)] Upload SBOM"
+
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
@@ -720,6 +793,9 @@ spec:
       sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End upload-sbom"
     volumeMounts:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca

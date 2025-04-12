@@ -13,16 +13,6 @@ trap 'rm "${tmp_files[@]}" > /dev/null 2>&1' EXIT
 
 # Tasks that are currently missing Trusted Artifact variant
 todo=(
-  task/buildah-10gb/0.2/kustomization.yaml
-  task/buildah-10gb/0.2/buildah-10gb.yaml
-  task/buildah-20gb/0.2/kustomization.yaml
-  task/buildah-20gb/0.2/buildah-20gb.yaml
-  task/buildah-24gb/0.2/kustomization.yaml
-  task/buildah-24gb/0.2/buildah-24gb.yaml
-  task/buildah-6gb/0.2/kustomization.yaml
-  task/buildah-6gb/0.2/buildah-6gb.yaml
-  task/buildah-8gb/0.2/kustomization.yaml
-  task/buildah-8gb/0.2/buildah-8gb.yaml
   task/buildah-min/0.2/kustomization.yaml
   task/buildah-min/0.2/buildah-min.yaml
   task/buildah-min/0.4/kustomization.yaml

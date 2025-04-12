@@ -26,6 +26,7 @@ The task can be triggered by different events (e.g., Pull Request, Push) and all
 | `pull-request-number` | `string` | `""`          | The Pull Request number.                                                                      |
 | `target-branch`       | `string` | `main`        | The target branch for the Pull Request (e.g., `main`, `develop`).                             |
 | `oci-storage`         | `string` | -             | The OCI repository for storing the trusted artifacts.                                         |
+| `disable-token-save`  | `string` | "false"       | Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment) |
 
 ## Results
 

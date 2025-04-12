@@ -197,7 +197,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
     name: use-trusted-artifact
   - args:
     - $(params.BUILD_ARGS[*])
@@ -216,6 +216,9 @@ spec:
       #!/bin/bash
       set -e
       set -o verbose
+
+      echo "[$(date --utc -Ins)] Prepare connection"
+
       mkdir -p ~/.ssh
       if [ -e "/ssh/error" ]; then
         #no server could be provisioned
@@ -237,12 +240,14 @@ spec:
       mkdir -p scripts
 
       if ! [[ $IS_LOCALHOST ]]; then
+        echo "[$(date --utc -Ins)] Setup VM"
+
         chmod 0400 ~/.ssh/id_rsa
         export BUILD_DIR=$(cat /ssh/user-dir)
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
         echo "$BUILD_DIR"
         # shellcheck disable=SC2086
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/workspaces" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/volumes"
 
         PORT_FORWARD=""
         PODMAN_PORT_FORWARD=""
@@ -250,6 +255,8 @@ spec:
           PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
           PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
         fi
+
+        echo "[$(date --utc -Ins)] Rsync data"
 
         rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
         rsync -ra /var/workdir/ "$SSH_HOST:$BUILD_DIR/volumes/workdir/"
@@ -443,6 +450,7 @@ spec:
       echo "$BASE_IMAGES" >/var/workdir/base_images_from_dockerfile
 
       buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
+      echo "[$(date --utc -Ins)] End push remote"
       REMOTESSHEOF
       chmod +x scripts/script-build.sh
 
@@ -457,51 +465,58 @@ spec:
           # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
           # https://github.com/coreos/rpm-ostree/discussions/4648
           # shellcheck disable=SC2086
-          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/var/tmp"
+          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/var/tmp"
           PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
         fi
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        echo "[$(date --utc -Ins)] Build via ssh"
         # shellcheck disable=SC2086
+        # Please note: all variables below the first ssh line must be quoted with ${var@Q}!
+        # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
-          -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
-          -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
-          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
-          -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
-          -e CONTEXT="$CONTEXT" \
-          -e DOCKERFILE="$DOCKERFILE" \
-          -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-          -e HERMETIC="$HERMETIC" \
-          -e IMAGE="$IMAGE" \
-          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-          -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
-          -e SQUASH="$SQUASH" \
-          -e STORAGE_DRIVER="$STORAGE_DRIVER" \
-          -e TARGET_STAGE="$TARGET_STAGE" \
-          -e TLSVERIFY="$TLSVERIFY" \
-          -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
-          -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
-          -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
-          -e COMMIT_SHA="$COMMIT_SHA" \
-          -v "$BUILD_DIR/volumes/shared:/shared:Z" \
-          -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
-          -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
-          -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
-          -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
-          -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
-          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-          -v "$BUILD_DIR/results/:/tekton/results:Z" \
-          -v "$BUILD_DIR/scripts:/scripts:Z" \
-          "${PRIVILEGED_NESTED_FLAGS[@]}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+          -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
+          -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e BUILDAH_FORMAT="${BUILDAH_FORMAT@Q}" \
+          -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
+          -e CONTEXT="${CONTEXT@Q}" \
+          -e DOCKERFILE="${DOCKERFILE@Q}" \
+          -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
+          -e HERMETIC="${HERMETIC@Q}" \
+          -e IMAGE="${IMAGE@Q}" \
+          -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
+          -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
+          -e SQUASH="${SQUASH@Q}" \
+          -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
+          -e TARGET_STAGE="${TARGET_STAGE@Q}" \
+          -e TLSVERIFY="${TLSVERIFY@Q}" \
+          -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
+          -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
+          -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
+          -e COMMIT_SHA="${COMMIT_SHA@Q}" \
+          -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
+          -v "${BUILD_DIR@Q}/volumes/workdir:/var/workdir:Z" \
+          -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
+          -v "${BUILD_DIR@Q}/volumes/activation-key:/activation-key:Z" \
+          -v "${BUILD_DIR@Q}/volumes/additional-secret:/additional-secret:Z" \
+          -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
+          -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
+          -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
+          "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
+        echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
         rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        echo "[$(date --utc -Ins)] Buildah pull"
         buildah pull "oci:konflux-final-image:$IMAGE"
       else
         bash scripts/script-build.sh "$@"
       fi
       echo "Build on remote host $SSH_HOST finished"
+
+      echo "[$(date --utc -Ins)] Final touches"
 
       buildah images
       container=$(buildah from --pull-never "$IMAGE")
@@ -509,6 +524,7 @@ spec:
       # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
       find $(cat /shared/container_path) -xtype l -delete
       echo $container > /shared/container_name
+      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
@@ -561,7 +577,7 @@ spec:
     - mountPath: /shared
       name: shared
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
     name: merge-syft-sboms
     script: |
       #!/bin/python3
@@ -596,7 +612,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/cachi2:0.21.0@sha256:dabaeed7101209cfc7066e26301b12de2b72a2d943691537f598f7ad8c818dc9
+    image: quay.io/konflux-ci/cachi2:0.22.2@sha256:c24dbc207b0eca1fe742a53b50feca2182dc0f998e5b91af6a7c94c3132bdcd0
     name: merge-cachi2-sbom
     script: |
       if [ -f "sbom-cachi2.json" ]; then
@@ -610,7 +626,7 @@ spec:
       runAsUser: 0
     workingDir: /var/workdir
   - computeResources: {}
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1741019654@sha256:4b1db7c433eda5143a7ca9c1e609cf77c7762d92d2baed08de3c91972890699e
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
     name: create-purl-sbom
     script: |
       #!/bin/python3

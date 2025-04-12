@@ -2,7 +2,7 @@
 
 Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
 
-Follow the steps given [here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
 The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
 

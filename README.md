@@ -109,7 +109,18 @@ The StepActions can be found in the `stepactions` directory. StepActions are not
 
 ### Versioning
 
-When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created. The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created.
+We restructure the task definitions so that each version is maintained in its own directory. Instead of a single flat task file, the task is now versioned by placing its YAML into a version-specific folder.
+Within the newly versioned YAMLs a label should be added to the tasks metadata for identifying the specific version of the task.
+The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+Since tasks are now organized by version, any pipelines that reference these tasks must be updated to point to the newly versioned path.
+
+If the task update affects the results which are checked by [e2e tests](https://github.com/konflux-ci/e2e-tests/tree/main), 
+then the corresponding e2e test code needs to be updated as well.
+The main place to check for task results which are being checked by e2e is the 
+[task_results.go](https://github.com/konflux-ci/e2e-tests/blob/main/pkg/utils/build/task_results.go), 
+though it's good practice to check all tests in that repository.
+In case the PRs handling this change get blocked by each other, consult [the guide for PR pairing](https://github.com/konflux-ci/e2e-tests/blob/main/docs/Installation.md#konflux-in-openshift-ci-and-branch-pairing) in e2e tests.
 
 Adding a new parameter with a default value does not require a task version increase.
 
@@ -266,3 +277,146 @@ Currently, there are three policy configurations.
 
 A build Task, e.g. one that produces a container image, must abide by both `all-tasks` and
 `build-tasks` policy configurations.
+
+## Task Migration
+
+Task migrations allow task maintainers to introduce changes to Konflux standard
+pipelines according to the task updates. By creating migrations, task
+maintainers are able to add/remove/update task parameters, change task
+execution order, add/remove mandatory task to/from pipelines, etc.
+
+Historically, task maintainers write `MIGRATION.md` to notify users what changes
+have to be made to the pipeline. This mechanism is not deprecated. Besides
+writing the document, it is also recommended to write a migration script so that the
+updates can be applied to user pipelines automatically, that is done by the
+[pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
+
+Task migrations are Bash scripts defined in version-specific task
+directories. In general, a migration consists of a series of `yq` commands that
+modify pipeline in order to work with the new version of task. Developers can
+do more with task migrations on the pipelines, e.g. add/review a task,
+add/remove/update task parameters, change execution order of a task, etc.
+
+### Create a migration
+
+The following is the steps to write a migration:
+
+- Bump task version. Modify label `app.kubernetes.io/version` in the task YAML file.
+- Ensure `migrations/` directory exists in the version-specific task directory.
+- Create a migration file under the `migrations/` directory. Its name is in
+  form `<new task version>.sh`. Note that the version must match the bumped
+  version.
+
+The migration file is a normal Bash script file:
+
+- It accepts a single argument. The pipeline file path is provided via this
+  argument. The script must work with a Tekton Pipeline by modifying the
+  pipeline definition under the `.spec` field. In practice, regardless of whether
+  the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
+  extracted into a separate YAML file, the migration tool ensures that the
+  passed-in pipeline file contains the correct pipeline definition.
+- All modifications to the pipeline must be done in-place, i.e. using `yq
+  -i` to operate the pipeline YAML.
+- It should be simple and small as much as possible.
+- It should be idempotent as much as possible to ensure that the changes are
+  not duplicated to the pipeline when run the migration multiple times.
+- Pass the `shellcheck` without customizing the default rules.
+- Check whether the migration is for all kinds of Konflux pipelines or not. If
+  no, skip the pipeline properly in the script, e.g. skip FBC pipeline due
+  to [many tasks are removed](https://github.com/konflux-ci/build-definitions/blob/main/pipelines/fbc-builder/patch.yaml)
+  from template-build.yaml.
+- The pipeline file path and name can be arbitrary. Please do not use the input
+  value to check pipeline type or do test in `if-then-else` statement for
+  conditional operations.
+
+Here are example steps to create a migration for a task `task-a`:
+
+```bash
+yq -i "(.metadata.labels.\"app.kubernetes.io/version\") |= \"0.2.2\"" task/task-a/0.2/task-a.yaml
+mkdir -p task/task-a/0.2/migrations || :
+cat >task/task-a/0.2/migrations/0.2.2.sh <<EOF
+#!/usr/bin/env bash
+set -e
+pipeline_file=\$1
+
+# Ensure parameter is added only once whatever how many times to run this script.
+if ! yq -e '.spec.tasks[] | select(.name == "task-a") | .params[] | select(.name == "pipelinerun-name")' >/dev/null
+then
+  yq -i -e '
+    (.spec.tasks[] | select(.name == "task-a") | .params) +=
+    {"name": "pipelinerun-name", "value": "\$(context.pipelineRun.name)"}
+  ' "\$pipeline_file"
+fi
+EOF
+```
+
+To add a new task to the user pipelines, a migration can be created with a
+fictional task update. That is to select a task, e.g. `init`, bump its version
+and create a migration under `init` version-specific directory.
+
+### Create a startup migration by the helper script
+
+`./hack/create-task-migration.sh` is a convenient tool to help developers
+create a task migration. The script handles most of the details of migration
+creation. It generates a startup migration template file, then developers are
+responsible for writing concrete script, which usually consists of a series of
+`yq` commands, to implement the migration.
+
+Here are a few examples:
+
+To create a migration for the latest major.minor version of task `push-dockerfile`:
+
+```bash
+./hack/create-task-migration.sh -t push-dockerfile
+```
+
+To get a complete usage: `./hack/create-task-migration.sh -h`
+
+### Add tasks to Konflux pipelines
+
+Fictional task updates is a way to add tasks to Konflux pipelines. Following
+is the workflow:
+
+- Add the new task to build-definitions. Going through the whole process until
+  task bundle is pushed to the registry. If the task to be added exists
+  already, skip this step.
+
+- Create a migration for the task:
+
+  - Choose an existing task to act as a fictional update, e.g. `init`.
+  - Create a migration for it:
+
+    ```bash
+    ./hack/create-task-migration.sh -t init
+    ```
+
+  - Edit the generated migration file, write script to add the task. Here is an
+    example using `yq`:
+
+    ```bash
+    #!/usr/bin/env bash
+    pipeline=$1
+    name="<task name>"
+    if ! yq -e ".spec.tasks[] | select(.name == \"${name}\")" "$pipeline" >/dev/null 2>&1
+    then
+      task_def="{
+        \"name\": \"${name}\",
+        \"taskRef\": {
+          \"params\": [
+            {\"name\": \"name\", \"value\": \"${name}\"},
+            {\"name\": \"bundle\", \"value\": \"<bundle reference>\"},
+            {\"name\": \"kind\", \"value\": \"task\"}
+          ]
+        },
+        \"runAfter\": [\"<task name>\"]
+      }"
+      yq -i ".spec.tasks += ${task_def}" "$pipeline"
+    fi
+    ```
+
+    Add necessary additional code to make the migration work well.
+
+- Commit the updated task YAML file and the migration file and go through the
+  review process.
+
+The migration will be applied during next Renovate run scheduled by MintMaker.

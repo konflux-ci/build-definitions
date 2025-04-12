@@ -47,6 +47,7 @@
 |gitInitImage| Deprecated. Has no effect. Will be removed in the future.| | |
 |httpProxy| HTTP proxy server for non-SSL requests.| | |
 |httpsProxy| HTTPS proxy server for SSL requests.| | |
+|mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
@@ -55,6 +56,7 @@
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
 |submodules| Initialize and fetch git submodules.| true| |
+|targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
@@ -79,9 +81,12 @@
 |POLICY_CONFIGURATION| Name of the policy configuration (EnterpriseContractPolicy resource) to use. `namespace/name` or `name` syntax supported. If namespace is omitted the namespace where the task runs is used. You can also specify a policy configuration using a git url, e.g. `github.com/enterprise-contract/config//slsa3`. | enterprise-contract-service/default| '$(params.ec-policy-configuration)'|
 |PUBLIC_KEY| Public key used to verify signatures. Must be a valid k8s cosign reference, e.g. k8s://my-space/my-secret where my-secret contains the expected cosign.pub attribute.| | '$(params.ec-public-key)'|
 |REKOR_HOST| Rekor host for transparency log lookups| | '$(params.ec-rekor-host)'|
+|SINGLE_COMPONENT| Reduce the Snapshot to only the component whose build caused the Snapshot to be created| false| |
+|SINGLE_COMPONENT_CUSTOM_RESOURCE| Name, including kind, of the Kubernetes resource to query for labels when single component mode is enabled, e.g. pr/somepipeline. | unknown| |
+|SINGLE_COMPONENT_CUSTOM_RESOURCE_NS| Kubernetes namespace where the SINGLE_COMPONENT_NAME is found. Only used when single component mode is enabled. | | |
 |SSL_CERT_DIR| Path to a directory containing SSL certs to be used when communicating with external services. This is useful when using the integrated registry and a local instance of Rekor on a development cluster which may use certificates issued by a not-commonly trusted root CA. In such cases, `/var/run/secrets/kubernetes.io/serviceaccount` is a good value. Multiple paths can be provided by using the `:` separator. | | |
 |STRICT| Fail the task if policy fails. Set to `"false"` to disable it.| true| '$(params.ec-strict)'|
-|TIMEOUT| Timeout setting for `ec validate`.| 5m0s| |
+|TIMEOUT| This param is deprecated and will be removed in future. Its value is ignored. EC will be run without a timeout. (If you do want to apply a timeout use the Tekton task timeout.) | | |
 |TUF_MIRROR| TUF mirror URL. Provide a value when NOT using public sigstore deployment.| | '$(params.ec-tuf-mirror)'|
 |WORKERS| Number of parallel workers to use for policy evaluation.| 1| |
 
@@ -104,6 +109,7 @@
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
+|merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| |
 ### verify-enterprise-contract:0.1 task results

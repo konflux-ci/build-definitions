@@ -122,7 +122,8 @@ spec:
     name: ANNOTATIONS
     type: array
   - default: "false"
-    description: Whether to enable privileged mode
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
     name: PRIVILEGED_NESTED
     type: string
   - default: "false"
@@ -141,6 +142,11 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - default: []
+    description: Additional base image references to include to the SBOM. Array of
+      image_reference_with_digest strings
+    name: ADDITIONAL_BASE_IMAGES
+    type: array
   - name: image-url
     type: string
   - default: cov-license
@@ -288,6 +294,14 @@ spec:
         fi
       fi
 
+      # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
+
+      # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+      export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
+
+      # always use a fresh temp directory for Coverity to avoid "Permission denied" errors on reuse
+      export COVERITY_TEMP="\$(mktemp -d /tmp/cov-XXXXXXXX)"
+
       # always remove Coverity's intermediate directory so that it can be recreated with different ownership
       trap 'rm -fr /tmp/idir' EXIT
 
@@ -378,12 +392,17 @@ spec:
     script: |
       #!/bin/bash
       set -euo pipefail
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
       if [ -f "$ca_bundle" ]; then
         echo "INFO: Using mounted CA bundle: $ca_bundle"
         cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
         update-ca-trust
       fi
+
+      echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -412,6 +431,13 @@ spec:
 
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
+
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -511,6 +537,8 @@ spec:
 
       VOLUME_MOUNTS=()
 
+      echo "[$(date --utc -Ins)] Setup prefetched"
+
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
@@ -527,7 +555,9 @@ spec:
         if [ -f "$prefetched_repo_for_my_arch" ]; then
           echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
           mkdir -p "$YUM_REPOS_D_FETCHED"
-          cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+            cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          fi
         fi
       fi
 
@@ -554,6 +584,8 @@ spec:
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      echo "[$(date --utc -Ins)] Register sub-man"
 
       ACTIVATION_KEY_PATH="/activation-key"
       ENTITLEMENT_PATH="/entitlement"
@@ -604,6 +636,8 @@ spec:
         done <<< "$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
+      echo "[$(date --utc -Ins)] Add secrets"
+
       ADDITIONAL_SECRET_PATH="/additional-secret"
       ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
@@ -639,7 +673,12 @@ spec:
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+      echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
+
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+
+      echo "[$(date --utc -Ins)] Add metadata"
 
       container=$(buildah from --pull-never "$IMAGE")
 
@@ -664,6 +703,8 @@ spec:
           echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
+
+      echo "[$(date --utc -Ins)] End build"
     securityContext:
       capabilities:
         add:
