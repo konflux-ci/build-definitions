@@ -143,11 +143,15 @@ spec:
       value: $(params.output-image)
     - name: CONTEXT
       value: $(params.path-context)
+    - name: URL
+      value: $(params.git-url)
+    - name: REVISION
+      value: $(params.revision)
     runAfter:
     - prefetch-dependencies
     taskRef:
       name: tkn-bundle
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(tasks.init.results.build)
       operator: in
