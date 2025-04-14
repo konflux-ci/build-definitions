@@ -6,14 +6,14 @@
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
-|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|git-url| Source Repository URL| None| clone-repository:0.1:url ; build-container:0.2:URL|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.1:IMAGE ; build-image-index:0.1:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
+|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.2:IMAGE ; build-image-index:0.1:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
-|revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|revision| Revision of the Source Repository| | clone-repository:0.1:revision ; build-container:0.2:REVISION|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 
 ## Available params from tasks
@@ -112,14 +112,16 @@
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
-### tkn-bundle-oci-ta:0.1 task parameters
+### tkn-bundle-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|REVISION| Revision| None| '$(params.revision)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| | |
+|URL| Source code Git URL| None| '$(params.git-url)'|
 
 ## Results
 |name|description|value|
@@ -156,7 +158,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.1:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.1:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.2:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.1:SOURCE_ARTIFACT|
 ### sast-shell-check-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -165,7 +167,7 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### tkn-bundle-oci-ta:0.1 task results
+### tkn-bundle-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
