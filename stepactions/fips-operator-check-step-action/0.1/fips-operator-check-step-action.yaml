@@ -14,7 +14,7 @@ spec:
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
-  image: quay.io/redhat-appstudio/konflux-test:v1.4.22@sha256:cc66bfdc4abc3eacfa74d77d2efcc2627722549bffa38d3731251631f13552bf
+  image: quay.io/redhat-appstudio/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
   securityContext:
     capabilities:
       add:
@@ -30,13 +30,17 @@ spec:
     error_counter=0
     failure_counter=0
 
+    export RETRY_COUNT=2
+    export RETRY_INTERVAL=5
+
     if [ ! -e "/tekton/home/unique_related_images.txt" ]; then
       echo "No relatedImages to process"
       exit 0
     fi
 
-    related_images=$(cat /tekton/home/unique_related_images.txt)
-    echo "Related images are : ${related_images}"
+    mapfile -t related_images < <(cat /tekton/home/unique_related_images.txt)
+    echo "Related images are :"
+    printf "%s\n" "${related_images[@]}"
 
     # If target OCP version is found, use it to apply the exception list when running check-payload
     check_payload_version=""
@@ -50,18 +54,20 @@ spec:
     image_mirror_map=""
     if [ -f "/tekton/home/related-images-map.txt" ]; then
       image_mirror_map=$(cat "/tekton/home/related-images-map.txt")
-      echo "Image Mirror Map found: ${image_mirror_map}"
+      echo "Image Mirror Map found:"
+      echo "${image_mirror_map}" | jq '.'
     fi
 
-    for related_image in ${related_images}; do
-      echo "Processing related image : ${related_image}"
+    declare -i count=0
+    for related_image in "${related_images[@]}"; do
+      count+=1
+      echo "Processing related image ${count} of ${#related_images[@]}: ${related_image}"
 
       image_accessible=0
       if ! image_labels=$(get_image_labels "$related_image"); then
         echo "Could not inspect original pullspec $related_image. Checking if there's a mirror present"
         if [ -n "${image_mirror_map}" ]; then
           reg_and_repo=$(get_image_registry_and_repository "${related_image}")
-          echo "Mirror Map is $image_mirror_map"
           mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image][]')
           echo "Mirrors for $reg_and_repo are:"
           printf "%s\n" "${mirrors[@]}"
@@ -86,7 +92,7 @@ spec:
       fi
 
       if [[ $image_accessible -eq 0 ]]; then
-        echo "Error: Could not inspect image ${related_image} for labels"
+        echo -e "Error: Unable to scan image: Could not inspect image ${related_image} for labels\n"
         error_counter=$((error_counter + 1))
         continue
       fi
@@ -94,23 +100,23 @@ spec:
       echo "Component label is ${component_label}"
 
       if [ -z "${component_label}" ]; then
-        echo "Error: Could not get com.redhat.component label for ${related_image}"
+        echo -e "Error: Unable to scan image: Could not get com.redhat.component label for ${related_image}\n"
         error_counter=$((error_counter + 1))
         continue
       fi
 
       # Convert image to OCI format since umoci can only handle the OCI format
-      if ! skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}:latest"; then
-        echo "Error: Could not convert image ${related_image} to OCI format"
+      if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}:latest"; then
+        echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
         error_counter=$((error_counter + 1))
         continue
       fi
 
       # Unpack OCI image
-      if ! umoci raw unpack --rootless \
+      if ! retry umoci raw unpack --rootless \
           --image "/tekton/home/${component_label}:latest" \
           "/tekton/home/unpacked-${component_label}"; then
-        echo "Error: Could not unpack OCI image ${related_image}"
+        echo -e "Error: Unable to scan image: Could not unpack OCI image ${related_image}\n"
         error_counter=$((error_counter + 1))
         continue
       fi
@@ -124,17 +130,17 @@ spec:
           --components="${component_label}" \
           --output-format=csv \
           --output-file="/tekton/home/report-${component_label}.csv"; then
-        echo "check-payload scan failed for ${related_image}"
+        echo -e "check-payload scan failed for ${related_image}\n"
         failure_counter=$((failure_counter + 1))
         continue
       fi
 
       if [ -f "/tekton/home/report-${component_label}.csv" ]; then
         if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}.csv"; then
-          echo "check-payload scan was successful for ${related_image}"
+          echo -e "check-payload scan was successful for ${related_image}\n"
           success_counter=$((success_counter + 1))
         elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}.csv"; then
-          echo "check-payload scan was successful with warnings for ${related_image}"
+          echo -e "check-payload scan was successful with warnings for ${related_image}\n"
           warnings_counter=$((warnings_counter + 1))
         fi
       fi
