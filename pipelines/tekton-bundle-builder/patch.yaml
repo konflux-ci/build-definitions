@@ -6,7 +6,7 @@
   path: /spec/tasks/3/taskRef
   value:
     name: tkn-bundle
-    version: "0.1"
+    version: "0.2"
 # Use the template-build as a template replacing the Pipeline name and the
 # `build-container` step's task reference
 # Order of Tasks from the base template:
@@ -40,6 +40,10 @@
     value: $(params.output-image)
   - name: CONTEXT
     value: $(params.path-context)
+  - name: URL
+    value: $(params.git-url)
+  - name: REVISION
+    value: $(params.revision)
 # Remove tasks that assume a binary image
 - op: remove
   path: /spec/tasks/17  # rpms-signature-scan
