@@ -199,7 +199,9 @@ spec:
         task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "${FILES[@]}" | sed '/null/d' | tr -d '[:space:]')
         ANNOTATIONS+=("org.opencontainers.image.version=${task_version}")
 
-        task_dir=$(echo "${FILES[@]}" | awk -F'/' '{NF--; print $0}' OFS='/')
+        # task_dir is where all the tasks definitions resides
+        # all tasks definitions are in the same task_dir, so extracting it from the first element is enough
+        task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
         if [ -f "${task_dir}/README.md" ]; then
           ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
         fi
