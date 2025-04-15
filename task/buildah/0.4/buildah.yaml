@@ -470,11 +470,11 @@ spec:
       echo "[$(date --utc -Ins)] Add secrets"
 
       ADDITIONAL_SECRET_PATH="/additional-secret"
-      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
+      ADDITIONAL_SECRET_TMP="/run/secrets/${ADDITIONAL_SECRET}"
       if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
         cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
         while read -r filename; do
-          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at ${ADDITIONAL_SECRET_TMP}/${filename}"
           BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
         done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
       fi
