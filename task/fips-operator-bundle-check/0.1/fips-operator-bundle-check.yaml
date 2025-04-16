@@ -62,8 +62,8 @@ spec:
 
         # Run the FIPS check only if the bundle is part of the Openshift Subscription or has the fips label set
         image_and_digest_render_out=$(opm render "$image_and_digest")
-        subscription_label=$(echo "${image_and_digest_render_out}" | jq -r '.properties[] | select(.value.annotations["operators.openshift.io/valid-subscription"] != null) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
-        fips_annotation=$(echo "${image_and_digest_render_out}" | jq -r '.properties[] | select(.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true") | .value.annotations["features.operators.openshift.io/fips-compliant"]')
+        subscription_label=$(echo "${image_and_digest_render_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["operators.openshift.io/valid-subscription"] != null)) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
+        fips_annotation=$(echo "${image_and_digest_render_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true")) | .value.annotations["features.operators.openshift.io/fips-compliant"]')
 
         if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
           echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."

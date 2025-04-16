@@ -138,9 +138,9 @@ spec:
               echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
               exit 0
             fi
-            subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["operators.openshift.io/valid-subscription"] != null) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
+            subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["operators.openshift.io/valid-subscription"] != null)) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
 
-            fips_annotation=$(echo "${bundle_out}" | jq -r '.properties[] | select(.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true") | .value.annotations["features.operators.openshift.io/fips-compliant"]')
+            fips_annotation=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true")) | .value.annotations["features.operators.openshift.io/fips-compliant"]')
 
             if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."
