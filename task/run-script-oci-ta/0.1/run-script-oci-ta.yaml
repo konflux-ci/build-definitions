@@ -26,6 +26,11 @@ spec:
     - name: ociStorage
       description: The OCI repository where the Trusted Artifacts are stored.
       type: string
+    - name: PREFETCH_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
     - name: SCRIPT_RUNNER_IMAGE
       description: The image to run the script in
       type: string
@@ -107,6 +112,7 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.PREFETCH_ARTIFACT)=/var/workdir/cachi2
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           name: trusted-ca
@@ -161,9 +167,13 @@ spec:
         echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
 
         UNSHARE_ARGS=()
+        HERMETO_MOUNT=""
+        HERMETO_SOURCE=""
         if [ "${HERMETIC}" == "true" ]; then
           echo "The script will be executed with network isolation"
           UNSHARE_ARGS+=("--net")
+          HERMETO_MOUNT="--volume /var/workdir/cachi2:/cachi2"
+          HERMETO_SOURCE="source /cachi2/cachi2.env &&"
         fi
 
         # Create the script file
@@ -172,7 +182,7 @@ spec:
 
         mkdir /var/workdir/output
         buildah from --name script-container "$SCRIPT_RUNNER_IMAGE"
-        BUILDAH_CMD="buildah run --volume /tmp/script.sh:/tmp/script.sh --volume /var/workdir/source:/var/workdir/source --volume /var/workdir/output:/var/workdir/output --workingdir ${SCRIPT_WORKDIR} --user root:root -- script-container /bin/sh -c 'SCRIPT_OUTPUT=/var/workdir/output/output SCRIPT_OUTPUT_ARRAY=/var/workdir/output/array exec /tmp/script.sh'"
+        BUILDAH_CMD="buildah run ${HERMETO_MOUNT} --volume /tmp/script.sh:/tmp/script.sh --volume /var/workdir/source:/var/workdir/source --volume /var/workdir/output:/var/workdir/output --workingdir ${SCRIPT_WORKDIR} --user root:root -- script-container /bin/sh -c '${HERMETO_SOURCE} SCRIPT_OUTPUT=/var/workdir/output/output SCRIPT_OUTPUT_ARRAY=/var/workdir/output/array exec /tmp/script.sh'"
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w /var/workdir sh -c "${BUILDAH_CMD}"
 
         IMAGE_REFERENCE=$(buildah inspect script-container | jq -r '.FromImage + "@" + .FromImageDigest')
