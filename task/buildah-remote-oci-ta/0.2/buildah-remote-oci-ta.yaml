@@ -216,7 +216,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -232,7 +232,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
     name: use-trusted-artifact
     volumeMounts:
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -256,7 +256,7 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     script: |-
       #!/bin/bash
@@ -713,7 +713,7 @@ spec:
       readOnly: true
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
+    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:3a5ef9e386dba9c8869f723dbd39646632b09b774ebf08bc9956ad5dd4f05754
     name: icm
     script: |
       #!/bin/bash
@@ -732,7 +732,7 @@ spec:
       name: varlibcontainers
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: push
     script: |
       #!/bin/bash
@@ -850,7 +850,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:55a6cd6b6653af365d1627569b0c77a7eb9f8d5ea14406eb455253a421b7f6b6
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
     name: prepare-sboms
     script: |
       #!/bin/bash
