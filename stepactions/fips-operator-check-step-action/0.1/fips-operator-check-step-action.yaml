@@ -38,7 +38,7 @@ spec:
       exit 0
     fi
 
-    mapfile -t related_images < <(cat /tekton/home/unique_related_images.txt)
+    mapfile -d ' ' -t related_images < <(cat /tekton/home/unique_related_images.txt)
     echo "Related images are :"
     printf "%s\n" "${related_images[@]}"
 
@@ -60,6 +60,7 @@ spec:
 
     declare -i count=0
     for related_image in "${related_images[@]}"; do
+      related_image="${related_image//$'\n'/}"
       count+=1
       echo "Processing related image ${count} of ${#related_images[@]}: ${related_image}"
 
