@@ -48,6 +48,10 @@ spec:
     - name: MODELCARD_PATH
       description: path to the Model Card
       type: string
+    - name: OLOT_ARGS
+      description: additional args for olot
+      type: string
+      default: ""
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -126,13 +130,15 @@ spec:
           value: 0.1.5
         - name: MODELCARD_PATH
           value: $(params.MODELCARD_PATH)
+        - name: OLOT_ARGS
+          value: $(params.OLOT_ARGS)
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
 
         pip install olot=="${OLOT_VERSION}"
-        olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+        olot "$OLOT_ARGS" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
