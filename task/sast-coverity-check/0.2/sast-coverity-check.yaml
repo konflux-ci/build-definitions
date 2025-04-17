@@ -498,7 +498,7 @@ spec:
         echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
         while IFS= read -r line || [[ -n "$line" ]]; do
           # Skip empty lines and comments
-          if [[ ! -z "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
             ANNOTATIONS+=("--annotation" "$line")
           fi
         done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
