@@ -112,6 +112,8 @@ spec:
 
         oras pull "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
+        chmod go+wx models
+        chmod go+w models/*
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       workingDir: /var/workdir
@@ -134,9 +136,12 @@ spec:
           value: $(params.OLOT_ARGS)
       script: |
         #!/bin/bash
-        set -eu
+        set -exu
         set -o pipefail
 
+        ls -la models
+        id
+        ls -la models/config.json
         pip install olot=="${OLOT_VERSION}"
         olot "$OLOT_ARGS" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
