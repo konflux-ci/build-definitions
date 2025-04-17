@@ -122,6 +122,11 @@ spec:
     description: Additional key=value annotations that should be applied to the image
     name: ANNOTATIONS
     type: array
+  - default: ""
+    description: Path to a file with additional key=value annotations that should
+      be applied to the image
+    name: ANNOTATIONS_FROM_PATH
+    type: string
   - default: "false"
     description: Whether to enable privileged mode, should be used only with remote
       VMs
@@ -217,6 +222,8 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: ANNOTATIONS_FROM_PATH
+      value: $(params.ANNOTATIONS_FROM_PATH)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     - name: PLATFORM
@@ -404,6 +411,17 @@ spec:
                   ;;
           esac
       done
+
+      # Append any additional annotations from the specified file
+      if [ -n "${ANNOTATIONS_FROM_PATH}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}" ]; then
+        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          # Skip empty lines and comments
+          if [[ ! -z "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            ANNOTATIONS+=("--annotation" "$line")
+          fi
+        done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
+      fi
 
       BUILD_ARG_FLAGS=()
       for build_arg in "${build_args[@]}"; do
@@ -672,6 +690,7 @@ spec:
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
+          -e ANNOTATIONS_FROM_PATH="${ANNOTATIONS_FROM_PATH@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
           -v "${BUILD_DIR@Q}/workspaces/source:$(workspaces.source.path):Z" \
