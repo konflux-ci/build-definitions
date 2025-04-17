@@ -72,7 +72,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set cachi2 log level (debug, info, warning, error)| info| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
-### sast-coverity-check:0.2 task parameters
+### sast-coverity-check:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -111,7 +111,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| | None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
+|image-digest| Digest of the image to which the scan results should be associated.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| URL of the image to which the scan results should be associated.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### sast-shell-check:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -123,7 +124,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-snyk-check:0.3 task parameters
+### sast-snyk-check:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| | |
@@ -135,8 +136,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-unicode-check:0.1 task parameters
+|image-digest| Digest of the image to scan.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
+### sast-unicode-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -146,6 +148,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
@@ -173,9 +176,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### build-maven-zip:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.3:image-digest ; sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.4:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest|
 |IMAGE_REF| OCI-Artifact reference of the built OCI-Artifact| |
-|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.3:image-url ; sast-coverity-check:0.2:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url|
+|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| show-sbom:0.1:IMAGE_URL ; sast-snyk-check:0.4:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### coverity-availability-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -196,7 +199,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-### sast-coverity-check:0.2 task results
+### sast-coverity-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -204,11 +207,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check:0.3 task results
+### sast-snyk-check:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.1 task results
+### sast-unicode-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -218,7 +221,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.3:workspace ; sast-coverity-check:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.2:workspace|
 ## Available workspaces from tasks
 ### build-maven-zip:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -236,7 +239,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, cachi2 artifacts will be stored on the workspace as well| False| workspace|
-### sast-coverity-check:0.2 task workspaces
+### sast-coverity-check:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
@@ -244,11 +247,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-snyk-check:0.3 task workspaces
+### sast-snyk-check:0.4 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.1 task workspaces
+### sast-unicode-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|

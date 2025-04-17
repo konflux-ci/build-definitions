@@ -1,0 +1,483 @@
+# Task name
+- op: replace
+  path: /metadata/name
+  value: sast-coverity-check
+
+# Task version
+- op: replace
+  path: /metadata/labels/app.kubernetes.io~1version
+  value: "0.3"
+
+# Task description
+- op: replace
+  path: /spec/description
+  value: |-
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Coverity.
+
+# Replace task results
+- op: replace
+  path: /spec/results
+  value:
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+
+###################
+# Task steps
+###################
+
+# Remove all buildah task steps except build
+
+# upload-sbom
+- op: test
+  path: /spec/steps/4/name
+  value: upload-sbom
+- op: remove
+  path: /spec/steps/4
+
+# prepare-sboms
+- op: test
+  path: /spec/steps/3/name
+  value: prepare-sboms
+- op: remove
+  path: /spec/steps/3
+
+# sbom-syft-generate
+- op: test
+  path: /spec/steps/2/name
+  value: sbom-syft-generate
+- op: remove
+  path: /spec/steps/2
+
+# push
+- op: test
+  path: /spec/steps/1/name
+  value: push
+- op: remove
+  path: /spec/steps/1
+
+# Tune the build step (the only one left).
+- op: test
+  path: /spec/steps/0/name
+  value: build
+
+# Change build step image
+- op: replace
+  path: /spec/steps/0/image
+  # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
+  value: quay.io/redhat-services-prod/sast/coverity:202412.6
+
+# Change build step resources
+- op: replace
+  path: /spec/steps/0/computeResources/limits/memory
+  value: 16Gi
+- op: replace
+  path: /spec/steps/0/computeResources/requests/cpu
+  value: 4
+- op: replace
+  path: /spec/steps/0/computeResources/requests/memory
+  value: 4Gi
+
+# Additional parameters
+- op: add
+  path: /spec/params/-
+  value:
+    name: image-digest
+    type: string
+    description: Digest of the image to which the scan results should be associated.
+- op: add
+  path: /spec/params/-
+  value:
+    name: image-url
+    type: string
+    description: URL of the image to which the scan results should be associated.
+- op: add
+  path: /spec/params/-
+  value:
+    name: COV_LICENSE
+    type: string
+    description: Name of secret which contains the Coverity license
+    default: "cov-license"
+- op: add
+  path: /spec/params/-
+  value:
+    name: PROJECT_NAME
+    type: string
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: RECORD_EXCLUDED
+    type: string
+    default: "false"
+- op: add
+  path: /spec/params/-
+  value:
+    description: Arguments to be appended to the cov-analyze command
+    name: COV_ANALYZE_ARGS
+    type: string
+    default: "--enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096"
+- op: add
+  path: /spec/params/-
+  value:
+    name: IMP_FINDINGS_ONLY
+    type: string
+    description: Report only important findings. Default is true. To report all findings, specify "false"
+    default: "true"
+- op: add
+  path: /spec/params/-
+  value:
+    name: KFP_GIT_URL
+    type: string
+    description: Known False Positives (KFP) git URL (optionally taking
+      a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
+      the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
+      instance and empty string for external Konflux instance.
+      If set to an empty string, the KFP filtering is disabled.
+    default: "SITE_DEFAULT"
+
+# Additional volumes
+- op: add
+  path: /spec/volumes/-
+  value:
+    name: cov-license
+    secret:
+      secretName: $(params.COV_LICENSE)
+      optional: false
+- op: add
+  path: /spec/steps/0/env/-
+  value:
+    name: ADDITIONAL_VOLUME_MOUNTS
+    value: |-
+      /opt/coverity:/opt/coverity
+      /opt/cov-sa-2024.12:/opt/cov-sa-2024.12
+      /shared:/shared
+      /shared/license.dat:/opt/coverity/bin/license.dat
+      /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
+
+# Add prepare step
+- op: add
+  path: /spec/steps/0
+  value:
+    name: prepare
+    image: quay.io/redhat-services-prod/sast/coverity:202412.6
+    workingDir: $(workspaces.source.path)
+    env:
+      - name: COV_ANALYZE_ARGS
+        value: $(params.COV_ANALYZE_ARGS)
+      - name: DOCKERFILE
+        value: $(params.DOCKERFILE)
+    volumeMounts:
+      - name: cov-license
+        mountPath: "/etc/secrets/cov"
+        readOnly: true
+    script: |
+      #!/bin/bash
+
+      # FIXME: Dockerfile discovery logic is copied from buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      # install Coverity license file
+      install -vm0644 /etc/secrets/cov/cov-license /shared/license.dat
+
+      # pre-create directory for SAST scanning results
+      install -vm1777 -d /shared/sast-results
+
+      # create a wrapper script to instrument RUN lines
+      tee /shared/cmd-wrap.sh >&2 << EOF
+      #!/bin/bash -x
+      id >&2
+
+      # use current directory as project directory by default
+      proj_dir=\$(pwd)
+
+      # if current directory is "/", fallback to an empty temp directory
+      [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
+
+      # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
+      if ! [ -x /usr/bin/file ]; then
+        if [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
+          install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
+        elif [ -e /opt/cov-sa-2024.12/bin/cov-override-access.so ]; then
+          export LD_PRELOAD="/opt/cov-sa-2024.12/bin/cov-override-access.so"
+          export PATH="\${PATH}:/opt/cov-sa-2024.12/bin"
+        fi
+      fi
+
+      # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
+
+      # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+      export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
+
+      # always use a fresh temp directory for Coverity to avoid "Permission denied" errors on reuse
+      export COVERITY_TEMP="\$(mktemp -d /tmp/cov-XXXXXXXX)"
+
+      # always remove Coverity's intermediate directory so that it can be recreated with different ownership
+      trap 'rm -fr /tmp/idir' EXIT
+
+      # wrap the RUN command with "coverity capture" and record exit code of the wrapped command
+      /opt/coverity/bin/coverity --ticker-mode=no-spin capture --dir=/tmp/idir --project-dir="\$proj_dir" \
+        -- /bin/bash -c "PS4='@\\\${SECONDS}s: \\\${BASH_COMMAND} --> '
+        set -mx
+        pwd >&2  # print CWD set by coverity
+        cd '\${PWD}'  # restore original CWD
+        \\"\\\$@\\" &  # run the instrumented shell command in background (to create a process group)
+        pid=\\\$!  # store its PID
+        wait \\\${pid}  # wait for the command to finish
+        ec=\\\$?  # store its exit status
+        kill -KILL -\\\${pid} 2>/dev/null  # kill orphan background processes
+        echo \\\${ec} >/tmp/idir/build-cmd-ec.txt  # propagate the exit status
+        " - "\$@"
+
+      # serialize COV_ANALYZE_ARGS declaration into the wrapper script (to avoid shell injection)
+      $(declare -p COV_ANALYZE_ARGS)
+
+      # use cov-analyze instead of "coverity analyze" so that we can handle COV_ANALYZE_ARGS
+      /opt/coverity/bin/cov-analyze --dir=/tmp/idir \$COV_ANALYZE_ARGS
+
+      if [ \$? -eq 0 ]; then
+        # assign a unique file name for scan results
+        json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
+
+        # obtain capture stats to process them later on
+        /opt/coverity/bin/coverity list --dir=/tmp/idir --project-dir="\$proj_dir" > "\${json_file%.json}-summary.txt"
+
+        # export scan results and embed source code context into the scan results
+        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+          | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
+          > "\${json_file}"
+      fi
+
+      # propagate the original exit code of the wrapped command
+      exit "\$(</tmp/idir/build-cmd-ec.txt)"
+      EOF
+      echo >&2
+
+      # make the wrapper script executable
+      chmod -v 0755 /shared/cmd-wrap.sh
+
+      # instrument all RUN lines in Dockerfile to be executed through cmd-wrap.sh
+      cstrans-df-run --shell-form --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile 2> /tmp/cstrans-df-run.log
+      EC=$?
+
+      # if we have no RUN lines to instrument, it is not a reason to make the task fail
+      if [ $EC -eq 1 ] && [ "cstrans-df-run: error: no RUN line found" = "$(</tmp/cstrans-df-run.log)" ]; then
+        echo "no RUN directive found in \"$dockerfile_path\", falling back to buildless capture..." >&2
+      else
+        cat /tmp/cstrans-df-run.log >&2
+        exit $EC
+      fi
+
+# Make the buildah task use the instrumented Dockerfile
+- op: test
+  path: /spec/steps/1/env/1/name
+  value: DOCKERFILE
+- op: replace
+  path: /spec/steps/1/env/1/value  # steps -> build -> env -> DOCKERFILE
+  value: /shared/Containerfile
+
+# Add postprocess step
+- op: test
+  path: /spec/steps/1/name
+  value: build
+- op: add
+  path: /spec/steps/2
+  value:
+    name: postprocess
+    image: quay.io/redhat-services-prod/sast/coverity:202412.6
+    computeResources:
+      limits:
+        memory: 16Gi
+      requests:
+        memory: 4Gi
+        cpu: 4
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: "/mnt/trusted-ca"
+        readOnly: true
+    env:
+      - name: IMAGE_URL
+        value: $(params.image-url)
+      - name: IMAGE_DIGEST
+        value: $(params.image-digest)
+      - name: COV_ANALYZE_ARGS
+        value: $(params.COV_ANALYZE_ARGS)
+      - name: KFP_GIT_URL
+        value: $(params.KFP_GIT_URL)
+      - name: IMP_FINDINGS_ONLY
+        value: $(params.IMP_FINDINGS_ONLY)
+      - name: PROJECT_NAME
+        value: $(params.PROJECT_NAME)
+      - name: RECORD_EXCLUDED
+        value: $(params.RECORD_EXCLUDED)
+      - name: COMPONENT_LABEL
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.labels['appstudio.openshift.io/component']
+      - name: BUILD_PLR_LOG_URL
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
+
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/bin/bash -e
+      # shellcheck source=/dev/null
+      set -o pipefail
+
+      . /usr/local/share/konflux-test/utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      [ -n "${PROJECT_NAME}" ] || PROJECT_NAME="${COMPONENT_LABEL}"
+      echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+      # Installation of Red Hat certificates for cloning Red Hat internal repositories
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -z "$(ls /shared/sast-results/)" ]; then (
+        set +e
+        set -x
+
+        # fallback to buildless scan if we have no scan results from buildful
+        # shellcheck disable=SC2086
+        env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
+
+        /opt/coverity/bin/coverity list --dir=/tmp/idir > "/shared/sast-results/coverity-buildless-summary.txt"
+
+        # install Coverity license file
+        install -vm0644 /{shared,opt/coverity/bin}/license.dat
+
+        # shellcheck disable=SC2086
+        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
+
+        # export scan results
+        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+          | csgrep --mode=json --embed-context=3 \
+          > /shared/sast-results/coverity-buildless.json
+      ) fi
+
+      # collect capture stats (FIXME: this doe not take findings deduplication into account)
+      set +e
+      for file in /shared/sast-results/*-summary.txt; do
+        ((SUCCEEDED     += $(grep "^ *SUCCEEDED:"     "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((INCOMPLETE    += $(grep "^ *INCOMPLETE:"    "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((FAILED        += $(grep "^ *FAILED:"        "${file}" | grep -oE '[0-9]+' || echo 0)))
+        ((LINES_OF_CODE += $(grep "^ *LINES OF CODE:" "${file}" | grep -oE '[0-9]+' || echo 0)))
+      done
+
+      # calculate the total number of files
+      ((TOTAL_FILES = SUCCEEDED + INCOMPLETE + FAILED))
+
+      # calculate the ratio of successful files to total files
+      ((COVERAGE_RATIO = (TOTAL_FILES == 0) ? 0 : (SUCCEEDED * 100 / TOTAL_FILES)))
+      set -e
+
+      # reflect the IMP_FINDINGS_ONLY parameter in csgrep arguments
+      IMP_LEVEL=1
+      if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
+        IMP_LEVEL=0
+      fi
+
+      # collect scan results
+      (set -x && csgrep --mode=json --imp-level="$IMP_LEVEL" --remove-duplicates --file-glob '/shared/sast-results/*.json' \
+        --set-scan-prop cov-scanned-files-coverage:"${COVERAGE_RATIO}" \
+        --set-scan-prop cov-scanned-files-success:"${SUCCEEDED}" \
+        --set-scan-prop cov-scanned-files-total:"${TOTAL_FILES}" \
+        --set-scan-prop cov-scanned-lines:"${LINES_OF_CODE}") \
+        | tee coverity-results-raw.json \
+        | csgrep --mode=evtstat
+
+      if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+        # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
+        PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
+        echo -n "Probing ${PROBE_URL}... "
+        if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+          echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+        else
+          echo "Setting KFP_GIT_URL to empty string"
+          KFP_GIT_URL=
+        fi
+      fi
+
+      # We check if the KFP_GIT_URL variable is set to apply the filters or not
+      if [[ -z "${KFP_GIT_URL}" ]]; then
+        echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+        mv coverity-results{-raw,}.json
+      else
+        echo "Filtering false positives in results files using csfilter-kfp..."
+        CMD=(
+          csfilter-kfp
+          --verbose
+          --kfp-git-url="${KFP_GIT_URL}"
+          --project-nvr="${PROJECT_NAME}"
+        )
+
+        if [ "${RECORD_EXCLUDED}" == "true" ]; then
+          CMD+=(--record-excluded="excluded-findings.json")
+        fi
+
+        "${CMD[@]}" coverity-results-raw.json \
+          | tee coverity-results.json \
+          | csgrep --mode=evtstat
+      fi
+
+      # convert the scan results into SARIF
+      csgrep --mode=sarif coverity-results.json > "$(workspaces.source.path)/coverity-results.sarif"
+
+      if [[ -z "$(csgrep --mode=stat coverity-results.json)" ]]; then
+        note="Task $(context.task.name) success: No finding was detected"
+        ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      else
+        TEST_OUTPUT=
+        parse_test_output "$(context.task.name)" sarif "$(workspaces.source.path)/coverity-results.sarif" || true
+        note="Task $(context.task.name) failed: For details, check Tekton task log."
+        echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      fi
+
+      echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+
+      # upload scan results
+      echo "Selecting auth for upload of scan results"
+      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+
+      upload_file() (
+        set -x
+        UPLOAD_FILE="$1"
+        MEDIA_TYPE="$2"
+        oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+      )
+
+      echo "Attaching scan results to ${IMAGE_URL}"
+      upload_file "coverity-results.sarif" "application/sarif+json"
+
+      # upload excluded-findings.json if enabled
+      if [ -f "excluded-findings.json" ]; then
+        upload_file "excluded-findings.json" "application/json"
+      fi

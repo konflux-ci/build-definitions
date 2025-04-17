@@ -188,7 +188,7 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
 
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     computeResources:
       limits:
@@ -513,7 +513,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - name: icm
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
+    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:3a5ef9e386dba9c8869f723dbd39646632b09b774ebf08bc9956ad5dd4f05754
     securityContext:
       capabilities:
         add:
@@ -527,7 +527,7 @@ spec:
       set -euo pipefail
       /scripts/inject-icm.sh "$IMAGE"
   - name: push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     script: |
       #!/bin/bash
       set -e
@@ -628,7 +628,7 @@ spec:
       runAsUser: 0
 
   - name: prepare-sboms
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:55a6cd6b6653af365d1627569b0c77a7eb9f8d5ea14406eb455253a421b7f6b6
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
     computeResources:
       limits:
         memory: 512Mi
