@@ -39,6 +39,11 @@ spec:
         to the image
       type: array
       default: []
+    - name: ANNOTATIONS_FROM_PATH
+      description: Path to a file with additional key=value annotations that
+        should be applied to the image
+      type: string
+      default: ""
     - name: BUILDAH_FORMAT
       description: The format for the resulting image's mediaType. Valid values
         are oci (default) or docker.
@@ -212,6 +217,8 @@ spec:
         value: $(params.ADDITIONAL_SECRET)
       - name: ADD_CAPABILITIES
         value: $(params.ADD_CAPABILITIES)
+      - name: ANNOTATIONS_FROM_PATH
+        value: $(params.ANNOTATIONS_FROM_PATH)
       - name: BUILD_ARGS_FILE
         value: $(params.BUILD_ARGS_FILE)
       - name: CONTEXT
@@ -397,6 +404,17 @@ spec:
             ;;
           esac
         done
+
+        # Append any additional annotations from the specified file
+        if [ -n "${ANNOTATIONS_FROM_PATH}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}" ]; then
+          echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip empty lines and comments
+            if [[ ! -z "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+              ANNOTATIONS+=("--annotation" "$line")
+            fi
+          done <"${SOURCE_CODE_DIR}/${ANNOTATIONS_FROM_PATH}"
+        fi
 
         BUILD_ARG_FLAGS=()
         for build_arg in "${build_args[@]}"; do
