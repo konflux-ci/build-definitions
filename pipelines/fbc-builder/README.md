@@ -175,6 +175,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.1:IMAGE ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
+|SBOM_DIGEST| A reference to the digest of the SBOM blob| |
 ### buildah-remote-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -182,6 +183,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_REF| Image reference of the built image| build-image-index:0.1:IMAGES|
 |IMAGE_URL| Image repository and tag where the built image was pushed| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
+|SBOM_DIGEST| A reference to the digest of the SBOM blob| |
 ### deprecated-image-check:0.5 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
