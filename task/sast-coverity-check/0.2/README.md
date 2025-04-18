@@ -13,14 +13,19 @@ The characteristics of these tasks are:
 - The csdiff/v1 SARIF fingerprints are provided for all findings
 - A parameter ( `KFP_GIT_URL`) is provided to remove false positives providing a known false positives repository. By default, no repository is provided.
 
-> NOTE: This task is executed only if there is a Coverity license set up in the environment. Please check coverity-availability-check task for more information.
+> NOTE: For this task to run, it requires:
+>
+> - A pull secret to retrieve the private Coverity container image.
+> - Access to a Coverity license. On private Konflux instances this is automatically retrieved, on public instances it needs to be manually added as a Secret.
+>
+> These requirements are checked by the separate task [coverity-availability-check](../../coverity-availability-check/). More details are available in the [internal documentation](https://konflux.pages.redhat.com/docs/users/getting-started/components-applications.html#sast-coverity-check-task).
 
 ## Params:
 
-| name                      | description                                                                                                                           | default value             | required |                                                                                                                   
+| name                      | description                                                                                                                           | default value             | required |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------------|---------------------------|----------|
 | COV_ANALYZE_ARGS          | Append arguments to the cov-analyze CLI command                                                                                       | ""                        | no       |
-| COV_LICENSE               | Name of secret which contains the Coverity license                                                                                    | cov-license               | no       |
+| COV_LICENSE               | Name of secret which contains the Coverity license. This secret is only required on public Konflux instances.                         | cov-license               | no       |
 | AUTH_TOKEN_COVERITY_IMAGE | Name of secret which contains the authentication token for pulling the Coverity image                                                 | auth-token-coverity-image | no       |
 | IMP_FINDINGS_ONLY         | Report only important findings. Default is true. To report all findings, specify "false"                                              | true                      | no       |
 | KFP_GIT_URL               | Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.|SITE_DEFAULT|false|
@@ -36,7 +41,6 @@ The characteristics of these tasks are:
 ## Source repository for image:
 
 // TODO: Add reference to private repo for the container image once the task is migrated to repo
-
 
 ## Additional links:
 
