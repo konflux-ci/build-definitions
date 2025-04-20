@@ -7,7 +7,12 @@ Task finds all `*.yaml` or `*.yml` files within `CONTEXT`, packages and pushes
 them as a Tekton Bundle to the image repository, name and tag specified by the
 `IMAGE` parameter.
 
-The task also adds annotations to the Tekton bundle. 
+In case a `kustomization.yaml` file is located in `CONTEXT`, it will be used to
+generate the task definition and all other files in `CONTEXT` will be ignored.
+
+The task also adds annotations to the Tekton bundle.
+
+
 
 ## Input Parameters
 
