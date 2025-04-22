@@ -27,3 +27,4 @@ RUN dnf -y --setopt=tsflags=nodocs install \
     && dnf clean all
 
 COPY util-scripts /appstudio-utils/util-scripts
+COPY util-scripts/select-oci-auth.sh /usr/local/bin/select-oci-auth
