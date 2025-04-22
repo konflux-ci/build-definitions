@@ -90,9 +90,12 @@ spec:
           image=$BINARY_IMAGE
         fi
 
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$image" >/tmp/auth/config.json
+
         for i in {1..5}; do
           echo "Downloading SBOM for $image (attempt $i)"
-          sbom=$(cosign download sbom "$image") && break
+          sbom=$(DOCKER_CONFIG=/tmp/auth cosign download sbom "$image") && break
           [[ "$i" -lt 5 ]] && sleep 1
         done
 
