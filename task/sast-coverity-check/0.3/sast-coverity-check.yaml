@@ -121,6 +121,11 @@ spec:
     description: Additional key=value annotations that should be applied to the image
     name: ANNOTATIONS
     type: array
+  - default: ""
+    description: Path to a file with additional key=value annotations that should
+      be applied to the image
+    name: ANNOTATIONS_FILE
+    type: string
   - default: "false"
     description: Whether to enable privileged mode, should be used only with remote
       VMs
@@ -233,6 +238,8 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: ANNOTATIONS_FILE
+      value: $(params.ANNOTATIONS_FILE)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -465,6 +472,17 @@ spec:
 
       LABELS=()
       ANNOTATIONS=()
+      # Append any annotations from the specified file
+      if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          # Skip empty lines and comments
+          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            ANNOTATIONS+=("--annotation" "$line")
+          fi
+        done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+      fi
+
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
