@@ -239,7 +239,9 @@ spec:
         exit 0
       fi
 
-      cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+      DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
