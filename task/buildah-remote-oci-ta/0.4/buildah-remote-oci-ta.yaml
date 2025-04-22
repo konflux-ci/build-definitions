@@ -38,6 +38,11 @@ spec:
     description: Additional key=value annotations that should be applied to the image
     name: ANNOTATIONS
     type: array
+  - default: ""
+    description: Path to a file with additional key=value annotations that should
+      be applied to the image
+    name: ANNOTATIONS_FILE
+    type: string
   - default: oci
     description: The format for the resulting image's mediaType. Valid values are
       oci (default) or docker.
@@ -190,6 +195,8 @@ spec:
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
       value: $(params.ADD_CAPABILITIES)
+    - name: ANNOTATIONS_FILE
+      value: $(params.ANNOTATIONS_FILE)
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
     - name: CONTEXT
@@ -403,6 +410,17 @@ spec:
 
       LABELS=()
       ANNOTATIONS=()
+      # Append any annotations from the specified file
+      if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          # Skip empty lines and comments
+          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            ANNOTATIONS+=("--annotation" "$line")
+          fi
+        done <"${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+      fi
+
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
         case $1 in
@@ -686,6 +704,7 @@ spec:
           -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
           -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
           -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e CONTEXT="${CONTEXT@Q}" \
           -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
