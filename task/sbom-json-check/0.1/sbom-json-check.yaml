@@ -74,7 +74,7 @@ spec:
           echo "arch sha is $arch_sha"
 
           echo "Running \"oc image extract\" on image of arch $arch"
-          oc image extract --registry-config ~/.docker/config.json $arch_imageanddigest --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
+          retry oc image extract --registry-config ~/.docker/config.json "$arch_imageanddigest" --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
           if [ $? -ne 0 ]; then
             echo "Failed to extract manifests from image $arch_imageanddigest of arch $arch."
             note="Task $(context.task.name) failed: Failed to extract manifests from image ${arch_imageanddigest} with oc extract. For details, check Tekton task log."
