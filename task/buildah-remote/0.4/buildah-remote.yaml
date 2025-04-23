@@ -450,7 +450,43 @@ spec:
 
       if [ -n "${TARGET_STAGE}" ]; then
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+
+        # Search for parent image
+
+        # step 1: try to find the build step with the target as an alias
+        LAST_IMAGE_REF=$(
+          jq --arg alias "${TARGET_STAGE}" '.Stages[] |
+            select(.As==$alias) | .BaseName |
+            select(test("^oci-archive:") | not)' \
+            /shared/parsed_dockerfile.json |
+            tr -d '"' |
+            tr -d "'"
+        )
+
+        # step 2a: If not found, then it is not an alias, but an image spec
+        if [ -z "$LAST_IMAGE_REF" ]; then
+          PARENT_IMAGE="$TARGET_STAGE"
+        fi
+
+        # step 2b: If found, repeat with the new reference until a spec is found
+        while [ -n "$LAST_IMAGE_REF" ]; do
+          # The last image ref in the chain is the parent image
+          PARENT_IMAGE="$LAST_IMAGE_REF"
+          LAST_IMAGE_REF=$(
+            jq --arg alias "${PARENT_IMAGE}" '.Stages[] |
+              select(.As==$alias) | .BaseName |
+              select(test("^oci-archive:") | not)' \
+              /shared/parsed_dockerfile.json | tr -d '"' |
+              tr -d "'"
+          )
+          done
+      else
+        PARENT_IMAGE=$(tail -1 <<< "${BASE_IMAGES}")
       fi
+
+      ARCH_USED=$(uname -m)
+      echo "PARENT_IMAGE: $PARENT_IMAGE"
+      echo "ARCH_USED: $ARCH_USED"
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
 
