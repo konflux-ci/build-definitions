@@ -137,7 +137,7 @@ spec:
         pushd /tmp/image-content
         image_with_digest="${IMAGE_URL}@${IMAGE_DIGEST}"
 
-        if ! oc image extract --registry-config ~/.docker/config.json "${image_with_digest}" ; then
+        if ! retry oc image extract --registry-config ~/.docker/config.json "${image_with_digest}" ; then
           echo "Unable to extract or validate extracted binaries."
           note="Task $(context.task.name) failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
@@ -160,7 +160,7 @@ spec:
 
         EXTRACT_DIR="/extracted_base_img"
         mkdir "${EXTRACT_DIR}"
-        if ! oc image extract "${BASE_IMAGE}" --path /:"${EXTRACT_DIR}"; then
+        if ! retry oc image extract "${BASE_IMAGE}" --path /:"${EXTRACT_DIR}"; then
           echo "Unable to extract opm binary"
           note="Task $(context.task.name) failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
