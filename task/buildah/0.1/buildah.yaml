@@ -170,7 +170,7 @@ spec:
       value: $(params.SKIP_UNUSED_STAGES)
 
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     computeResources:
       limits:
@@ -415,7 +415,7 @@ spec:
       runAsUser: 0
 
   - name: merge-syft-sboms
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1745333506@sha256:f0706d250b9712a7544230a6ac8507ac46cfddd14e8016ab5f30bbaea9bf3a80
     script: |
       #!/bin/python3
       import json
@@ -464,7 +464,7 @@ spec:
       runAsUser: 0
 
   - name: create-purl-sbom
-    image: registry.access.redhat.com/ubi9/python-39:9.5-1743508348@sha256:dd4267b8fae4fbaeefbc5396057cf4acfcc6e4147a5e1c1eb54240e2d6c1b1e6
+    image: registry.access.redhat.com/ubi9/python-39:9.5-1745333506@sha256:f0706d250b9712a7544230a6ac8507ac46cfddd14e8016ab5f30bbaea9bf3a80
     script: |
       #!/bin/python3
       import json
@@ -493,7 +493,7 @@ spec:
       runAsUser: 0
 
   - name: inject-sbom-and-push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     computeResources: {}
     script: |
       if [ -n "${PARAM_BUILDER_IMAGE}" ]; then

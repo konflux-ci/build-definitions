@@ -29,36 +29,29 @@
 
 # upload-sbom
 - op: test
-  path: /spec/steps/5/name
-  value: upload-sbom
-- op: remove
-  path: /spec/steps/5
-
-# prepare-sboms
-- op: test
   path: /spec/steps/4/name
-  value: prepare-sboms
+  value: upload-sbom
 - op: remove
   path: /spec/steps/4
 
-# sbom-syft-generate
+# prepare-sboms
 - op: test
   path: /spec/steps/3/name
-  value: sbom-syft-generate
+  value: prepare-sboms
 - op: remove
   path: /spec/steps/3
 
-# push
+# sbom-syft-generate
 - op: test
   path: /spec/steps/2/name
-  value: push
+  value: sbom-syft-generate
 - op: remove
   path: /spec/steps/2
 
-# icm
+# push
 - op: test
   path: /spec/steps/1/name
-  value: icm
+  value: push
 - op: remove
   path: /spec/steps/1
 
@@ -71,7 +64,7 @@
 - op: replace
   path: /spec/steps/0/image
   # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
-  value: quay.io/redhat-services-prod/sast/coverity:202412.5
+  value: quay.io/redhat-services-prod/sast/coverity:202412.7
 
 # Change build step resources
 - op: replace
@@ -159,7 +152,7 @@
   path: /spec/steps/0
   value:
     name: prepare
-    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    image: quay.io/redhat-services-prod/sast/coverity:202412.7
     workingDir: $(workspaces.source.path)
     env:
       - name: COV_ANALYZE_ARGS
@@ -304,7 +297,7 @@
   path: /spec/steps/2
   value:
     name: postprocess
-    image: quay.io/redhat-services-prod/sast/coverity:202412.5
+    image: quay.io/redhat-services-prod/sast/coverity:202412.7
     computeResources:
       limits:
         memory: 16Gi

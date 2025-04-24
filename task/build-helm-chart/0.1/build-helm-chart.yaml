@@ -45,7 +45,7 @@ spec:
     name: IMAGE_URL
   steps:
   - name: package-and-push
-    image: quay.io/konflux-ci/tools@sha256:124b826e5abcb45c0bd50f5d9e91d991f53b460686e309b8284ff2a3de58b3f1
+    image: quay.io/konflux-ci/tools@sha256:02dca6635e089ea577b7994743b661e8003a8bdca4c842472d883781dbdd5e38
     env:
     - name: REPO
       value: "$(params.REPO)"
@@ -104,8 +104,18 @@ spec:
       chart_version="$chart_version$VERSION_SUFFIX"
       helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
 
+      # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
+      # need to provide it with just one option
+      jq --arg registry "$REPO" '.auths[$registry]' ~/.docker/config.json \
+        | jq -n --arg registry "$REPO" '{auths:{($registry):inputs}}' \
+        > scoped_authfile.json
+
       dest="oci://${REPO%/*}"
-      output=$(helm push "$chart_name"-"$chart_version".tgz "$dest" 2>&1)
+
+      output=$(
+        helm push "$chart_name"-"$chart_version".tgz "$dest" \
+        --registry-config ./scoped_authfile.json 2>&1
+      )
       pushed=$(echo "$output" | grep "Pushed" | awk '{print $2}')
       digest=$(echo "$output" | grep "Digest" | awk '{print $2}')
 

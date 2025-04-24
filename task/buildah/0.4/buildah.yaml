@@ -110,6 +110,10 @@ spec:
     description: Additional key=value annotations that should be applied to the image
     type: array
     default: []
+  - name: ANNOTATIONS_FILE
+    description: Path to a file with additional key=value annotations that should be applied to the image
+    type: string
+    default: ""
   - name: PRIVILEGED_NESTED
     description: Whether to enable privileged mode, should be used only with remote VMs
     type: string
@@ -197,9 +201,11 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: ANNOTATIONS_FILE
+      value: $(params.ANNOTATIONS_FILE)
 
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     computeResources:
       limits:
@@ -263,7 +269,12 @@ spec:
       dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
       cp "$dockerfile_path" "$dockerfile_copy"
 
-      echo "[$(date --utc -Ins)] Prepare system"
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
       # Fixing group permission on /var/lib/containers
       chown root:root /var/lib/containers
@@ -287,6 +298,17 @@ spec:
 
       LABELS=()
       ANNOTATIONS=()
+      # Append any annotations from the specified file
+      if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          # Skip empty lines and comments
+          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            ANNOTATIONS+=("--annotation" "$line")
+          fi
+        done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+      fi
+
       # Split `args` into two sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
@@ -500,6 +522,7 @@ spec:
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
       echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
@@ -548,22 +571,8 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - name: icm
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
-    securityContext:
-      capabilities:
-        add:
-          - SETFCAP
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    workingDir: $(workspaces.source.path)
-    script: |
-      #!/bin/bash
-      set -euo pipefail
-      /scripts/inject-icm.sh "$IMAGE"
   - name: push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -681,7 +690,7 @@ spec:
       name: shared
 
   - name: prepare-sboms
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:55a6cd6b6653af365d1627569b0c77a7eb9f8d5ea14406eb455253a421b7f6b6
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
     computeResources:
       limits:
         memory: 512Mi

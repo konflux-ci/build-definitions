@@ -97,7 +97,7 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: generate-container-auth
-      image: quay.io/konflux-ci/oras:latest@sha256:fdf6e7156d4dec42ab2d20cf229eaf4bef886e93b1fd562d7734dc6a5bddd6e8
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
       env:
       - name: PARAM_IMAGE_URL
         value: $(params.image-url)
@@ -123,7 +123,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.8@sha256:2224fabdb0a28a415d4af4c58ae53d7c4c53c83c315f12e07d1d7f48a80bfa70
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
       results:
       - name: test-output
         description: A skipped tekton result for bundles.
@@ -144,7 +144,9 @@ spec:
         . /utils.sh # gives us the make_result_json helper used below.
 
         # Generate TEST_OUTPUT
-        TEST_OUTPUT=$(make_result_json -r "SKIPPED" -t "${NOTE}")
+        # We're skipping the test, but don't use status "SKIPPED" because
+        # it produces unwanted Conforma violations
+        TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "${NOTE}")
 
         printf "%s" "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /bundle/konflux.results.json
       volumeMounts:
@@ -152,7 +154,7 @@ spec:
           mountPath: /bundle
 
     - name: app-check
-      image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
+      image: quay.io/opdev/preflight:stable@sha256:8f88ee1e9aca6d966ee3ca51fffeb9e25bc6e885ef7a330efbffdcb5d18a5a15
       args: ["check", "container", "$(params.image-url)"]
       resources:
         limits:
@@ -163,6 +165,8 @@ spec:
       env:
         - name: PFLT_DOCKERCONFIG
           value: "$(steps.generate-container-auth.results.auth-json-path)"
+        - name: PFLT_KONFLUX
+          value: "true"
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts

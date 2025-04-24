@@ -22,6 +22,12 @@ spec:
         instructions specified in a multistage Dockerfile.
       type: string
       default: ""
+    - name: IGNORE_UNSIGNED_IMAGE
+      description: When set to "true", source build task won't fail
+        when source image is missing signatures (this can be used for
+        development)
+      type: string
+      default: "false"
   results:
     - name: BUILD_RESULT
       description: Build result.
@@ -114,7 +120,7 @@ spec:
         fi
 
     - name: build
-      image: quay.io/konflux-ci/source-container-build:latest@sha256:d08dfc75a65ed49b69848c0b3433d8d49d941598f9225bc08d69d5f483446843
+      image: quay.io/konflux-ci/source-container-build:latest@sha256:070a82c42f05f4fd5e11f3de4bf164869772a04222bbbefbf4b5145b7ae393da
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       computeResources:
@@ -142,6 +148,8 @@ spec:
           value: "$(results.SOURCE_IMAGE_DIGEST.path)"
         - name: WS_BUILD_RESULT_FILE
           value: "$(workspaces.workspace.path)/source_build_result.json"
+        - name: IGNORE_UNSIGNED_IMAGE
+          value: $(params.IGNORE_UNSIGNED_IMAGE)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -160,14 +168,20 @@ spec:
 
         base_images=$(if [[ -f "$BASE_IMAGES_FILE" ]]; then cat "$BASE_IMAGES_FILE"; fi)
 
-        ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py \
-          --output-binary-image "$BINARY_IMAGE" \
-          --workspace /var/source-build \
-          --source-dir "$SOURCE_DIR" \
-          --base-images "$base_images" \
-          --write-result-to "$RESULT_FILE" \
-          --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR" \
+        args=(
+          --output-binary-image "$BINARY_IMAGE"
+          --workspace /var/source-build
+          --source-dir "$SOURCE_DIR"
+          --base-images "$base_images"
+          --write-result-to "$RESULT_FILE"
+          --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR"
           --registry-allowlist="$registry_allowlist"
+        )
+        if [ "$IGNORE_UNSIGNED_IMAGE" == "true" ]; then
+          args+=(--ignore-unsigned-image)
+        fi
+
+        ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py "${args[@]}"
 
         cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
         cat "$RESULT_FILE" | jq -j ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"

@@ -49,6 +49,10 @@ spec:
     description: HTTPS proxy server for SSL requests.
     name: httpsProxy
     type: string
+  - default: "false"
+    description: Set to "true" to merge the targetBranch into the checked-out revision.
+    name: mergeTargetBranch
+    type: string
   - default: ""
     description: Opt out of proxying HTTP/HTTPS requests.
     name: noProxy
@@ -86,6 +90,11 @@ spec:
   - default: "true"
     description: Initialize and fetch git submodules.
     name: submodules
+    type: string
+  - default: main
+    description: The target branch to merge into the revision (if mergeTargetBranch
+      is true).
+    name: targetBranch
     type: string
   - description: Repository URL to clone from.
     name: url
@@ -130,6 +139,9 @@ spec:
     name: commit
   - description: The commit timestamp of the checkout
     name: commit-timestamp
+  - description: The SHA of the commit after merging the target branch (if the param
+      mergeTargetBranch is true).
+    name: merged_sha
   - description: The commit SHA that was fetched by this Task limited to params.shortCommitLength
       number of characters
     name: short-commit
@@ -167,6 +179,10 @@ spec:
       value: $(params.userHome)
     - name: PARAM_FETCH_TAGS
       value: $(params.fetchTags)
+    - name: PARAM_MERGE_TARGET_BRANCH
+      value: $(params.mergeTargetBranch)
+    - name: PARAM_TARGET_BRANCH
+      value: $(params.targetBranch)
     - name: WORKSPACE_SSH_DIRECTORY_BOUND
       value: $(workspaces.ssh-directory.bound)
     - name: WORKSPACE_SSH_DIRECTORY_PATH
@@ -236,6 +252,41 @@ spec:
       EXIT_CODE="$?"
       if [ "${EXIT_CODE}" != 0 ]; then
         exit "${EXIT_CODE}"
+      fi
+      if [ "${PARAM_MERGE_TARGET_BRANCH}" = "true" ]; then
+        echo "Merge option enabled. Attempting to merge target branch '${PARAM_TARGET_BRANCH}' into HEAD (${RESULT_SHA})."
+        echo "Fetching target branch '${PARAM_TARGET_BRANCH}'..."
+        git fetch origin "${PARAM_TARGET_BRANCH}"
+        FETCH_EXIT_CODE="$?"
+        if [ "${FETCH_EXIT_CODE}" != "0" ]; then
+          echo "ERROR: Failed to fetch target branch '${PARAM_TARGET_BRANCH}'." >&2
+          exit "${FETCH_EXIT_CODE}"
+        fi
+        echo "Merging origin/${PARAM_TARGET_BRANCH} into current HEAD..."
+        git config --global user.email "tekton-git-clone@tekton.dev"
+        git config --global user.name "Tekton Git Clone Task"
+        git merge "origin/${PARAM_TARGET_BRANCH}" --no-commit --no-ff --allow-unrelated-histories
+        MERGE_CHECK_EXIT_CODE="$?"
+        if [ "${MERGE_CHECK_EXIT_CODE}" != "0" ]; then
+          echo "ERROR: Merge conflict detected or merge failed before commit." >&2
+          echo "--- Git Status ---"
+          git status
+          echo "------------------"
+          exit "${MERGE_CHECK_EXIT_CODE}"
+        else
+          echo "Merge successful (no conflicts found), committing..."
+          git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' into ${RESULT_SHA}"
+          COMMIT_EXIT_CODE="$?"
+          if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
+            echo "ERROR: Failed to commit merge." >&2
+            exit "${COMMIT_EXIT_CODE}"
+          fi
+          MERGED_SHA=$(git rev-parse HEAD)
+          echo "New HEAD after merge: ${MERGED_SHA}"
+          echo "${MERGED_SHA}" >"$(results.merged_sha.path)"
+        fi
+      else
+        echo "Merge option disabled. Using checked-out revision ${RESULT_SHA} directly."
       fi
       printf "%s" "${RESULT_SHA}" >"$(results.commit.path)"
       printf "%s" "${RESULT_SHA}" >"$(results.CHAINS-GIT_COMMIT.path)"
@@ -330,7 +381,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
     name: create-trusted-artifact
     volumeMounts:
     - mountPath: /var/workdir

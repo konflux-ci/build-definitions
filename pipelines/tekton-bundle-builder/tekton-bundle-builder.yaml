@@ -143,11 +143,15 @@ spec:
       value: $(params.output-image)
     - name: CONTEXT
       value: $(params.path-context)
+    - name: URL
+      value: $(params.git-url)
+    - name: REVISION
+      value: $(params.revision)
     runAfter:
     - prefetch-dependencies
     taskRef:
       name: tkn-bundle
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(tasks.init.results.build)
       operator: in
@@ -200,13 +204,15 @@ spec:
       workspace: workspace
   - name: sast-unicode-check
     params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-image-index.results.IMAGE_URL)
     runAfter:
     - build-image-index
     taskRef:
       name: sast-unicode-check
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in
