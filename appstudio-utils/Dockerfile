@@ -1,4 +1,4 @@
-FROM quay.io/enterprise-contract/ec-cli:snapshot AS ec-image
+FROM quay.io/enterprise-contract/cli:latest AS ec-image
 FROM registry.access.redhat.com/ubi9/ubi
 
 COPY --from=ec-image /usr/local/bin/ec_linux_amd64.gz /usr/bin/ec.gz
