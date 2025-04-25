@@ -45,6 +45,7 @@ spec:
         status=-1
         max_try=5
         wait_sec=2
+        local extra_args=("$@")
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth
@@ -54,10 +55,9 @@ spec:
           exit 1
         fi
 
-        PLATFORM_ARG="$1"
         for run in $(seq 1 $max_try); do
           status=0
-          DOCKER_CONFIG=/tmp/auth cosign download sbom $PLATFORM_ARG $IMAGE_URL 2>>err
+          DOCKER_CONFIG=/tmp/auth cosign download sbom "${extra_args[@]}" "$IMAGE_URL" 2>>err
           status=$?
           if [ "$status" -eq 0 ]; then
             break
@@ -80,9 +80,9 @@ spec:
 
       if [ -z "${ARCHES}" ] ; then
         # single arch image
-        download_sbom_with_retry ""
+        download_sbom_with_retry
       else
-        download_sbom_with_retry " --platform=$PLATFORM "
+        download_sbom_with_retry --platform="$PLATFORM"
       fi
     volumeMounts:
     - name: trusted-ca
