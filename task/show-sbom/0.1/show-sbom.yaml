@@ -46,10 +46,18 @@ spec:
         max_try=5
         wait_sec=2
 
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth
+        if ! select-oci-auth "$IMAGE_URL" 2>/tmp/stderr >/tmp/auth/config.json; then
+          # Print stderr only in case of failure. This task is supposed to output *only* the SBOM on success.
+          cat /tmp/stderr
+          exit 1
+        fi
+
         PLATFORM_ARG="$1"
         for run in $(seq 1 $max_try); do
           status=0
-          cosign download sbom $PLATFORM_ARG $IMAGE_URL 2>>err
+          DOCKER_CONFIG=/tmp/auth cosign download sbom $PLATFORM_ARG $IMAGE_URL 2>>err
           status=$?
           if [ "$status" -eq 0 ]; then
             break
