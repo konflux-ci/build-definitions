@@ -163,7 +163,9 @@ spec:
         sbom_type=spdx
       fi
 
-      cosign attach sbom --sbom sbom.json --type "$sbom_type" "$IMAGE"
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$IMAGE" >/tmp/auth/config.json
+      DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$sbom_type" "$IMAGE"
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
