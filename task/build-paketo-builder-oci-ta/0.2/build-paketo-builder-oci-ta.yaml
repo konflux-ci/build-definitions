@@ -525,7 +525,9 @@ spec:
           update-ca-trust
         fi
 
-        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
+        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
