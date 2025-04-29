@@ -31,6 +31,10 @@ spec:
       type: string
       description: The name of the key in the ConfigMap that contains the CA bundle data.
       default: ca-bundle.crt
+    - name: scan-threads
+      type: string
+      description: Number of threads to run in clamscan parallel. Should be <= 8.
+      default: "1"
 
   steps:
     - name: extract-and-scan-image
@@ -51,14 +55,40 @@ spec:
           value: $(params.image-url)
         - name: IMAGE_DIGEST
           value: $(params.image-digest)
+        - name: SCAN_THREADS
+          value: $(params.scan-threads)
+        - name: MAX_SCAN_THREADS
+          value: "8"
       computeResources:
         limits:
-          memory: 8Gi
+          memory: 16Gi
         requests:
           memory: 2Gi
-          cpu: 500m
+          cpu: 1
       script: |
         #!/usr/bin/env bash
+
+        echo "SCAN_THREADS: $SCAN_THREADS"
+
+        threads="${SCAN_THREADS:-1}"
+
+        # validate SCAN_THREADS is numeric
+        if ! [[ "$threads" =~ ^[0-9]+$ ]]; then
+          echo "[ERROR] SCAN_THREADS must be a positive integer."
+          exit 1
+        fi
+
+        # warning if SCAN_THREADS is greater than visible CPUs
+        if [ "$threads" -gt "$(nproc)" ]; then
+          echo "[WARN] SCAN_THREADS ($threads) exceeds visible CPUs ($(nproc)) — performance may degrade."
+        fi
+
+        # Cap threads to MAX_THREADS
+        if [ "$threads" -gt "$MAX_SCAN_THREADS" ]; then
+          echo "SCAN_THREADS ($threads) exceeds MAX_SCAN_THREADS ($MAX_SCAN_THREADS) — capping threads to: $MAX_SCAN_THREADS"
+          threads="$MAX_SCAN_THREADS"
+        fi
+
         set -euo pipefail
         . /utils.sh
         trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
@@ -99,40 +129,109 @@ spec:
 
             db_version=$(clamscan --version | sed 's|.*/\(.*\)/.*|\1|')
 
-            echo "Scanning image for arch $arch. This operation may take a while."
-            clamscan "${destination}" -ri --max-scansize=4095M --max-filesize=2000M \
-              --max-scantime=0 --max-files=0 --max-recursion=1000 --max-dir-recursion=20000 --max-embeddedpe=4095M \
-              --max-htmlnormalize=10M --max-htmlnotags=4095M --max-scriptnormalize=5M --max-ziptypercg=4095M \
-              --max-partitions=50000 --max-iconspe=100000 --max-rechwp3=20000 --pcre-match-limit=100000000 --pcre-recmatch-limit=2000000 \
-              --pcre-max-filesize=4095M --alert-exceeds-max=yes \
-              --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
-              --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
-              | tee /work/logs/clamscan-result-$arch.log || true
+            if [[ "$threads" -eq 1 ]]; then
+              # single-threaded so use the original task code
+              # no change, from the original except we hardcode a "-1-" to the logfile
+              # so the results processing later treats this as a single bucket log
+              echo "Single-threaded mode detected."
+              echo "Scanning image for arch $arch. This operation may take a while."
+              clamscan "${destination}" -ri --max-scansize=4095M --max-filesize=2000M \
+                --max-scantime=0 --max-files=0 --max-recursion=1000 --max-dir-recursion=20000 --max-embeddedpe=4095M \
+                --max-htmlnormalize=10M --max-htmlnotags=4095M --max-scriptnormalize=5M --max-ziptypercg=4095M \
+                --max-partitions=50000 --max-iconspe=100000 --max-rechwp3=20000 --pcre-match-limit=100000000 --pcre-recmatch-limit=2000000 \
+                --pcre-max-filesize=4095M --alert-exceeds-max=yes \
+                --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
+                --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
+                | tee /work/logs/clamscan-result-1-$arch.log || true
+            else
+              echo "Multi-threaded mode detected ($threads threads)."
 
-            echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database version: $db_version" | tee -a "/work/logs/clamscan-result-$arch.log"
+              # Step 1: Generate complete manifest of all file paths in the destination and their sizes
+              # the paths names are sanitized to handle the following valid filenames:
+              #   1. spaces
+              #   2. newlines
+              #   3. special characters
+              echo "Generating sanitized file list..."
+              find "$destination" -type f -print0 | while IFS= read -r -d '' file; do
+                  # get the file size with stat this is used for sorting later                
+                  size=$(stat -c "%s" "$file")
+                  
+                  # tsv format: <size>\t<path>
+                  printf "%s\t%s\n" "$size" "$file"
+              done >"$HOME/files_manifest.tsv"
+
+              # Step 2: Sort the list by size descending
+              echo "Sorting files by size (descending)..."
+              sort -nr "$HOME/files_manifest.tsv" >"$HOME/files_manifest_sorted.tsv"
+
+              # Step 3: create empty bucket files based on scan-threads
+              for i in $(seq 0 $((threads - 1))); do
+                  : >"$HOME/file_bucket_$i.txt" # Clear or create empty files
+              done
+
+              # Step 3: Distribute files to buckets (round-robin), this should produce equally weighted buckets
+              echo "Distributing files into $threads buckets..."
+              i=0
+              while IFS=$'\t' read -r size path; do
+                  bucket=$((i % threads))
+                  echo "$path" >>"$HOME/file_bucket_$bucket.txt"
+                  ((i = i + 1))
+              done <"$HOME/files_manifest_sorted.tsv"
+
+              # Step 5: Launch clamscan processes in parallel giving each process a file bucket to work on
+              echo "Launching clamscan processes..."
+              for i in $(seq 0 $((threads - 1))); do
+                  LOGFILE="$HOME/logs/clamscan-result-$i-$arch.log"
+                  BUCKET_FILE="$HOME/file_bucket_$i.txt"
+
+                  echo "Starting clamscan on bucket $i..."
+
+                  clamscan -f "$BUCKET_FILE" -i --max-scansize=4095M --max-filesize=2000M \
+                      --max-scantime=0 --max-files=0 --max-embeddedpe=4095M \
+                      --max-htmlnormalize=10M --max-htmlnotags=4095M --max-scriptnormalize=5M --max-ziptypercg=4095M \
+                      --max-partitions=50000 --max-iconspe=100000 --max-rechwp3=20000 --pcre-match-limit=100000000 --pcre-recmatch-limit=2000000 \
+                      --pcre-max-filesize=4095M --alert-exceeds-max=yes \
+                      --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
+                      --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
+                      | tee "$LOGFILE" || true &
+              done
+
+              echo "Waiting for all clamscan processes to finish..."
+              wait
+              echo "All scans completed. Logs are in: $HOME"
+            fi
 
             digests_processed+=("\"$arch_sha\"")
 
-            if [[ -e "/work/logs/clamscan-result-$arch.log" ]]; then
-              # file_suffix=$(basename "$file" | sed 's/clamscan-result-//;s/.log//')
-              # OPA/EC requires structured data input, add clamAV log into json
-              jq -Rs '{ output: . }' /work/logs/clamscan-result-$arch.log > /work/logs/clamscan-result-log-$arch.json
+            for logfile in /work/logs/clamscan-result-*-"$arch".log; do
+              [ -e "$logfile" ] || continue  # skip if no matching files
 
+              echo "Executed-on: Scan was executed on clamscan version - $(clamscan --version) Database version: $db_version" | tee -a "$logfile"
+
+              echo "Running EC on: $logfile"
+              bucket_id=$(basename "$logfile" | sed -E 's/clamscan-result-([0-9]+)-.*\.log/\1/')
+              json_input="/work/logs/clamscan-result-$bucket_id-$arch.json"
+              json_output="/work/logs/clamscan-ec-test-$bucket_id-$arch.json"
+
+              # Convert log to JSON format for EC
+              jq -Rs '{ output: . }' "$logfile" > "$json_input"
+
+              # Run EC (json)
               EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
                 -o json \
-                /work/logs/clamscan-result-log-$arch.json || true
+                "$json_input" || true
 
               # workaround: due to a bug in ec-cli, we cannot generate json and appstudio output at the same time, running it again
               EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
                 -o appstudio \
-                /work/logs/clamscan-result-log-$arch.json | tee /work/logs/clamscan-ec-test-$arch.json || true
+                "$json_input" | tee "$json_output" || true
 
-              cat /work/logs/clamscan-ec-test-$arch.json
-            fi
+              cat "$json_output"
+            done
           done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
         fi
 
