@@ -100,6 +100,13 @@ spec:
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
 
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
       if [[ -z "$PUBLIC_KEY" ]]; then
         echo "No public key set, cannot verify attestation." >&2
         exit 1
@@ -134,6 +141,13 @@ spec:
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
+
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       get_from_www_auth_header() {
           local www_authenticate=$1
