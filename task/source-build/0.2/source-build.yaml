@@ -54,7 +54,7 @@ spec:
         mountPath: /var/source-build
   steps:
     - name: get-base-images
-      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
       env:
         - name: BASE_IMAGES
           value: "$(params.BASE_IMAGES)"
@@ -83,9 +83,12 @@ spec:
             image=$BINARY_IMAGE
         fi
 
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$image" > /tmp/auth/config.json
+
         for i in {1..5}; do
             echo "Downloading SBOM for $image (attempt $i)"
-            sbom=$(cosign download sbom "$image") && break
+            sbom=$(DOCKER_CONFIG=/tmp/auth cosign download sbom "$image") && break
             [[ "$i" -lt 5 ]] && sleep 1
         done
 
