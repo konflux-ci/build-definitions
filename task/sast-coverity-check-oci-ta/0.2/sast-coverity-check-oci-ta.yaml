@@ -18,6 +18,11 @@ spec:
       description: Name of secret which contains subscription activation key
       type: string
       default: activation-key
+    - name: ADDITIONAL_BASE_IMAGES
+      description: Additional base image references to include to the SBOM.
+        Array of image_reference_with_digest strings
+      type: array
+      default: []
     - name: ADDITIONAL_SECRET
       description: Name of a secret which will be made available to the build
         with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -33,6 +38,11 @@ spec:
         to the image
       type: array
       default: []
+    - name: ANNOTATIONS_FILE
+      description: Path to a file with additional key=value annotations that
+        should be applied to the image
+      type: string
+      default: ""
     - name: BUILDAH_FORMAT
       description: The format for the resulting image's mediaType. Valid values
         are oci (default) or docker.
@@ -231,6 +241,8 @@ spec:
         value: $(params.ADDITIONAL_SECRET)
       - name: ADD_CAPABILITIES
         value: $(params.ADD_CAPABILITIES)
+      - name: ANNOTATIONS_FILE
+        value: $(params.ANNOTATIONS_FILE)
       - name: BUILD_ARGS_FILE
         value: $(params.BUILD_ARGS_FILE)
       - name: CONTEXT
@@ -274,7 +286,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -285,7 +297,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -350,6 +362,14 @@ spec:
           fi
         fi
 
+        # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
+
+        # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+        export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
+
+        # always use a fresh temp directory for Coverity to avoid "Permission denied" errors on reuse
+        export COVERITY_TEMP="\$(mktemp -d /tmp/cov-XXXXXXXX)"
+
         # always remove Coverity's intermediate directory so that it can be recreated with different ownership
         trap 'rm -fr /tmp/idir' EXIT
 
@@ -406,7 +426,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -482,7 +502,12 @@ spec:
         dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
         cp "$dockerfile_path" "$dockerfile_copy"
 
-        echo "[$(date --utc -Ins)] Prepare system"
+        # Inject the image content manifest into the container we are producing.
+        # This will generate the content-sets.json file and copy it by appending a COPY
+        # instruction to the Containerfile.
+        inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+        echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
         # Fixing group permission on /var/lib/containers
         chown root:root /var/lib/containers
@@ -506,6 +531,17 @@ spec:
 
         LABELS=()
         ANNOTATIONS=()
+        # Append any annotations from the specified file
+        if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+          echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip empty lines and comments
+            if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+              ANNOTATIONS+=("--annotation" "$line")
+            fi
+          done <"${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        fi
+
         # Split `args` into two sets of arguments.
         while [[ $# -gt 0 ]]; do
           case $1 in
@@ -728,6 +764,7 @@ spec:
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
         echo "[$(date --utc -Ins)] Run buildah build"
+        echo "[$(date --utc -Ins)] ${command}"
 
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
 
@@ -769,7 +806,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca

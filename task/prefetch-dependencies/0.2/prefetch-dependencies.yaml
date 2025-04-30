@@ -72,7 +72,7 @@ spec:
         name: shared
   steps:
   - name: sanitize-cachi2-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:1b078faee108f1f9b447cce1c8b7c7ca6d5cfb4de7dc762c9743a3090c307eef
+    image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -83,7 +83,7 @@ spec:
       fi
 
   - name: prefetch-dependencies
-    image: quay.io/konflux-ci/cachi2:0.22.2@sha256:c24dbc207b0eca1fe742a53b50feca2182dc0f998e5b91af6a7c94c3132bdcd0
+    image: quay.io/konflux-ci/hermeto:0.24.0@sha256:f8450e56df21662f5c38babfe7c88f15eecdb99a2c199c8da585b22b2f76ed46
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -301,6 +301,13 @@ spec:
       fi
 
       INPUT=$(inject_rpm_summary_flag "$INPUT")
+
+      # Some repos with go submodules would fail during prefetch dependencies task
+      # Forcing fetching tags serves as a workaround
+      if [[ "$(cd "$(workspaces.source.path)/source" && ! git fetch --tags)" ]]; then
+        echo "Retrying fetch command..."
+        "$(cd "$(workspaces.source.path)/source" && git fetch --tags)"
+      fi
 
       cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
       $dev_pacman_flag \

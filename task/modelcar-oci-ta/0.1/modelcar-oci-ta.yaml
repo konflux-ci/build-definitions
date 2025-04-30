@@ -1,0 +1,188 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: modelcar
+  name: modelcar-oci-ta
+spec:
+  description: |-
+    Given a base image and a OCI artifact reference with the model files, builds a ModelCar image.
+
+    A ModelCar is a containerized approach to deploying machine learning models. It involves packaging
+    model artifacts within a container image, enabling efficient and standardized deployment in
+    Kubernetes environments, used as Sidecar containers (secondary containers that run alongside the
+    main application container within the same Pod)
+
+    The ModelCar image is built using the specified BASE_IMAGE parameter, which is extracted to an
+    OCI image layout directory. Then all files included in the OCI artifact specified with the
+    MODEL_IMAGE parameter are copied on top.
+
+    An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
+    generated in the process.
+  params:
+    - name: MODEL_IMAGE_AUTH
+      description: Name of secret required to pull the model OCI artifact
+      type: string
+    - name: IMAGE
+      description: Reference of the image we will push
+      type: string
+    - name: SBOM_TYPE
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx.'
+      type: string
+      default: spdx
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: BASE_IMAGE
+      description: base image used to build the Modelcar image
+      type: string
+    - name: MODEL_IMAGE
+      description: OCI artifact reference with the model files
+      type: string
+    - name: MODELCARD_PATH
+      description: path to the Model Card
+      type: string
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the artifact just pushed
+    - name: IMAGE_REF
+      description: Image reference of the built image
+    - name: IMAGE_URL
+      description: Repository where the artifact was pushed
+    - name: SBOM_BLOB_URL
+      description: Link to the SBOM blob pushed to the registry.
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+    - name: model-secret
+      secret:
+        secretName: $(params.MODEL_IMAGE_AUTH)
+    - name: shared
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+  stepTemplate:
+    env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
+      - name: BASE_IMAGE
+        value: $(params.BASE_IMAGE)
+      - name: MODEL_IMAGE
+        value: $(params.MODEL_IMAGE)
+      - name: TARGET_OCI
+        value: "/var/workdir/modelcar-oci"
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: download-model-files
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
+      volumeMounts:
+        - mountPath: /model-secret
+          name: model-secret
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -eu
+        set -o pipefail
+
+        oras pull "$MODEL_IMAGE" \
+          --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
+    - name: create-modelcar-base-image
+      image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -eu
+        set -o pipefail
+        oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
+        chmod -R g+w "$TARGET_OCI"
+
+    - name: copy-model-files
+      image: registry.access.redhat.com/ubi9/python-311:9.5-1744097391
+      workingDir: /var/workdir
+      env:
+        - name: OLOT_VERSION
+          value: 0.1.5
+        - name: MODELCARD_PATH
+          value: $(params.MODELCARD_PATH)
+      script: |
+        #!/bin/bash
+        set -eu
+        set -o pipefail
+
+        pip install olot=="${OLOT_VERSION}"
+        olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+
+    - name: push-image
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -eu
+        set -o pipefail
+
+        select-oci-auth "$IMAGE" >auth.json
+
+        echo "Pushing complete artifact manifest to ${IMAGE}"
+        oras cp --to-registry-config auth.json --from-oci-layout "${TARGET_OCI}:latest" "$IMAGE"
+
+        echo "Push complete!"
+        RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
+        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        echo
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
+
+    - name: sbom-generate
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:e0248065d0b9a29197ae9c4c976a5c8d9f1c4430e4bdd8822f7c246716a0e01b
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
+
+        python3 /scripts/sbom_for_modelcar_task.py \
+        --sbom-type "$SBOM_TYPE" \
+        --modelcar-image "$MODELCAR_IMAGE" \
+        --base-image "$BASE_IMAGE" \
+        --model-image "$MODEL_IMAGE" \
+        --output-file sbom.json \
+
+    - name: upload-sbom
+      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      workingDir: /var/workdir
+      script: |
+        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+    - name: report-sbom-url
+      image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        REPO=${IMAGE%:*}
+        echo "Found that ${REPO} is the repository for ${IMAGE}"
+        SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
+        echo "Found that ${SBOM_DIGEST} is the SBOM digest"
+        echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee "$(results.SBOM_BLOB_URL.path)"

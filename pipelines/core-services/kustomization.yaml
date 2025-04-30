@@ -17,3 +17,11 @@ patches:
 - path: slack-notification.yaml
   target:
     kind: Pipeline
+- target:
+    kind: Pipeline
+  # Remove privilege-nested pipeline param and PRIVILEGE_NESTED task param
+  patch: |-
+    - op: remove
+      path: /spec/params/14
+    - op: remove
+      path: /spec/tasks/3/params/9

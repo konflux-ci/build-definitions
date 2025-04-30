@@ -80,6 +80,10 @@ spec:
       default: "false"
       description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
       type: string
+    - name: workspace-path
+      default: "./"
+      description: "Contains the path to the code directory to scan"
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -133,6 +137,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['pipelinesascode.tekton.dev/event-type']
+        - name: WORKSPACE_PATH
+          value: $(params.workspace-path)
       args: ["$(params.packages-excluded[*])"]
       script: |
         #!/bin/bash
@@ -183,7 +189,7 @@ spec:
         fi
 
         if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
+          --workspacepath "${WORKSPACE_PATH}" --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
           handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
         fi
 

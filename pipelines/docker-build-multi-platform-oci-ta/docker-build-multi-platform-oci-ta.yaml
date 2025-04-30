@@ -78,6 +78,11 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - default: "false"
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
+    name: privileged-nested
+    type: string
   - default:
     - linux/x86_64
     description: List of platforms to build the container images on. The available
@@ -174,6 +179,8 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
+    - name: PRIVILEGED_NESTED
+      value: $(params.privileged-nested)
     - name: SOURCE_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
@@ -277,7 +284,7 @@ spec:
     - build-image-index
     taskRef:
       name: ecosystem-cert-preflight-checks
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -297,7 +304,7 @@ spec:
     - build-image-index
     taskRef:
       name: sast-snyk-check-oci-ta
-      version: "0.3"
+      version: "0.4"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -322,6 +329,8 @@ spec:
       - "false"
   - name: sast-coverity-check
     params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE
@@ -351,7 +360,7 @@ spec:
     - coverity-availability-check
     taskRef:
       name: sast-coverity-check-oci-ta
-      version: "0.2"
+      version: "0.3"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -396,6 +405,8 @@ spec:
     workspaces: []
   - name: sast-unicode-check
     params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: SOURCE_ARTIFACT
@@ -406,7 +417,7 @@ spec:
     - build-image-index
     taskRef:
       name: sast-unicode-check-oci-ta
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in

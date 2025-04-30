@@ -77,7 +77,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: package-and-push
-      image: quay.io/konflux-ci/tools@sha256:ec3e34f63f421ff762c5d9825aa35d06c01ae12a79bba34647995a3c8e286245
+      image: quay.io/konflux-ci/tools@sha256:af21f10123e7b8be649c4eb57330fa6ff20e7c3a010d4b0f20162dce7c0a755d
       workingDir: /var/workdir
       env:
         - name: REPO
@@ -134,8 +134,18 @@ spec:
         chart_version="$chart_version$VERSION_SUFFIX"
         helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
 
+        # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
+        # need to provide it with just one option
+        jq --arg registry "$REPO" '.auths[$registry]' ~/.docker/config.json |
+          jq -n --arg registry "$REPO" '{auths:{($registry):inputs}}' \
+            >scoped_authfile.json
+
         dest="oci://${REPO%/*}"
-        output=$(helm push "$chart_name"-"$chart_version".tgz "$dest" 2>&1)
+
+        output=$(
+          helm push "$chart_name"-"$chart_version".tgz "$dest" \
+            --registry-config ./scoped_authfile.json 2>&1
+        )
         pushed=$(echo "$output" | grep "Pushed" | awk '{print $2}')
         digest=$(echo "$output" | grep "Digest" | awk '{print $2}')
 

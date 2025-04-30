@@ -216,7 +216,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -232,7 +232,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
     name: use-trusted-artifact
     volumeMounts:
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -255,7 +255,7 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     script: |-
       #!/bin/bash
@@ -292,7 +292,7 @@ spec:
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
         echo "$BUILD_DIR"
         # shellcheck disable=SC2086
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/volumes"
+        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/workspaces" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/volumes"
 
         PORT_FORWARD=""
         PODMAN_PORT_FORWARD=""
@@ -624,49 +624,51 @@ spec:
           # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
           # https://github.com/coreos/rpm-ostree/discussions/4648
           # shellcheck disable=SC2086
-          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/var/tmp"
+          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/var/tmp"
           PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
         fi
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         echo "[$(date --utc -Ins)] Build via ssh"
         # shellcheck disable=SC2086
+        # Please note: all variables below the first ssh line must be quoted with ${var@Q}!
+        # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
-          -e ACTIVATION_KEY="$ACTIVATION_KEY" \
-          -e ADDITIONAL_SECRET="$ADDITIONAL_SECRET" \
-          -e ADD_CAPABILITIES="$ADD_CAPABILITIES" \
-          -e BUILDAH_FORMAT="$BUILDAH_FORMAT" \
-          -e BUILD_ARGS_FILE="$BUILD_ARGS_FILE" \
-          -e CONTEXT="$CONTEXT" \
-          -e ENTITLEMENT_SECRET="$ENTITLEMENT_SECRET" \
-          -e HERMETIC="$HERMETIC" \
-          -e IMAGE="$IMAGE" \
-          -e IMAGE_EXPIRES_AFTER="$IMAGE_EXPIRES_AFTER" \
-          -e PRIVILEGED_NESTED="$PRIVILEGED_NESTED" \
-          -e SBOM_TYPE="$SBOM_TYPE" \
-          -e SKIP_SBOM_GENERATION="$SKIP_SBOM_GENERATION" \
-          -e SKIP_UNUSED_STAGES="$SKIP_UNUSED_STAGES" \
-          -e SOURCE_CODE_DIR="$SOURCE_CODE_DIR" \
-          -e SQUASH="$SQUASH" \
-          -e STORAGE_DRIVER="$STORAGE_DRIVER" \
-          -e TARGET_STAGE="$TARGET_STAGE" \
-          -e TLSVERIFY="$TLSVERIFY" \
-          -e YUM_REPOS_D_FETCHED="$YUM_REPOS_D_FETCHED" \
-          -e YUM_REPOS_D_SRC="$YUM_REPOS_D_SRC" \
-          -e YUM_REPOS_D_TARGET="$YUM_REPOS_D_TARGET" \
-          -e COMMIT_SHA="$COMMIT_SHA" \
-          -e DOCKERFILE="$DOCKERFILE" \
-          -v "$BUILD_DIR/volumes/shared:/shared:Z" \
-          -v "$BUILD_DIR/volumes/workdir:/var/workdir:Z" \
-          -v "$BUILD_DIR/volumes/etc-pki-entitlement:/entitlement:Z" \
-          -v "$BUILD_DIR/volumes/activation-key:/activation-key:Z" \
-          -v "$BUILD_DIR/volumes/additional-secret:/additional-secret:Z" \
-          -v "$BUILD_DIR/volumes/trusted-ca:/mnt/trusted-ca:Z" \
-          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
-          -v "$BUILD_DIR/results/:/tekton/results:Z" \
-          -v "$BUILD_DIR/scripts:/scripts:Z" \
-          "${PRIVILEGED_NESTED_FLAGS[@]}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]}" --rm "$BUILDER_IMAGE" /scripts/script-build.sh "$@"
+          -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
+          -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
+          -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e BUILDAH_FORMAT="${BUILDAH_FORMAT@Q}" \
+          -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
+          -e CONTEXT="${CONTEXT@Q}" \
+          -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
+          -e HERMETIC="${HERMETIC@Q}" \
+          -e IMAGE="${IMAGE@Q}" \
+          -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
+          -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e SBOM_TYPE="${SBOM_TYPE@Q}" \
+          -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
+          -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
+          -e SOURCE_CODE_DIR="${SOURCE_CODE_DIR@Q}" \
+          -e SQUASH="${SQUASH@Q}" \
+          -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
+          -e TARGET_STAGE="${TARGET_STAGE@Q}" \
+          -e TLSVERIFY="${TLSVERIFY@Q}" \
+          -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
+          -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
+          -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
+          -e COMMIT_SHA="${COMMIT_SHA@Q}" \
+          -e DOCKERFILE="${DOCKERFILE@Q}" \
+          -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
+          -v "${BUILD_DIR@Q}/volumes/workdir:/var/workdir:Z" \
+          -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
+          -v "${BUILD_DIR@Q}/volumes/activation-key:/activation-key:Z" \
+          -v "${BUILD_DIR@Q}/volumes/additional-secret:/additional-secret:Z" \
+          -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
+          -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
+          -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
+          "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
@@ -708,7 +710,7 @@ spec:
       readOnly: true
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
+    image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:3a5ef9e386dba9c8869f723dbd39646632b09b774ebf08bc9956ad5dd4f05754
     name: icm
     script: |
       #!/bin/bash
@@ -727,7 +729,7 @@ spec:
       name: varlibcontainers
     workingDir: /var/workdir
   - computeResources: {}
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: push
     script: |
       #!/bin/bash
@@ -829,7 +831,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:d90b3ed72cff083ab8238241df8b91d86d270b92d5d10eda16c70d55d02c211d
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -879,7 +881,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
     name: upload-sbom
     script: |
       #!/bin/bash

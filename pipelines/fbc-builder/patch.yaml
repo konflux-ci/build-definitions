@@ -31,7 +31,10 @@
 #     11  build-image-index
 #     12  build-args
 #     13  build-args-file
-#     14  build-platforms
+#     14  privileged-nested
+#     15  build-platforms
+- op: remove
+  path: /spec/params/14
 - op: replace
   path: /spec/params/7/default
   value: "true"
@@ -58,6 +61,21 @@
 - op: replace
   path: /spec/tasks/3/runAfter/0
   value: clone-repository
+# Remove params
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
+#      0	IMAGE
+#      1	DOCKERFILE
+#      2	CONTEXT
+#      3	HERMETIC
+#      4	PREFETCH_INPUT
+#      5	IMAGE_EXPIRES_AFTER
+#      6	COMMIT_SHA
+#      7	BUILD_ARGS
+#      8	BUILD_ARGS_FILE
+#      9	PRIVILEGED_NESTED
+#     10	SOURCE_ARTIFACT
+#     11	CACHI2_ARTIFACT
+#     12	IMAGE_APPEND_PLATFORM
 - op: remove
   path: /spec/tasks/17  # rpms-signature-scan
 - op: remove
@@ -80,6 +98,8 @@
   path: /spec/tasks/7  # clair-scan
 - op: remove
   path: /spec/tasks/5  # build-source-image
+- op: remove           # build-images -> PRIVILEGED_NESTED
+  path: /spec/tasks/3/params/9
 - op: add
   path: /spec/tasks/-
   value:

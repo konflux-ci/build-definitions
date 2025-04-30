@@ -219,7 +219,7 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: build
     script: |
       #!/bin/bash
@@ -524,7 +524,7 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:f7a57ec2435029b2bed6866b3dddb97027f22bb81b2648bb450c9073e4c4f65e
+  - image: quay.io/konflux-ci/icm-injection-scripts:latest@sha256:3a5ef9e386dba9c8869f723dbd39646632b09b774ebf08bc9956ad5dd4f05754
     name: icm
     script: |
       #!/bin/bash
@@ -538,7 +538,7 @@ spec:
     - mountPath: /var/lib/containers
       name: varlibcontainers
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
     name: push
     script: |
       #!/bin/bash
@@ -641,7 +641,7 @@ spec:
       requests:
         cpu: 10m
         memory: 128Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:d90b3ed72cff083ab8238241df8b91d86d270b92d5d10eda16c70d55d02c211d
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -688,7 +688,7 @@ spec:
       requests:
         cpu: 100m
         memory: 512Mi
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
     name: upload-sbom
     script: |
       #!/bin/bash

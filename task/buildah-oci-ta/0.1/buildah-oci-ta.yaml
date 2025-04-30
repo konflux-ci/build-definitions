@@ -215,13 +215,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
       args:
         - $(params.BUILD_ARGS[*])
       workingDir: /var/workdir
@@ -456,7 +456,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: merge-syft-sboms
-      image: registry.access.redhat.com/ubi9/python-39:9.5-1743091356@sha256:dd3722b119e6d79cdd1a1e9d3a4414f7cc2ae9ef674cc27076e73234cc61758e
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1745333506@sha256:f0706d250b9712a7544230a6ac8507ac46cfddd14e8016ab5f30bbaea9bf3a80
       workingDir: /var/workdir
       script: |
         #!/bin/python3
@@ -503,7 +503,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: create-purl-sbom
-      image: registry.access.redhat.com/ubi9/python-39:9.5-1743091356@sha256:dd3722b119e6d79cdd1a1e9d3a4414f7cc2ae9ef674cc27076e73234cc61758e
+      image: registry.access.redhat.com/ubi9/python-39:9.5-1745333506@sha256:f0706d250b9712a7544230a6ac8507ac46cfddd14e8016ab5f30bbaea9bf3a80
       workingDir: /var/workdir
       script: |
         #!/bin/python3
@@ -530,7 +530,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: inject-sbom-and-push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:ab0ba3b70f99faa74d2dd737422a965197af4922dec0109113bc535a94db0dfd
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
