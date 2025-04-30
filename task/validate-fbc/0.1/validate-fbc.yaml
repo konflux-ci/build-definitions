@@ -309,7 +309,7 @@ spec:
           echo "Unable to extract or validate extracted binaries."
           note="Step extract-and-validate failed: Failed to extract image with oc extract command, so it cannot validate extracted binaries. For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           popd
           exit 0
         fi
@@ -328,6 +328,7 @@ spec:
           echo "Unable to extract opm binary"
           note="Step extract-and-validate failed: Failed to extract base image with oc extract command, so it cannot validate extracted binaries.  For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 

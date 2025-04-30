@@ -79,6 +79,7 @@ spec:
             echo "Failed to extract manifests from image $arch_imageanddigest of arch $arch."
             note="Task $(context.task.name) failed: Failed to extract manifests from image ${arch_imageanddigest} with oc extract. For details, check Tekton task log."
             ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           fi
           digests_processed+=("\"$arch_sha\"")
         done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
