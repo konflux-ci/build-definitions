@@ -74,8 +74,8 @@ spec:
 
         # validate SCAN_THREADS is numeric
         if ! [[ "$threads" =~ ^[0-9]+$ ]]; then
-          echo "[ERROR] SCAN_THREADS must be a positive integer."
-          exit 1
+          echo "[WARN] SCAN_THREADS not a positive integer. Setting threads to 1."
+          threads=1
         fi
 
         # warning if SCAN_THREADS is greater than visible CPUs
