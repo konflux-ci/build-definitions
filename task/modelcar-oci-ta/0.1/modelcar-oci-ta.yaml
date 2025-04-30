@@ -119,7 +119,7 @@ spec:
         chmod -R g+w "$TARGET_OCI"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.5-1744097391
+      image: registry.access.redhat.com/ubi9/python-311:9.5-1745945598
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -156,7 +156,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:e0248065d0b9a29197ae9c4c976a5c8d9f1c4430e4bdd8822f7c246716a0e01b
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -177,7 +177,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
+      image: quay.io/konflux-ci/yq:latest@sha256:01268c9795f2dfb99268c72d5682840eba48287848a97fd33f52c51f8e910c94
       workingDir: /var/workdir
       script: |
         #!/bin/bash
