@@ -94,6 +94,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |docker-auth| unused| | |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|scan-threads| Number of threads to run in clamscan parallel. Should be <= 8.| 1| |
 ### coverity-availability-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
