@@ -142,7 +142,7 @@ spec:
                 --pcre-max-filesize=4095M --alert-exceeds-max=yes \
                 --alert-encrypted=yes --alert-encrypted-archive=yes --alert-encrypted-doc=yes --alert-macros=yes \
                 --alert-phishing-ssl=yes --alert-phishing-cloak=yes --alert-partition-intersection=yes \
-                | tee /work/logs/clamscan-result-1-$arch.log || true
+                | tee "/work/logs/clamscan-result-1-$arch.log" || true
             else
               echo "Multi-threaded mode detected ($threads threads)."
 
@@ -153,7 +153,8 @@ spec:
               #   3. special characters
               echo "Generating sanitized file list..."
               find "$destination" -type f -print0 | while IFS= read -r -d '' file; do
-                  # get the file size with stat this is used for sorting later                
+                  # get the file size with stat this is used for sorting
+                  later
                   size=$(stat -c "%s" "$file")
                   
                   # tsv format: <size>\t<path>
