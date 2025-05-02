@@ -153,6 +153,12 @@ spec:
       image_reference_with_digest strings
     name: ADDITIONAL_BASE_IMAGES
     type: array
+  - default: ""
+    description: Mount the current working directory into the build using --volume
+      $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for
+      the build (see the CONTEXT param).
+    name: WORKINGDIR_MOUNT
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -216,6 +222,8 @@ spec:
       value: $(params.SBOM_TYPE)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
+    - name: WORKINGDIR_MOUNT
+      value: $(params.WORKINGDIR_MOUNT)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -488,6 +496,18 @@ spec:
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "$WORKINGDIR_MOUNT" ]; then
+        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+          echo "WORKINGDIR_MOUNT contains ':'" >&2
+          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+          exit 1
+        fi
+        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+        # (we set the workdir using 'unshare -w')
+        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
       fi
 
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then

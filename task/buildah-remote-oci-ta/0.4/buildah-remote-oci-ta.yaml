@@ -143,6 +143,12 @@ spec:
       registry)
     name: TLSVERIFY
     type: string
+  - default: ""
+    description: Mount the current working directory into the build using --volume
+      $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for
+      the build (see the CONTEXT param).
+    name: WORKINGDIR_MOUNT
+    type: string
   - default: fetched.repos.d
     description: Path in source workspace where dynamically-fetched repos are present
     name: YUM_REPOS_D_FETCHED
@@ -227,6 +233,8 @@ spec:
       value: $(params.TARGET_STAGE)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
+    - name: WORKINGDIR_MOUNT
+      value: $(params.WORKINGDIR_MOUNT)
     - name: YUM_REPOS_D_FETCHED
       value: $(params.YUM_REPOS_D_FETCHED)
     - name: YUM_REPOS_D_SRC
@@ -597,6 +605,18 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
+      if [ -n "$WORKINGDIR_MOUNT" ]; then
+        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+          echo "WORKINGDIR_MOUNT contains ':'" >&2
+          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+          exit 1
+        fi
+        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+        # (we set the workdir using 'unshare -w')
+        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
+      fi
+
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
         # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
         # Instrumented builds (SAST) use this step as their base and add some other tools.
@@ -717,6 +737,7 @@ spec:
           -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
           -e TARGET_STAGE="${TARGET_STAGE@Q}" \
           -e TLSVERIFY="${TLSVERIFY@Q}" \
+          -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
           -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
           -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
           -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
