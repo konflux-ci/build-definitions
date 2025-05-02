@@ -154,9 +154,8 @@ spec:
               echo "Generating sanitized file list..."
               find "$destination" -type f -print0 | while IFS= read -r -d '' file; do
                   # get the file size with stat this is used for sorting
-                  later
                   size=$(stat -c "%s" "$file")
-                  
+
                   # tsv format: <size>\t<path>
                   printf "%s\t%s\n" "$size" "$file"
               done >"$HOME/files_manifest.tsv"
