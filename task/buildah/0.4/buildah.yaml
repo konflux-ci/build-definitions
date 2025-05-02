@@ -137,6 +137,13 @@ spec:
       Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
     type: array
     default: []
+  - name: WORKINGDIR_MOUNT
+    description: >-
+      Mount the current working directory into the build using
+      --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the
+      context directory for the build (see the CONTEXT param).
+    type: string
+    default: ""
 
   results:
   - description: Digest of the image just built
@@ -203,6 +210,8 @@ spec:
       value: $(params.SBOM_TYPE)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
+    - name: WORKINGDIR_MOUNT
+      value: $(params.WORKINGDIR_MOUNT)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
@@ -474,6 +483,18 @@ spec:
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "$WORKINGDIR_MOUNT" ]; then
+        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+          echo "WORKINGDIR_MOUNT contains ':'" >&2
+          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+          exit 1
+        fi
+        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+        # (we set the workdir using 'unshare -w')
+        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
       fi
 
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
