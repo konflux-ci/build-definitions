@@ -98,12 +98,12 @@ spec:
         mountPath: /usr/local/sealights-credentials
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sealights-go-instrumentation
-      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:f2c4db6c4df5350523031e700a7d79ce47a62e95058a2da0dc3662af16e5ec22
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:7faddcca9142a15159f1c83629a9a274b6be101d8b2e8c5de8854c92e7826393
       computeResources:
         limits:
           memory: 6Gi
@@ -201,7 +201,7 @@ spec:
         # Temporary solution. Remove tokens to not build them
         rm -rf build.json slcmd_config.json
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - create
         - --store
