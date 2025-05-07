@@ -167,11 +167,14 @@ spec:
         echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
 
         UNSHARE_ARGS=()
-        HERMETO_MOUNT=""
-        HERMETO_SOURCE=""
         if [ "${HERMETIC}" == "true" ]; then
           echo "The script will be executed with network isolation"
           UNSHARE_ARGS+=("--net")
+        fi
+
+        HERMETO_MOUNT=""
+        HERMETO_SOURCE=""
+        if [ -d "/var/workdir/cachi2" ]; then
           HERMETO_MOUNT="--volume /var/workdir/cachi2:/cachi2"
           HERMETO_SOURCE=". /cachi2/cachi2.env &&"
         fi
