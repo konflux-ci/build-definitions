@@ -6,6 +6,8 @@ metadata:
   labels:
     app.kubernetes.io/version: "0.2"
 spec:
+  description: |-
+    Scans RPMs in an image and provide information about RPMs signatures.
   params:
     - name: image-url
       type: string
@@ -46,7 +48,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/konflux-ci/tools@sha256:af21f10123e7b8be649c4eb57330fa6ff20e7c3a010d4b0f20162dce7c0a755d
+      image: quay.io/konflux-ci/tools@sha256:e5ba2442b14f865289fa8f683b5c30ce7f1a2715dec90436528dea2cc2a02935
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -71,7 +73,7 @@ spec:
           --image-digest "${IMAGE_DIGEST}" \
           --workdir "${WORKDIR}" \
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
+      image: quay.io/konflux-ci/konflux-test:v1.4.24@sha256:47473fad67b5a5f4c3a701846ebcb0f732344b72aa12ad693d2313319b18930a
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"

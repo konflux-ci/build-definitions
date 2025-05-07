@@ -58,6 +58,10 @@ spec:
     secret:
       secretName: $(params.TRUSTIFICATION_SECRET_NAME)
       optional: true
+  - name: shared-folder
+    emptyDir:
+      medium: Memory
+      sizeLimit: 50Mi
   stepTemplate:
     env:
     - name: SBOMS_DIR
@@ -163,9 +167,19 @@ spec:
 
   - name: upload-sboms
     image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
+    volumeMounts:
+      - name: shared-folder
+        mountPath: /steps-shared-folder
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
+
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       shopt -s nullglob
       sboms_to_upload=("$WORKDIR"/*.json)
@@ -232,6 +246,14 @@ spec:
         sbom_id="$(basename -s .json "$sbom_path")"
         supported_version_of_sbom="${sbom_path}.supported_version"
 
+        # Generate URL to the SBOM in TPA and write it to a JSON file to use for eyecatcher
+        tpa_url=${bombastic_api_url//sbom/console}
+        tpa_sbom_id="${sbom_id//sha256:/sha256%3A}"
+        jq -n \
+          --arg url "$tpa_url/sbom/content/$tpa_sbom_id" \
+          '{"TPA_SBOM_URL": $url}' \
+            > /steps-shared-folder/tpa-sbom-url.json
+
         echo "Uploading SBOM to $bombastic_api_url (with id=$sbom_id)"
         # https://docs.trustification.dev/trustification/user/bombastic.html#publishing-an-sbom-doc
         curl "${curl_opts[@]}" \
@@ -242,3 +264,13 @@ spec:
           --data "@$supported_version_of_sbom" \
           "$bombastic_api_url/api/v1/sbom?id=$sbom_id"
       done
+
+  - name: report
+    image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
+    volumeMounts:
+      - name: shared-folder
+        mountPath: /steps-shared-folder
+    script: |
+      echo "TPA_SBOM_URL_EYECATCHER_BEGIN"
+      cat /steps-shared-folder/tpa-sbom-url.json
+      echo "TPA_SBOM_URL_EYECATCHER_END"
