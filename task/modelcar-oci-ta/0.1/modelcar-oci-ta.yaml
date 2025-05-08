@@ -48,6 +48,10 @@ spec:
     - name: MODELCARD_PATH
       description: path to the Model Card
       type: string
+    - name: REMOVE_ORIGINALS
+      description: add --remove-originals param to olot
+      type: string
+      default: "false"
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -108,6 +112,7 @@ spec:
 
         oras pull "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
+        chmod -R g+wx models
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       workingDir: /var/workdir
@@ -123,16 +128,22 @@ spec:
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
-          value: 0.1.5
+          value: 0.1.7
         - name: MODELCARD_PATH
           value: $(params.MODELCARD_PATH)
+        - name: REMOVE_ORIGINALS
+          value: $(params.REMOVE_ORIGINALS)
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
 
+        REMOVE_ORIGINALS_ARG=""
+        if [[ "$REMOVE_ORIGINALS" == "true" ]]; then
+          REMOVE_ORIGINALS_ARG="--remove-originals"
+        fi
         pip install olot=="${OLOT_VERSION}"
-        olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+        olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd

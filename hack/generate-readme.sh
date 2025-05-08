@@ -9,17 +9,19 @@ echo "# $(yq '.metadata.name' $RESOURCE) $(yq '.kind | downcase' $RESOURCE)"
 echo
 yq '.spec.description' $RESOURCE
 echo
-PARAMS=$(yq '
-    .spec.params.[] |
-    with(select(.default | type == "!!seq"); .default = (.default | tojson(0))) |
-    (
-        "|" + .name +
-        "|" + (.description // "" | sub("\n", " ")) +
-        "|" + (.default // (.default != "*" | "")) +
-        "|" + (.default != "*") + "|"
-    )' $RESOURCE
-)
-if [ -n "$PARAMS" ]; then
+
+if [[ $(yq '.spec.params | length' "$RESOURCE") -gt 0 ]]; then
+  PARAMS=$(yq '
+      .spec.params.[] |
+      with(select(.default | type == "!!seq"); .default = (.default | tojson(0))) |
+      (
+          "|" + .name +
+          "|" + (.description // "" | sub("\n", " ")) +
+          "|" + (.default // (.default != "*" | "")) +
+          "|" + (.default != "*") + "|"
+      )' $RESOURCE
+  )
+
   echo "## Parameters"
   echo "|name|description|default value|required|"
   echo "|---|---|---|---|"
@@ -27,8 +29,9 @@ if [ -n "$PARAMS" ]; then
   echo
 fi
 
-RESULTS=$(yq '.spec.results.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|")' $RESOURCE)
-if [ -n "$RESULTS" ]; then
+if [[ $(yq '.spec.results | length' "$RESOURCE") -gt 0 ]]; then
+  RESULTS=$(yq '.spec.results.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|")' $RESOURCE)
+
   echo "## Results"
   echo "|name|description|"
   echo "|---|---|"
@@ -36,8 +39,9 @@ if [ -n "$RESULTS" ]; then
   echo
 fi
 
-WORKSPACES=$(yq '.spec.workspaces.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.optional // "false") + "|")' $RESOURCE)
-if [ -n "$WORKSPACES" ]; then
+if [[ $(yq '.spec.workspaces | length' "$RESOURCE") -gt 0 ]]; then
+  WORKSPACES=$(yq '.spec.workspaces.[] | ("|" + .name + "|" + (.description // "" | sub("\n", " ")) + "|" + (.optional // "false") + "|")' $RESOURCE)
+
   echo "## Workspaces"
   echo "|name|description|optional|"
   echo "|---|---|---|"
