@@ -28,3 +28,6 @@ RUN dnf -y --setopt=tsflags=nodocs install \
 
 COPY util-scripts /appstudio-utils/util-scripts
 COPY util-scripts/select-oci-auth.sh /usr/local/bin/select-oci-auth
+
+# Set HOME variable to something else than `/` to avoid 'permission denied' problems when writing files.
+ENV HOME=/tekton/home
