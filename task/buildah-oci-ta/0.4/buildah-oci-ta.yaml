@@ -648,8 +648,8 @@ spec:
         done
 
         image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
-        buildah push "$IMAGE" oci-archive:"/shared/$image_name.tar"
-        echo "/shared/$image_name.tar" >/shared/container_path
+        buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+        echo "/shared/$image_name.oci" >/shared/container_path
 
         echo "[$(date --utc -Ins)] End build"
       computeResources:
@@ -776,7 +776,7 @@ spec:
         echo "Running syft on the source directory"
         syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
         echo "Running syft on the image"
-        syft oci-archive:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+        syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
 
         echo "[$(date --utc -Ins)] End sbom-syft-generate"
     - name: prepare-sboms
