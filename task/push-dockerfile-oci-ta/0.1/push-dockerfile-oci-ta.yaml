@@ -133,3 +133,9 @@ spec:
           --artifact-type "$ARTIFACT_TYPE" \
           "$dockerfile_image" "$(basename $dockerfile_for_upload_path)" |
           yq '.reference' | tr -d '\r\n' >"$IMAGE_REF_RESULT"
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
