@@ -8,7 +8,7 @@ The RPM's signature keys as well as the unsigned RPMs are saved into the `RPMS_D
 result path and they are processed by Conforma to detemine whether the task should fail
 or not.
 
-The task will fail in case one or more image have failed the scan
+The task will fail in case one or more images have failed the scan.
 
 ## Params:
 
