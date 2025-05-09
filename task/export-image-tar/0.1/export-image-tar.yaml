@@ -1,0 +1,89 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: export-image-tar
+spec:
+  params:
+    - name: input-image
+      type: string
+      description: The input image that is to be saved as an oci-archive tar file
+    - name: input-arch
+      default: ""
+      type: string
+      description: The input image architecture to pull. Use this if you are the input-image is a multi-arch manifest, and the architecture you want to export is differnt from the CI host. Defaults to host arch.
+    - name: tar-filename
+      default: "oci-archive.tar"
+      description: The tar filename of the saved input image
+      type: string
+    - name: dest-image-tag
+      default: ""
+      description: The tag of the destination image when the tar file is loaded. Use this if you want to hide the source repository name, or if you have issues with digest missmatch which can happen sometimes with `podman save` and `podman load`
+      type: string
+    - name: output-artifact
+      type: string
+      description: The output url that points to the OCI artifact of the tar image
+  results:
+    - description: Digest of the tar artifact just pushed
+      name: ARTIFACT_DIGEST
+    - description: Image repository where the tar artifact was pushed
+      name: ARTIFACT_URL
+  steps:
+    - name: save-tar
+      image: registry.access.redhat.com/ubi9/podman:latest
+      script: |
+        podman --version
+
+        if [ "$(params.input-arch)" ]; then
+          echo "pull arch: $(params.input-arch)"
+          podman pull --arch "$(params.input-arch)" "$(params.input-image)"
+        else
+          # default to host arch
+          podman pull "$(params.input-image)"
+        fi
+
+        echo "saving: $(params.tar-filename)"
+
+        # Check if dest-image-tag is not an empty string
+        if [ "$(params.dest-image-tag)" ]; then
+            # Tag the base image with the destination image tag
+            echo "tagging image: $(params.dest-image-tag)"
+            podman tag "$(params.input-image)" "$(params.dest-image-tag)"
+
+            # Save the tagged image
+            podman save --format oci-archive -o "/mnt/artifacts/$(params.tar-filename)" "$(params.dest-image-tag)"
+        else
+            # Save the base image directly if no tag is provided
+            podman save --format oci-archive -o "/mnt/artifacts/$(params.tar-filename)" "$(params.input-image)"
+        fi
+
+        du -hs /mnt/artifacts/"$(params.tar-filename)"
+      securityContext:
+        # This is required for podman to work properly
+        capabilities:
+          add:
+            - SETFCAP
+      volumeMounts:
+        - mountPath: /mnt/artifacts
+          name: artifacts
+    - name: push-tar
+      image: quay.io/konflux-ci/oras:latest@sha256:9d6db5840c70e65fefe041201cc7ffe2d1661bd0582b590b54787213ccfd76e9
+      script: |
+        echo "selecting auth"
+        select-oci-auth "$(params.output-artifact)" > "$HOME/auth.json"
+
+        # push the tar using oras and caputre the Digest
+        echo "oras push tar: $(params.tar-filename)"
+        echo "output-artifact: $(params.output-artifact)"
+        cd /mnt/artifacts || exit
+        ARTIFACT_DIGEST=$(oras push --registry-config "$HOME/auth.json" "$(params.output-artifact)" ./"$(params.tar-filename)":application/vnd.oci.image.layer.v1.tar 2>&1 | grep 'Digest:' | awk '{print $2}')
+
+        # Finally, record all that in our results
+        printf "%s" "$(params.output-artifact)" | tee /tekton/results/ARTIFACT_URL
+        printf "%s" "$ARTIFACT_DIGEST" | tee /tekton/results/ARTIFACT_DIGEST
+
+      volumeMounts:
+        - mountPath: /mnt/artifacts
+          name: artifacts
+  volumes:
+    - emptyDir: {}
+      name: artifacts
