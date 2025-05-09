@@ -71,11 +71,17 @@ spec:
         echo "Inspecting raw image manifest $imageanddigest."
 
         # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
-        image_manifests=$(get_image_manifests -i ${imageanddigest})
+        image_manifests=$(get_image_manifests -i "${imageanddigest}")
         if [ -n "$image_manifests" ]; then
           echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r arch arch_sha; do
             echo "$arch_sha" > /tekton/home/image-manifest-$arch.sha
           done
+        else
+          echo "Failed to get image manifests from image \"$imageanddigest\""
+          note="Task $(context.task.name) failed: Failed to get image manifests from image \"$imageanddigest\". For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
     - name: get-vulnerabilities
       image: quay.io/konflux-ci/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
@@ -107,7 +113,7 @@ spec:
 
             echo "Running clair-action on $arch image manifest."
             # run the scan for each image manifest in the image index
-            clair-action report --image-ref=$arch_specific_digest --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result-$arch.json || true
+            retry clair-action report --image-ref="$arch_specific_digest" --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result-"$arch".json || true
 
             digests_processed+=("\"$arch_sha\"")
           fi
