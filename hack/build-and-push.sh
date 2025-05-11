@@ -229,13 +229,30 @@ inject_bundle_ref_to_pipelines() {
         ]
     }"
     local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
+    # echo "${task_selector}"
+    
     find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
         while read -r pipeline_file; do
+            # pipe=$(cat "$pipeline_file")
+            # echo "before - ${pipe}"
             yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
             yq e "(.spec.finally[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
+            # pipe=$(cat "$pipeline_file")
+            # echo "after - ${pipe}"
         done
+    
 }
 
+inject_external_bundle_ref_to_pipelines() {
+    find external-task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+    while read -r task_dir task_name task_version
+    do
+        task_file="$(find "$task_dir" -maxdepth 1 -type f \( -iname "*.yaml" -o -iname "*.yml" \))"
+        task_bundle=$(yq -e '.task_bundle' "$task_file")
+        echo "injecting $task_name - $task_version - $task_bundle as external task"
+        inject_bundle_ref_to_pipelines "$task_name" "$task_version" "$task_bundle"
+    done
+}
 # Get task version from task definition rather than the version in the directory path.
 # Arguments: task_file
 # The version is output to stdout.
@@ -559,7 +576,6 @@ build_push_tasks() {
 
         digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}" 2>/tmp/build_and_push_stderr.log)
         skopeo_status=$?
-
         build_new_bundle=false
 
         if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
@@ -585,7 +601,6 @@ build_push_tasks() {
             previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
 
             echo "info: push new bundle $task_bundle" 1>&2
-
             output=$(
                 build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
                     "$has_migration" "$previous_migration_bundle_digest"
@@ -608,6 +623,7 @@ build_push_tasks() {
         real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
         inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
     done
+    inject_external_bundle_ref_to_pipelines
 }
 
 
