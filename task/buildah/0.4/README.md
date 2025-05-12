@@ -28,14 +28,17 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
-|STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
+|STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
-|PRIVILEGED_NESTED|Whether to enable privileged mode|false|false|
+|ANNOTATIONS_FILE|Path to a file with additional key=value annotations that should be applied to the image|""|false|
+|PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
+|ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
+|WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
 
 ## Results
 |name|description|

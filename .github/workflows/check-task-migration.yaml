@@ -21,10 +21,14 @@ jobs:
           pipeline_version: latest
       - name: Run check
         run: |
+          DEBIAN_FRONTEND=noninteractive \
+          sudo apt-get install -y --no-install-recommends \
+              tzdata python3-ruamel.yaml
+
           kubectl get all -n tekton-pipelines
           # Require name main
           git branch main origin/main
           # Make `git branch --show-current` works.
           git checkout -b pr-verify
           export IN_CLUSTER=1
-          bash -x ./hack/validate-migration.sh
+          bash ./hack/validate-migration.sh

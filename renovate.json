@@ -19,6 +19,12 @@
   },
   "packageRules": [
     {
+      "groupName": "tekton-ci",
+      "matchFileNames": [
+        ".tekton/**"
+      ]
+    },
+    {
       "matchPackageNames": [
         "quay.io/konflux-ci/appstudio-utils"
       ],
@@ -109,9 +115,19 @@
     },
     {
       "groupName": "preflight",
+      "description": "contains the group of current active preflight tasks",
       "matchFileNames": [
         "task/ecosystem-cert-preflight-checks/**"
-      ]
+      ],
+      "enabled": true
+    },
+    {
+      "groupName": "preflight-deprecated",
+      "description": "contains the group of preflight tasks that no longer work in the konflux ecosystem with the latest preflight container image",
+      "matchFileNames": [
+        "task/ecosystem-cert-preflight-checks/0.1/**"
+      ],
+      "enabled": false
     },
     {
       "groupName": "github-actions",
@@ -161,6 +177,12 @@
       ]
     },
     {
+      "groupName": "modelcar-oci",
+      "matchFileNames": [
+        "task/modelcar-oci-ta/**"
+      ]
+    },
+    {
       "groupName": "opm",
       "matchFileNames": [
         "task/operator-sdk-generate-bundle/**",
@@ -203,8 +225,16 @@
     {
       "groupName": "vanguard",
       "matchFileNames": [
+        "pipelines/tekton-bundle-builder-oci-ta/**",
+        "pipelines/tekton-bundle-builder/**",
         "task/build-helm-chart-oci-ta/**",
         "task/build-helm-chart/**"
+      ]
+    },
+    {
+      "groupName": "oci-run-script",
+      "matchFileNames": [
+        "task/run-script-oci-ta/**"
       ]
     }
   ],
@@ -243,7 +273,7 @@
         "^task/.+/patch\\.yaml$"
       ],
       "matchStrings": [
-        "(?:image: |tooling-image=)(?:['\"])?(?<depName>[0-9a-z.\/-]+)(?::(?<currentValue>[0-9a-z.-]+))?@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
+        "(?:image: |tooling-image=)(?:['\"])?(?<depName>[0-9a-z./-]+)(?::(?<currentValue>[0-9a-z.-]+))?@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
       ],
       "datasourceTemplate": "docker"
     },

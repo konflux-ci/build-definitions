@@ -42,7 +42,8 @@ spec:
       # need to change user since 'oc image extract' requires more privileges when running as root permissions
       # https://bugzilla.redhat.com/show_bug.cgi?id=1969929
       securityContext:
-        runAsUser: 1000
+        capabilities:
+          add: ["SETFCAP"]
       env:
         - name: HOME
           value: /work
@@ -90,7 +91,7 @@ spec:
             arch_imageanddigest=$(echo $imagewithouttag@$arch_sha)
 
             echo "Running \"oc image extract\" on image of arch $arch"
-            oc image extract --registry-config ~/.docker/config.json $arch_imageanddigest --path="/:${destination}" --filter-by-os="linux/${arch}"
+            retry oc image extract --registry-config ~/.docker/config.json "$arch_imageanddigest" --path="/:${destination}" --filter-by-os="linux/${arch}"
             if [ $? -ne 0 ]; then
               echo "Unable to extract image for arch $arch. Skipping ClamAV scan!"
               exit 0
@@ -162,7 +163,7 @@ spec:
           subPath: ca-bundle.crt
           readOnly: true
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
       computeResources:
         limits:
           memory: 512Mi
@@ -201,7 +202,7 @@ spec:
         echo "Selecting auth"
         select-oci-auth $IMAGE_URL > $HOME/auth.json
         echo "Attaching to ${IMAGE_URL}"
-         oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type application/vnd.clamav "${IMAGE_URL}" "${args[@]}"
+         oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type application/vnd.clamav "${IMAGE_URL}@${IMAGE_DIGEST}" "${args[@]}"
       volumeMounts:
         - mountPath: /work
           name: work

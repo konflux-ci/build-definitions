@@ -65,10 +65,17 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
   steps:
   - name: build
-    image: registry.access.redhat.com/ubi9/buildah@sha256:e55161e7442368f900fb1515306d3ca4a6ae55eed8ca9819a10384ec79983df1
+    image: registry.access.redhat.com/ubi9/buildah@sha256:4b82b66a71857c5167abd344cd63bebe3b8026b04b1f35fde4789868dae0af8d
     args:
       - $(params.BUILD_ARGS[*])
     script: |
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
       # Check if the Dockerfile exists
       SOURCE_CODE_DIR=source
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
@@ -144,7 +151,7 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi8/python-311@sha256:8380822f223f727463fb9cd43bf2dac6bc131c94465b92bdb02d74dec758c1a5
+    image: registry.access.redhat.com/ubi8/python-311@sha256:43605cb2491ef2297a7acf4b4bf0b7f54f0c91b96daf12ae41c49cc7f192b153
     env:
       - name: RESULT_PATH
         value: $(results.SBOM_BLOB_URL.path)

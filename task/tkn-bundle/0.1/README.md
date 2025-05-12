@@ -18,7 +18,6 @@ The task supports the following input parameters.
 |CONTEXT|Path to the directory to use as context.|.|false|
 |HOME|Value for the HOME environment variable.|/tekton/home|false|
 |STEPS_IMAGE|An optional image to configure task steps with in the bundle|""|false|
-|SOURCE_CODE_DIR|Source code directory in the working dir|source|false|
 
 `CONTEXT` can include multiple directories or files separated by comma or space.
 Paths can be negated with exclamation mark to prevent inclusion of certain

@@ -80,6 +80,10 @@ spec:
       default: "false"
       description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
       type: string
+    - name: workspace-path
+      default: "./"
+      description: "Contains the path to the code directory to scan"
+      type: string
   volumes:
     - name: sealights-credentials
       secret:
@@ -94,12 +98,12 @@ spec:
         mountPath: /usr/local/sealights-credentials
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sealights-go-instrumentation
-      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:d82ec03997f31e7233b8860b32b64d9d82e5f2d26f2c4809a36fcd8ec9849ad4
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:7faddcca9142a15159f1c83629a9a274b6be101d8b2e8c5de8854c92e7826393
       computeResources:
         limits:
           memory: 6Gi
@@ -133,6 +137,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['pipelinesascode.tekton.dev/event-type']
+        - name: WORKSPACE_PATH
+          value: $(params.workspace-path)
       args: ["$(params.packages-excluded[*])"]
       script: |
         #!/bin/bash
@@ -183,7 +189,7 @@ spec:
         fi
 
         if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
-          --workspacepath ./ --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
+          --workspacepath "${WORKSPACE_PATH}" --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
           handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
         fi
 
@@ -195,7 +201,7 @@ spec:
         # Temporary solution. Remove tokens to not build them
         rm -rf build.json slcmd_config.json
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - create
         - --store

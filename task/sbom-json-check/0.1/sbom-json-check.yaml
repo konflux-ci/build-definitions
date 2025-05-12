@@ -30,7 +30,7 @@ spec:
       name: IMAGES_PROCESSED
   steps:
   - name: sbom-json-check
-    image: quay.io/konflux-ci/konflux-test:v1.4.20@sha256:f9db697d8a45870b862252de61b3c29d9d6f79272ef8bf61ecb645f8bca27705
+    image: quay.io/konflux-ci/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     securityContext:
@@ -74,11 +74,12 @@ spec:
           echo "arch sha is $arch_sha"
 
           echo "Running \"oc image extract\" on image of arch $arch"
-          oc image extract --registry-config ~/.docker/config.json $arch_imageanddigest --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
+          retry oc image extract --registry-config ~/.docker/config.json "$arch_imageanddigest" --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
           if [ $? -ne 0 ]; then
             echo "Failed to extract manifests from image $arch_imageanddigest of arch $arch."
             note="Task $(context.task.name) failed: Failed to extract manifests from image ${arch_imageanddigest} with oc extract. For details, check Tekton task log."
             ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           fi
           digests_processed+=("\"$arch_sha\"")
         done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')

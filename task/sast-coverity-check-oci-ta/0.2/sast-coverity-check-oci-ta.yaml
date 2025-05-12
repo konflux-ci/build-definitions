@@ -18,6 +18,11 @@ spec:
       description: Name of secret which contains subscription activation key
       type: string
       default: activation-key
+    - name: ADDITIONAL_BASE_IMAGES
+      description: Additional base image references to include to the SBOM.
+        Array of image_reference_with_digest strings
+      type: array
+      default: []
     - name: ADDITIONAL_SECRET
       description: Name of a secret which will be made available to the build
         with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -33,6 +38,11 @@ spec:
         to the image
       type: array
       default: []
+    - name: ANNOTATIONS_FILE
+      description: Path to a file with additional key=value annotations that
+        should be applied to the image
+      type: string
+      default: ""
     - name: BUILDAH_FORMAT
       description: The format for the resulting image's mediaType. Valid values
         are oci (default) or docker.
@@ -112,7 +122,8 @@ spec:
       type: string
       default: ""
     - name: PRIVILEGED_NESTED
-      description: Whether to enable privileged mode
+      description: Whether to enable privileged mode, should be used only
+        with remote VMs
       type: string
       default: "false"
     - name: PROJECT_NAME
@@ -149,7 +160,7 @@ spec:
     - name: STORAGE_DRIVER
       description: Storage driver to configure for buildah
       type: string
-      default: vfs
+      default: overlay
     - name: TARGET_STAGE
       description: Target stage in Dockerfile to build. If not specified,
         the Dockerfile is processed entirely to (and including) its last stage.
@@ -160,6 +171,12 @@ spec:
         to a non-TLS registry)
       type: string
       default: "true"
+    - name: WORKINGDIR_MOUNT
+      description: Mount the current working directory into the build using
+        --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context
+        directory for the build (see the CONTEXT param).
+      type: string
+      default: ""
     - name: YUM_REPOS_D_FETCHED
       description: Path in source workspace where dynamically-fetched repos
         are present
@@ -230,6 +247,8 @@ spec:
         value: $(params.ADDITIONAL_SECRET)
       - name: ADD_CAPABILITIES
         value: $(params.ADD_CAPABILITIES)
+      - name: ANNOTATIONS_FILE
+        value: $(params.ANNOTATIONS_FILE)
       - name: BUILD_ARGS_FILE
         value: $(params.BUILD_ARGS_FILE)
       - name: CONTEXT
@@ -260,6 +279,8 @@ spec:
         value: $(params.TARGET_STAGE)
       - name: TLSVERIFY
         value: $(params.TLSVERIFY)
+      - name: WORKINGDIR_MOUNT
+        value: $(params.WORKINGDIR_MOUNT)
       - name: YUM_REPOS_D_FETCHED
         value: $(params.YUM_REPOS_D_FETCHED)
       - name: YUM_REPOS_D_SRC
@@ -273,7 +294,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -284,7 +305,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -349,6 +370,14 @@ spec:
           fi
         fi
 
+        # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
+
+        # avoid tracing "dnf --installroot" because it would break the build due to unreachable /tmp/idir in the chroot
+        export COVERITY_DISENGAGE_EXES="dnf;microdnf;yum"
+
+        # always use a fresh temp directory for Coverity to avoid "Permission denied" errors on reuse
+        export COVERITY_TEMP="\$(mktemp -d /tmp/cov-XXXXXXXX)"
+
         # always remove Coverity's intermediate directory so that it can be recreated with different ownership
         trap 'rm -fr /tmp/idir' EXIT
 
@@ -405,7 +434,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -441,12 +470,17 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Update CA trust"
+
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then
           echo "INFO: Using mounted CA bundle: $ca_bundle"
           cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
           update-ca-trust
         fi
+
+        echo "[$(date --utc -Ins)] Prepare Dockerfile"
 
         if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
@@ -476,6 +510,13 @@ spec:
         dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
         cp "$dockerfile_path" "$dockerfile_copy"
 
+        # Inject the image content manifest into the container we are producing.
+        # This will generate the content-sets.json file and copy it by appending a COPY
+        # instruction to the Containerfile.
+        inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+
+        echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
+
         # Fixing group permission on /var/lib/containers
         chown root:root /var/lib/containers
 
@@ -498,6 +539,17 @@ spec:
 
         LABELS=()
         ANNOTATIONS=()
+        # Append any annotations from the specified file
+        if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+          echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip empty lines and comments
+            if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+              ANNOTATIONS+=("--annotation" "$line")
+            fi
+          done <"${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        fi
+
         # Split `args` into two sets of arguments.
         while [[ $# -gt 0 ]]; do
           case $1 in
@@ -552,7 +604,7 @@ spec:
           UNSHARE_ARGS+=("--net")
 
           for image in $BASE_IMAGES; do
-            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
+            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
           done
           echo "Build will be executed with network isolation"
         fi
@@ -583,6 +635,8 @@ spec:
 
         VOLUME_MOUNTS=()
 
+        echo "[$(date --utc -Ins)] Setup prefetched"
+
         if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
           cp -r "/var/workdir/cachi2" /tmp/
           chmod -R go+rwX /tmp/cachi2
@@ -599,7 +653,9 @@ spec:
           if [ -f "$prefetched_repo_for_my_arch" ]; then
             echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
             mkdir -p "$YUM_REPOS_D_FETCHED"
-            cp --no-clobber "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+            if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+              cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+            fi
           fi
         fi
 
@@ -626,6 +682,8 @@ spec:
 
         # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
         LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+        echo "[$(date --utc -Ins)] Register sub-man"
 
         ACTIVATION_KEY_PATH="/activation-key"
         ENTITLEMENT_PATH="/entitlement"
@@ -668,6 +726,18 @@ spec:
           echo "Adding the entitlement to the build"
         fi
 
+        if [ -n "$WORKINGDIR_MOUNT" ]; then
+          if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+            echo "WORKINGDIR_MOUNT contains ':'" >&2
+            echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+            exit 1
+          fi
+          # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+          # (we set the workdir using 'unshare -w')
+          context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+          VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
+        fi
+
         if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
           # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
           # Instrumented builds (SAST) use this step as their base and add some other tools.
@@ -675,6 +745,8 @@ spec:
             VOLUME_MOUNTS+=("--volume=$volume_mount")
           done <<<"$ADDITIONAL_VOLUME_MOUNTS"
         fi
+
+        echo "[$(date --utc -Ins)] Add secrets"
 
         ADDITIONAL_SECRET_PATH="/additional-secret"
         ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
@@ -711,20 +783,18 @@ spec:
         # disable host subcription manager integration
         find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
-        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+        echo "[$(date --utc -Ins)] Run buildah build"
+        echo "[$(date --utc -Ins)] ${command}"
 
-        container=$(buildah from --pull-never "$IMAGE")
+        unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
+
+        echo "[$(date --utc -Ins)] Add metadata"
 
         # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
         if [ -f "/tmp/cachi2/output/bom.json" ]; then
           echo "Making copy of sbom-cachi2.json"
           cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
         fi
-
-        buildah mount "$container" | tee /shared/container_path
-        # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-        find $(cat /shared/container_path) -xtype l -delete
-        echo $container >/shared/container_name
 
         touch /shared/base_images_digests
         echo "Recording base image digests used"
@@ -736,6 +806,12 @@ spec:
             echo "$image $base_image_digest" | tee -a /shared/base_images_digests
           fi
         done
+
+        image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
+        buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+        echo "/shared/$image_name.oci" >/shared/container_path
+
+        echo "[$(date --utc -Ins)] End build"
       computeResources:
         limits:
           memory: 16Gi
@@ -747,7 +823,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.5
+      image: quay.io/redhat-services-prod/sast/coverity:202412.7
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
