@@ -89,18 +89,18 @@ spec:
         update-ca-trust
       fi
 
-      cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" fetch-deps \
       $dev_pacman_flag \
       --source=$(workspaces.source.path)/source \
       --output=$(workspaces.source.path)/cachi2/output \
       "${INPUT}"
 
-      cachi2 --log-level="$LOG_LEVEL" generate-env $(workspaces.source.path)/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" generate-env $(workspaces.source.path)/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
       --output $(workspaces.source.path)/cachi2/cachi2.env
 
-      cachi2 --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" inject-files $(workspaces.source.path)/cachi2/output \
       --for-output-dir=/cachi2/output
   workspaces:
   - name: source
