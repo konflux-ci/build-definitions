@@ -736,8 +736,8 @@ spec:
       done
 
       image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
-      buildah push "$IMAGE" oci-archive:"/shared/$image_name.tar"
-      echo "/shared/$image_name.tar" > /shared/container_path
+      buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+      echo "/shared/$image_name.oci" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
     securityContext:
