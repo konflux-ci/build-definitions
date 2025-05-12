@@ -251,6 +251,17 @@
     {
       "customType": "regex",
       "fileMatch": [
+        "^external-task/.*/.*/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "task_bundle: (?<depName>quay\\.io/konflux-ci/konflux-vanguard/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
         ".github/workflows/run-task-tests.yaml"
       ],
       "matchStrings": [
