@@ -9,8 +9,8 @@ metadata:
   name: prefetch-dependencies
 spec:
   description: |-
-    Task that uses Cachi2 to prefetch build dependencies.
-    See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
+    Task that uses Hermeto to prefetch build dependencies.
+    See docs at https://hermetoproject.github.io/hermeto/#basic-usage
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
@@ -19,7 +19,7 @@ spec:
       notice. Use at your own risk.
     name: dev-package-managers
     default: "false"
-  - description: Set cachi2 log level (debug, info, warning, error)
+  - description: Set prefetch tool log level (debug, info, warning, error)
     name: log-level
     default: "info"
   - name: caTrustConfigMapName
@@ -54,7 +54,7 @@ spec:
       if [ -z "${INPUT}" ]
       then
         # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
-        echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
+        echo "No prefetch will be performed because no input was provided for hermeto fetch-deps"
         exit 0
       fi
 
@@ -104,11 +104,11 @@ spec:
       --for-output-dir=/cachi2/output
   workspaces:
   - name: source
-    description: Workspace with the source code, cachi2 artifacts will be stored on the workspace as well
+    description: Workspace with the source code, prefetch artifacts will be stored on the workspace as well
   - name: git-basic-auth
     description: |
       A Workspace containing a .gitconfig and .git-credentials file or username and password.
-      These will be copied to the user's home before any cachi2 commands are run. Any
+      These will be copied to the user's home before prefetch is run. Any
       other files in this Workspace are ignored. It is strongly recommended
       to bind a Secret to this Workspace over other volume types.
     optional: true

@@ -10,10 +10,10 @@ metadata:
     app.kubernetes.io/version: "0.2"
 spec:
   description: |-
-    Task that uses Cachi2 to prefetch build dependencies. The fetched dependencies and the
+    Task that uses Hermeto to prefetch build dependencies. The fetched dependencies and the
     application source code are stored as a trusted artifact in the provided OCI repository.
-    For additional info on Cachi2, see docs at
-    https://github.com/containerbuildsystem/cachi2#basic-usage.
+    For additional info on Hermeto, see docs at
+    https://hermetoproject.github.io/hermeto/#basic-usage
 
     ## Configuration
 
@@ -31,7 +31,7 @@ spec:
           subprocess_timeout: 3600
     ```
 
-    [available configuration parameters]: https://github.com/containerbuildsystem/cachi2?tab=readme-ov-file#available-configuration-parameters
+    [available configuration parameters]: https://hermetoproject.github.io/hermeto/#available-configuration-parameters
   params:
     - name: ACTIVATION_KEY
       description: Name of secret which contains subscription activation key
@@ -52,7 +52,7 @@ spec:
       default: trusted-ca
     - name: config-file-content
       description: |
-        Pass configuration to cachi2.
+        Pass configuration to the prefetch tool.
         Note this needs to be passed as a YAML-formatted config dump, not as a file path!
       default: ""
     - name: dev-package-managers
@@ -63,7 +63,7 @@ spec:
       description: Configures project packages that will have their dependencies
         prefetched.
     - name: log-level
-      description: Set cachi2 log level (debug, info, warning, error)
+      description: Set prefetch tool log level (debug, info, warning, error)
       default: info
     - name: ociArtifactExpiresAfter
       description: Expiration date for the trusted artifacts created in the
@@ -110,13 +110,13 @@ spec:
     - name: git-basic-auth
       description: |
         A Workspace containing a .gitconfig and .git-credentials file or username and password.
-        These will be copied to the user's home before any cachi2 commands are run. Any
+        These will be copied to the user's home before prefetch is run. Any
         other files in this Workspace are ignored. It is strongly recommended
         to bind a Secret to this Workspace over other volume types.
       optional: true
     - name: netrc
       description: |
-        Workspace containing a .netrc file. Cachi2 will use the credentials in this file when
+        Workspace containing a .netrc file. Prefetch will use the credentials in this file when
         performing http(s) requests.
       optional: true
   stepTemplate:
@@ -152,13 +152,13 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    - name: sanitize-cachi2-config-file-with-yq
+    - name: sanitize-config-file-with-yq
       image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
-          # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
-          # impact of this configuration option will be:
-          # https://github.com/containerbuildsystem/cachi2/issues/577
+          # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
+          # decides what the SBOM impact of this configuration option will be:
+          # https://github.com/containerbuildsystem/hermeto/issues/577
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
@@ -326,7 +326,7 @@ spec:
 
         if [ -z "${INPUT}" ]; then
           # Confirm input was provided
-          echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
+          echo "No prefetch will be performed because no input was provided"
           exit 0
         fi
 
@@ -371,7 +371,7 @@ spec:
           update-ca-trust
         fi
 
-        # RHSM HANDLING: REGISTER RHSM & CACHI2 CONFIGURATION
+        # RHSM HANDLING: REGISTER RHSM & PREFETCH CLI CONFIGURATION
         if [ -e /activation-key/org ]; then
           RHSM_ORG=$(cat /activation-key/org)
           RHSM_ACT_KEY=$(cat /activation-key/activationkey)
@@ -391,7 +391,7 @@ spec:
           ENTITLEMENT_CERT_PATH="$(grep -v -e '-key.pem$' <<<"$entitlement_files")"
           CA_BUNDLE_PATH="/etc/rhsm/ca/redhat-uep.pem"
 
-          CACHI2_SSL_OPTS="$(
+          PREFETCH_SSL_OPTS="$(
             jq -n \
               --arg key "$ENTITLEMENT_CERT_KEY_PATH" \
               --arg cert "$ENTITLEMENT_CERT_PATH" \
@@ -399,8 +399,8 @@ spec:
               '{client_key: $key, client_cert: $cert, ca_bundle: $ca_bundle}'
           )"
 
-          # We need to modify the cachi2 params in place if we're processing RPMs
-          INPUT=$(inject_ssl_opts "$INPUT" "$CACHI2_SSL_OPTS")
+          # We need to modify the CLI params in place if we're processing RPMs
+          INPUT=$(inject_ssl_opts "$INPUT" "$PREFETCH_SSL_OPTS")
         fi
 
         INPUT=$(inject_rpm_summary_flag "$INPUT")

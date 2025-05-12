@@ -17,7 +17,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-container:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.4:IMAGE ; build-image-index:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.4:CONTEXT ; sast-coverity-check:0.3:CONTEXT ; push-dockerfile:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.4:PRIVILEGED_NESTED|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -164,10 +164,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|config-file-content| Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
+|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
-|log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+|log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
@@ -417,5 +417,5 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
-|netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
+|git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
+|netrc| Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. | True| netrc|
