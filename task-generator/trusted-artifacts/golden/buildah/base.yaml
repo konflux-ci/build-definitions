@@ -205,14 +205,14 @@ spec:
         BUILDAH_ARGS+=("--build-arg=$build_arg")
       done
 
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
-        cp -r "$(workspaces.source.path)/cachi2" /tmp/
-        chmod -R go+rwX /tmp/cachi2
-        VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
-        sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
+      if [ -d "$(workspaces.source.path)/prefetch" ]; then
+        cp -r "$(workspaces.source.path)/prefetch" /tmp/
+        chmod -R go+rwX /tmp/prefetch
+        VOLUME_MOUNTS="--volume /tmp/prefetch:/prefetch"
+        sed -i 's|^\s*run |RUN . /prefetch/prefetch.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
 
-        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+        prefetched_repo_for_my_arch="/tmp/prefetch/output/deps/rpm/$(uname -m)/repos.d/prefetch.repo"
         if [ -f "$prefetched_repo_for_my_arch" ]; then
           echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
           mkdir -p "$YUM_REPOS_D_FETCHED"
@@ -353,9 +353,9 @@ spec:
   - name: merge-cachi2-sbom
     image: quay.io/konflux-ci/hermeto:0.29.0@sha256:f577e0399953471df7a9826c1550aef83d28e8b35f76dd65a193441822b629ee
     script: |
-      if [ -d "$(workspaces.source.path)/cachi2" ]; then
-        echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-        /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
+      if [ -d "$(workspaces.source.path)/prefetch" ]; then
+        echo "Merging contents of sbom-prefetch.json into sbom-cyclonedx.json"
+        /src/utils/merge_syft_sbom.py sbom-prefetch.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
         echo "Skipping step since no Cachi2 SBOM was produced"

@@ -281,7 +281,7 @@ spec:
       # Inject the image content manifest into the container we are producing.
       # This will generate the content-sets.json file and copy it by appending a COPY
       # instruction to the Containerfile.
-      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/prefetch/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -396,23 +396,25 @@ spec:
 
       echo "[$(date --utc -Ins)] Setup prefetched"
 
-      if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
-        cp -r "$(workspaces.source.path)/cachi2" /tmp/
-        chmod -R go+rwX /tmp/cachi2
-        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
+      if [ -f "$(workspaces.source.path)/prefetch/prefetch.env" ]; then
+        cp -r "$(workspaces.source.path)/prefetch" /tmp/
+        chmod -R go+rwX /tmp/prefetch
+        VOLUME_MOUNTS+=(--volume /tmp/prefetch:/prefetch)
+        # FIXME: Drop this legacy mount one when no longer needed (superseded by the above one)
+        VOLUME_MOUNTS+=(--volume /tmp/prefetch:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
-        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
+        # for each RUN ... line insert the prefetch.env command *after* any options like --mount
         sed -E -i \
             -e 'H;1h;$!d;x' \
-            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /prefetch/prefetch.env \&\& \\\n    @igM' \
             "$dockerfile_copy"
         echo "Prefetched content will be made available"
 
-        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+        prefetched_repo_for_my_arch="/tmp/prefetch/output/deps/rpm/$(uname -m)/repos.d/hermeto.repo"
         if [ -f "$prefetched_repo_for_my_arch" ]; then
           echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
           mkdir -p "$YUM_REPOS_D_FETCHED"
-          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+          if [ ! -f "${YUM_REPOS_D_FETCHED}/hermeto.repo" ]; then
             cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
           fi
         fi
@@ -550,9 +552,9 @@ spec:
       echo "[$(date --utc -Ins)] Add metadata"
 
       # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
-      if [ -f "/tmp/cachi2/output/bom.json" ]; then
-        echo "Making copy of sbom-cachi2.json"
-        cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+      if [ -f "/tmp/prefetch/output/bom.json" ]; then
+        echo "Making copy of sbom-prefetch.json"
+        cp /tmp/prefetch/output/bom.json ./sbom-prefetch.json
       fi
 
       touch /shared/base_images_digests
@@ -735,8 +737,8 @@ spec:
 
       sboms_to_merge=(syft:sbom-source.json syft:sbom-image.json)
 
-      if [ -f "sbom-cachi2.json" ]; then
-        sboms_to_merge+=(cachi2:sbom-cachi2.json)
+      if [ -f "sbom-prefetch.json" ]; then
+        sboms_to_merge+=(hermeto:sbom-prefetch.json)
       fi
 
       echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"

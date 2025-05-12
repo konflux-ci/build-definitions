@@ -76,7 +76,7 @@ spec:
       set -euo pipefail
       # Generate checksums for all maven artifact files. It will ignore the checksum files
       # and signature files if they existed there
-      pkgpath="$(workspaces.source.path)/cachi2/output/deps/generic"
+      pkgpath="$(workspaces.source.path)/prefetch/output/deps/generic"
       if [ -d "$pkgpath/${PKG_ROOT}" ]; then
         echo "Generating checksums for artifacts"
         while IFS= read -r -d '' f
@@ -89,7 +89,7 @@ spec:
         ! -name "*.sha512" ! -name "*.asc" -print0)
         # Bundle the artifacts and checksums together into a zip file
         cd "$pkgpath"
-        echo "create maven zip to $(workspaces.source.path)/cachi2/output/${FILE_NAME}.zip"
+        echo "create maven zip to $(workspaces.source.path)/prefetch/output/${FILE_NAME}.zip"
         zip -rq "${FILE_NAME}.zip" "${PKG_ROOT}"
         mv "${FILE_NAME}.zip" "/shared/${FILE_NAME}.zip"
       else
@@ -130,8 +130,8 @@ spec:
       fi
 
       # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
-      if [ -f "$(workspaces.source.path)/cachi2/output/bom.json" ]; then
-        cp -vf "$(workspaces.source.path)/cachi2/output/bom.json" ./sbom.json
+      if [ -f "$(workspaces.source.path)/prefetch/output/bom.json" ]; then
+        cp -vf "$(workspaces.source.path)/prefetch/output/bom.json" ./sbom.json
       else
         echo "The SBOM file for fetched artifacts is not found!"
         exit 1
