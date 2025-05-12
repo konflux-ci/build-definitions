@@ -134,18 +134,18 @@ spec:
         update-ca-trust
       fi
 
-      cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" fetch-deps \
       $dev_pacman_flag \
       --source=/var/workdir/source \
       --output=/var/workdir/cachi2/output \
       "${INPUT}"
 
-      cachi2 --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
       --output /var/workdir/cachi2/cachi2.env
 
-      cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
   - image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
     name: create-trusted-artifact
