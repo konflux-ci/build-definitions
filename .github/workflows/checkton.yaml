@@ -2,9 +2,8 @@ name: Checkton
 "on":
   pull_request:
     branches: [main]
-  # skip running this check on merge queue until STONEBLD-3354 is fixed
-  # merge_group:
-  #   types: [checks_requested]
+  merge_group:
+    types: [checks_requested]
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -18,7 +17,7 @@ jobs:
 
       - name: Run Checkton
         id: checkton
-        uses: chmeliik/checkton@v0.3.1
+        uses: chmeliik/checkton@v0.4.0
         with:
           # Set to false when re-enabling SARIF uploads
           fail-on-findings: true

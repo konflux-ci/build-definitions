@@ -6,14 +6,19 @@ name: Run Task Tests
       - opened
       - synchronize
       - reopened
-  # skip running this check on merge queue until STONEBLD-3354 is fixed
-  # merge_group:
-  #   types: [checks_requested]
+  merge_group:
+    types: [checks_requested]
 
 jobs:
   run-task-tests:
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout build-defintions Repository
+        uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
+          path: build-definitions
+
       - name: Get all changed files in the PR from task directory
         id: changed-dirs
         uses: tj-actions/changed-files@27ae6b33eaed7bf87272fdeb9f1c54f9facc9d99
@@ -23,12 +28,6 @@ jobs:
             task/**/*.{yaml,sh}
           dir_names: "true"
           dir_names_max_depth: "3"
-
-      - name: Checkout build-defintions Repository
-        if: steps.changed-dirs.outputs.any_changed == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: "${{ github.event.pull_request.head.sha }}"
           path: build-definitions
 
       - name: Check if tests dir exists for all the tasks changed

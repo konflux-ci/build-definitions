@@ -2,9 +2,8 @@ name: Validate PR - golang CI
 "on":
   pull_request:
     branches: [main]
-  # skip running this check on merge queue until STONEBLD-3354 is fixed
-  # merge_group:
-  #   types: [checks_requested]
+  merge_group:
+    types: [checks_requested]
 jobs:
   lint:
     name: Lint
@@ -69,6 +68,9 @@ jobs:
   security_scan:
     name: Security scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       matrix:
         path:
