@@ -34,11 +34,17 @@ spec:
     default: ""
   results:
     - name: labels
-      description: The rendered labels, rendered from the provided templates
+      description: The rendered labels, rendered from the provided templates.
       type: array
+    - name: actual-date
+      description: The actual date identified by this task. This can be used in other tasks if trying to establish parity between labels and tags.
+      type: string
+    - name: actual-date-epoch
+      description: The epoch of the actual date. This can be used in other tasks if trying to establish parity between labels and tags.
+      type: string
   steps:
     - name: render
-      image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
+      image: quay.io/konflux-ci/yq:latest@sha256:f1e9392d1d7851643e8dd05887e340025c030b449beec4bef4576de73a9a74fc
       env:
       - name: SOURCE_DATE_EPOCH
         value: "$(params.source-date-epoch)"
@@ -69,6 +75,9 @@ spec:
             SOURCE_DATE_EPOCH="$ACTUAL_DATE_EPOCH"
           fi
           SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+
+          echo -n "$ACTUAL_DATE" > "$(results.actual-date.path)"
+          echo -n "$ACTUAL_DATE_EPOCH" > "$(results.actual-date-epoch.path)"
 
           # Export, so that these are available to the subshell below
           export ACTUAL_DATE

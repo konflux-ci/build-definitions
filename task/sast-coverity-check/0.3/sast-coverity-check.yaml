@@ -14,7 +14,9 @@ spec:
     such as SQL injection, cross-site scripting (XSS), and code injection attacks
     using Coverity.
   params:
-  - description: Reference of the image buildah will produce.
+  - description: The task will build a container image and tag it locally as $IMAGE,
+      but will not push the image anywhere. Due to the relationship between this task
+      and the buildah task, the parameter is required, but its value is mostly irrelevant.
     name: IMAGE
     type: string
   - default: ./Dockerfile
@@ -104,7 +106,7 @@ spec:
       as per --squash
     name: SQUASH
     type: string
-  - default: vfs
+  - default: overlay
     description: Storage driver to configure for buildah
     name: STORAGE_DRIVER
     type: string
@@ -152,6 +154,12 @@ spec:
       image_reference_with_digest strings
     name: ADDITIONAL_BASE_IMAGES
     type: array
+  - default: ""
+    description: Mount the current working directory into the build using --volume
+      $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for
+      the build (see the CONTEXT param).
+    name: WORKINGDIR_MOUNT
+    type: string
   - description: Digest of the image to which the scan results should be associated.
     name: image-digest
     type: string
@@ -240,6 +248,8 @@ spec:
       value: $(params.SBOM_TYPE)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
+    - name: WORKINGDIR_MOUNT
+      value: $(params.WORKINGDIR_MOUNT)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -528,7 +538,7 @@ spec:
         UNSHARE_ARGS+=("--net")
 
         for image in $BASE_IMAGES; do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull "$image"
+          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
         done
         echo "Build will be executed with network isolation"
       fi
@@ -650,6 +660,18 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
+      if [ -n "$WORKINGDIR_MOUNT" ]; then
+        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+          echo "WORKINGDIR_MOUNT contains ':'" >&2
+          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+          exit 1
+        fi
+        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+        # (we set the workdir using 'unshare -w')
+        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
+      fi
+
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
         # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
         # Instrumented builds (SAST) use this step as their base and add some other tools.
@@ -698,22 +720,15 @@ spec:
       echo "[$(date --utc -Ins)] Run buildah build"
       echo "[$(date --utc -Ins)] ${command}"
 
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" -- sh -c "$command"
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
 
       echo "[$(date --utc -Ins)] Add metadata"
-
-      container=$(buildah from --pull-never "$IMAGE")
 
       # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
       if [ -f "/tmp/cachi2/output/bom.json" ]; then
         echo "Making copy of sbom-cachi2.json"
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
-
-      buildah mount "$container" | tee /shared/container_path
-      # delete symlinks - they may point outside the container rootfs, messing with SBOM scanners
-      find $(cat /shared/container_path) -xtype l -delete
-      echo $container > /shared/container_name
 
       touch /shared/base_images_digests
       echo "Recording base image digests used"
@@ -725,6 +740,10 @@ spec:
           echo "$image $base_image_digest" | tee -a /shared/base_images_digests
         fi
       done
+
+      image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
+      buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+      echo "/shared/$image_name.oci" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
     securityContext:

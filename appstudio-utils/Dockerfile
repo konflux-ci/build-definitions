@@ -1,4 +1,4 @@
-FROM quay.io/enterprise-contract/ec-cli:snapshot AS ec-image
+FROM quay.io/enterprise-contract/cli:latest AS ec-image
 FROM registry.access.redhat.com/ubi9/ubi
 
 COPY --from=ec-image /usr/local/bin/ec_linux_amd64.gz /usr/bin/ec.gz
@@ -27,3 +27,7 @@ RUN dnf -y --setopt=tsflags=nodocs install \
     && dnf clean all
 
 COPY util-scripts /appstudio-utils/util-scripts
+COPY util-scripts/select-oci-auth.sh /usr/local/bin/select-oci-auth
+
+# Set HOME variable to something else than `/` to avoid 'permission denied' problems when writing files.
+ENV HOME=/tekton/home

@@ -205,20 +205,6 @@ spec:
           - name: source
             workspace: workspace
 
-      - name: update-infra-repo
-        runAfter:
-          - build-bundles
-        params:
-          - name: ORIGIN_REPO
-            value: $(params.git-url)
-          - name: REVISION
-            value: $(params.revision)
-          - name: SCRIPT
-            value: |
-              sed -i -E 's/[0-9a-f]{40}/$(params.revision)/g' components/build-service/base/build-pipeline-config/build-pipeline-config.yaml
-        taskRef:
-          name: update-infra-deployments
-
     workspaces:
       - name: workspace
         description: Workspace containing arbitrary artifacts used during the pipeline run.

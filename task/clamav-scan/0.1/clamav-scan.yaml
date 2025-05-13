@@ -90,7 +90,7 @@ spec:
             arch_imageanddigest=$(echo $imagewithouttag@$arch_sha)
 
             echo "Running \"oc image extract\" on image of arch $arch"
-            oc image extract --registry-config ~/.docker/config.json $arch_imageanddigest --path="/:${destination}" --filter-by-os="linux/${arch}"
+            retry oc image extract --registry-config ~/.docker/config.json "$arch_imageanddigest" --path="/:${destination}" --filter-by-os="linux/${arch}"
             if [ $? -ne 0 ]; then
               echo "Unable to extract image for arch $arch. Skipping ClamAV scan!"
               exit 0
