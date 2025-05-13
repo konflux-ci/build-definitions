@@ -15,6 +15,7 @@ The sast-unicode-check task uses [find-unicode-control](https://github.com/siddh
 | RECORD_EXCLUDED              | Whether to record the excluded findings (defaults to false). If `true`, the the excluded findings will be stored in `excluded-findings.json`. | "false"                                                                                         | No       |
 | image-digest | Image digest that will be uploaded with ORAS control.                                                                                                  | | YES                                                                                          | true       |
 
+For path exclusions defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
 
 ## Results:
 
@@ -24,8 +25,8 @@ The sast-unicode-check task uses [find-unicode-control](https://github.com/siddh
 
 ## Source repository for image:
 
-https://github.com/konflux-ci/konflux-test
+<https://github.com/konflux-ci/konflux-test>
 
 ## Additional links:
 
-* https://github.com/siddhesh/find-unicode-control.git
+* <https://github.com/siddhesh/find-unicode-control.git>
