@@ -22,6 +22,8 @@ Snyk's SAST tool uses a combination of static analysis and machine learning tech
 |image-digest|Digest of the image to scan.||true|
 |image-url|Image URL.||true|
 
+For path exclusions defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## How to obtain a snyk-token and enable snyk task on the pipeline:
 
 Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/)
@@ -34,9 +36,9 @@ Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/)
 
 ## Source repository for image:
 
-https://github.com/konflux-ci/konflux-test
+<https://github.com/konflux-ci/konflux-test>
 
 ## Additional links:
 
-* https://snyk.io/product/snyk-code/
-* https://snyk.io/
+* <https://snyk.io/product/snyk-code/>
+* <https://snyk.io/>

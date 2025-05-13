@@ -4,7 +4,7 @@
 
 The sast-coverity-check task uses Coverity tool to perform Static Application Security Testing (SAST).
 
-The documentation for this mode can be found here: https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html
+The documentation for this mode can be found here: <https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html>
 
 The characteristics of these tasks are:
 
@@ -17,7 +17,7 @@ The characteristics of these tasks are:
 
 ## Params:
 
-| name                      | description                                                                                                                           | default value             | required |                                                                                                                   
+| name                      | description                                                                                                                           | default value             | required |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------------|---------------------------|----------|
 | COV_ANALYZE_ARGS          | Append arguments to the cov-analyze CLI command                                                                                       | ""                        | no       |
 | COV_LICENSE               | Name of secret which contains the Coverity license                                                                                    | cov-license               | no       |
@@ -28,6 +28,9 @@ The characteristics of these tasks are:
 | RECORD_EXCLUDED           | If set to `true`, excluded findings will be written to a file named `excluded-findings.json` for auditing purposes.                   | false                     | no       |
 |image-digest|Digest of the image to which the scan results should be associated.||true|
 |image-url|URL of the image to which the scan results should be associated.||true|
+
+For path exclusions defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## Results:
 
 | name              | description              |
@@ -38,8 +41,7 @@ The characteristics of these tasks are:
 
 // TODO: Add reference to private repo for the container image once the task is migrated to repo
 
-
 ## Additional links:
 
-* https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html
-* https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/cli/topics/options_reference.html
+* <https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html>
+* <https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/cli/topics/options_reference.html>
