@@ -13,6 +13,7 @@ The task allows to transform the git repository content before building. This is
 | enableSymlinkCheck            | Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.                                   |true                 | false   |
 | ociArtifactExpiresAfter       | Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire. | ""                  | false   |
 | ociStorage                    | The OCI repository where the Trusted Artifacts are stored.                                                                  |                     | true    |
+| PREFETCH_ARTIFACT               | The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.                                         | ""                  | false   |
 | SCRIPT_RUNNER_IMAGE           | The image to run the script in                                                                                              |                     | true    |
 | SCRIPT                        | The script to launch                                                                                                        |                     | true    |
 | SCRIPT_WORKDIR                | The directory to launch the script from                                                                                     | .                   | false   |

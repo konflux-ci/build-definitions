@@ -72,7 +72,7 @@ spec:
         name: shared
   steps:
   - name: sanitize-cachi2-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:1b078faee108f1f9b447cce1c8b7c7ca6d5cfb4de7dc762c9743a3090c307eef
+    image: quay.io/konflux-ci/yq:latest@sha256:8068ee12171e5be43d60d5a34e3372e68ba7d935f3592e95931b325c9447282a
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -83,7 +83,7 @@ spec:
       fi
 
   - name: prefetch-dependencies
-    image: quay.io/konflux-ci/hermeto:0.23.0@sha256:4d21d4029266f7cda0235bdd563207ad46b4d82c27b651116c54c785f8c88bd0
+    image: quay.io/konflux-ci/hermeto:0.26.0@sha256:fe983f680cfa4aa755e2abab7a005bcf7b14e5a7ac46c969f2eca79cc81ea26c
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -226,7 +226,7 @@ spec:
       }
 
       if [ -z "${INPUT}" ]; then
-        # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
+        # Confirm input was provided
         echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
         exit 0
       fi

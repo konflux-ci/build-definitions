@@ -48,6 +48,10 @@ spec:
     - name: MODELCARD_PATH
       description: path to the Model Card
       type: string
+    - name: REMOVE_ORIGINALS
+      description: add --remove-originals param to olot
+      type: string
+      default: "false"
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -108,6 +112,7 @@ spec:
 
         oras pull "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
+        chmod -R g+wx models
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       workingDir: /var/workdir
@@ -119,20 +124,26 @@ spec:
         chmod -R g+w "$TARGET_OCI"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.5-1744097391
+      image: registry.access.redhat.com/ubi9/python-311:9.5-1747058512
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
-          value: 0.1.5
+          value: 0.1.7
         - name: MODELCARD_PATH
           value: $(params.MODELCARD_PATH)
+        - name: REMOVE_ORIGINALS
+          value: $(params.REMOVE_ORIGINALS)
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
 
+        REMOVE_ORIGINALS_ARG=""
+        if [[ "$REMOVE_ORIGINALS" == "true" ]]; then
+          REMOVE_ORIGINALS_ARG="--remove-originals"
+        fi
         pip install olot=="${OLOT_VERSION}"
-        olot -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+        olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
@@ -156,7 +167,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:e0248065d0b9a29197ae9c4c976a5c8d9f1c4430e4bdd8822f7c246716a0e01b
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -172,12 +183,14 @@ spec:
         --output-file sbom.json \
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
       workingDir: /var/workdir
       script: |
-        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
+      image: quay.io/konflux-ci/yq:latest@sha256:8068ee12171e5be43d60d5a34e3372e68ba7d935f3592e95931b325c9447282a
       workingDir: /var/workdir
       script: |
         #!/bin/bash

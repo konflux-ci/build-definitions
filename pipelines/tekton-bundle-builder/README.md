@@ -6,14 +6,14 @@
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
-|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|git-url| Source Repository URL| None| clone-repository:0.1:url ; build-container:0.2:URL|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.1:IMAGE ; build-image-index:0.1:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
+|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-container:0.2:IMAGE ; build-image-index:0.1:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
-|revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|revision| Revision of the Source Repository| | clone-repository:0.1:revision ; build-container:0.2:REVISION|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 
 ## Available params from tasks
@@ -47,6 +47,7 @@
 |gitInitImage| Deprecated. Has no effect. Will be removed in the future.| | |
 |httpProxy| HTTP proxy server for non-SSL requests.| | |
 |httpsProxy| HTTPS proxy server for SSL requests.| | |
+|mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
@@ -55,6 +56,7 @@
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
 |submodules| Initialize and fetch git submodules.| true| |
+|targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
@@ -86,7 +88,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.1 task parameters
+### sast-unicode-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -96,6 +98,7 @@
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
@@ -104,13 +107,15 @@
 |git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
 |image-url| Image URL| None| '$(params.output-image)'|
 |pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
-### tkn-bundle:0.1 task parameters
+### tkn-bundle:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|REVISION| Revision| None| '$(params.revision)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| | |
+|URL| Source code Git URL| None| '$(params.git-url)'|
 
 ## Results
 |name|description|value|
@@ -124,9 +129,9 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.1:image-url ; apply-tags:0.1:IMAGE|
+|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.1:IMAGE|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -135,6 +140,7 @@
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |commit| The precise commit SHA that was fetched by this Task.| build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
+|merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
 ### init:0.2 task results
@@ -145,11 +151,11 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.1 task results
+### sast-unicode-check:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### tkn-bundle:0.1 task results
+### tkn-bundle:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
@@ -161,7 +167,7 @@
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.2:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -179,7 +185,7 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.1 task workspaces
+### sast-unicode-check:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
@@ -187,7 +193,7 @@
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| The workspace where source code is included.| True| workspace|
-### tkn-bundle:0.1 task workspaces
+### tkn-bundle:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| | False| workspace|

@@ -1,5 +1,19 @@
 #!/bin/bash -e
 
+# To make the script work on linux and mac, use '${SED_CMD}' instead of 'sed'
+# https://stackoverflow.com/a/4247319
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # Require gnu-sed.
+  if ! [ -x "$(command -v gsed)" ]; then
+    echo "Error: 'gsed' is not installed." >&2
+    echo "If you are using Homebrew, install with 'brew install gnu-sed'." >&2
+    exit 1
+  fi
+  SED_CMD=gsed
+else
+  SED_CMD=sed
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # You can ignore building manifests for some tasks by providing the SKIP_TASKS variable
@@ -46,9 +60,10 @@ main() {
         if ! oc kustomize -o "task/$task_name/$task_version/$task_name.yaml" "task/$task_name/$task_version/"; then
             echo "failed to build task: $task_name" >&2
             ret=1
+            continue
         fi
         # Add a warning message in the generated file
-        sed -i "1 i $warning_message" "task/$task_name/$task_version/$task_name.yaml"
+        ${SED_CMD} -i "1 i $warning_message" "task/$task_name/$task_version/$task_name.yaml"
     done
 
     find pipelines/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3 }' | \
@@ -76,9 +91,10 @@ main() {
         if ! oc kustomize -o "pipelines/$pipeline_name/$pipeline_name.yaml" "pipelines/$pipeline_name"; then
             echo "failed to build pipeline: $pipeline_name" >&2
             ret=1
+            continue
         fi
         # Add a warning message in the generated file
-        sed -i "1 i $warning_message" "pipelines/$pipeline_name/$pipeline_name.yaml"
+        ${SED_CMD} -i "1 i $warning_message" "pipelines/$pipeline_name/$pipeline_name.yaml"
     done
 
     exit "$ret"

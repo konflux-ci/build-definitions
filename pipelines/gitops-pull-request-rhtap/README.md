@@ -5,9 +5,9 @@
 |---|---|---|---|
 |ec-policy-configuration| Enterprise Contract policy to validate against| github.com/enterprise-contract/config//default| verify-enterprise-contract:0.1:POLICY_CONFIGURATION|
 |ec-public-key| The public key that EC should use to verify signatures| k8s://$(context.pipelineRun.namespace)/cosign-pub| verify-enterprise-contract:0.1:PUBLIC_KEY ; download-sboms:0.1:PUBLIC_KEY|
-|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.rhtap-tas.svc| verify-enterprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
+|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.tssc-tas.svc| verify-enterprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
 |ec-strict| Should EC violations cause the pipeline to fail?| true| verify-enterprise-contract:0.1:STRICT|
-|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.rhtap-tas.svc| verify-enterprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
+|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.tssc-tas.svc| verify-enterprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
 |fail-if-trustification-not-configured| Should the pipeline fail when there are SBOMs to upload but Trustification is not properly configured (i.e. the secret is missing or doesn't have all the required keys)?| true| upload-sboms-to-trustification:0.1:FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED|
 |git-url| Gitops repo url| None| clone-repository:0.1:url|
 |revision| Gitops repo revision| | clone-repository:0.1:revision|
@@ -47,6 +47,7 @@
 |gitInitImage| Deprecated. Has no effect. Will be removed in the future.| | |
 |httpProxy| HTTP proxy server for non-SSL requests.| | |
 |httpsProxy| HTTPS proxy server for SSL requests.| | |
+|mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
 |refspec| Refspec to fetch before checking out revision.| | |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
@@ -55,6 +56,7 @@
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
 |submodules| Initialize and fetch git submodules.| true| |
+|targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
@@ -107,6 +109,7 @@
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
+|merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| |
 ### verify-enterprise-contract:0.1 task results

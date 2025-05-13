@@ -12,6 +12,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
+|ANNOTATIONS_FILE|Path to a file with additional key=value annotations that should be applied to the image|""|false|
 |BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |BUILD_ARGS_FILE|Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file|""|false|
@@ -31,9 +32,10 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
-|STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
+|STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
+|WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
 |YUM_REPOS_D_SRC|Path in the git repository in which yum repository files are stored|repos.d|false|
 |YUM_REPOS_D_TARGET|Target path on the container in which yum repository files should be made available|/etc/yum.repos.d|false|

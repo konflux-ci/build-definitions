@@ -1,0 +1,251 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.2"
+    build.appstudio.redhat.com/build_type: "tkn-bundle"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, konflux"
+  name: tkn-bundle
+spec:
+  description: |-
+    Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
+  params:
+  - description: Reference of the image task will produce.
+    name: IMAGE
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - name: HOME
+    type: string
+    description: Value for the HOME environment variable.
+    default: /tekton/home
+  - name: STEPS_IMAGE
+    type: string
+    description: An optional image to configure task steps with in the bundle
+    default: ""
+  - name: URL
+    type: string
+    description: Source code Git URL
+  - name: REVISION
+    type: string
+    description: Revision
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository and tag where the built image was pushed with tag only
+    name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
+  stepTemplate:
+    env:
+    - name: HOME
+      value: "$(params.HOME)"
+    - name: TASK_FILE
+      value: tekton_task_files
+    - name: SOURCE_CODE_DIR
+      value: source
+  steps:
+  - image: quay.io/konflux-ci/konflux-test:latest@sha256:d596724343a31c201a5c2e79f233f9ef78ac65726ae4ed5ffa41d76b3dac630f
+    name: modify-task-files
+    env:
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: STEPS_IMAGE
+      value: $(params.STEPS_IMAGE)
+    script: |
+      #!/bin/env bash
+      set -o errexit
+      set -o pipefail
+      set -o nounset
+
+      # expand '**', and don't return glob expression when no matches found
+      shopt -s globstar nullglob
+
+      # read \$CONTEXT as an array split by comma or space into PATHS
+      IFS=', ' read -r -a PATHS <<< "$CONTEXT"
+      FILES=()
+      for path in "${PATHS[@]}"; do
+        # keeps current path expanded
+        paths=()
+        # are we negating the current path
+        neg=0
+        if [[ "${path}" == \!* ]]; then
+          neg=1
+          path="${path#\!}"
+        fi
+        if [[ -d "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}" ]]; then
+          # for directories look for any .yaml or .yml files
+          paths+=(
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yaml
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yml
+          )
+        else
+          # for files add the file to the collected paths
+          paths+=("$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}")
+        fi
+        if [[ $neg == 0 ]]; then
+          # collect current paths to FILES
+          FILES+=("${paths[@]}")
+        else
+          if [[ ${#PATHS[@]} -eq 1 ]]; then
+            # single negative path provided, first include everything then
+            # subtract the negative elements
+            FILES=(
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yaml
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yml
+            )
+          fi
+          for p in "${paths[@]}"; do
+            # remove any collected paths from FILES, leaves blank elements in place
+            FILES=("${FILES[@]/$p/}")
+          done
+          # remove blank elements
+          TMP=("${FILES[@]}")
+          FILES=()
+          for p in "${TMP[@]}"; do
+            [[ -n "${p}" ]] && FILES+=("${p}")
+          done
+        fi
+      done
+
+      if [[ -n "${STEPS_IMAGE}" ]]; then
+        for f in "${FILES[@]}"; do
+          yq --in-place --yml-output '(.spec.steps[] | select(has("image")).image) = env.STEPS_IMAGE' "$f"
+        done
+      fi
+
+      printf "%s\n" "${FILES[@]}" > "${TASK_FILE}"
+    workingDir: $(workspaces.source.path)
+  - image: quay.io/konflux-ci/appstudio-utils@sha256:4dd23978070d02c567303d46bef1f03bfc16d77aef62e6899ac2ac022884b4b5
+    name: build
+    env:
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: URL
+      value: $(params.URL)
+    - name: REVISION
+      value: $(params.REVISION)
+    script: |
+        #!/bin/env bash
+
+        set -o errexit
+        set -o pipefail
+        set -o nounset
+
+        mapfile -t FILES <"${TASK_FILE}"
+        [[ ${#FILES[@]} -eq 0 ]] &&
+          echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
+          exit 1
+        exec 3>&1
+
+        retry() {
+          local status
+          local retry=0
+          local -r interval=${RETRY_INTERVAL:-5}
+          local -r max_retries=5
+          while true; do
+            "$@" && break
+            status=$?
+            ((retry += 1))
+            if [ $retry -gt $max_retries ]; then
+              return $status
+            fi
+            echo "info: Waiting for a while, then retry ..." 1>&2
+            sleep "$interval"
+          done
+        }
+
+        function escape_tkn_bundle_arg() {
+          # the arguments to `tkn bundle --annotate` need to be escaped in a curious way
+          # see https://github.com/tektoncd/cli/issues/2402 for details
+
+          local arg=$1
+          # replace single double-quotes with double double-quotes (this escapes the double-quotes)
+          local escaped_arg=${arg//\"/\"\"}
+          # wrap the whole thing in double-quotes (this escapes commas)
+          printf '"%s"' "$escaped_arg"
+        }
+
+        # Check if task is kustomized
+        # A task considered to be kustomized when a kustomization file is found in the task dir
+        is_kustomized_task() {
+            local -r task_dir=$1
+            if [[ -f "$task_dir/kustomization.yaml" || -f "$task_dir/kustomization.yml" ]] ; then
+                return 0
+            fi
+            return 1
+        }
+
+        # Generate a task from the kustomization file
+        generate_kustomized_task() {
+            local -r task_dir=$1
+            local -r prepared_task_file="$task_dir/generated-kustomized-task.yaml"
+            kubectl kustomize "$task_dir" >"$prepared_task_file"
+            echo "$prepared_task_file"
+        }
+
+        # task_dir is where all the tasks definitions reside
+        # all tasks definitions are in the same task_dir, so extracting it from the first element is enough
+        task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
+
+        # If task is kustomized, generate it and replace the FILES value with the value of the generated task
+        # All other files will be ignored.
+        if is_kustomized_task "$task_dir"; then
+            echo "Generating a kustomized task from $task_dir"
+            FILES=("$(generate_kustomized_task "$task_dir")")
+        else
+            echo "Task is not Kustomized - continue"
+        fi
+
+        ANNOTATIONS=()
+        ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
+        ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
+        ANNOTATIONS+=("org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}")
+
+        # Ensure an empty string is output rather than string "null" if the version label is not present
+        task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "${FILES[@]}" | sed '/null/d' | tr -d '[:space:]')
+        ANNOTATIONS+=("org.opencontainers.image.version=${task_version}")
+
+        if [ -f "${task_dir}/README.md" ]; then
+          ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
+        fi
+
+        if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
+          ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${URL}/tree/${REVISION}/${CONTEXT}/TROUBLESHOOTING.md")
+        fi
+
+        if [ -f "${task_dir}/USAGE.md" ]; then
+          ANNOTATIONS+=("dev.tekton.docs.usage=${URL}/tree/${REVISION}/${CONTEXT}/USAGE.md")
+        fi
+        description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
+        ANNOTATIONS+=("org.opencontainers.image.description=${description}")
+
+        echo "Added annotations:"
+        ANNOTATION_FLAGS=()
+        for annotation in "${ANNOTATIONS[@]}"; do
+          ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
+          echo "    - $annotation"
+        done
+
+        # shellcheck disable=SC2046
+        OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
+          $(printf ' -f %s' "${FILES[@]}") |
+          tee /proc/self/fd/3)"
+        echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
+        digest="${OUT#*Pushed Tekton Bundle to *@}"
+        echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
+        echo -n "${IMAGE}@${digest}" >"$(results.IMAGE_REF.path)"
+
+        # cleanup task file
+        [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
+    securityContext:
+      runAsUser: 0
+    workingDir: $(workspaces.source.path)
+  workspaces:
+  - name: source
