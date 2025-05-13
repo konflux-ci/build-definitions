@@ -15,6 +15,8 @@ ShellCheck is a static analysis tool, gives warnings and suggestions for bash/sh
 | RECORD_EXCLUDED   | Whether to record the excluded findings to file, Useful for auditing.<br/>If "true", the excluded findings will be stored in `excluded-findings.json`. | "false"       | No       |
 | IMP_FINDINGS_ONLY | Whether to report only important findings. To report all findings, specify "false".                                                                    | "true"        | No       |
 
+For path exclusions defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## Results:
 
 | name        | description              |
@@ -23,10 +25,10 @@ ShellCheck is a static analysis tool, gives warnings and suggestions for bash/sh
 
 ## Source repository for image:
 
-https://github.com/konflux-ci/konflux-test
+<https://github.com/konflux-ci/konflux-test>
 
 ## Additional links:
 
-* https://www.shellcheck.net/wiki/Home
-* https://github.com/koalaman/shellcheck
-* https://github.com/csutils/csmock
+* <https://www.shellcheck.net/wiki/Home>
+* <https://github.com/koalaman/shellcheck>
+* <https://github.com/csutils/csmock>
