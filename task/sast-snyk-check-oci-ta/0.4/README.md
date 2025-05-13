@@ -4,11 +4,12 @@ Scans source code for security vulnerabilities, including common issues such as 
 
 Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
 
-The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
+The snyk binary used in this Task comes from a container image defined in <https://github.com/konflux-ci/konflux-test>
 
-See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information about the snyk tool.
+See <https://snyk.io/product/snyk-code/> and <https://snyk.io/> for more information about the snyk tool.
 
 ## Parameters
+
 |name|description|default value|required|
 |---|---|---|---|
 |ARGS|Append arguments.|""|false|
@@ -25,8 +26,10 @@ See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information
 |image-digest|Digest of the image to scan.||true|
 |image-url|Image URL.||true|
 
+For ignore rules defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## Results
+
 |name|description|
 |---|---|
 |TEST_OUTPUT|Tekton task test output.|
-

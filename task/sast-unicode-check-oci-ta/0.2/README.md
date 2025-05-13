@@ -3,6 +3,7 @@
 Scans source code for non-printable unicode characters in all text files.
 
 ## Parameters
+
 |name|description|default value|required|
 |---|---|---|---|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
@@ -17,8 +18,10 @@ Scans source code for non-printable unicode characters in all text files.
 |image-digest|Image digest|""|false|
 |image-url|Image URL.|""|false|
 
+For ignore rules defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## Results
+
 |name|description|
 |---|---|
 |TEST_OUTPUT|Tekton task test output.|
-

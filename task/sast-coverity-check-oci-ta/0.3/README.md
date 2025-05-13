@@ -3,6 +3,7 @@
 Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Coverity.
 
 ## Parameters
+
 |name|description|default value|required|
 |---|---|---|---|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
@@ -48,8 +49,10 @@ Scans source code for security vulnerabilities, including common issues such as 
 |image-digest|Digest of the image to which the scan results should be associated.||true|
 |image-url|URL of the image to which the scan results should be associated.||true|
 
+For ignore rules defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
+
 ## Results
+
 |name|description|
 |---|---|
 |TEST_OUTPUT|Tekton task test output.|
-
