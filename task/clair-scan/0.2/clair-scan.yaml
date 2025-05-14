@@ -64,6 +64,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+        # shellcheck source=/dev/null
         . /utils.sh
 
         imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
@@ -72,11 +73,17 @@ spec:
         echo "Inspecting raw image manifest $imageanddigest."
 
         # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
-        image_manifests=$(get_image_manifests -i ${imageanddigest})
+        image_manifests=$(get_image_manifests -i "${imageanddigest}")
         if [ -n "$image_manifests" ]; then
           echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r arch arch_sha; do
             echo "$arch_sha" > /tekton/home/image-manifest-$arch.sha
           done
+        else
+          echo "Failed to get image manifests from image \"$imageanddigest\""
+          note="Task $(context.task.name) failed: Failed to get image manifests from image \"$imageanddigest\". For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
     - name: get-vulnerabilities
       image: quay.io/konflux-ci/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
@@ -99,6 +106,8 @@ spec:
         set -o errexit
         set -o nounset
         set -o pipefail
+        # shellcheck source=/utils.sh
+        . /utils.sh
 
         imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
@@ -109,8 +118,8 @@ spec:
         # we require in the policy rules, so we resort to running clair-action
         # twice to produce both quay and clair formatted output
         clair_report() {
-          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=quay | tee "clair-result-$2.json"; } && \
-          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair > "clair-report-$2.json"; }
+          { retry clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=quay | tee "clair-result-$2.json"; } && \
+          { retry clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair > "clair-report-$2.json"; }
         }
 
         for sha_file in image-manifest-*.sha; do
