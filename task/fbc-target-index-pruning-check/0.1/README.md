@@ -2,11 +2,13 @@
 
 ## Description:
 This task ensures file-based catalog (FBC) components do not remove previously released versions of operators from a target catalog, specified in the `TARGET_INDEX` parameter, which by default points to the Red Hat production Index Image `registry.redhat.io/redhat/redhat-operator-index`. Image pull credentials are required for `registry.redhat.io` or the registry you specify in `TARGET_INDEX`.
+Pruning is allowed only in channels that contain dev-preview, pre-ga, or candidate in their names.
 
 ### What this check does:
 - Runs `opm render` on both FBC fragment and TARGET_INDEX:OCP_VERSION images.
 - Compares the channel data of the FBC fragment and target index.
 - Checks if the FBC fragment will remove channels or channel entries previously added to the target index.
+- Allows pruning only in channels that contain dev-preview, pre-ga, or candidate in their names.
 
 
 ## Params:

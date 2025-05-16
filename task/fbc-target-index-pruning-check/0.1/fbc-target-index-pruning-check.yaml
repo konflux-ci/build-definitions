@@ -10,6 +10,7 @@ metadata:
 spec:
   description: >-
     Ensures file-based catalog (FBC) components do not remove versions of operators already added to a released catalog.
+    Pruning is allowed only in channels that contain dev-preview, pre-ga, or candidate in their names.
   params:
     - name: IMAGE_URL
       description: Fully qualified image name.
@@ -128,6 +129,8 @@ spec:
 
         failure_num=0
         TESTPASSED=true
+        # Allowed pruned channels are those that contain dev-preview, pre-ga, or candidate anywhere in their names
+        fbc_allowed_pruned_channels=".*(dev-preview|pre-ga|candidate).*"
 
         fbc_channels=/tmp/olm-channels-fbc-image.json
         ndx_channels=/tmp/olm-channels-target-index.json
@@ -180,9 +183,13 @@ spec:
               if echo "${fbc_channel_names[@]}" | grep -Fwq "${chan}"; then
                 channels_to_test+=("${chan}")
               else
-                echo "!FAILURE! - FBC fragment prunes entire ${pkg}.${chan} channel."
-                TESTPASSED=false
-                failure_num=$((failure_num + 1))
+                if [[ ! "${chan}" =~ ${fbc_allowed_pruned_channels} ]]; then
+                  echo "!FAILURE! - FBC fragment prunes entire ${pkg}.${chan} channel."
+                  TESTPASSED=false
+                  failure_num=$((failure_num + 1))
+                else
+                  echo "FBC fragment prunes entire ${pkg}.${chan} channel. Pruning in ${chan} channel is allowed."
+                fi
               fi
             done
 
@@ -198,9 +205,13 @@ spec:
 
                 for entry in "${ndx_entries[@]}"; do
                   if ! echo "${fbc_entries[@]}" | grep -Fwq "${entry}"; then
-                    echo "!FAILURE! - FBC fragment prunes ${entry} from ${pkg}.${chan} channel."
-                    failure_num=$((failure_num + 1))
-                    TESTPASSED=false
+                    if [[ ! "${chan}" =~ ${fbc_allowed_pruned_channels} ]]; then
+                      echo "!FAILURE! - FBC fragment prunes ${entry} from ${pkg}.${chan} channel."
+                      failure_num=$((failure_num + 1))
+                      TESTPASSED=false
+                    else
+                      echo "FBC fragment prunes ${entry} from ${pkg}.${chan} channel. Pruning in ${chan} channel is allowed."
+                    fi
                   fi
                 done
               done
