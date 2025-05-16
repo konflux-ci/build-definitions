@@ -14,7 +14,9 @@ spec:
     such as SQL injection, cross-site scripting (XSS), and code injection attacks
     using Coverity.
   params:
-  - description: Reference of the image buildah will produce.
+  - description: The task will build a container image and tag it locally as $IMAGE,
+      but will not push the image anywhere. Due to the relationship between this task
+      and the buildah task, the parameter is required, but its value is mostly irrelevant.
     name: IMAGE
     type: string
   - default: ./Dockerfile
@@ -740,8 +742,8 @@ spec:
       done
 
       image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
-      buildah push "$IMAGE" oci-archive:"/shared/$image_name.tar"
-      echo "/shared/$image_name.tar" > /shared/container_path
+      buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+      echo "/shared/$image_name.oci" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
     securityContext:

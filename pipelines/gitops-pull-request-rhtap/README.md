@@ -5,9 +5,9 @@
 |---|---|---|---|
 |ec-policy-configuration| Enterprise Contract policy to validate against| github.com/enterprise-contract/config//default| verify-enterprise-contract:0.1:POLICY_CONFIGURATION|
 |ec-public-key| The public key that EC should use to verify signatures| k8s://$(context.pipelineRun.namespace)/cosign-pub| verify-enterprise-contract:0.1:PUBLIC_KEY ; download-sboms:0.1:PUBLIC_KEY|
-|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.rhtap-tas.svc| verify-enterprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
+|ec-rekor-host| The Rekor host that EC should use to look up transparency logs| http://rekor-server.tssc-tas.svc| verify-enterprise-contract:0.1:REKOR_HOST ; download-sboms:0.1:REKOR_HOST|
 |ec-strict| Should EC violations cause the pipeline to fail?| true| verify-enterprise-contract:0.1:STRICT|
-|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.rhtap-tas.svc| verify-enterprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
+|ec-tuf-mirror| The TUF mirror that EC should use| http://tuf.tssc-tas.svc| verify-enterprise-contract:0.1:TUF_MIRROR ; download-sboms:0.1:TUF_MIRROR|
 |fail-if-trustification-not-configured| Should the pipeline fail when there are SBOMs to upload but Trustification is not properly configured (i.e. the secret is missing or doesn't have all the required keys)?| true| upload-sboms-to-trustification:0.1:FAIL_IF_TRUSTIFICATION_NOT_CONFIGURED|
 |git-url| Gitops repo url| None| clone-repository:0.1:url|
 |revision| Gitops repo revision| | clone-repository:0.1:revision|

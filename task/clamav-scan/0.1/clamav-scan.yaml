@@ -82,7 +82,7 @@ spec:
         echo "Extracting image(s)."
 
         # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
-        image_manifests=$(get_image_manifests -i ${imageanddigest})
+        image_manifests=$(get_image_manifests -i "${imageanddigest}")
         if [ -n "$image_manifests" ]; then
           while read -r arch arch_sha; do
             destination=$(echo content-$arch)
@@ -151,6 +151,12 @@ spec:
               cat /work/logs/clamscan-ec-test-$arch.json
             fi
           done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')
+        else
+          echo "Failed to get image manifests from image \"$imageanddigest\""
+          note="Task $(context.task.name) failed: Failed to get image manifests from image \"$imageanddigest\". For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
 
         jq -s -rce '

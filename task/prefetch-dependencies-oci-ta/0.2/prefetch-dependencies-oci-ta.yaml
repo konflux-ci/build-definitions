@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1742914212@sha256:4c8830d349732ed8066544e1cbcf878ad64f39aa4364f13cf4a69954b0ccbda5
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.5-1745855087@sha256:e1c4703364c5cb58f5462575dc90345bcd934ddc45e6c32f9c162f2b5617681c
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,12 +148,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:2d22666968448e7d6455ca2a32465ca9cfcc7e4676a86ecaa31dbea55fcf9cd1
+      image: quay.io/konflux-ci/yq:latest@sha256:8068ee12171e5be43d60d5a34e3372e68ba7d935f3592e95931b325c9447282a
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.24.0@sha256:f8450e56df21662f5c38babfe7c88f15eecdb99a2c199c8da585b22b2f76ed46
+      image: quay.io/konflux-ci/hermeto:0.26.0@sha256:fe983f680cfa4aa755e2abab7a005bcf7b14e5a7ac46c969f2eca79cc81ea26c
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -295,7 +295,7 @@ spec:
         }
 
         if [ -z "${INPUT}" ]; then
-          # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
+          # Confirm input was provided
           echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
           exit 0
         fi
@@ -405,7 +405,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - create
         - --store
