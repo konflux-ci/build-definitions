@@ -228,14 +228,26 @@ inject_bundle_ref_to_pipelines() {
             {\"name\": \"kind\", \"value\": \"task\"}
         ]
     }"
+    echo "Bundle ref: ${bundle_ref}"
     local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
     find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
         while read -r pipeline_file; do
+            echo "Processing file: ${pipeline_file}"
             yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
             yq e "(.spec.finally[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
         done
 }
 
+inject_external_bundle_ref_to_pipelines() {
+    local -r external_task_dir=$1
+    local -r external_task_name=$2
+    local -r external_task_version=$3
+
+    external_task_file="$(find "$external_task_dir" -maxdepth 1 -type f \( -iname "*.yaml" -o -iname "*.yml" \))"
+    # fetch the task_budle from the external-task definition
+    external_task_bundle_with_digest=$(yq -e '.task_bundle' "$external_task_file")
+    inject_bundle_ref_to_pipelines "$external_task_name" "$external_task_version" "$external_task_bundle_with_digest"
+}
 # Get task version from task definition rather than the version in the directory path.
 # Arguments: task_file
 # The version is output to stdout.
@@ -521,93 +533,117 @@ build_push_tasks() {
     local previous_migration_bundle_digest
     local build_new_bundle
     local regex
+    
 
-    find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+    declare -A external_map
+
+    # Loop over external-task folder, inject the bundles in it
+    # and store a map with a task-name/task-version key to later compare to task folder
+    if [ -d external-task ]; then
+        external_task_paths=$(find external-task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | sort)
+        while read -r ext_task_dir ext_task_name ext_task_version; do
+            echo "Handling external task $ext_task_dir - $ext_task_name - $ext_task_version"
+            inject_external_bundle_ref_to_pipelines "$ext_task_dir" "$ext_task_name" "$ext_task_version"
+            key="$ext_task_name/$ext_task_version"
+            external_map["$key"]="$ext_task_dir"
+        done <<< "$external_task_paths"
+    fi
+
+    # Loop over task /*/*
+    find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' |
     while read -r task_dir task_name task_version
     do
-        if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
-            continue
-        fi
-
-        if should_skip_repo "$QUAY_NAMESPACE" "task-${task_name}"; then
-            echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated"
-            continue
-        fi
-
-        echo "info: build and push task $task_dir" 1>&2
-
-        if is_normal_task "$task_dir" "$task_name";  then
-            build_data=$(generate_normal_task_build_data "$task_dir" "$task_name" "$task_version")
-        elif is_kustomized_task "$task_dir" "$task_name";  then
-            build_data=$(generate_kustomized_task_build_data "$task_dir" "$task_name" "$task_version")
+        key="$task_name/$task_version"
+        # Compare task with external-task
+        # Skip if we have the same task and version in task and in external-task - external-task was used
+        if [[ -n "${external_map[$key]}" ]]; then
+            echo "Duplicate found: $key - skipping"
         else
-            echo "warning: skip handling task $task_dir since it does not follow a known task definition structure." 1>&2
-            continue
-        fi
+            echo "Handling task $task_dir - $task_name - $task_version"
+            if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
+                continue
+            fi
 
-        read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
+            if should_skip_repo "$QUAY_NAMESPACE" "task-${task_name}"; then
+                echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated"
+                continue
+            fi
 
-        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
-        migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
+            echo "info: build and push task $task_dir" 1>&2
 
-        has_migration=false
-        if [ -f "$migration_file" ] && git show "$task_file_sha" --oneline --name-only | grep -q "$migration_file"; then
-            # There is a migration file matching the task concrete version and
-            # is included in the same commit with the task.
-            has_migration=true
-        fi
+            if is_normal_task "$task_dir" "$task_name";  then
+                build_data=$(generate_normal_task_build_data "$task_dir" "$task_name" "$task_version")
+            elif is_kustomized_task "$task_dir" "$task_name";  then
+                build_data=$(generate_kustomized_task_build_data "$task_dir" "$task_name" "$task_version")
+            else
+                echo "warning: skip handling task $task_dir since it does not follow a known task definition structure." 1>&2
+                continue
+            fi
 
-        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}" 2>/tmp/build_and_push_stderr.log)
-        skopeo_status=$?
+            read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
 
-        build_new_bundle=false
+            concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
+            migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
 
-        if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
-            task_bundle_with_digest=${task_bundle}@${digest}
-            echo "info: use existing $task_bundle_with_digest" 1>&2
-        elif [[ $skopeo_status -eq $SKOPEO_ES_GENERIC_ERR ]]; then
-            regex="unknown: Tag ${task_bundle##*:}-${task_file_sha} was deleted or has expired"
-            if grep -q "$regex" /tmp/build_and_push_stderr.log; then
+            has_migration=false
+            if [ -f "$migration_file" ] && git show "$task_file_sha" --oneline --name-only | grep -q "$migration_file"; then
+                # There is a migration file matching the task concrete version and
+                # is included in the same commit with the task.
+                has_migration=true
+            fi
+
+            digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}" 2>/tmp/build_and_push_stderr.log)
+            skopeo_status=$?
+
+            build_new_bundle=false
+
+            if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
+                task_bundle_with_digest=${task_bundle}@${digest}
+                echo "info: use existing $task_bundle_with_digest" 1>&2
+            elif [[ $skopeo_status -eq $SKOPEO_ES_GENERIC_ERR ]]; then
+                regex="unknown: Tag ${task_bundle##*:}-${task_file_sha} was deleted or has expired"
+                if grep -q "$regex" /tmp/build_and_push_stderr.log; then
+                    build_new_bundle=true
+                else
+                    echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
+                    return $skopeo_status
+                fi
+            elif [[ $skopeo_status -eq $SKOPEO_ES_IMAGE_NOT_FOUND ]]; then
                 build_new_bundle=true
             else
-                echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
-                return $skopeo_status
+                echo "error: unknown skopeo exit status $skopeo_status" >&2
+                return 1
             fi
-        elif [[ $skopeo_status -eq $SKOPEO_ES_IMAGE_NOT_FOUND ]]; then
-            build_new_bundle=true
-        else
-            echo "error: unknown skopeo exit status $skopeo_status" >&2
-            return 1
+
+            if [[ $build_new_bundle == true ]]; then
+                echo "info: finding the previous task bundle that has a migration" 1>&2
+                previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
+
+                echo "info: push new bundle $task_bundle" 1>&2
+
+                output=$(
+                    build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
+                        "$has_migration" "$previous_migration_bundle_digest"
+                )
+                echo "$output" >&2
+                echo
+
+                # Grab just the digest of the bundle from the ouput. The tag is NOT included in the ouput.
+                digest="$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null | grep -o -m 1 'sha256:[0-9a-f]*')"
+                task_bundle_with_digest="${task_bundle}@${digest}"
+                cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
+            fi
+
+            if [ "$has_migration" == "true" ]; then
+                attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
+            fi
+
+            # version placeholder is removed naturally by the substitution.
+            echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
+            real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
+            inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
         fi
-
-        if [[ $build_new_bundle == true ]]; then
-            echo "info: finding the previous task bundle that has a migration" 1>&2
-            previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
-
-            echo "info: push new bundle $task_bundle" 1>&2
-
-            output=$(
-                build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
-                    "$has_migration" "$previous_migration_bundle_digest"
-            )
-            echo "$output" >&2
-            echo
-
-            # Grab just the digest of the bundle from the ouput. The tag is NOT included in the ouput.
-            digest="$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null | grep -o -m 1 'sha256:[0-9a-f]*')"
-            task_bundle_with_digest="${task_bundle}@${digest}"
-            cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
-        fi
-
-        if [ "$has_migration" == "true" ]; then
-            attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
-        fi
-
-        # version placeholder is removed naturally by the substitution.
-        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
-        real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
-        inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
-    done
+    done        
 }
 
 
