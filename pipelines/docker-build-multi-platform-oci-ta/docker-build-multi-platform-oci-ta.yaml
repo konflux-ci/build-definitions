@@ -314,7 +314,12 @@ spec:
       values:
       - "false"
     workspaces: []
-  - name: clamav-scan
+  - matrix:
+      params:
+      - name: image-arch
+        value:
+        - $(params.build-platforms)
+    name: clamav-scan
     params:
     - name: image-digest
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -324,7 +329,7 @@ spec:
     - build-image-index
     taskRef:
       name: clamav-scan
-      version: "0.2"
+      version: "0.3"
     when:
     - input: $(params.skip-checks)
       operator: in
