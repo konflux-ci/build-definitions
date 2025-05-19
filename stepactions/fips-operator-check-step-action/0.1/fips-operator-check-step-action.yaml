@@ -98,7 +98,11 @@ spec:
         continue
       fi
       component_label=$(echo "${image_labels}" | grep 'com.redhat.component=' | cut -d= -f2 || true)
+      version_label=$(echo "${image_labels}" | grep 'version=' | cut -d= -f2 || true)
+      release_label=$(echo "${image_labels}" | grep 'release=' | cut -d= -f2 || true)
       echo "Component label is ${component_label}"
+      echo "Version label is ${version_label}"
+      echo "Release label is ${release_label}"
 
       if [ -z "${component_label}" ]; then
         echo -e "Error: Unable to scan image: Could not get com.redhat.component label for ${related_image}\n"
@@ -107,7 +111,7 @@ spec:
       fi
 
       # Convert image to OCI format since umoci can only handle the OCI format
-      if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}:latest"; then
+      if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
         echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
         error_counter=$((error_counter + 1))
         continue
@@ -115,8 +119,8 @@ spec:
 
       # Unpack OCI image
       if ! retry umoci raw unpack --rootless \
-          --image "/tekton/home/${component_label}:latest" \
-          "/tekton/home/unpacked-${component_label}"; then
+          --image "/tekton/home/${component_label}-${version_label}-${release_label}:latest" \
+          "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}"; then
         echo -e "Error: Unable to scan image: Could not unpack OCI image ${related_image}\n"
         error_counter=$((error_counter + 1))
         continue
@@ -126,21 +130,21 @@ spec:
       # The check-payload command fails with exit 1 when the scan for an image is unsuccessful
       # or when the image is not FIPS compliant. Hence, count those as failures and not errors
       if ! check-payload scan local \
-          --path="/tekton/home/unpacked-${component_label}" \
+          --path="/tekton/home/unpacked-${component_label}-${version_label}-${release_label}" \
           "${check_payload_version}" \
           --components="${component_label}" \
           --output-format=csv \
-          --output-file="/tekton/home/report-${component_label}.csv"; then
+          --output-file="/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
         echo -e "check-payload scan failed for ${related_image}\n"
         failure_counter=$((failure_counter + 1))
         continue
       fi
 
-      if [ -f "/tekton/home/report-${component_label}.csv" ]; then
-        if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}.csv"; then
+      if [ -f "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv" ]; then
+        if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful for ${related_image}\n"
           success_counter=$((success_counter + 1))
-        elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}.csv"; then
+        elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful with warnings for ${related_image}\n"
           warnings_counter=$((warnings_counter + 1))
         fi
