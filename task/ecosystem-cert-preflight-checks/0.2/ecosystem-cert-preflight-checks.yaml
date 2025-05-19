@@ -76,9 +76,55 @@ spec:
           exit 0
         fi
 
+        # If the image URL points to a manifest list (a multi-arch image), check the labels on any of the child
+        # images (don't fail in the case where the list does not include an image for the arch of the system
+        # where this pipeline is running).
+
+        declare -a _SKOPEO_INSPECT_ARGS
+
+        echo "Checking the media type of the OCI artifact..."
+        _RAW_IMAGE_MANIFEST=$(skopeo inspect --raw "docker://${PARAM_IMAGE_URL}")
+        _IMAGE_MEDIA_TYPE=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.mediaType')
+        echo "The media type of the OCI artifact is ${_IMAGE_MEDIA_TYPE}."
+
+        if [[ "${_IMAGE_MEDIA_TYPE}" == "application/vnd.docker.distribution.manifest.list.v2+json" || "${_IMAGE_MEDIA_TYPE}" == "application/vnd.oci.image.index.v1+json" ]]; then
+          _CURRENT_ARCH=$(uname -m)
+          _CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+          # The archs returned by uname are not always the same as the archs used by OCI manifests, so we need
+          # to map them.
+          case ${_CURRENT_ARCH} in
+            "aarch64")
+              _CURRENT_ARCH="arm64"
+              ;;
+            "x86_64")
+              _CURRENT_ARCH="amd64"
+              ;;
+            *)
+              ;;
+          esac
+
+          # If the manifest list contains an image for the current OS and architecture, prefer to test that.
+          _MATCHING_IMAGE_COUNT=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r "[.manifests[] | select(.platform.os == \"${_CURRENT_OS}\" and .platform.architecture == \"${_CURRENT_ARCH}\")] | length")
+          if [[ "${_MATCHING_IMAGE_COUNT}" -gt 0 ]]; then
+            echo "Found an image in the manifests for the current OS and architecture (${_CURRENT_OS}/${_CURRENT_ARCH})."
+          else
+            # If there is no image for the current OS and architecture, just use the first one in the list.
+            _INSPECT_OVERRIDE_IMAGE_OS=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.manifests[0].platform.os')
+            _INSPECT_OVERRIDE_IMAGE_ARCH=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.manifests[0].platform.architecture')
+            _SKOPEO_INSPECT_ARGS+=("--override-os=${_INSPECT_OVERRIDE_IMAGE_OS}")
+            _SKOPEO_INSPECT_ARGS+=("--override-arch=${_INSPECT_OVERRIDE_IMAGE_ARCH}")
+
+            echo "Could not find an image in the manifests for the current OS and architecture (${_CURRENT_OS}/${_CURRENT_ARCH}), inspecting the image for ${_INSPECT_OVERRIDE_IMAGE_OS}/${_INSPECT_OVERRIDE_IMAGE_ARCH} instead."
+          fi
+        fi
+
         # Introspect based on minimum count of operator-framework related bundle labels.
         echo "Looking for image labels that indicate this might be an operator bundle..."
-        skopeo inspect "docker://${PARAM_IMAGE_URL}" \
+
+        # We purposely do not quote the array elements here, so that they are expanded by the shell as separate args.
+        # shellcheck disable=SC2068
+        skopeo inspect ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}" \
           | jq '.Labels | keys | .[]' -r \
           | { grep operators.operatorframework.io.bundle || true ;} \
           | tee /tmp/ecosystem-image-labels
