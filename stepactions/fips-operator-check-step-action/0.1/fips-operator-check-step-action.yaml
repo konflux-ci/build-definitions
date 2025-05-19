@@ -97,9 +97,9 @@ spec:
         error_counter=$((error_counter + 1))
         continue
       fi
-      component_label=$(echo "${image_labels}" | grep 'com.redhat.component=' | cut -d= -f2 || true)
-      version_label=$(echo "${image_labels}" | grep 'version=' | cut -d= -f2 || true)
-      release_label=$(echo "${image_labels}" | grep 'release=' | cut -d= -f2 || true)
+      component_label=$(echo "${image_labels}" | grep 'com.redhat.component=' | cut -d= -f2 | tr -d '\n\r' | xargs || true)
+      version_label=$(echo "${image_labels}" | grep '^version=' | cut -d= -f2 | tr -d '\n\r' | xargs || true)
+      release_label=$(echo "${image_labels}" | grep 'release=' | cut -d= -f2 | tr -d '\n\r' | xargs || true)
       echo "Component label is ${component_label}"
       echo "Version label is ${version_label}"
       echo "Release label is ${release_label}"
