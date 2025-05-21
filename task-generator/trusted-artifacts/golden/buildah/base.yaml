@@ -260,7 +260,7 @@ spec:
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
 
-      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
       if [ -d "$(workspaces.source.path)/cachi2" ]; then
         cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
       fi
@@ -358,7 +358,7 @@ spec:
         /src/utils/merge_syft_sbom.py sbom-prefetch.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
-        echo "Skipping step since no Cachi2 SBOM was produced"
+        echo "Skipping step since no source SBOM was produced"
       fi
     workingDir: $(workspaces.source.path)
     securityContext:

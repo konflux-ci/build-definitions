@@ -121,7 +121,7 @@ spec:
         - name: RESULT_FILE
           value: "$(results.BUILD_RESULT.path)"
         - name: CACHI2_ARTIFACTS_DIR
-          value: "$(workspaces.workspace.path)/cachi2"
+          value: "$(workspaces.workspace.path)/prefetch"
         - name: RESULT_SOURCE_IMAGE_URL
           value: "$(results.SOURCE_IMAGE_URL.path)"
         - name: RESULT_SOURCE_IMAGE_DIGEST
@@ -152,7 +152,7 @@ spec:
           --source-dir "$SOURCE_DIR" \
           --base-images "$base_images" \
           --write-result-to "$RESULT_FILE" \
-          --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR" \
+          --prefetch-artifacts-dir "$CACHI2_ARTIFACTS_DIR" \
           --registry-allowlist="$registry_allowlist"
 
         cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
