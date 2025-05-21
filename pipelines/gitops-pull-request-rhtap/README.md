@@ -120,6 +120,8 @@
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
+|git-auth| |True| clone-repository:0.1:basic-auth|
+|workspace| |False| clone-repository:0.1:output ; get-images-to-verify:0.1:source ; get-images-to-upload-sbom:0.1:source ; download-sboms:0.1:sboms ; upload-sboms-to-trustification:0.1:sboms|
 ## Available workspaces from tasks
 ### download-sbom-from-url-in-attestation:0.1 task workspaces
 |name|description|optional|workspace from pipeline
