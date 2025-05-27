@@ -1,0 +1,426 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: cosa-build
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: cosa-build
+    build.appstudio.redhat.com/multi-platform-required: "true"
+spec:
+  description: Build a container with the CoreOS assembler
+  params:
+    - name: BUILDER_IMAGE
+      description: The location of the CoreOS assembler builder image.
+      type: string
+      default: quay.io/coreos-assembler/coreos-assembler:latest
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
+    - name: HERMETIC
+      description: Determines if build will be executed without network access.
+      type: string
+      default: "false"
+    - name: IMAGE
+      description: Reference of the image cosa-build will produce.
+      type: string
+    - name: IMAGE_APPEND_PLATFORM
+      description: Whether to append a sanitized platform architecture on the IMAGE
+        tag
+      type: string
+      default: "false"
+    - name: NO_KVM
+      description: Determines if build will be executed without KVM at the cost of
+        performance.
+      type: string
+      # Note: for now we do not have virtualization enabled in MPC hosts, so we set
+      # true as default
+      default: "true"
+    - name: PLATFORM
+      description: The platform to build on
+      type: string
+    - name: SBOM_TYPE
+      description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.
+      Note: the SBOM from the prefetch task - if there is one - must be in the same
+      format.'
+      type: string
+      default: "spdx"
+    - name: SKIP_SBOM_GENERATION
+      description: Skip SBOM-related operations. This will likely cause EC policies
+        to fail if enabled
+      type: string
+      default: "false"
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: TLSVERIFY
+      description: Verify the TLS on the registry endpoint (for push/pull
+        to a non-TLS registry)
+      type: string
+      default: "true"
+    - name: VARIANT
+      description: Select variant you want to build.
+      type: string
+      default: ""
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the image just built
+    - name: IMAGE_REF
+      description: Image reference of the built image
+    - name: IMAGE_URL
+      description: Image repository and tag where the built image was pushed
+    - name: SBOM_BLOB_URL
+      description: Reference, including digest to the SBOM blob
+  volumes:
+    - name: ssh
+      secret:
+        optional: false
+        secretName: multi-platform-ssh-$(context.taskRun.name)
+    - name: varlibcontainers
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    env:
+      - name: BUILDER_IMAGE
+        value: $(params.BUILDER_IMAGE)
+      - name: HERMETIC
+        value: $(params.HERMETIC)
+      - name: IMAGE
+        value: $(params.IMAGE)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
+      - name: NO_KVM
+        value: $(params.NO_KVM)
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
+      - name: SKIP_SBOM_GENERATION
+        value: $(params.SKIP_SBOM_GENERATION)
+      - name: TLSVERIFY
+        value: $(params.TLSVERIFY)
+      - name: VARIANT
+        value: $(params.VARIANT)
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:23953da08db809f841120214055aeb238bc553368e366feb58495d5a5493b19a
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+    - name: build
+      image: quay.io/redhat-appstudio/multi-platform-runner:01c7670e81d5120347cf0ad13372742489985e5f@sha256:246adeaaba600e207131d63a7f706cffdcdc37d8f600c56187123ec62823ff44
+      workingDir: /var/workdir
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: /ssh
+          name: ssh
+          readOnly: true
+      script: |
+        #!/bin/bash
+        set -o verbose
+        set -eu
+        set -o pipefail
+        mkdir -p ~/.ssh
+        if [ -e "/ssh/error" ]; then
+          #no server could be provisioned
+          cat /ssh/error
+          exit 1
+        elif [ -e "/ssh/otp" ]; then
+          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa
+          echo "" >>~/.ssh/id_rsa
+        else
+          cp /ssh/id_rsa ~/.ssh
+        fi
+        chmod 0400 ~/.ssh/id_rsa
+        SSH_HOST="$(cat /ssh/host)"
+        export SSH_HOST
+        BUILD_DIR="$(cat /ssh/user-dir)"
+        export BUILD_DIR
+        SSH_ARGS="-o StrictHostKeyChecking=no"
+        export SSH_ARGS
+        mkdir -p scripts
+        echo "$BUILD_DIR"
+        # shellcheck disable=SC2086
+        ssh $SSH_ARGS "$SSH_HOST" mkdir -p "$BUILD_DIR/workspaces/builddir" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp"
+        rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+
+        cat >scripts/script-build.sh <<'REMOTESSHEOF'
+        #!/bin/sh
+        set -o verbose
+        set -eux
+        set -o pipefail
+        cd /srv
+
+        if [ -z "$VARIANT" ] ; then
+          VARIANT=""
+        else
+          VARIANT=" --variant $VARIANT "
+        fi
+
+        # NOTE: to be reconsidered during the hermetic enablement
+        prefetched_rpms_for_my_arch="./cachi2/output/deps/rpm/$(uname -m)"
+        if [ -d "$prefetched_rpms_for_my_arch" ]; then
+          # move all repo files out of the source repository to avoid conflicts with the cachi2.repo
+          mkdir /tmp/original-repos
+          find ./source -maxdepth 1 -name '*.repo' -exec mv {} /tmp/original-repos \;
+
+          # copy the platform-specific cachi2.repo into the source repository
+          cp "$prefetched_rpms_for_my_arch/repos.d/cachi2.repo" ./source
+
+          # set up cleanup handler
+          trap 'rm ./source/cachi2.repo; cp -r /tmp/original-repos/. ./source' EXIT
+
+          # link the cachi2 output dir to the expected location
+          #   (the prefetch task expects the output to be at /cachi2/output during the build)
+          mkdir /cachi2
+          ln -s "$(realpath ./cachi2/output)" /cachi2/output
+        fi
+        # END NOTE
+
+        cosa init --force $VARIANT /dev/null && cosa fetch && cosa build container
+        REMOTESSHEOF
+
+        if [ "$HERMETIC" = "true" ]; then
+          network_opt="--network=none"
+        else
+          network_opt=""
+        fi
+
+        if [ "$NO_KVM" = "true" ]; then
+          kvm_opt="-e COSA_NO_KVM=1"
+        else
+          kvm_opt="--device=/dev/kvm"
+        fi
+
+        chmod +x scripts/script-build.sh
+        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        # shellcheck disable=SC2086
+        ssh $SSH_ARGS "$SSH_HOST" \
+          podman run \
+          --device=/dev/fuse \
+          $network_opt \
+          $kvm_opt \
+          --mount type=bind,source="${BUILD_DIR}/tmp,target=/var/tmp,relabel=shared" \
+          --privileged \
+          --security-opt=label=disable \
+          -e IMAGE="$IMAGE" \
+          -e VARIANT="$VARIANT" \
+          --rm \
+          -v "$BUILD_DIR/workspaces/source:/srv/src/config/:ro" \
+          -v "$BUILD_DIR/workspaces/builddir:/srv:Z" \
+          -v "${BUILD_DIR}/scripts:/script:ro" \
+          -v "$BUILD_DIR/.docker/:/root/.docker:Z" \
+          --user=0 \
+          --entrypoint bash \
+          "$BUILDER_IMAGE" \
+          /script/script-build.sh
+        rsync -av $SSH_HOST:$BUILD_DIR/workspaces/builddir/builds/latest/$(uname -m)/*.ociarchive image.ociarchive
+        podman load -i image.ociarchive
+        buildah tag localhost/latest:latest "$IMAGE"
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 250m
+          memory: 128Mi
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+    - computeResources: {}
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:4d8273444b0f2781264c232e12e88449bbf078c99e3da2a7f6dcaaf27bc53712
+      name: push
+      script: |
+        #!/bin/bash
+        set -e
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+
+        echo "[$(date --utc -Ins)] Push image with unique tag"
+
+        retries=5
+        # Push to a unique tag based on the TaskRun name to avoid race conditions
+        echo "Pushing to ${IMAGE%:*}:$(context.taskRun.name)"
+        if ! buildah push \
+          --format="oci" \
+          --retry "$retries" \
+          --tls-verify="$TLSVERIFY" \
+          "$IMAGE" \
+          "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
+          echo "Failed to push image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+          exit 1
+        fi
+
+        echo "[$(date --utc -Ins)] Push image with git revision"
+
+        # Push to a tag based on the git revision
+        echo "Pushing to ${IMAGE}"
+        if ! buildah push \
+          --format="oci" \
+          --retry "$retries" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile "/var/workdir/image-digest" "$IMAGE" \
+          "docker://$IMAGE"; then
+          echo "Failed to push image to $IMAGE after ${retries} tries"
+          exit 1
+        fi
+
+        cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
+        echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+        {
+          echo -n "${IMAGE}@"
+          cat "/var/workdir/image-digest"
+        } >"$(results.IMAGE_REF.path)"
+
+        echo
+        echo "[$(date --utc -Ins)] End push"
+      securityContext:
+        capabilities:
+          add:
+          - SETFCAP
+        runAsUser: 0
+      volumeMounts:
+      - mountPath: /var/lib/containers
+        name: varlibcontainers
+      workingDir: /var/workdir
+    - name: sbom-syft-generate
+      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Generate SBOM"
+
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
+
+        case $SBOM_TYPE in
+        cyclonedx)
+          syft_sbom_type=cyclonedx-json@1.5
+          ;;
+        spdx)
+          syft_sbom_type=spdx-json@2.3
+          ;;
+        *)
+          echo "Invalid SBOM type: $SBOM_TYPE. Valid: cyclonedx, spdx" >&2
+          exit 1
+          ;;
+        esac
+
+        # Note: is it necessary to syft coreos config repo ? as it's only data, maybe it's not
+        # worth it to generate a SBOM from it. But we could "just in case".
+        #echo "Running syft on the source directory"
+        #syft dir:"/var/workdir/source" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
+        echo "Running syft on the image"
+        syft oci-archive:/var/workdir/image.ociarchive --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+
+        echo "[$(date --utc -Ins)] End sbom-syft-generate"
+      computeResources:
+        limits:
+          memory: 6Gi
+        requests:
+          memory: 6Gi
+    - name: prepare-sboms
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:5e0c5996f77b877c4d6027b64bb0217f85716408a59821c3e48ba49e2556440d
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+
+        echo "[$(date --utc -Ins)] Prepare SBOM"
+
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
+
+        sboms_to_merge=()
+        if [ -f /var/workdir/sbom-source.json ]; then
+          sboms_to_merge+=(syft:/var/workdir/sbom-source.json)
+        fi
+        if [ -f /var/workdir/sbom-image.json ]; then
+          sboms_to_merge+=(syft:/var/workdir/sbom-image.json)
+        fi
+        if [ -f "cachi2/output/bom.json" ]; then
+          sboms_to_merge+=(cachi2:cachi2/output/bom.json)
+        fi
+
+
+        if [ ${#sboms_to_merge[@]} -gt 1 ]; then
+          echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
+          python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" >sbom.json
+        else
+          cp ${sboms_to_merge[0]/syft:/} sbom.json
+        fi
+
+        echo "Adding image reference to sbom"
+        IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+        IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+        python3 /scripts/add_image_reference.py \
+          --image-url "$IMAGE_URL" \
+          --image-digest "$IMAGE_DIGEST" \
+          --input-file sbom.json \
+          --output-file /tmp/sbom.tmp.json
+        mv /tmp/sbom.tmp.json sbom.json
+
+        echo "[$(date --utc -Ins)] End prepare-sboms"
+      securityContext:
+        runAsUser: 0
+    - name: upload-sbom
+      image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
+      workingDir: /var/workdir
+      script: |
+        #!/bin/bash
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+        echo "[$(date --utc -Ins)] Upload SBOM"
+
+        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+          echo "Skipping SBOM generation"
+          exit 0
+        fi
+
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
+        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+
+        # Remove tag from IMAGE while allowing registry to contain a port number.
+        sbom_repo="${IMAGE%:*}"
+        sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+        # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+        echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+        echo
+        echo "[$(date --utc -Ins)] End upload-sbom"
