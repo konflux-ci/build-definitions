@@ -1,4 +1,4 @@
-# rpms-signature-scan.yaml task
+# rpms-signature-scan task
 
 ## Description:
 
@@ -29,7 +29,9 @@ The task will fail in case one or more images have failed the scan.
 | IMAGES_PROCESSED  | Images processed in the task |
 
 ## Source repository for image:
+
 https://github.com/konflux-ci/tools
 
 ## Source repository for task:
+
 https://github.com/konflux-ci/tekton-tools
