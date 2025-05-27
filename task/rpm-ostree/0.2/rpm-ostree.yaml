@@ -248,20 +248,16 @@ spec:
       buildah config -a org.opencontainers.image.base.name="${base_image_name}" -a org.opencontainers.image.base.digest="${base_image_digest}" "${container}"
       buildah commit "${container}" "${IMAGE}"
 
-      status=-1
-      max_run=5
-      sleep_sec=10
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing sbom image to registry"
-        buildah push \
-          --tls-verify="${TLSVERIFY}" \
-          --digestfile "$(workspaces.source.path)/image-digest" "${IMAGE}" \
-          "docker://${IMAGE}" && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push sbom image to registry after ${max_run} tries"
+      buildah_retries=3
+
+      echo "Pushing image to registry"
+      if ! /usr/bin/retry buildah push \
+        --tls-verify="$TLSVERIFY" \
+        --retry "$buildah_retries" \
+        --digestfile "$(workspaces.source.path)/image-digest" "${IMAGE}" \
+        "docker://$IMAGE"
+      then
+          echo "Failed to push image ${IMAGE} to registry"
           exit 1
       fi
 
@@ -290,7 +286,15 @@ spec:
     image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
     workingDir: $(workspaces.source.path)
     script: |
-      cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+      #!/bin/bash
+      set -e
+
+      echo "Pushing sbom to registry"
+      if ! /usr/bin/retry cosign attach sbom --sbom sbom-cyclonedx.json --type cyclonedx "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
   volumes:
   - emptyDir: {}
     name: varlibcontainers
