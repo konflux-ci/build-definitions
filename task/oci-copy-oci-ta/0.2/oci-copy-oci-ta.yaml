@@ -240,10 +240,13 @@ spec:
         EOL
 
         echo "Ensuring that the empty blob exists, for the image manifest config."
-        echo -n "{}" | oras blob push \
+        if ! echo -n "{}" | retry oras blob push \
           --registry-config auth.json \
           ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a \
-          --media-type application/vnd.oci.empty.v1+json --size 2 -
+          --media-type application/vnd.oci.empty.v1+json --size 2 -; then
+          echo "Failed to push empty blob to registry"
+          exit 1
+        fi
 
         for varfile in "/var/workdir"/vars/*; do
           echo "Reading $varfile"
@@ -262,14 +265,20 @@ spec:
             echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
 
             echo "Pushing blob of $OCI_FILENAME of type $OCI_ARTIFACT_TYPE"
-            oras blob push --registry-config auth.json ${REPO} --media-type ${OCI_ARTIFACT_TYPE} ${OCI_FILENAME}
+            if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "${OCI_FILENAME}"; then
+              echo "Failed to push blob of $OCI_FILENAME to registry"
+              exit 1
+            fi
 
             echo "Removing local copy of $OCI_FILENAME to save space."
             rm ${OCI_FILENAME}
           fi
 
           echo "Grabbing descriptor of blob from the registry"
-          oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" >descriptor.json
+          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" >descriptor.json; then
+            echo "Failed to fetch blob ${REPO}@sha256:${OCI_ARTIFACT_DIGEST} from registry"
+            exit 1
+          fi
 
           echo "Setting mediaType to ${OCI_ARTIFACT_TYPE}"
           yq -oj -i '.mediaType = "'${OCI_ARTIFACT_TYPE}'"' descriptor.json
@@ -284,9 +293,15 @@ spec:
         done
 
         echo "Pushing complete artifact manifest to ${IMAGE}"
-        oras manifest push --no-tty --registry-config auth.json "${IMAGE}" artifact-manifest.json
+        if ! retry oras manifest push --no-tty --registry-config auth.json "${IMAGE}" artifact-manifest.json; then
+          echo "Failed to push complete artifact manifest to ${IMAGE}"
+          exit 1
+        fi
 
-        RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
+        if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}"); then
+          echo "Failed to get digest for ${IMAGE} from registry"
+          exit 1
+        fi
         echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"

@@ -162,23 +162,6 @@ spec:
           exit 1
         exec 3>&1
 
-        retry() {
-          local status
-          local retry=0
-          local -r interval=${RETRY_INTERVAL:-5}
-          local -r max_retries=5
-          while true; do
-            "$@" && break
-            status=$?
-            ((retry += 1))
-            if [ $retry -gt $max_retries ]; then
-              return $status
-            fi
-            echo "info: Waiting for a while, then retry ..." 1>&2
-            sleep "$interval"
-          done
-        }
-
         function escape_tkn_bundle_arg() {
           # the arguments to `tkn bundle --annotate` need to be escaped in a curious way
           # see https://github.com/tektoncd/cli/issues/2402 for details
@@ -251,10 +234,14 @@ spec:
           echo "    - $annotation"
         done
 
+        echo "Pushing bundle ${IMAGE} to registry"
         # shellcheck disable=SC2046
-        OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
+        if ! OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
           $(printf ' -f %s' "${FILES[@]}") |
-          tee /proc/self/fd/3)"
+          tee /proc/self/fd/3)"; then
+          echo "Failed to push bundle ${IMAGE} to registry"
+          exit 1
+        fi
         echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
         digest="${OUT#*Pushed Tekton Bundle to *@}"
         echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
