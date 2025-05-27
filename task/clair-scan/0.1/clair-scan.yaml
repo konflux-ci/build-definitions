@@ -117,7 +117,7 @@ spec:
 
             echo "Running clair-action on $arch image manifest."
             # run the scan for each image manifest in the image index
-            retry clair-action report --image-ref="$arch_specific_digest" --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result-"$arch".json || true
+            /usr/bin/retry clair-action report --image-ref="$arch_specific_digest" --db-path=/tmp/matcher.db --format=quay | tee /tekton/home/clair-result-"$arch".json || true
 
             digests_processed+=("\"$arch_sha\"")
           fi
