@@ -371,6 +371,36 @@ check_apply_in_real_cluster() {
     rm "$apply_logfile"
 }
 
+# Check that the OCI-TA variant of this task has the same set of migration scripts
+# Arguments: the normal-task migration file path
+check_oci_ta_migration() {
+    local migration_file=$1
+    # e.g. migration_file=task/foo/0.2/migrations/0.2.1.sh
+    local parent_dir
+    parent_dir=$(resolve_migrations_parent_dir "$migration_file")    # => task/foo/0.2
+
+    # get the “foo” and “0.2”
+    local task_dir="${parent_dir%/*}"                               # => task/foo
+    local task_name
+    task_name=$(basename "$task_dir")                               # => foo
+    local version
+    version=$(basename "$parent_dir")                               # => 0.2
+
+    # path to the OCI-TA variant migrations:
+    local oci_mig_dir="${task_dir}-oci-ta/${version}/migrations"
+
+    # Check if the corresponding migration file exists in the OCI-TA variant
+    local migration_script_name
+    migration_script_name=$(basename "$migration_file")
+    local oci_migration_file="${oci_mig_dir}/${migration_script_name}"
+
+    if [ ! -f "$oci_migration_file" ]; then
+        error "OCI-TA variant of task '${task_name}' is missing migration script:"
+        error "  ${oci_migration_file}"
+        exit 1
+    fi
+}
+
 main() {
     if git status --porcelain | grep -qv "^??"; then
         info "There are uncommitted changes. Please commit them and run again."
@@ -399,6 +429,9 @@ main() {
 
         info "check migrations/ is created in versioned-specific task directory"
         check_migrations_is_in_task_version_specific_dir "$migration_file"
+        
+        info "check OCI-TA variant has migration script"
+        check_oci_ta_migration "$migration_file"
 
         info "check migration file name matches the concrete task version in the label"
         check_version_match "$migration_file"
