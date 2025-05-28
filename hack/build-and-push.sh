@@ -522,7 +522,7 @@ build_push_tasks() {
     local build_new_bundle
     local regex
 
-    find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+    find -L task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r task_dir task_name task_version
     do
         if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
