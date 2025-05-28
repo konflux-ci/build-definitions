@@ -55,7 +55,7 @@ func renderTask(path string) (*pipeline.Task, error) {
 
 func writeTask(task *pipeline.Task, writer io.Writer) error {
 	if c, ok := writer.(io.Closer); ok {
-		defer c.Close()
+		defer c.Close() //nolint:errcheck
 	}
 
 	b, err := yaml.Marshal(task)
