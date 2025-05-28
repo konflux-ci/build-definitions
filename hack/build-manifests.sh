@@ -33,7 +33,7 @@ warning_message="# WARNING: This is an auto generated file, do not modify this f
 main() {
     cd "$SCRIPT_DIR/.."
     local ret=0
-    find task/*/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3, $4 }' | \
+    find -L task/*/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3, $4 }' | \
     while read -r task_path task_name task_version file_name
     do
         if [[ "$file_name" == "kustomization.yaml" ]]; then
@@ -64,7 +64,7 @@ main() {
         ${SED_CMD} -i "1 i $warning_message" "task/$task_name/$task_version/$task_name.yaml"
     done
 
-    find pipelines/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3 }' | \
+    find -L pipelines/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3 }' | \
     while read -r pipeline_path pipeline_name file_name
     do
         if [[ "$file_name" == "kustomization.yaml" ]]; then
