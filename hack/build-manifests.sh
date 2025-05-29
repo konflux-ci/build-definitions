@@ -9,9 +9,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "If you are using Homebrew, install with 'brew install gnu-sed'." >&2
     exit 1
   fi
-  SED_CMD=gsed
+  SED_CMD="gsed"
 else
-  SED_CMD=sed
+  SED_CMD="sed"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -31,8 +31,6 @@ SKIP_PIPELINES="gitops-pull-request-rhtap"
 warning_message="# WARNING: This is an auto generated file, do not modify this file directly"
 
 main() {
-    local dirs
-
     cd "$SCRIPT_DIR/.."
     local ret=0
     find task/*/*/*.yaml -maxdepth 0 | awk -F '/' '{ print $0, $2, $3, $4 }' | \
@@ -43,7 +41,7 @@ main() {
         else
           continue
         fi
-        
+
         # Skip the tasks mentioned in SKIP_TASKS
         skipit=
         for tname in ${SKIP_TASKS};do
@@ -74,14 +72,14 @@ main() {
         else
           continue
         fi
-        
+
         # Skip the pipelines mentioned in SKIP_PIPELINES
         skipit=
         for pname in ${SKIP_PIPELINES};do
             [[ ${pname} == "${pipeline_name}" ]] && skipit=True
         done
         [[ -n ${skipit} ]] && continue
-        
+
         # Check if there is only one resource in the kustomization file and it is <pipeline_name>.yaml
         resources=$(yq -r '.resources[]' "$pipeline_path")
         if [[ "$resources" == "$pipeline_name.yaml" ]]; then
