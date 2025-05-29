@@ -473,7 +473,7 @@
         set -x
         UPLOAD_FILE="$1"
         MEDIA_TYPE="$2"
-        oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        retry oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
       )
 
       echo "Attaching scan results to ${IMAGE_URL}"
