@@ -204,7 +204,7 @@ spec:
       name: ssh
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.4.1@sha256:34d7065427085a31dc4949bd283c001b91794d427e1e4cdf1b21ea4faf9fee3f
+  - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: sbom-syft-generate
@@ -222,7 +222,7 @@ spec:
       - mountPath: /var/lib/containers
         name: varlibcontainers
   - name: merge-cachi2-sbom
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:8f6e3348367e5dd418f49e4394afec92c9d7ff7cf3d333ba96ccba3f07eede0b
+    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
     script: |
       cachi2_sbom=./cachi2/output/bom.json
       if [ -f "$cachi2_sbom" ]; then
