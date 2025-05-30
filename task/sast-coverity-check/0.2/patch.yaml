@@ -466,9 +466,16 @@
       )
 
       echo "Attaching scan results to ${IMAGE_URL}"
-      upload_file "coverity-results.sarif" "application/sarif+json"
+      if ! /usr/bin/retry upload_file "coverity-results.sarif" "application/sarif+json"
+      then
+        echo "Failed to attach scan results to ${IMAGE_URL}"
+      fi
 
       # upload excluded-findings.json if enabled
       if [ -f "excluded-findings.json" ]; then
-        upload_file "excluded-findings.json" "application/json"
+        echo "Attaching excluded findings to ${IMAGE_URL}"
+        if ! /usr/bin/retry upload_file "excluded-findings.json" "application/json"
+        then
+          echo "Failed to attach excluded findings to ${IMAGE_URL}"
+        fi
       fi

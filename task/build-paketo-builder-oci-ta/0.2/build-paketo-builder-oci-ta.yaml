@@ -446,32 +446,31 @@ spec:
 
         buildah --storage-driver "$STORAGE_DRIVER" commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
 
-        echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+        buildah_retries=3
 
-        retries=5
-        if ! buildah push \
-          --retry "$retries" \
+        echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+        if ! /usr/bin/retry buildah push \
+          --retry "$buildah_retries" \
           --storage-driver "$STORAGE_DRIVER" \
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
-          "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+          "docker://${IMAGE%:*}:$(context.taskRun.name)"
+        then
+          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry"
           exit 1
         fi
 
-
         echo "Pushing to ${IMAGE}"
-
-        if ! buildah push \
-          --retry "$retries" \
+        if ! /usr/bin/retry buildah push \
+          --retry "$buildah_retries" \
           --storage-driver "$STORAGE_DRIVER" \
           --tls-verify="$TLSVERIFY" \
           --digestfile "/var/workdir/image-digest" "$IMAGE" \
-          "docker://$IMAGE"; then
-          echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+          "docker://$IMAGE"
+        then
+          echo "Failed to push image $IMAGE to registry"
           exit 1
         fi
-
 
         echo "Save the different results"
 
@@ -525,7 +524,12 @@ spec:
           update-ca-trust
         fi
 
-        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        echo "Pushing sbom to registry"
+        if ! /usr/bin/retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        then
+            echo "Failed to push sbom to registry"
+            exit 1
+        fi
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
