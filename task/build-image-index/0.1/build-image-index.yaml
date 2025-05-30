@@ -192,7 +192,7 @@ spec:
         add:
           - SETFCAP
 
-  - image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
+  - image: quay.io/konflux-ci/mobster@sha256:9b7bf71d09771065432bef7c6ed13193a3ac4e2c41895c6197e4b09e1c0ee905
     name: create-sbom
     computeResources:
       limits:
@@ -213,11 +213,12 @@ spec:
       IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
       IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
       echo "Creating SBOM result file..."
-      python3 index_image_sbom_script.py \
-        --image-index-url "$IMAGE_URL" \
-        --image-index-digest "$IMAGE_DIGEST" \
-        --inspect-input-file "$MANIFEST_DATA_FILE" \
-        --output-path /index-build-data/sbom-results.json
+      mobster generate \
+        --output /index-build-data/index.spdx.json \
+        oci-index \
+        --index-image-pullspec "$IMAGE_URL" \
+        --index-image-digest "$IMAGE_DIGEST" \
+        --index-manifest-path "$MANIFEST_DATA_FILE" \
 
   - name: upload-sbom
     image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
@@ -225,9 +226,9 @@ spec:
       #!/bin/bash
       set -e
 
-      SBOM_RESULT_FILE="/index-build-data/sbom-results.json"
+      SBOM_RESULT_FILE="/index-build-data/index.spdx.json"
       if [ ! -f "$SBOM_RESULT_FILE" ]; then
-        echo "The sbom_results.json file does not exists. Skipping the SBOM upload..."
+        echo "The index.spdx.json file does not exists. Skipping the SBOM upload..."
         exit 0
       fi
 
