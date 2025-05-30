@@ -113,7 +113,7 @@ spec:
                 echo $? > partner-tasks-code.out
                 cat partner-tasks.out
             - name: create-comment
-              image: registry.access.redhat.com/ubi9/python-39:9.5-1746594907@sha256:3c6d92e9c0511f8266610d1e5fba3d929fbd3f2cc1d5e5efaee29d4083fceeae
+              image: registry.access.redhat.com/ubi9/python-39:9.6-1747332104@sha256:f29fbe7a5990f195a89dd1d0ae8cfdb5fb57bbadfe950d5e6f541f5c2aaf8cb5
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
@@ -259,7 +259,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-migration-md
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:6204929330fe6ee7402e3998a8a75c9f858b92381874383476a40a34daffaef9
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:e94318b2ace7de49eda47a8d46451065a496c6d84fe38313de4d8b9cd30f2cde
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -295,7 +295,7 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:f20d921fc255356bf7f6deb59a72ef7d66fe15f72813e563da9d62c223448ebb
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:24b22b51604bc3c2180f23a1761bb295e01e2fa96e6be448091322b08c300222
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service
