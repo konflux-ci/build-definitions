@@ -28,7 +28,7 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.27@sha256:5f3200bb9f52c888be99d3eeacde6445b21b731b9216e20259522eba99f9766e
       computeResources:
         limits:
           memory: 8Gi
@@ -198,12 +198,12 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: d01f85b9c0caade637da2c92f8a5d81e0f7ef067
+            value: 59a81a7fa59a628693dc0a407d97e67acdf6d778
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.27@sha256:5f3200bb9f52c888be99d3eeacde6445b21b731b9216e20259522eba99f9766e
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
