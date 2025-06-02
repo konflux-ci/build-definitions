@@ -313,7 +313,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.0
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -368,14 +368,9 @@ spec:
         # if current directory is "/", fallback to an empty temp directory
         [ / = "\$proj_dir" ] && proj_dir=\$(mktemp -d)
 
-        # /usr/bin/file needs to be available for cov-build to work in Coverity 2024.12
-        if ! [ -x /usr/bin/file ]; then
-          if [ -w /usr/bin/ ] && [ -x /opt/cov-sa-2024.12/bin/file ]; then
-            install -vm0755 /opt/cov-sa-2024.12/bin/file /usr/bin/file
-          elif [ -e /opt/cov-sa-2024.12/bin/cov-override-access.so ]; then
-            export LD_PRELOAD="/opt/cov-sa-2024.12/bin/cov-override-access.so"
-            export PATH="\${PATH}:/opt/cov-sa-2024.12/bin"
-          fi
+        # file executable needs to be available in \$PATH for cov-build to work
+        if ! [ -x /usr/bin/file ] && [ -x /opt/coverity/bin/file ]; then
+          export PATH="\${PATH}:/opt/coverity/bin"
         fi
 
         # the COVERITY_* environment variables and their effective values can be found in /tmp/idir/build-log.txt after the capture
@@ -442,7 +437,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.0
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -471,7 +466,7 @@ spec:
         - name: ADDITIONAL_VOLUME_MOUNTS
           value: |-
             /opt/coverity:/opt/coverity
-            /opt/cov-sa-2024.12:/opt/cov-sa-2024.12
+            /opt/cov-sa-2025.3:/opt/cov-sa-2025.3
             /shared:/shared
             /shared/license.dat:/opt/coverity/bin/license.dat
             /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
@@ -831,7 +826,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.0
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
