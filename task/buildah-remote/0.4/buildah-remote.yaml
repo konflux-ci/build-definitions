@@ -982,11 +982,12 @@ spec:
     name: upload-sbom
     script: |
       #!/bin/bash
-
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
       fi
+
       echo "[$(date --utc -Ins)] Upload SBOM"
 
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
