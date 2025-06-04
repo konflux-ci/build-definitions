@@ -167,7 +167,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:4d93850148c446be6de0b2e4b7b5caa3972e2db57855551183f50714ca49711f
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:a948942a1776a9d0a9c8fe147c0d7585545bb7493f2f27272a40f567e9c975ef
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -190,7 +190,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:46c4e0372e3d3cddff9015f3c2e2145db56fd4c386f7e0b305d8d1a1424a0d18
+      image: quay.io/konflux-ci/yq:latest@sha256:05bf7ac03c7963e30e1e979599e4f09a56e7c3547c2de8529828128e1fe6fc4d
       workingDir: /var/workdir
       script: |
         #!/bin/bash
