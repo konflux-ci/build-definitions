@@ -167,7 +167,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:a948942a1776a9d0a9c8fe147c0d7585545bb7493f2f27272a40f567e9c975ef
+      image: quay.io/konflux-ci/mobster@sha256:78cabbe1b40a5ddbb4773e451f88272a840036a434495ce0a99c88679fc90f6f
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -175,12 +175,14 @@ spec:
 
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
 
-        python3 /scripts/sbom_for_modelcar_task.py \
-        --sbom-type "$SBOM_TYPE" \
-        --modelcar-image "$MODELCAR_IMAGE" \
-        --base-image "$BASE_IMAGE" \
-        --model-image "$MODEL_IMAGE" \
-        --output-file sbom.json \
+        mobster generate  \
+          --output sbom.json \
+          modelcar \
+          --modelcar-image "$MODELCAR_IMAGE" \
+          --base-image "$BASE_IMAGE" \
+          --model-image "$MODEL_IMAGE" \
+          --sbom-type "$SBOM_TYPE"
+
 
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
