@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: apply-tags
+spec:
+  description: >-
+    Applies additional tags to the built image.
+  params:
+  - name: IMAGE
+    description: Reference of image that was pushed to registry in the buildah task.
+    type: string
+  - name: ADDITIONAL_TAGS
+    description: Additional tags that will be applied to the image in the registry.
+    type: array
+    default: []
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+    - name: apply-additional-tags-from-parameter
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: registry.access.redhat.com/ubi9/skopeo:9.6-1747642001@sha256:d2f9cec0697dc8f20d0dc5b5793b60e809584877ddfef61e445aada3cf3abcf9
+      args:
+        - $(params.ADDITIONAL_TAGS[*])
+      env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+      script: |
+        #!/bin/bash
+
+        if [ "$#" -ne 0 ]; then
+          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
+          for tag in "$@"; do
+            echo "Applying tag $tag"
+            skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+          done
+        else
+          echo "No additional tags parameter specified"
+        fi
+
+    - name: apply-additional-tags-from-image-label
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      image: registry.access.redhat.com/ubi9/skopeo:9.6-1747642001@sha256:d2f9cec0697dc8f20d0dc5b5793b60e809584877ddfef61e445aada3cf3abcf9
+      env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+      script: |
+        #!/bin/bash
+
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE")
+
+        if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
+          IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
+
+          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
+          for tag in "${tags_array[@]}"
+          do
+              echo "Applying tag $tag"
+              skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+          done
+        else
+          echo "No additional tags specified in the image labels"
+        fi
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true
