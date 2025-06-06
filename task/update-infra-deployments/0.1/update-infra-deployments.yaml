@@ -227,6 +227,13 @@ spec:
                 except urllib.error.HTTPError as e:
                     return Response(e.read(), e.code)
 
+            def _get_branch_ref_sha(self, branch):
+                req = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}")
+
+                if req.status == 200:
+                    return req.json()["object"]["sha"], 200
+                return "", req.status
+
             def create_mr(self):
                 repo_name = ORIGIN_REPO.split('/')[-1]
                 logger.info("Create update pull request, head: %s, base: main", repo_name)
@@ -249,22 +256,36 @@ spec:
 
             def create_reset_branch(self):
                 branch = ORIGIN_REPO.split('/')[-1]
-                target_branch = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}").json()
-                main_branch_sha = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/main").json()['object']['sha']
-                if "ref" in target_branch:
+
+                target_branch_sha, target_status_code = self._get_branch_ref_sha(branch)
+                main_branch_sha, main_status_code = self._get_branch_ref_sha("main")
+                response = Response(content="", status=-1)
+
+                if target_status_code == 200:
+                    # successive updates to the infra-deployments PR could result in a race condition
+                    # this should prevent the creation of PRs that update references to an older version
+                    if target_branch_sha != main_branch_sha:
+                        logger.error(f"HEAD of existing target branch {branch} is '{target_branch_sha}', main is '{main_branch_sha}'")
+                        raise RuntimeError(f"The target branch {branch} is out of sync with main")
+
                     logger.info("Update branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "PATCH",
                         f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "force": True}
                     )
-                else:
+
+                elif target_status_code == 404:
                     logger.info("Create branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "POST",
                         f"/repos/{TARGET_GH_REPO}/git/refs",
                         data={"sha": main_branch_sha, "ref": f"refs/heads/{branch}"}
                     )
+
+                if response.status not in (200, 201):  # either updated or created
+                    logger.error(f"Failed to create/update reset branch. Response status code: {response.status}. Target status code: {target_status_code}, main status code: {main_status_code}")
+                    raise RuntimeError(f"Failed to create/update reset branch. Response status code: {response.status}")
 
             def upload_content(self):
                 branch = ORIGIN_REPO.split('/')[-1]
