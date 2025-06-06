@@ -25,13 +25,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
 
 ## Available params from tasks
-### apply-tags:0.1 task parameters
+### apply-tags:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
 |CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE| Reference of image that was pushed to registry in the buildah task.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### build-image-index:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -301,9 +302,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.4:image-digest ; clamav-scan:0.2:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.4:image-digest ; clamav-scan:0.2:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest ; apply-tags:0.2:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.2:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.1:IMAGE ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.2:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.2:IMAGE_URL ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-remote-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
