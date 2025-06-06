@@ -124,6 +124,11 @@
 - op: replace
   path: /spec/tasks/5/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: IMAGE
+    value: $(params.output-image)
 # Replace the params set and runAfter of coverity-availability-check
 - op: replace
   path: /spec/tasks/6/runAfter
