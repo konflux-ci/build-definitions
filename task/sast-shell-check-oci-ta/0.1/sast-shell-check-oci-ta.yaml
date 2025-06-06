@@ -225,6 +225,12 @@ spec:
         note="Task $(context.task.name) completed successfully."
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: "1"
+          memory: 4Gi
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
       workingDir: /var/workdir/source
@@ -267,3 +273,9 @@ spec:
           echo "Attaching to ${IMAGE_URL}"
           retry oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
         done
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
