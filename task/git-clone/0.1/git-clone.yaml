@@ -282,16 +282,22 @@ spec:
           echo "------------------"
           exit "${MERGE_CHECK_EXIT_CODE}"
         else
-          echo "Merge successful (no conflicts found), committing..."
-          git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' into ${RESULT_SHA}"
-          COMMIT_EXIT_CODE="$?"
-          if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
-            echo "ERROR: Failed to commit merge." >&2
-            exit "${COMMIT_EXIT_CODE}"
+          git diff --staged --quiet
+          GIT_DIFF_EXIT_CODE="$?"
+          if [ "${GIT_DIFF_EXIT_CODE}" = "0" ]; then
+            echo "No diff was found, skipping merge..." >&2
+          else
+            echo "Merge successful (no conflicts found), committing..."
+            git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' into ${RESULT_SHA}"
+            COMMIT_EXIT_CODE="$?"
+            if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
+              echo "ERROR: Failed to commit merge." >&2
+              exit "${COMMIT_EXIT_CODE}"
+            fi
+            MERGED_SHA=$(git rev-parse HEAD)
+            echo "New HEAD after merge: ${MERGED_SHA}"
+            echo "${MERGED_SHA}" > "$(results.merged_sha.path)"
           fi
-          MERGED_SHA=$(git rev-parse HEAD)
-          echo "New HEAD after merge: ${MERGED_SHA}"
-          echo "${MERGED_SHA}" > "$(results.merged_sha.path)"
         fi
       else
         echo "Merge option disabled. Using checked-out revision ${RESULT_SHA} directly."
