@@ -149,12 +149,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0cf0686c2a4bd7ca226899da1759d893bc2a5e7172aca5a89a878039f3878874
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-cachi2-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:3c6d57cdd8db4aef5473a205b1f66e188a152406f6ff66a3e209c306febde0f4
+      image: quay.io/konflux-ci/yq:latest@sha256:7a5039c24795582613f2889806b16fdd1ddc971f11594a983b9a6e6f027fcb32
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until cachi2 decides what the SBOM
@@ -399,7 +399,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0cf0686c2a4bd7ca226899da1759d893bc2a5e7172aca5a89a878039f3878874
       args:
         - create
         - --store
