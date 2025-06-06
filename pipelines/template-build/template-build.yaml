@@ -306,10 +306,12 @@ spec:
         - build-image-index
       taskRef:
         name: apply-tags
-        version: "0.1"
+        version: "0.2"
       params:
-      - name: IMAGE
+      - name: IMAGE_URL
         value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: push-dockerfile
       runAfter:
       - build-image-index
