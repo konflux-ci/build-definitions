@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.2"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -11,8 +11,11 @@ spec:
   description: >-
     Applies additional tags to the built image.
   params:
-  - name: IMAGE
-    description: Reference of image that was pushed to registry in the buildah task.
+  - name: IMAGE_URL
+    description: Image repository and tag reference of the the built image.
+    type: string
+  - name: IMAGE_DIGEST
+    description: Image digest of the built image.
     type: string
   - name: ADDITIONAL_TAGS
     description: Additional tags that will be applied to the image in the registry.
@@ -44,16 +47,18 @@ spec:
       args:
         - $(params.ADDITIONAL_TAGS[*])
       env:
-      - name: IMAGE
-        value: $(params.IMAGE)
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
       script: |
         #!/bin/bash
 
         if [ "$#" -ne 0 ]; then
-          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
+          IMAGE_WITHOUT_TAG=$(echo "$IMAGE_URL" | sed 's/:[^:]*$//')
           for tag in "$@"; do
             echo "Applying tag $tag"
-            skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+            skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
           done
         else
           echo "No additional tags parameter specified"
@@ -68,21 +73,23 @@ spec:
           cpu: 100m
       image: registry.access.redhat.com/ubi9/skopeo:9.6-1747642001@sha256:d2f9cec0697dc8f20d0dc5b5793b60e809584877ddfef61e445aada3cf3abcf9
       env:
-      - name: IMAGE
-        value: $(params.IMAGE)
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
       script: |
         #!/bin/bash
 
-        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE")
+        IMAGE_WITHOUT_TAG=$(echo "$IMAGE_URL" | sed 's/:[^:]*$//')
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST")
 
         if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
           IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
 
-          IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
           for tag in "${tags_array[@]}"
           do
               echo "Applying tag $tag"
-              skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+              skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
           done
         else
           echo "No additional tags specified in the image labels"
