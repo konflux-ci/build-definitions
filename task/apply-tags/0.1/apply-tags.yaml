@@ -48,12 +48,19 @@ spec:
         value: $(params.IMAGE)
       script: |
         #!/bin/bash
+        set -e
+
+        skopeo_retries=3
 
         if [ "$#" -ne 0 ]; then
           IMAGE_WITHOUT_TAG=$(echo "$IMAGE" | sed 's/:[^:]*$//')
           for tag in "$@"; do
             echo "Applying tag $tag"
-            skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+            if ! skopeo copy --retry-times "$skopeo_retries" --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+            then
+              echo "Failed to apply tag ${tag}"
+              exit 1
+            fi
           done
         else
           echo "No additional tags parameter specified"
@@ -72,8 +79,15 @@ spec:
         value: $(params.IMAGE)
       script: |
         #!/bin/bash
+        set -e
 
-        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE")
+        skopeo_retries=3
+
+        if ! ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --retry-times "$skopeo_retries" --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE")
+        then
+          echo "Failed to inspect image ${IMAGE}"
+          exit 1
+        fi
 
         if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
           IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
@@ -82,7 +96,11 @@ spec:
           for tag in "${tags_array[@]}"
           do
               echo "Applying tag $tag"
-              skopeo copy --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+              if ! skopeo copy --retry-times "$skopeo_retries" --multi-arch index-only docker://"$IMAGE" docker://"$IMAGE_WITHOUT_TAG:$tag"
+              then
+                echo "Failed to apply tag ${tag}"
+                exit 1
+              fi
           done
         else
           echo "No additional tags specified in the image labels"
