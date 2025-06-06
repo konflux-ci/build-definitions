@@ -2,7 +2,7 @@ module github.com/konflux-ci/build-definitions/task-generator/trusted-artifacts
 
 go 1.24.0
 
-toolchain go1.24.3
+toolchain go1.24.4
 
 require (
 	github.com/google/go-cmp v0.7.0
