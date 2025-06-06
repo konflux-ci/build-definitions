@@ -58,7 +58,7 @@ spec:
         value: $(params.SBOM_TYPE)
   steps:
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:7a5039c24795582613f2889806b16fdd1ddc971f11594a983b9a6e6f027fcb32
       script: |
         #!/bin/bash
         set -eu
@@ -87,7 +87,7 @@ spec:
         done
       workingDir: $(workspaces.source.path)
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
       computeResources:
         limits:
           memory: 1Gi
@@ -281,7 +281,7 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:a948942a1776a9d0a9c8fe147c0d7585545bb7493f2f27272a40f567e9c975ef
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -308,7 +308,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:7a5039c24795582613f2889806b16fdd1ddc971f11594a983b9a6e6f027fcb32
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}
