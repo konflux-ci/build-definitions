@@ -386,8 +386,14 @@ check_oci_ta_migration() {
     local version
     version=$(basename "$parent_dir")                               # => 0.2
 
-    # path to the OCI-TA variant migrations:
-    local oci_mig_dir="${task_dir}-oci-ta/${version}/migrations"
+    # path to the OCI-TA variant and the migrations:
+    local oci_task_dir="${task_dir}-oci-ta/${version}"
+    local oci_mig_dir="${oci_task_dir}/migrations"
+
+    if [ ! -d "$oci_task_dir" ]; then
+        info "OCI-TA variant not found for task '${task_name}' and version '${version}', skipping check."
+        return 0
+    fi
 
     # Check if the corresponding migration file exists in the OCI-TA variant
     local migration_script_name
