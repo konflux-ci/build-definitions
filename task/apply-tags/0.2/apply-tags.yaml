@@ -55,7 +55,7 @@ spec:
         #!/bin/bash
 
         if [ "$#" -ne 0 ]; then
-          IMAGE_WITHOUT_TAG=$(echo "$IMAGE_URL" | sed 's/:[^:]*$//')
+          IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
           for tag in "$@"; do
             echo "Applying tag $tag"
             skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
@@ -80,7 +80,7 @@ spec:
       script: |
         #!/bin/bash
 
-        IMAGE_WITHOUT_TAG=$(echo "$IMAGE_URL" | sed 's/:[^:]*$//')
+        IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
         ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST")
 
         if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
