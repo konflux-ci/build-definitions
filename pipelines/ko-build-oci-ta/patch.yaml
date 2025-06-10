@@ -1,0 +1,241 @@
+---
+- op: add
+  path: /spec/description
+  value: |
+    This pipeline is ideal for building container images while maintaining trust after pipeline customization.
+
+    _Uses `ko` to create a container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-ko-build-oci-ta?tab=tags)_
+- op: replace
+  path: /metadata/name
+  value: ko-build-oci-ta
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "generic"
+    "pipelines.openshift.io/strategy": "ko"
+# Remove buildah-format parameter.
+- op: remove
+  path: /spec/params/12
+# Remove build-image-index parameter.
+- op: remove
+  path: /spec/params/11
+# Remove hermetic parameter.
+- op: remove
+  path: /spec/params/7
+# Remove dockerfile parameter.
+- op: remove
+  path: /spec/params/4
+# Remove path-context parameter.
+- op: remove
+  path: /spec/params/3
+
+# Add ko specific params
+- op: add
+  path: /spec/params/-
+  value:
+    default: ""
+    description: Default base image for ko
+    name: default-base-image
+    type: string
+- op: add
+  path: /spec/params/-
+  value:
+    default: ""
+    description: Setting for KO_DOCKER_REPO
+    name: ko-docker-repo
+    type: string
+- op: add
+  path: /spec/params/-
+  value:
+    default: ""
+    description: Import path to build
+    name: import-path
+    type: string
+- op: add
+  path: /spec/params/-
+  value:
+    default: ""
+    description: Preprocessing script for source code
+    name: preprocessing-script
+    type: string
+- op: add
+  path: /spec/params/-
+  value:
+    default: "pr-tag"
+    description: PR tag to use on image
+    name: pr-tag
+    type: string
+
+- op: remove
+  path: /spec/workspaces/0
+
+# Order of Tasks from the base docker-build Pipeline:
+# $ kustomize build pipelines/template-build | yq .spec.tasks.[].name | nl -v 0
+#   0	init
+#   1	clone-repository
+#   2	prefetch-dependencies
+#   3	build-container
+#   4	build-image-index
+#   5	build-source-image
+#   6	deprecated-base-image-check
+#   7	clair-scan
+#   8	ecosystem-cert-preflight-checks
+#   9	sast-snyk-check
+#  10	clamav-scan
+#  11	sast-coverity-check
+#  12	coverity-availability-check
+#  13	sast-shell-check
+#  14	sast-unicode-check
+#  15	apply-tags
+#  16	push-dockerfile
+#  17	rpms-signature-scan
+
+# clone-repository Task
+- op: replace
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).git
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/1/workspaces/0
+
+# prefetch-dependencies Task
+- op: replace
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).prefetch
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/2/workspaces/0
+
+# build-container
+- op: replace
+  path: /spec/tasks/3/taskRef
+  value:
+    name: ko-oci-ta
+    version: "0.1"
+- op: replace
+  path: /spec/tasks/3/runAfter
+  value:
+  - prefetch-dependencies
+- op: add
+  path: /spec/tasks/3/params
+  value:
+  - name: COMMIT_SHA
+    value: $(tasks.clone-repository.results.commit)
+  - name: IMAGE_EXPIRES_AFTER
+    value: $(params.image-expires-after)
+  - name: KO_DEFAULTBASEIMAGE
+    value: $(params.default-base-image)
+  - name: KO_DOCKER_REPO
+    value: $(params.ko-docker-repo)
+  - name: IMPORT_PATH
+    value: $(params.import-path)
+  - name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+  - name: TAG
+    value: $(params.pr-tag)
+- op: remove
+  path: /spec/tasks/3/workspaces
+
+# build-image-index
+- op: replace
+  path: /spec/tasks/4/params/3/value
+  value: "true"
+- op: replace
+  path: /spec/tasks/4/params/5/value
+  value: docker
+
+# build-source-image
+- op: replace
+  path: /spec/tasks/5/taskRef/name
+  value: source-build-oci-ta
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/5/workspaces
+
+# sast-snyk-check
+- op: test
+  path: /spec/tasks/9/taskRef/name
+  value: sast-snyk-check
+- op: replace
+  path: /spec/tasks/9/taskRef/name
+  value: sast-snyk-check-oci-ta
+- op: add
+  # In the docker-build Pipeline, the snyk Task does not receive any parameters, so we cannot
+  # append to it.
+  path: /spec/tasks/9/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/9/workspaces
+
+# sast-shell-check
+- op: test
+  path: /spec/tasks/13/taskRef/name
+  value: sast-shell-check
+- op: replace
+  path: /spec/tasks/13/taskRef/name
+  value: sast-shell-check-oci-ta
+- op: add
+  path: /spec/tasks/13/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/13/workspaces
+
+# sast-unicode-check
+- op: test
+  path: /spec/tasks/14/taskRef/name
+  value: sast-unicode-check
+- op: replace
+  path: /spec/tasks/14/taskRef/name
+  value: sast-unicode-check-oci-ta
+- op: add
+  path: /spec/tasks/14/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/14/workspaces
+
+# push-dockerfile
+- op: remove
+  path: /spec/tasks/16
+
+# sast-coverity-check
+- op: remove
+  path: /spec/tasks/12
+
+# coverity-availability-check
+- op: remove
+  path: /spec/tasks/11
