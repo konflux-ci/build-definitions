@@ -64,7 +64,7 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/prefetch
     - name: get-base-images
       image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
       env:
@@ -142,7 +142,7 @@ spec:
         - name: RESULT_FILE
           value: $(results.BUILD_RESULT.path)
         - name: CACHI2_ARTIFACTS_DIR
-          value: /var/workdir/cachi2
+          value: /var/workdir/prefetch
         - name: RESULT_SOURCE_IMAGE_URL
           value: $(results.SOURCE_IMAGE_URL.path)
         - name: RESULT_SOURCE_IMAGE_DIGEST

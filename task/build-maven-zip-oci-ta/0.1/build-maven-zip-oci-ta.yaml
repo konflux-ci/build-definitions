@@ -92,7 +92,7 @@ spec:
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       args:
         - use
-        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/prefetch
     - name: prepare
       image: quay.io/konflux-ci/appstudio-utils@sha256:3d8660a9d4f59b06a56e32705f91ddd1b9f5fb4c0e7628f7d615daf81da032b5
       workingDir: /var/workdir
@@ -101,7 +101,7 @@ spec:
         set -euo pipefail
         # Generate checksums for all maven artifact files. It will ignore the checksum files
         # and signature files if they existed there
-        pkgpath="/var/workdir/cachi2/output/deps/generic"
+        pkgpath="/var/workdir/prefetch/output/deps/generic"
         if [ -d "$pkgpath/${PKG_ROOT}" ]; then
           echo "Generating checksums for artifacts"
           while IFS= read -r -d '' f; do
@@ -113,7 +113,7 @@ spec:
             ! -name "*.sha512" ! -name "*.asc" -print0)
           # Bundle the artifacts and checksums together into a zip file
           cd "$pkgpath"
-          echo "create maven zip to /var/workdir/cachi2/output/${FILE_NAME}.zip"
+          echo "create maven zip to /var/workdir/prefetch/output/${FILE_NAME}.zip"
           zip -rq "${FILE_NAME}.zip" "${PKG_ROOT}"
           mv "${FILE_NAME}.zip" "/shared/${FILE_NAME}.zip"
         else
@@ -157,9 +157,9 @@ spec:
           exit 1
         fi
 
-        # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
-        if [ -f "/var/workdir/cachi2/output/bom.json" ]; then
-          cp -vf "/var/workdir/cachi2/output/bom.json" ./sbom.json
+        # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
+        if [ -f "/var/workdir/prefetch/output/bom.json" ]; then
+          cp -vf "/var/workdir/prefetch/output/bom.json" ./sbom.json
         else
           echo "The SBOM file for fetched artifacts is not found!"
           exit 1
