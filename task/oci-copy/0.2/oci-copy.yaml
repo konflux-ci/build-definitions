@@ -281,26 +281,23 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
+      image: quay.io/konflux-ci/mobster@sha256:1b53ca81dc7427e6362b311180532cfbc431f83fa11e7e1154df1c26e3a46a0b
       script: |
         #!/bin/bash
         set -euo pipefail
 
         IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
         IMAGE_DIGEST=$(cat "$(results.IMAGE_DIGEST.path)")
-        oci_copy_file_path="$(pwd)/source/$OCI_COPY_FILE"
+        OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
 
-        python3 /scripts/sbom_for_oci_copy_task.py "$oci_copy_file_path" \
-          --sbom-type "$SBOM_TYPE" \
-          -o sbom.json
-
-        python3 /scripts/add_image_reference.py \
-          --image-url "$IMAGE_URL" \
+        mobster generate \
+          --output sbom.json \
+          oci-artifact \
+          --oci-copy-yaml "$OCI_COPY_FILE_PATH" \
+          --image-pullspec "$IMAGE_URL" \
           --image-digest "$IMAGE_DIGEST" \
-          --input-file sbom.json \
-          --output-file /tmp/sbom.tmp.json
+          --sbom-type "$SBOM_TYPE"
 
-        mv /tmp/sbom.tmp.json sbom.json
       workingDir: $(workspaces.source.path)
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:8f9f933d7b0b57e37b96fd34698c92c785cfeadc@sha256:924eb1680b6cda674e902579135a06b2c6683c3cc1082bbdc159a4ce5ea9f4df
