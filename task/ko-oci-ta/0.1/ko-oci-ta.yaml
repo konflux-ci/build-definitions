@@ -1,0 +1,164 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ko-oci-ta
+  annotations:
+    tekton.dev/categories: Image Build
+    tekton.dev/displayName: Build and upload container image using ko oci
+      trusted artifacts
+    tekton.dev/pipelines.minVersion: 0.17.0
+    tekton.dev/platforms: linux/amd64,linux/arm64
+    tekton.dev/tags: image-build
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: This Task builds source into a container image using ko.
+  params:
+    - name: BUILD_ARGS
+      description: additional arguments to ko build
+      type: string
+      default: ""
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
+    - name: COMMIT_SHA
+      description: The image is built from this commit.
+      type: string
+      default: ""
+    - name: HERMETIC
+      description: Determines if build will be executed without network access.
+      type: string
+      default: "false"
+    - name: IMAGE
+      description: Reference of the image ko will produce.
+    - name: IMAGE_EXPIRES_AFTER
+      description: Delete image tag after specified time. Empty means to keep
+        the image tag. Time values could be something like 1h, 2d, 3w for
+        hours, days, and weeks, respectively.
+      type: string
+      default: ""
+    - name: IMPORT_PATH
+      description: import path of package main
+      default: .
+    - name: KO_DEFAULTBASEIMAGE
+      description: base image for ko build
+      default: ""
+    - name: KO_IMAGE
+      description: ko image to use for builds
+      default: quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/ko-builder:127e70d57df2a6b75bf3a2bb233a6223fb6a8cab
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the image just built
+    - name: IMAGE_REF
+      description: Image reference of the built image
+    - name: IMAGE_URL
+      description: Image repository and tag where the built image was pushed
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification
+        from provenance
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    resources:
+      limits:
+        memory: 4Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+    - name: build
+      image: $(params.KO_IMAGE)
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+      env:
+        - name: BUILD_ARGS
+          value: $(params.BUILD_ARGS)
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+        - name: DEFAULT_BASEIMAGE
+          value: $(params.KO_DEFAULTBASEIMAGE)
+        - name: DOCKER_CONFIG
+          value: /opt/app-root/src/.docker
+        - name: GOFLAGS
+          value: -buildvcs=false
+        - name: IMAGE
+          value: $(params.IMAGE)
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.IMAGE_EXPIRES_AFTER)
+        - name: IMPORT_PATH
+          value: $(params.IMPORT_PATH)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        KO_DOCKER_REPO=$(dirname "${IMAGE}")
+        export KO_DOCKER_REPO
+
+        [ -n "${DEFAULTBASEIMAGE}" ] && KO_DEFAULTBASEIMAGE="${DEFAULTBASEIMAGE}" && export KO_DEFAULTBASEIMAGE
+
+        labels="architecture=$(uname -m),vcs-type=git,build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        [ -n "${COMMIT_SHA}" ] && labels+=",vcs-ref=${COMMIT_SHA}"
+        [ -n "${IMAGE_EXPIRES_AFTER}" ] && labels+=",quay.expires-after=${IMAGE_EXPIRES_AFTER})"
+
+        base=$(basename "${IMAGE}")
+        tag="${base##*:}"
+
+        args=("${BUILD_ARGS}" --image-label "${labels}" -t "${tag}")
+        ko build "${args[@]}" "${IMPORT_PATH}" 2>&1 | tee build.log
+
+        digest=$(grep Published build.log | grep -v SBOM | awk '{print $4}' | awk -F@ '{print $2}')
+        url=$(grep Publishing build.log | awk '{print $4}')
+        ref="${url}@${digest}"
+        sbom=$(grep SBOM build.log | awk '{print $5}')
+
+        echo "IMAGE_DIGEST=${digest}"
+        echo "IMAGE_REF=${ref}"
+        echo "IMAGE_URL=${url}"
+        echo "SBOM_BLOB_URL=${sbom}"
+
+        echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
+        echo -n "${url}@${digest}" >"$(results.IMAGE_REF.path)"
+        echo -n "${url}" >"$(results.IMAGE_URL.path)"
+        echo -n "${sbom}" >"$(results.SBOM_BLOB_URL.path)"
+        echo "Completed."
