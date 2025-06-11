@@ -55,6 +55,7 @@ mapfile -t -d ' ' BUNDLES_PARAM < <(printf -- '--bundle=%s ' "${BUNDLES[@]}")
 PARAMS=("${TASK_PARAM[@]}" "${BUNDLES_PARAM[@]}")
 
 ec track bundle --debug \
+    --in-effect-days 60 \
     --input "oci:${DATA_BUNDLE_REPO}:latest" \
     --output "oci:${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}" \
     --timeout "15m0s" \

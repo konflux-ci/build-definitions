@@ -101,6 +101,7 @@ PS4=''
 set -x
 ec track bundle \
   --freshen \
+  --in-effect-days 60 \
   --input "oci:${INPUT_IMAGE}" \
   --output "oci:${OUTPUT_IMAGE}" \
   "${git_params[@]}" \
