@@ -12,6 +12,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-image-index| Add built image into an OCI image index| true| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-platforms| List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.| ['linux/x86_64']| |
 |build-source-image| Build a source image.| false| |
+|dev-package-managers| Enable in-development package managers.| false| prefetch-dependencies:0.2:dev-packages-managers|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.4:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-images:0.4:HERMETIC ; sast-coverity-check:0.3:HERMETIC|

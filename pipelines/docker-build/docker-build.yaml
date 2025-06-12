@@ -79,6 +79,9 @@ spec:
       2d, 3w for hours, days, and weeks, respectively.
     name: image-expires-after
   - default: "false"
+    description: Enable in-development package managers
+    name: dev-package-managers
+  - default: "false"
     description: Build a source image.
     name: build-source-image
     type: string
@@ -145,6 +148,8 @@ spec:
     params:
     - name: input
       value: $(params.prefetch-input)
+    - name: dev-package-managers
+      value: $(params.dev-package-managers)
     runAfter:
     - clone-repository
     taskRef:
