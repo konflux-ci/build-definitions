@@ -32,7 +32,10 @@
 #     12  build-args
 #     13  build-args-file
 #     14  privileged-nested
-#     15  build-platforms
+#     15  dev-package-managers
+#     16  build-platforms
+- op: remove
+  path: /spec/params/15
 - op: remove
   path: /spec/params/14
 - op: replace
@@ -100,6 +103,8 @@
   path: /spec/tasks/5  # build-source-image
 - op: remove           # build-images -> PRIVILEGED_NESTED
   path: /spec/tasks/3/params/9
+- op: remove           # prefetch-dependencies -> dev-package-managers
+  path: /spec/tasks/2/params/4
 - op: add
   path: /spec/tasks/-
   value:

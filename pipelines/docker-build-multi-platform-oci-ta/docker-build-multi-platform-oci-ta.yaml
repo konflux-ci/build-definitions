@@ -83,6 +83,10 @@ spec:
       VMs
     name: privileged-nested
     type: string
+  - default: "false"
+    description: Enable in-development package managers
+    name: dev-package-managers
+    type: string
   - default:
     - linux/x86_64
     description: List of platforms to build the container images on. The available
@@ -143,6 +147,8 @@ spec:
       value: $(params.output-image).prefetch
     - name: ociArtifactExpiresAfter
       value: $(params.image-expires-after)
+    - name: dev-package-managers
+      value: $(params.dev-package-managers)
     runAfter:
     - clone-repository
     taskRef:

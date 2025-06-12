@@ -83,6 +83,10 @@ spec:
       VMs
     name: privileged-nested
     type: string
+  - default: "false"
+    description: Enable in-development package managers
+    name: dev-package-managers
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -137,6 +141,8 @@ spec:
       value: $(params.output-image).prefetch
     - name: ociArtifactExpiresAfter
       value: $(params.image-expires-after)
+    - name: dev-package-managers
+      value: $(params.dev-package-managers)
     runAfter:
     - clone-repository
     taskRef:
