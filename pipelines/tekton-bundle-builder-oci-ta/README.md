@@ -4,7 +4,7 @@
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
-|build-source-image| Build a source image.| false| |
+|build-source-image| Build a source image.| true| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
 |git-url| Source Repository URL| None| clone-repository:0.1:url ; build-container:0.2:URL|
 |hermetic| Execute the build with network isolation| false| |
