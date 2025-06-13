@@ -100,7 +100,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -124,7 +124,7 @@ spec:
         chmod -R g+w "$TARGET_OCI"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.6-1747333117
+      image: registry.access.redhat.com/ubi9/python-311:9.6-1749631027
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -146,7 +146,7 @@ spec:
         olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:8d756a91aae1fa5186efafee056446bb5e77228cf5ad9a7ae0e3f8d727da50cd
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -167,7 +167,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster@sha256:78cabbe1b40a5ddbb4773e451f88272a840036a434495ce0a99c88679fc90f6f
+      image: quay.io/konflux-ci/mobster@sha256:04efbc4b4cf8ce71ffcd277b2eeabbcf79693250998e2aebebcf9cbbea9296b6
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -192,7 +192,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:05bf7ac03c7963e30e1e979599e4f09a56e7c3547c2de8529828128e1fe6fc4d
+      image: quay.io/konflux-ci/yq:latest@sha256:13a172e5390b87074e7e4515d3d5cb34025714e7efc8244e46029cfad40bf7b3
       workingDir: /var/workdir
       script: |
         #!/bin/bash
