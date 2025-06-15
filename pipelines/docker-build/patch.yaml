@@ -35,6 +35,20 @@
 #     16  push-dockerfile
 #     17  rpms-signature-scan
 
+# prefetch-dependencies
+- op: add
+  path: /spec/params/-
+  value:
+    name: dev-package-managers
+    description: Enable in-development package managers
+    type: string
+    default: "false"
+- op: add
+  path: /spec/tasks/2/params
+  value:
+    name: dev-package-managers
+    value: $(params.dev-package-managers)
+
 # build-container
 - op: test
   path: /spec/tasks/3/name
