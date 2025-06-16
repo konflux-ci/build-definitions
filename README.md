@@ -266,7 +266,7 @@ It will then run only the specified test pipeline.
 
 ### Compliance
 
-Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.
+Task definitions must comply with the [Conforma](https://conforma.dev/) policies.
 Currently, there are three policy configurations.
 
 - The [all-tasks](./policies/all-tasks.yaml) policy configuration applies to all Task definitions.
