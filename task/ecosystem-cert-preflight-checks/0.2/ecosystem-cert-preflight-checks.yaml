@@ -143,7 +143,7 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: generate-container-auth
-      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      image: quay.io/konflux-ci/oras:latest@sha256:81a6fab3721f377b9a243d36e64ff16eb4470335fabba25352f0f87ddf4baaec
       env:
       - name: PARAM_IMAGE_URL
         value: $(params.image-url)
@@ -169,7 +169,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.29@sha256:3619ffde751d337d02f1f61c83c5c39eb87d8091dbe5a9af58ea98577fa09461
       results:
       - name: test-output
         description: A skipped tekton result for bundles.
@@ -200,7 +200,7 @@ spec:
           mountPath: /bundle
 
     - name: app-check
-      image: quay.io/opdev/preflight:stable@sha256:58549d06b79e8e614c1dafc85cecad36ff1d5bb098295a05e055539d84126be0
+      image: quay.io/opdev/preflight:stable@sha256:724c68fb806cad88c2b742dc5dead19a4ac7844cdfb9ef91dda1f17e1619e077
       args: ["check", "container", "$(params.image-url)"]
       resources:
         limits:
