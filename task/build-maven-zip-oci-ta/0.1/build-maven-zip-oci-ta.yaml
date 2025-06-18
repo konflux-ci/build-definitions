@@ -144,11 +144,18 @@ spec:
           mv "/shared/${FILE_NAME}.zip" "./${FILE_NAME}.zip"
           select-oci-auth "$IMAGE" >auth.json
           [ -n "$IMAGE_EXPIRES_AFTER" ] && EXPIRE_LABEL=("--annotation" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
-          oras push "$IMAGE" \
+          echo "Pushing image ${IMAGE} to registry"
+          if ! retry oras push "$IMAGE" \
             --registry-config auth.json \
             "${EXPIRE_LABEL[@]}" \
-            --artifact-type application/vnd.maven+zip "${FILE_NAME}.zip"
-          RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
+            --artifact-type application/vnd.maven+zip "${FILE_NAME}.zip"; then
+            echo "Failed to push image ${IMAGE} to registry"
+            exit 1
+          fi
+          if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}"); then
+            echo "Failed to get digest for ${IMAGE} from registry"
+            exit 1
+          fi
           echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
           echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
           echo -n "${IMAGE}@${RESULTING_DIGEST}" | tee "$(results.IMAGE_REF.path)"
@@ -197,7 +204,11 @@ spec:
           sbom_type=spdx
         fi
 
-        cosign attach sbom --sbom sbom.json --type "$sbom_type" "$IMAGE"
+        echo "Pushing sbom to registry"
+        if ! retry cosign attach sbom --sbom sbom.json --type "$sbom_type" "$IMAGE"; then
+          echo "Failed to push sbom to registry"
+          exit 1
+        fi
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"

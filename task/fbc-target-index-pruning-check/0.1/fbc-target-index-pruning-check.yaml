@@ -65,7 +65,11 @@ spec:
         set -euo pipefail
         # shellcheck source=/dev/null
         ARTIFACT_URL="${IMAGE_URL}@${RENDERED_CATALOG_DIGEST}"
-        oras pull --registry-config <(select-oci-auth "${IMAGE_URL}") --no-tty "${ARTIFACT_URL}"
+        if ! retry oras pull --registry-config <(select-oci-auth "${IMAGE_URL}") --no-tty "${ARTIFACT_URL}"
+        then
+          echo "Failed to pull catalog for ${IMAGE_URL} from registry"
+          exit 1
+        fi
     - name: run-pruning-check
       image: quay.io/redhat-appstudio/konflux-test:v1.4.23@sha256:e451a01a24824fbac8c3a667924337f67153a5bdaa68001410183bbac37e000f
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
