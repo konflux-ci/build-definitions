@@ -15,8 +15,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.4:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| true| build-images:0.4:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.4:IMAGE ; build-image-index:0.1:IMAGE|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.4:IMAGE ; build-image-index:0.1:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.4:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-images:0.4:PREFETCH_INPUT|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
@@ -140,7 +140,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.run-opm-command.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |config-file-content| Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
@@ -150,6 +150,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
+### run-opm-command-oci-ta:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|IDMS_PATH| Optional, path for ImageDigestMirrorSet file. It defaults to .tekton/images-mirror-set.yaml`| .tekton/images-mirror-set.yaml| |
+|OPM_ARGS| The array of arguments to pass to the 'opm' command (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).| None| []|
+|OPM_OUTPUT_PATH| Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).| None| |
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| None| '$(params.image-expires-after)'|
+|ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).opm'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -206,7 +215,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| run-opm-command:0.1:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| build-images:0.4:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
@@ -221,6 +230,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.4:CACHI2_ARTIFACT|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.4:SOURCE_ARTIFACT ; fbc-fips-check-oci-ta:0.1:SOURCE_ARTIFACT|
+### run-opm-command-oci-ta:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code with generated file-based catalog from catalog-template.yml.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
 ### validate-fbc:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
