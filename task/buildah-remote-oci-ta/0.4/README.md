@@ -2,7 +2,8 @@
 
 Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
 In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
-When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment.
+When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment, passing a HERMETIC=true build-arg to the
+container build.
 
 ## Parameters
 |name|description|default value|required|
