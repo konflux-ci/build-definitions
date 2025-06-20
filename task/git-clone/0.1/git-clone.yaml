@@ -282,9 +282,8 @@ spec:
           echo "------------------"
           exit "${MERGE_CHECK_EXIT_CODE}"
         else
-          git diff --staged --quiet
-          GIT_DIFF_EXIT_CODE="$?"
-          if [ "${GIT_DIFF_EXIT_CODE}" = "0" ]; then
+          # Check if there are changes that need to be merged, and if so, create a merge commit.
+          if git diff --staged --quiet; then
             echo "No diff was found, skipping merge..." >&2
           else
             echo "Merge successful (no conflicts found), committing..."
