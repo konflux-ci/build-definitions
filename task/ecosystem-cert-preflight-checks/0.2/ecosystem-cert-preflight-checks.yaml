@@ -22,6 +22,10 @@ spec:
       type: string
       description: The type of artifact. Select from application, operatorbundle, or introspect.
       default: "introspect"
+    - name: platform
+      type: string
+      description: The platform the image is built on.
+      default: ""
 
   results:
     - name: TEST_OUTPUT
@@ -201,7 +205,6 @@ spec:
 
     - name: app-check
       image: quay.io/opdev/preflight:stable@sha256:724c68fb806cad88c2b742dc5dead19a4ac7844cdfb9ef91dda1f17e1619e077
-      args: ["check", "container", "$(params.image-url)"]
       resources:
         limits:
           memory: 4Gi
@@ -213,6 +216,29 @@ spec:
           value: "$(steps.generate-container-auth.results.auth-json-path)"
         - name: PFLT_KONFLUX
           value: "true"
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
+        - name: PARAM_PLATFORM
+          value: $(params.platform)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        image_url="${PARAM_IMAGE_URL}"
+        platform="${PARAM_PLATFORM}"
+
+        if [ -n "$platform" ]; then
+          arch="${platform#*/}"
+          if [ "$arch" = "x86_64" ]; then
+            arch="amd64"
+          fi
+          /usr/local/bin/preflight check container "$image_url" --platform "$arch"
+        else
+          /usr/local/bin/preflight check container "$image_url"
+        fi
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
