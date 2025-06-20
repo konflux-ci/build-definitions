@@ -78,7 +78,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:4b4b57c8c532dfe083ca709a149b7e3078bd06d9ab412332cc231887550c96ed
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -107,7 +107,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      image: quay.io/konflux-ci/oras:latest@sha256:81a6fab3721f377b9a243d36e64ff16eb4470335fabba25352f0f87ddf4baaec
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -301,7 +301,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1939901046f2ec0afda6d48f32dc82f991d9a4e2b4b4513635b9c79e3d4c2872
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:8082b6aade7e2c2f127cadf4a92d56dff08f5dabe3c651b0a3d4b65a9711f79b
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -328,7 +328,7 @@ spec:
       script: |
         cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:4b4b57c8c532dfe083ca709a149b7e3078bd06d9ab412332cc231887550c96ed
       workingDir: /var/workdir
       script: |
         #!/bin/bash
