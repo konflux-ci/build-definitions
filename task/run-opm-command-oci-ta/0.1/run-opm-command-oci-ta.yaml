@@ -1,0 +1,192 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-opm-command-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: This task runs an OPM command with user-specified arguments, passed as an array.
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+    - name: ociArtifactExpiresAfter
+      type: string
+      description: >-
+        Expiration date for the trusted artifacts created in the OCI repository. An empty string means
+        the artifacts do not expire.
+    - name: OPM_ARGS
+      description: The array of arguments to pass to the 'opm' command
+        (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).
+      type: array
+    - name: OPM_OUTPUT_PATH
+      description: Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json').
+        Relative to the root directory of given source code (Git repository).
+      type: string
+    - name: IDMS_PATH
+      description: Optional, path for ImageDigestMirrorSet file (e.g. '.tekton/images-mirror-set.yaml').
+      type: string
+      default: ""
+  results:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code with generated file-based catalog from catalog-template.yml.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: check-and-skip-if-needed
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      results:
+        - name: valid_params
+          description: True or False depending if all required parameters were set.
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+        - name: SOURCE_ARTIFACT_PARAM
+          value: $(params.SOURCE_ARTIFACT)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          # shellcheck source=/dev/null
+          set -e
+
+          if [[ $# -eq 0 || -z "${OPM_OUTPUT_PATH_PARAM}" ]]; then
+            if [[ $# -eq 0 ]]; then
+              echo "Parameter 'OPM_ARGS' is empty. Skipping OPM execution."
+            else
+              echo "Parameter 'OPM_OUTPUT_PATH' is empty. Skipping OPM execution."
+            fi
+
+            echo -n "${SOURCE_ARTIFACT_PARAM}" | tee "$(results.SOURCE_ARTIFACT.path)"
+            echo -n "false" | tee "$(step.results.valid_params.path)"
+            exit 0
+          fi
+
+          echo -n "true" | tee "$(step.results.valid_params.path)"
+        - "bash"
+        - $(params.OPM_ARGS[*])
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      when:
+        - input: "$(steps.check-and-skip-if-needed.results.valid_params)"
+          operator: in
+          values: ["true"]
+    - name: run-opm-command
+      image: registry.redhat.io/openshift4/ose-operator-registry-rhel9:v4.19
+      workingDir: /var/workdir/source
+      when:
+        - input: "$(steps.check-and-skip-if-needed.results.valid_params)"
+          operator: in
+          values: ["true"]
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+      securityContext:
+        runAsUser: 0
+      args:
+        - $(params.OPM_ARGS[*])
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "Running OPM command in working directory: $(pwd)"
+        echo "OPM Arguments received by script: '$@'"
+
+        # Ensure OPM_OUTPUT_PATH_PARAM is provided
+        if [[ -z "${OPM_OUTPUT_PATH_PARAM}" ]]; then
+          echo "Error: OPM_OUTPUT_PATH is a mandatory parameter and cannot be empty."
+          exit 1
+        fi
+
+        # Validate that the path is not absolute
+        if [[ "${OPM_OUTPUT_PATH_PARAM}" == /* ]]; then
+          echo "Error: OPM_OUTPUT_PATH must be a relative path, but got '${OPM_OUTPUT_PATH_PARAM}'."
+          exit 1
+        fi
+
+        # Get the directory part of the path
+        OUTPUT_DIR=$(dirname "${OPM_OUTPUT_PATH_PARAM}")
+
+        # Create the directory if it's not the current directory '.'
+        if [[ "${OUTPUT_DIR}" != "." ]]; then
+          echo "Ensuring directory '${OUTPUT_DIR}' exists."
+          mkdir -p "${OUTPUT_DIR}"
+        fi
+
+        echo "Running OPM command and writing the output to file: $(pwd)/${OPM_OUTPUT_PATH_PARAM}"
+
+        # Execute the opm command and redirect its output
+        opm "$@" > "${OPM_OUTPUT_PATH_PARAM}"
+
+        echo "OPM command finished"
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 4Gi
+    - name: replace-related-images-pullspec-in-catalog
+      image: quay.io/konflux-ci/konflux-test:v1.4.33@sha256:f1e256d52ec62f8927106659d65fc842e330d3cfed791775c1ef4fedf270dbc8
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      when:
+        - input: "$(steps.check-and-skip-if-needed.results.valid_params)"
+          operator: in
+          values: ["true"]
+        - input: "$(params.IDMS_PATH)"
+          operator: notin
+          values: ["", "null"]
+      args:
+        - "$(params.IDMS_PATH)"
+        - "$(params.OPM_OUTPUT_PATH)"
+      script: |
+          #!/bin/bash
+          set -euo pipefail
+
+          # shellcheck source=/dev/null
+          source /utils.sh
+
+          replace_mirror_pullspec_with_source "$1" "$2"
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      env:
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.ociArtifactExpiresAfter)
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      when:
+        - input: "$(steps.check-and-skip-if-needed.results.valid_params)"
+          operator: in
+          values: ["true"]
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
