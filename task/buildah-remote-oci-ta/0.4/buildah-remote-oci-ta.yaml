@@ -468,6 +468,10 @@ spec:
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
       done
 
+      if [ "${HERMETIC}" == "true" ]; then
+        BUILD_ARG_FLAGS+=("--build-arg=HERMETIC=true")
+      fi
+
       dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
       BASE_IMAGES=$(
         jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
