@@ -46,6 +46,10 @@ spec:
       type: string
       description: Whether to include important findings only
       default: "true"
+    - name: TARGET_DIRS
+      type: string
+      description: Target directories in component's source code. Multiple values should be separated with commas.
+      default: "."
     - name: caTrustConfigMapName
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
@@ -87,6 +91,8 @@ spec:
           value: $(params.RECORD_EXCLUDED)
         - name: IMP_FINDINGS_ONLY
           value: $(params.IMP_FINDINGS_ONLY)
+        - name: TARGET_DIRS
+          value: $(params.TARGET_DIRS)
         - name: COMPONENT_LABEL
           valueFrom:
             fieldRef:
@@ -120,8 +126,16 @@ spec:
         OUTPUT_FILE="shellcheck-results.json"
         SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
 
+
+        # generate full path for each dirname separated by comma
+        declare -a ALL_TARGETS
+        IFS=","
+        for d in $TARGET_DIRS; do
+          ALL_TARGETS+=("${SOURCE_CODE_DIR}/${d}")
+        done
+
         # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
-        /usr/share/csmock/scripts/run-shellcheck.sh "$SOURCE_CODE_DIR"
+        /usr/share/csmock/scripts/run-shellcheck.sh "${ALL_TARGETS[@]}"
 
         CSGREP_OPTS=(
             --mode=json
