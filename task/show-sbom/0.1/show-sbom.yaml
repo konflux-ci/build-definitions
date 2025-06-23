@@ -40,7 +40,7 @@ spec:
       value: $(params.PLATFORM)
     script: |
       #!/bin/bash
-
+      task="show_sbom"
       download_sbom_with_retry() {
         status=-1
         max_try=5
@@ -84,7 +84,6 @@ spec:
       else
         download_sbom_with_retry --platform="$PLATFORM"
       fi
-      echo "Inside show sbom task"
     volumeMounts:
     - name: trusted-ca
       mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
