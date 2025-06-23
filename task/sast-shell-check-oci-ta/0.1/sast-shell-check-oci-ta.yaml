@@ -45,6 +45,11 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: TARGET_DIRS
+      description: Target directories in component's source code. Multiple
+        values should be separated with commas.
+      type: string
+      default: .
     - name: caTrustConfigMapKey
       description: The name of the key in the ConfigMap that contains the
         CA bundle data.
@@ -107,6 +112,8 @@ spec:
           value: $(params.RECORD_EXCLUDED)
         - name: IMP_FINDINGS_ONLY
           value: $(params.IMP_FINDINGS_ONLY)
+        - name: TARGET_DIRS
+          value: $(params.TARGET_DIRS)
         - name: COMPONENT_LABEL
           valueFrom:
             fieldRef:
@@ -140,8 +147,15 @@ spec:
         OUTPUT_FILE="shellcheck-results.json"
         SOURCE_CODE_DIR=/var/workdir/source
 
+        # generate full path for each dirname separated by comma
+        declare -a ALL_TARGETS
+        IFS=","
+        for d in $TARGET_DIRS; do
+          ALL_TARGETS+=("${SOURCE_CODE_DIR}/${d}")
+        done
+
         # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
-        /usr/share/csmock/scripts/run-shellcheck.sh "$SOURCE_CODE_DIR"
+        /usr/share/csmock/scripts/run-shellcheck.sh "${ALL_TARGETS[@]}"
 
         CSGREP_OPTS=(
           --mode=json
