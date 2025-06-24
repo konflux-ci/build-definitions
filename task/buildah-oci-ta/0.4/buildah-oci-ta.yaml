@@ -281,7 +281,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -663,7 +663,7 @@ spec:
           add:
             - SETFCAP
     - name: push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -780,7 +780,7 @@ spec:
 
         echo "[$(date --utc -Ins)] End sbom-syft-generate"
     - name: prepare-sboms
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:8082b6aade7e2c2f127cadf4a92d56dff08f5dabe3c651b0a3d4b65a9711f79b
       args:
         - --additional-base-images
         - $(params.ADDITIONAL_BASE_IMAGES[*])
