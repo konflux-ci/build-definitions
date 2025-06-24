@@ -58,6 +58,11 @@ emit() {
   cd "${git_root}"
   missing=0
   for task in task/**/*.yaml; do
+      # archived tasks need to be skipped
+      if [[  $(realpath "${git_root}/${task}") != "${git_root}/${task}" ]]; then
+          echo "skipping $task (is a symlink) ..."
+          continue
+      fi
       task_file="${task}"
       case "${task}" in
           */kustomization.yaml)
