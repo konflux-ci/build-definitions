@@ -126,12 +126,21 @@ spec:
         OUTPUT_FILE="shellcheck-results.json"
         SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
 
-
         # generate full path for each dirname separated by comma
         declare -a ALL_TARGETS
         IFS=","
         for d in $TARGET_DIRS; do
-          ALL_TARGETS+=("${SOURCE_CODE_DIR}/${d}")
+          potential_path="${SOURCE_CODE_DIR}/${d}"
+
+          resolved_path=$(realpath -m "$potential_path")
+
+          # ensure resolved path is still within SOURCE_CODE_DIR
+          if [[ "$resolved_path" == "$SOURCE_CODE_DIR"* ]]; then
+            ALL_TARGETS+=("$resolved_path")
+          else
+            echo "Error: path traversal attempt, '$potential_path' is outside '$SOURCE_CODE_DIR'"
+            exit 1
+          fi
         done
 
         # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
