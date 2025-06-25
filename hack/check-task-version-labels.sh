@@ -22,6 +22,8 @@ HEADER=$(printf "$HFORMAT" "Task" "Dir" "Label")
 echo "$HEADER"
 echo "$HEADER" | tr '[:graph:]' '='
 
+EXIT_CODE=0
+
 for task_version in $ALL_TASK_VERSIONS; do
   # Extract the task name and the version directory
   task_name=$(awk -F'/' '{print $2}' <<< "$task_version")
@@ -38,10 +40,12 @@ for task_version in $ALL_TASK_VERSIONS; do
   if [ "$label_version" = "null" ]; then
     # Missing
     printf "$FORMAT" "$RED" "$task_file" "$dir_version" "Missing"
+    EXIT_CODE=1
 
   elif [ ! "$trimmed_label_version" = "$dir_version" ]; then
     # Looks incorrect
     printf "$FORMAT" "$RED" "$task_file" "$dir_version" "$label_version"
+    EXIT_CODE=1
 
   elif [ "$1" = "--verbose" ]; then
     # Looks correct
@@ -49,3 +53,5 @@ for task_version in $ALL_TASK_VERSIONS; do
 
   fi
 done
+
+exit $EXIT_CODE
