@@ -246,7 +246,7 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
     name: build
     script: |
       #!/bin/bash
@@ -386,6 +386,8 @@ spec:
       fi
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+      BUILDAH_ARGS+=("--security-opt=unmask=/proc")
 
       if [ "${PRIVILEGED_NESTED}" == "true" ]; then
         BUILDAH_ARGS+=("--security-opt=label=disable")
@@ -604,7 +606,7 @@ spec:
   - env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
     name: push
     script: |
       #!/bin/bash

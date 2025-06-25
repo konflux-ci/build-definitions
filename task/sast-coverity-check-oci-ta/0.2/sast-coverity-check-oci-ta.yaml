@@ -615,6 +615,8 @@ spec:
 
         BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
 
+        BUILDAH_ARGS+=("--security-opt=unmask=/proc")
+
         if [ "${PRIVILEGED_NESTED}" == "true" ]; then
           BUILDAH_ARGS+=("--security-opt=label=disable")
           BUILDAH_ARGS+=("--cap-add=all")
