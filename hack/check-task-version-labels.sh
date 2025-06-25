@@ -2,12 +2,13 @@
 set -e -o pipefail
 
 #
-# This is a quick and throwaway, and meant to be used by a human, but it could
-# in future be converted into a CI check.
-#
 # The goal is to show which task definitions have either a missing
 # `app.kubernetes.io/version` label or a label that doesn't match the directory
 # the definition is in.
+#
+# Returns a non-zero exit code if any problems are found.
+#
+# See also .github/workflows/check-task-owners.yaml which runs this in a CI step.
 #
 
 # Find all the task definitions
@@ -21,6 +22,8 @@ FORMAT="%b %-95s %-4s %-9s\n"
 HEADER=$(printf "$HFORMAT" "Task" "Dir" "Label")
 echo "$HEADER"
 echo "$HEADER" | tr '[:graph:]' '='
+
+EXIT_CODE=0
 
 for task_version in $ALL_TASK_VERSIONS; do
   # Extract the task name and the version directory
@@ -38,10 +41,12 @@ for task_version in $ALL_TASK_VERSIONS; do
   if [ "$label_version" = "null" ]; then
     # Missing
     printf "$FORMAT" "$RED" "$task_file" "$dir_version" "Missing"
+    EXIT_CODE=1
 
   elif [ ! "$trimmed_label_version" = "$dir_version" ]; then
     # Looks incorrect
     printf "$FORMAT" "$RED" "$task_file" "$dir_version" "$label_version"
+    EXIT_CODE=1
 
   elif [ "$1" = "--verbose" ]; then
     # Looks correct
@@ -49,3 +54,5 @@ for task_version in $ALL_TASK_VERSIONS; do
 
   fi
 done
+
+exit $EXIT_CODE
