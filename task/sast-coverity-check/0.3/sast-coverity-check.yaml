@@ -544,6 +544,10 @@ spec:
 
       BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
 
+      # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
+      # TODO remove the option once all hosts were updated
+      BUILDAH_ARGS+=("--security-opt=unmask=/proc/interrupts")
+
       if [ "${PRIVILEGED_NESTED}" == "true" ]; then
         BUILDAH_ARGS+=("--security-opt=label=disable")
         BUILDAH_ARGS+=("--cap-add=all")
