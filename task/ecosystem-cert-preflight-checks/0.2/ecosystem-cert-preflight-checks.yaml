@@ -243,10 +243,21 @@ spec:
         platform="${PARAM_PLATFORM}"
 
         if [ -n "$platform" ]; then
+          # Extract part after slash if present
           arch="${platform#*/}"
           if [ "$arch" = "x86_64" ]; then
             arch="amd64"
           fi
+
+          # Validate against supported arch list. If it's not a known arch, fallback to amd64
+          case "$arch" in
+            amd64|ppc64le|arm64|s390x)
+              ;;
+            *)
+              arch="amd64"
+              ;;
+          esac
+
           /usr/local/bin/preflight check container "$image_url" --platform "$arch"
         else
           /usr/local/bin/preflight check container "$image_url"
