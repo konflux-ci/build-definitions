@@ -159,6 +159,10 @@ spec:
       the build (see the CONTEXT param).
     name: WORKINGDIR_MOUNT
     type: string
+  - default: "true"
+    description: Determines if the image inherits the base image labels.
+    name: INHERIT_BASE_IMAGE_LABELS
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -224,6 +228,8 @@ spec:
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
       value: $(params.WORKINGDIR_MOUNT)
+    - name: INHERIT_BASE_IMAGE_LABELS
+      value: $(params.INHERIT_BASE_IMAGE_LABELS)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -407,6 +413,10 @@ spec:
 
       if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
         BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
+      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
+        BUILDAH_ARGS+=("--inherit-labels=false")
       fi
 
       VOLUME_MOUNTS=()
