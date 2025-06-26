@@ -90,6 +90,10 @@ spec:
       respectively.
     name: IMAGE_EXPIRES_AFTER
     type: string
+  - default: "true"
+    description: Determines if the image inherits the base image labels.
+    name: INHERIT_BASE_IMAGE_LABELS
+    type: string
   - default: []
     description: Additional key=value labels that should be applied to the image
     name: LABELS
@@ -215,6 +219,8 @@ spec:
       value: $(params.IMAGE)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: INHERIT_BASE_IMAGE_LABELS
+      value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
     - name: SBOM_TYPE
@@ -516,6 +522,10 @@ spec:
         BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
+      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
+        BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
       VOLUME_MOUNTS=()
 
       echo "[$(date --utc -Ins)] Setup prefetched"
@@ -732,6 +742,7 @@ spec:
           -e HERMETIC="${HERMETIC@Q}" \
           -e IMAGE="${IMAGE@Q}" \
           -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
+          -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
