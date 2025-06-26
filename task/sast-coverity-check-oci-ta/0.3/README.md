@@ -38,6 +38,7 @@ Scans source code for security vulnerabilities, including common issues such as 
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
 |STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
+|TARGET_DIRS|Target directories in component's source code. Multiple values should be separated with commas. This only applies to buildless capture, which is only attempted if buildful capture fails to produce and results.|.|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
 |WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
