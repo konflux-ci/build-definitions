@@ -180,6 +180,12 @@ spec:
   - default: "false"
     name: RECORD_EXCLUDED
     type: string
+  - default: .
+    description: Target directories in component's source code. Multiple values should
+      be separated with commas. This only applies to buildless capture, which is only
+      attempted if buildful capture fails to produce and results.
+    name: TARGET_DIRS
+    type: string
   - default: --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096
     description: Arguments to be appended to the cov-analyze command
     name: COV_ANALYZE_ARGS
@@ -794,6 +800,8 @@ spec:
       value: $(params.PROJECT_NAME)
     - name: RECORD_EXCLUDED
       value: $(params.RECORD_EXCLUDED)
+    - name: TARGET_DIRS
+      value: $(params.TARGET_DIRS)
     - name: COMPONENT_LABEL
       valueFrom:
         fieldRef:
@@ -823,26 +831,49 @@ spec:
         update-ca-trust
       fi
 
+      # fallback to buildless scan if we have no scan results from buildful
       if [ -z "$(ls /shared/sast-results/)" ]; then (
         set +e
         set -x
 
-        # fallback to buildless scan if we have no scan results from buildful
-        # shellcheck disable=SC2086
-        env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "$(workspaces.source.path)"
+        # generate full path for each directory in TARGET_DIRS separate by comma
+        SOURCE_CODE_DIR="$(workspaces.source.path)/source"
+        count=0
+        IFS="," read -ra TARGETS_ARRAY <<< "$TARGET_DIRS"
+        for d in "${TARGETS_ARRAY[@]}"; do
+          potential_path="${SOURCE_CODE_DIR}/${d}"
+          resolved_path=$(realpath -m "$potential_path")
 
-        /opt/coverity/bin/coverity list --dir=/tmp/idir > "/shared/sast-results/coverity-buildless-summary.txt"
+          # ensure resolved path is still within SOURCE_CODE_DIR
+          if [[ ! "$resolved_path" == "$SOURCE_CODE_DIR"* ]]; then
+            echo "Error: path traversal attempt, '$potential_path' is outside '$SOURCE_CODE_DIR'"
+            exit 1
+          fi
 
-        # install Coverity license file
-        install -vm0644 /{shared,opt/coverity/bin}/license.dat
+          # ensure directory exists, as `coverity capture` doesn't
+          [ -d "$resolved_path" ] || (echo "Directory $resolved_path does not exist" && exit 1)
 
-        # shellcheck disable=SC2086
-        /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
+          # shellcheck disable=SC2086
+          env HOME=/var/tmp/coverity/home /opt/coverity/bin/coverity capture --disable-build-command-inference --dir /tmp/idir --project-dir "${resolved_path}"
 
-        # export scan results
-        /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
-          | csgrep --mode=json --embed-context=3 \
-          > /shared/sast-results/coverity-buildless.json
+          /opt/coverity/bin/coverity list --dir=/tmp/idir > "/shared/sast-results/coverity-buildless-${count}-summary.txt"
+
+          # install Coverity license file
+          install -vm0644 /{shared,opt/coverity/bin}/license.dat
+
+          # shellcheck disable=SC2086
+          /opt/coverity/bin/cov-analyze $COV_ANALYZE_ARGS --dir=/tmp/idir
+
+          # we want an empty scan result file, even if no scannable files were found
+          set +o pipefail
+          # export scan results
+          /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
+            | csgrep --mode=json --embed-context=3 \
+            > "/shared/sast-results/coverity-buildless-${count}.json"
+          set -o pipefail
+
+          ((count++)) || true # prevent non-zero return code from arithmetic expression
+        done
       ) fi
 
       # collect capture stats (FIXME: this doe not take findings deduplication into account)
