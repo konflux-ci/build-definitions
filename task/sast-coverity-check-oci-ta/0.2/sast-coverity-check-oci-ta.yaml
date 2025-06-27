@@ -305,7 +305,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -434,7 +434,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -827,7 +827,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202412.7
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca

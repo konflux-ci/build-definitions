@@ -71,7 +71,7 @@
 - op: replace
   path: /spec/steps/0/image
   # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
-  value: quay.io/redhat-services-prod/sast/coverity:202503.0
+  value: quay.io/redhat-services-prod/sast/coverity:202503.1
 
 # Change build step resources
 - op: replace
@@ -166,7 +166,7 @@
   path: /spec/steps/0
   value:
     name: prepare
-    image: quay.io/redhat-services-prod/sast/coverity:202503.0
+    image: quay.io/redhat-services-prod/sast/coverity:202503.1
     workingDir: $(workspaces.source.path)
     env:
       - name: COV_ANALYZE_ARGS
@@ -306,7 +306,7 @@
   path: /spec/steps/2
   value:
     name: postprocess
-    image: quay.io/redhat-services-prod/sast/coverity:202503.0
+    image: quay.io/redhat-services-prod/sast/coverity:202503.1
     computeResources:
       limits:
         memory: 16Gi
