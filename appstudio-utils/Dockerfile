@@ -1,5 +1,5 @@
 FROM quay.io/enterprise-contract/cli:latest AS ec-image
-FROM quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9 AS buildah-task-image
+FROM quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb AS buildah-task-image
 FROM registry.access.redhat.com/ubi9/ubi
 
 COPY --from=ec-image /usr/local/bin/ec_linux_amd64.gz /usr/bin/ec.gz
