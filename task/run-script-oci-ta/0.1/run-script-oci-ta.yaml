@@ -188,7 +188,11 @@ spec:
         BUILDAH_CMD="buildah run ${HERMETO_MOUNT} --volume /tmp/script.sh:/tmp/script.sh --volume /var/workdir/source:/var/workdir/source --volume /var/workdir/output:/var/workdir/output --workingdir ${SCRIPT_WORKDIR} --user root:root -- script-container /bin/sh -c '${HERMETO_SOURCE} SCRIPT_OUTPUT=/var/workdir/output/output SCRIPT_OUTPUT_ARRAY=/var/workdir/output/array exec /tmp/script.sh'"
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w /var/workdir sh -c "${BUILDAH_CMD}"
 
-        IMAGE_REFERENCE=$(buildah inspect script-container | jq -r '.FromImage + "@" + .FromImageDigest')
+        IMAGE_REFERENCE=$(buildah inspect script-container | jq -r '.FromImage')
+        # FromImage might contain the digest or not. Append the digest if it does not.
+        if [[ ! "${IMAGE_REFERENCE}" =~ "@sha256:" ]]; then
+          IMAGE_REFERENCE+="@$(buildah inspect script-container | jq -r '.FromImageDigest')"
+        fi
         echo -n "$IMAGE_REFERENCE" > "$(results.SCRIPT_RUNNER_IMAGE_REFERENCE.path)"
 
         if [ -f "/var/workdir/output/output" ]; then
