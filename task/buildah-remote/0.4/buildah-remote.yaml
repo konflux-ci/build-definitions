@@ -159,6 +159,10 @@ spec:
       the build (see the CONTEXT param).
     name: WORKINGDIR_MOUNT
     type: string
+  - default: "true"
+    description: Determines if the image inherits the base image labels.
+    name: INHERIT_BASE_IMAGE_LABELS
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -232,6 +236,8 @@ spec:
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
       value: $(params.WORKINGDIR_MOUNT)
+    - name: INHERIT_BASE_IMAGE_LABELS
+      value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
     - name: PLATFORM
@@ -484,6 +490,10 @@ spec:
         BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
+      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
+        BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
       VOLUME_MOUNTS=()
 
       echo "[$(date --utc -Ins)] Setup prefetched"
@@ -713,6 +723,7 @@ spec:
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
+          -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
           -v "${BUILD_DIR@Q}/workspaces/source:$(workspaces.source.path):Z" \

@@ -106,6 +106,10 @@ spec:
         all findings, specify "false"
       type: string
       default: "true"
+    - name: INHERIT_BASE_IMAGE_LABELS
+      description: Determines if the image inherits the base image labels.
+      type: string
+      default: "true"
     - name: KFP_GIT_URL
       description: Known False Positives (KFP) git URL (optionally taking
         a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
@@ -269,6 +273,8 @@ spec:
         value: $(params.IMAGE)
       - name: IMAGE_EXPIRES_AFTER
         value: $(params.IMAGE_EXPIRES_AFTER)
+      - name: INHERIT_BASE_IMAGE_LABELS
+        value: $(params.INHERIT_BASE_IMAGE_LABELS)
       - name: PRIVILEGED_NESTED
         value: $(params.PRIVILEGED_NESTED)
       - name: SBOM_TYPE
@@ -638,6 +644,10 @@ spec:
 
         if [ "${SKIP_UNUSED_STAGES}" != "true" ]; then
           BUILDAH_ARGS+=("--skip-unused-stages=false")
+        fi
+
+        if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
+          BUILDAH_ARGS+=("--inherit-labels=false")
         fi
 
         VOLUME_MOUNTS=()

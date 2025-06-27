@@ -144,6 +144,11 @@ spec:
       context directory for the build (see the CONTEXT param).
     type: string
     default: ""
+  - name: INHERIT_BASE_IMAGE_LABELS
+    description: Determines if the image inherits the base image labels.
+    type: string
+    default: "true"
+
 
   results:
   - description: Digest of the image just built
@@ -212,6 +217,8 @@ spec:
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
       value: $(params.WORKINGDIR_MOUNT)
+    - name: INHERIT_BASE_IMAGE_LABELS
+      value: $(params.INHERIT_BASE_IMAGE_LABELS)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
@@ -394,6 +401,10 @@ spec:
 
       if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
         BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
+      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
+        BUILDAH_ARGS+=("--inherit-labels=false")
       fi
 
       VOLUME_MOUNTS=()
