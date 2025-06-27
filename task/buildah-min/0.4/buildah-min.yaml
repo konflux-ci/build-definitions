@@ -618,6 +618,8 @@ spec:
   - env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
+    - name: TASKRUN_NAME
+      value: $(context.taskRun.name)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
     name: push
     script: |
@@ -653,9 +655,9 @@ spec:
         --retry "$retries" \
         --tls-verify="$TLSVERIFY" \
         "$IMAGE" \
-        "docker://${IMAGE%:*}:$(context.taskRun.name)";
+        "docker://${IMAGE%:*}:${TASKRUN_NAME}";
       then
-        echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME} after ${retries} tries"
         exit 1
       fi
 
