@@ -352,6 +352,11 @@ spec:
         /opt/coverity/bin/cov-format-errors --dir=/tmp/idir --json-output-v10 /dev/stdout \
           | /usr/libexec/csgrep-static --mode=json --embed-context=3 \
           > "\${json_file}"
+      elif [ -z "\$(ls -A \${proj_dir})" ]; then
+        # empty project dir indicates that instrumented command didn't do anything worth analyzing
+        # so let's create an empty scan report to allow later coverity commands to succeed
+        json_file="\$(mktemp /shared/sast-results/\$\$-XXXX.json)"
+        echo '{}' | /usr/libexec/csgrep-static --mode=json > "\${json_file}"
       fi
 
       # propagate the original exit code of the wrapped command
