@@ -664,7 +664,13 @@ spec:
         if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
           # user is not running registration in the Containerfile: pre-register.
           echo "Pre-registering with subscription manager."
-          subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          export RETRY_MAX_TRIES=6
+          if ! retry subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          then
+            echo "Subscription-manager register failed"
+            exit 1
+          fi
+          unset RETRY_MAX_TRIES
           trap 'subscription-manager unregister || true' EXIT
 
           # copy generated certificates to /shared volume
