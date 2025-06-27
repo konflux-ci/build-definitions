@@ -1,0 +1,309 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-opm-command-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: This task runs an OPM command with user-specified arguments, passed as an array.
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+    - name: OPM_ARGS
+      description: The array of arguments to pass to the 'opm' command
+        (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).
+      type: array
+    - name: OPM_OUTPUT_PATH
+      description: Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json').
+        Relative to the root directory of given source code (Git repository).
+      type: string
+    - name: IDMS_PATH
+      description: Optional, path for ImageDigestMirrorSet file (e.g. '.tekton/images-mirror-set.yaml').
+      type: string
+      default: ""
+  results:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code with generated file-based catalog from catalog-template.yml.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: run-opm-command
+      image: registry.redhat.io/openshift4/ose-operator-registry-rhel9:v4.18
+      workingDir: /var/workdir/source
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+      securityContext:
+        runAsUser: 0
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+
+          echo "Running OPM command in working directory: $(pwd)"
+          echo "OPM Arguments received by script: '$@'"
+
+          # Ensure OPM_OUTPUT_PATH_PARAM is provided
+          if [[ -z "${OPM_OUTPUT_PATH_PARAM}" ]]; then
+            echo "Error: OPM_OUTPUT_PATH is a mandatory parameter and cannot be empty."
+            exit 1
+          fi
+
+          # Validate that the path is not absolute
+          if [[ "${OPM_OUTPUT_PATH_PARAM}" == /* ]]; then
+            echo "Error: OPM_OUTPUT_PATH must be a relative path, but got '${OPM_OUTPUT_PATH_PARAM}'."
+            exit 1
+          fi
+
+          # Get the directory part of the path
+          OUTPUT_DIR=$(dirname "${OPM_OUTPUT_PATH_PARAM}")
+
+          # Create the directory if it's not the current directory '.'
+          if [[ "${OUTPUT_DIR}" != "." ]]; then
+            echo "Ensuring directory '${OUTPUT_DIR}' exists."
+            mkdir -p "${OUTPUT_DIR}"
+          fi
+
+          echo "Writing OPM output to file: $(pwd)/${OPM_OUTPUT_PATH_PARAM}"
+
+          # Execute the opm command and redirect its output
+          opm "$@" > "${OPM_OUTPUT_PATH_PARAM}"
+
+          echo "OPM command finished"
+        - "opm"
+        - "$(params.OPM_ARGS[*])"
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+    - name: replace-related-images-pullspec-in-catalog
+      image: quay.io/konflux-ci/konflux-test@sha256:3619ffde751d337d02f1f61c83c5c39eb87d8091dbe5a9af58ea98577fa09461
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      when:
+        - input: "$(params.IDMS_PATH)"
+          operator: notin
+          values: ["", "null"]
+      command: ["python3", "-c"]
+      args:
+        - |
+          import json
+          import os
+          import sys
+          import re
+          import yaml
+
+          def load_data_to_dict(file_path: str) -> tuple[list, str]:
+              """
+              Loads data from a specified file into a Python list of dictionaries.
+
+              Args:
+                  file_path (str): The path to the data file (e.g., YAML or JSON).
+
+              Returns:
+                  list: A list containing the loaded data as dictionaries.
+                        Each element in the list corresponds to a document in the file
+                        (e.g., a single YAML document or a single JSON object,
+                        or multiple JSON objects if concatenated).
+
+              Raises:
+                  FileNotFoundError: If the specified file path does not exist.
+                  ValueError: If the file content cannot be successfully loaded as either
+                              YAML or JSON.
+              """
+              if not file_path:
+                  return [], ''
+
+              if not os.path.exists(file_path):
+                  raise FileNotFoundError(f"File at path '{file_path}' was not found.")
+
+              with open(file_path, 'r', encoding='utf-8') as f:
+                  try:
+                      data = list(yaml.safe_load_all(f))
+                      return [doc for doc in data if doc is not None], 'yaml'
+                  except yaml.YAMLError:
+                      f.seek(0)
+                      try:
+                          return [json.load(f)], 'json'
+                      except json.JSONDecodeError:
+                          f.seek(0)
+                          result = []
+                          for part in re.split(r'(?<=})\n(?={)', f.read()):
+                              try:
+                                  result.append(json.loads(part))
+                              except json.JSONDecodeError as e:
+                                  raise ValueError(
+                                      f"File content from '{file_path}' contains malformed JSON parts "
+                                      f"after initial JSON load attempt failed: {e}")
+                          return result, 'json'
+                      except Exception as e:
+                          raise ValueError(
+                              f"An unexpected error occurred during JSON loading from '{file_path}': {e}")
+
+
+          def parse_image_digest_mirror_set(imds_data: list) -> dict:
+              """
+              Parses a list of ImageDigestMirrorSet (IDMS) data to extract a mapping
+              of source image pull specifications to their mirror pull specifications.
+
+              Args:
+                  imds_data (list): A list of dictionaries, where each dictionary
+                                    represents an ImageDigestMirrorSet object.
+                                    Expected structure:
+                                    [{'spec': {'imageDigestMirrors': [{'source': '...', 'mirrors': ['...']}, ...]}}, ...]
+
+              Returns:
+                  dict: A dictionary where keys are source image pull specifications
+                        (str) and values are lists of their corresponding mirror pull
+                        specifications (list of str). Returns an empty dictionary
+                        if no valid mirror sets are found or parsed.
+              """
+              result = {}
+              for imds in imds_data:
+                  if isinstance(imds, dict) and 'spec' in imds and 'imageDigestMirrors' in imds['spec']:
+                      for item in imds['spec']['imageDigestMirrors']:
+                          if 'source' in item and 'mirrors' in item:
+                              source_value = item['source']
+                              mirrors_list = item['mirrors']
+                              result[source_value] = mirrors_list
+                  else:
+                      print("Warning: Unexpected structure of an ImageDigestMirrorSet object "
+                            "(missing 'spec' or 'imageDigestMirrors'). Skipping this entry.")
+              return result
+
+
+          def get_correct_pullspec(mirror_set: dict, image_pullspec: str) -> str:
+              """
+              Determines the correct image pull specification by checking if the given
+              `image_pullspec` starts with any of the `source_pullspec` keys in the
+              `mirror_set`. If a match is found, it replaces the source part with
+              the first mirror in the corresponding list.
+
+              Args:
+                  mirror_set (dict): A dictionary mapping source pull specifications
+                                     to lists of mirror pull specifications.
+                                     (e.g., {'quay.io/old/repo': ['registry.example.com/new/repo']})
+                  image_pullspec (str): The original image pull specification to check.
+
+              Returns:
+                  str: The corrected image pull specification if a mirror is found,
+                       otherwise the original `image_pullspec` unchanged.
+              """
+              for source_pullspec in mirror_set.keys():
+                  if image_pullspec.startswith(source_pullspec):
+                      a = image_pullspec.replace(source_pullspec, mirror_set[source_pullspec][0])
+                      return a
+              return image_pullspec
+
+
+          def replace_pullspec(mirror_set: dict, catalog_data: list) -> list:
+              """
+              Iterates through catalog data and updates the 'image' field within
+              'relatedImages' based on the provided mirror set.
+
+              Args:
+                  mirror_set (dict): A dictionary mapping source pull specifications
+                                     to lists of mirror pull specifications.
+                  catalog_data (list): A list of dictionaries representing catalog entries.
+                                       Expected structure:
+                                       [{'relatedImages': [{'image': '...', ...}, ...]}, ...]
+
+              Returns:
+                  list: The `catalog_data` list with updated image pull specifications.
+              """
+              for catalog in catalog_data:
+                  if 'relatedImages' in catalog:
+                      for item in catalog['relatedImages']:
+                          if 'image' in item:
+                              item['image'] = get_correct_pullspec(mirror_set, item['image'])
+              return catalog_data
+
+          catalog_path = sys.argv[2]
+          imds_data, _ = load_data_to_dict(sys.argv[1])
+          if not imds_data:
+              print("No ImageDigestMirrorSet data were set. Skipping pullspec replacement.")
+              sys.exit(0)
+
+          catalog_data, catalog_type = load_data_to_dict(catalog_path)
+
+          mirror_set = parse_image_digest_mirror_set(imds_data)
+          fixed_data = replace_pullspec(mirror_set, catalog_data)
+
+          with open(catalog_path, 'w', encoding='utf-8') as f:
+              if catalog_type == 'json':
+                  for d in fixed_data:
+                    f.write(json.dumps(d, ensure_ascii=False, indent=4))
+                    f.write('\n')
+              else:
+                  f.write(yaml.dump_all(fixed_data, allow_unicode=True, default_flow_style=False, sort_keys=False))
+                  f.write('\n')
+        - "$(params.IDMS_PATH)"
+        - "$(params.OPM_OUTPUT_PATH)"
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+    - name: validate-catalog
+      image: registry.redhat.io/openshift4/ose-operator-registry-rhel9:v4.18
+      workingDir: /var/workdir/source
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+      securityContext:
+        runAsUser: 0
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          echo "Running OPM validate command"
+          # Get the directory part of the path
+          OUTPUT_DIR=$(dirname "${OPM_OUTPUT_PATH_PARAM}")
+
+          echo "Checking: ${OUTPUT_DIR}"
+          opm validate "${OUTPUT_DIR}"
+
+          echo "OPM validate finished"
+      computeResources:
+        requests:
+          memory: 3Gi
+          cpu: 1000m
+        limits:
+          memory: 4Gi
+          cpu: 2000m
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
