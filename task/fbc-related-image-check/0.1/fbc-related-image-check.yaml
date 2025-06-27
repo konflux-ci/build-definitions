@@ -54,11 +54,13 @@ spec:
           exit 0
         fi
 
+        skopeo_retries=3
+
         echo -e "These are related images:\n$relImgs."
         # cycle through those related images and show outputs
         for i in ${relImgs// /}
         do
-          if ! skopeo inspect --no-tags "docker://${i}"; then
+          if ! retry skopeo inspect --retry-times "$skopeo_retries" --no-tags "docker://${i}"; then
             echo "Skopeo inspect failed on related image: $i."
             FAILEDIMAGES+="$i, "
           fi

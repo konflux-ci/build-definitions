@@ -180,7 +180,12 @@ spec:
           digest=$(cat "image-manifest-$(arch "$f").sha")
           image_ref="${repository}@${digest}"
           echo "Attaching $f to ${image_ref}"
-          report_digest="$(retry oras attach --no-tty --format go-template='{{.digest}}' --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          if ! report_digest="$(retry oras attach --no-tty --format go-template='{{.digest}}' --registry-config \
+            "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          then
+            echo "Failed to attach ${f} to ${image_ref}"
+            exit 1
+          fi
           # shellcheck disable=SC2016
           reports_json="$(yq --output-format json --indent=0 eval-all '. as $i ireduce ({}; . * $i)' <(echo "${reports_json}") <(echo "${digest}: ${report_digest}"))"
         done
