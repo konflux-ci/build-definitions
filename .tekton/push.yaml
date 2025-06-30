@@ -46,8 +46,12 @@ spec:
         params:
           - name: ARGS
             value: --report --project-name=konflux-ci/build-definitions
+          - name: image-url
+            value: $(tasks.build-appstudio-utils.results.IMAGE_URL)
+          - name: image-digest
+            value: $(tasks.build-appstudio-utils.results.IMAGE_DIGEST)
         runAfter:
-          - clone-repository
+          - build-appstudio-utils
         taskRef:
           name: sast-snyk-check
         workspaces:
