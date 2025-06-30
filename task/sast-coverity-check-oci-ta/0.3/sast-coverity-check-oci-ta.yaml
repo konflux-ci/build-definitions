@@ -313,7 +313,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: prepare
-      image: quay.io/redhat-services-prod/sast/coverity:202503.0
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /etc/secrets/cov
@@ -437,7 +437,7 @@ spec:
           exit $EC
         fi
     - name: build
-      image: quay.io/redhat-services-prod/sast/coverity:202503.0
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -617,6 +617,10 @@ spec:
         fi
 
         BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+
+        # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
+        # TODO remove the option once all hosts were updated
+        BUILDAH_ARGS+=("--security-opt=unmask=/proc/interrupts")
 
         if [ "${PRIVILEGED_NESTED}" == "true" ]; then
           BUILDAH_ARGS+=("--security-opt=label=disable")
@@ -826,7 +830,7 @@ spec:
           add:
             - SETFCAP
     - name: postprocess
-      image: quay.io/redhat-services-prod/sast/coverity:202503.0
+      image: quay.io/redhat-services-prod/sast/coverity:202503.1
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
