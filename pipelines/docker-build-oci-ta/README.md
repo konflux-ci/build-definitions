@@ -343,6 +343,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |ARTIFACT_TYPE| The artifact type, either introspected or set.| |
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
+|IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
 ### git-clone-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

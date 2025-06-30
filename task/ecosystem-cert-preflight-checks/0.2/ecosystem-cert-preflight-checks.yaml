@@ -39,6 +39,9 @@ spec:
     - name: ARTIFACT_TYPE_SET_BY
       description: How the artifact type was set.
       value: $(steps.introspect.results.artifact-type-set-by)
+    - name: IMAGES_PROCESSED
+      description: Collected image digests
+      value: $(steps.app-set-outcome.results.images-processed)
   steps:
     - name: introspect
       resources:
@@ -288,6 +291,8 @@ spec:
       results:
       - name: test-output
         description: The overall outcome of this task.
+      - name: images-processed
+        description: Processed image digests.
       when:
       - input: "$(steps.introspect.results.artifact-type)"
         operator: in
@@ -295,6 +300,9 @@ spec:
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
+      env:
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
       script: |
         #!/usr/bin/env bash
 
@@ -347,6 +355,26 @@ spec:
         }')
         echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
 
+        # Generate IMAGES_PROCESSED
+        images_processed_template='{"image": {"pullspec": "'"$PARAM_IMAGE_URL"'", "digests": [%s]}}'
+        declare -a digests_processed=()
+
+        # Extract processed image digests from "/artifacts/$arch/cert-image.json"
+        while read -r cert_image_file; do
+          docker_image_digest=$(jq '.docker_image_digest' "$cert_image_file")
+          if [[ -n "$docker_image_digest" && ! " ${digests_processed[*]} " == *" \"$docker_image_digest\" "* ]]; then
+            digests_processed+=("\"$docker_image_digest\"")
+          fi
+        done < <(find /artifacts -type f -name "cert-image.json")
+
+        image_digest=$(skopeo inspect "docker://${PARAM_IMAGE_URL}" | jq -r '.Digest')
+        if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
+          digests_processed+=("\"$image_digest\"")
+        fi
+
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+        final_output="${images_processed_template/\[%s]/[$digests_processed_string]}"
+        echo -n "${final_output}" > "$(step.results.images-processed.path)"
     - name: final-outcome
       resources:
         limits:
