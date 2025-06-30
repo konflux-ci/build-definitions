@@ -104,6 +104,17 @@ spec:
           if [ "${arch}" = "x86_64" ]; then
             arch="amd64"
           fi
+
+          # Check if arch is supported; if not (e.g., it's 'local', see link below), default to amd64.
+          # https://github.com/redhat-appstudio/infra-deployments/blob/main/components/multi-platform-controller/production/stone-prd-rh01/host-config.yaml#L9-L14
+          case "$arch" in
+            amd64|ppc64le|arm64|s390x)
+              ;;
+            *)
+              arch="amd64"
+              ;;
+          esac
+
           image_manifests=$(echo "$image_manifests" | jq -c --arg arch "$arch" '{($arch): .[$arch]}')
         fi
 
