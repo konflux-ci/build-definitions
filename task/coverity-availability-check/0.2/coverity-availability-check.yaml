@@ -17,7 +17,7 @@ spec:
       name: STATUS
   params:
     - name: COV_LICENSE
-      description: Name of secret which contains the Coverity license
+      description: Name of secret which contains the Coverity license. Only required for public Konflux instances.
       default: cov-license
     - name: AUTH_TOKEN_COVERITY_IMAGE
       description: Name of secret which contains the authentication token for pulling the Coverity image.
@@ -30,6 +30,13 @@ spec:
     - name: auth-token-coverity-image
       secret:
         secretName: $(params.AUTH_TOKEN_COVERITY_IMAGE)
+        optional: true
+    - name: trusted-ca
+      configMap:
+        name: trusted-ca
+        items:
+        - key: ca-bundle.crt
+          path: ca-bundle.crt
         optional: true
   steps:
     - name: coverity-availability-check
@@ -49,6 +56,9 @@ spec:
         - name: auth-token-coverity-image
           mountPath: "/etc/secrets/auth/config.json"
           subPath: .dockerconfigjson
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
       env:
         - name: COV_LICENSE
           value: $(params.COV_LICENSE)
@@ -66,13 +76,30 @@ spec:
         if [ -f "${COV_LICENSE_PATH}" ] && [ -s "${COV_LICENSE_PATH}" ]; then
           echo "Coverity license detected!"
         else
-          echo 'No license file for Coverity was detected. Coverity scan will not be executed...'
-          echo 'Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
-          note="Task $(context.task.name) failed: No license file for Coverity was detected. Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license"
-          TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
-          echo -n "failed" | tee "$(results.STATUS.path)"
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-          exit 0
+          # try to retrieve from internal URL, requires trusting internal CA
+          CA_BUNDLE=/mnt/trusted-ca/ca-bundle.crt
+          TMP_LICENSE_PATH="/tmp/coverity-license.dat"
+          if [ -f "${CA_BUNDLE}" ]; then
+            echo "INFO: Using mounted CA bundle: ${CA_BUNDLE}"
+            cp -vf ${CA_BUNDLE} /etc/pki/ca-trust/source/anchors
+            update-ca-trust
+
+            LICENSE_URL="https://cov01.lab.eng.brq2.redhat.com/coverity/license/license.dat"
+            echo -n "Trying to retrieve license at ${LICENSE_URL} ... "
+            curl -L --fail --max-time 30 --no-progress-meter "${LICENSE_URL}" -o "${TMP_LICENSE_PATH}" || rm -f "${TMP_LICENSE_PATH}"
+          fi
+
+          if [ -f "${TMP_LICENSE_PATH}" ] && [ -s "${TMP_LICENSE_PATH}" ]; then
+            echo "Coverity license retrieved from internal URL!"
+          else
+            echo 'No license file for Coverity was detected. Coverity scan will not be executed...'
+            echo 'Please, create a Secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
+            note="Task $(context.task.name) failed: No license file for Coverity was detected. Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license"
+            TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
+            echo -n "failed" | tee "$(results.STATUS.path)"
+            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            exit 0
+          fi
         fi
 
         # Checking authentication token for downloading coverity image
