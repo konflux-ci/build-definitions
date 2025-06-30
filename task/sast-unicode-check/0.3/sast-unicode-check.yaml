@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.3"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -15,13 +15,11 @@ spec:
       name: TEST_OUTPUT
   params:
     - name: image-digest
-      description: Image digest
+      description: Image digest used for ORAS upload.
       type: string
-      default: ""
     - name: image-url
       type: string
-      description: Image URL.
-      default: ""
+      description: Image URL used for ORAS upload.
     - name: FIND_UNICODE_CONTROL_GIT_URL
       type: string
       description: URL from repository to find unicode control.
