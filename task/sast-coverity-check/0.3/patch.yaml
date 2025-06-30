@@ -73,6 +73,11 @@
   # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
   value: quay.io/redhat-services-prod/sast/coverity:202503.1
 
+- op: replace
+  path: /spec/steps/0/imagePullPolicy
+  # We reference the Coverity image by floating tag, make sure to always pull the latest revision.
+  value: Always
+
 # Change build step resources
 - op: replace
   path: /spec/steps/0/computeResources/limits/memory
