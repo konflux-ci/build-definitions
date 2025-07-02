@@ -20,8 +20,10 @@ spec:
       type: string
       default: ""
     - name: BINARY_IMAGE
-      description: Binary image name from which to generate the source image
-        name.
+      description: Binary image name with tag.
+      type: string
+    - name: BINARY_IMAGE_DIGEST
+      description: Digest of the binary image.
       type: string
     - name: CACHI2_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
@@ -55,6 +57,8 @@ spec:
         value: /var/workdir/base-images.txt
       - name: BINARY_IMAGE
         value: $(params.BINARY_IMAGE)
+      - name: BINARY_IMAGE_DIGEST
+        value: $(params.BINARY_IMAGE_DIGEST)
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -65,6 +69,23 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+    - name: validate-image-ref
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1747218906@sha256:92b1d5747a93608b6adb64dfd54515c3c5a360802db4706765ff3d8470df6290
+      script: |
+        #!/usr/bin/bash
+        set -e
+        if [[ $BINARY_IMAGE =~ @sha256:[[:xdigit:]]+$ ]]; then
+          echo "BINARY_IMAGE accepts an image reference with tag only."
+          exit 1
+        fi
+        if [[ ! $BINARY_IMAGE =~ :[^/]+$ ]]; then
+          echo "Missing tag in binary image reference: $BINARY_IMAGE"
+          exit 1
+        fi
+        if [[ ! $BINARY_IMAGE_DIGEST =~ ^sha256:[[:xdigit:]]+$ ]]; then
+          echo "$BINARY_IMAGE_DIGEST is not a valid sha256 digest."
+          exit 1
+        fi
     - name: get-base-images
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
       env:
@@ -170,7 +191,7 @@ spec:
         base_images=$(if [[ -f "$BASE_IMAGES_FILE" ]]; then cat "$BASE_IMAGES_FILE"; fi)
 
         args=(
-          --output-binary-image "$BINARY_IMAGE"
+          --binary-image-ref "${BINARY_IMAGE}@${BINARY_IMAGE_DIGEST}"
           --workspace /var/workdir
           --source-dir "$SOURCE_DIR"
           --base-images "$base_images"
