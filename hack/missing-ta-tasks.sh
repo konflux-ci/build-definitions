@@ -22,9 +22,6 @@ todo=(
   task/gather-deploy-images/0.1/gather-deploy-images.yaml
   task/generate-odcs-compose/0.2/generate-odcs-compose.yaml
   task/generate-odcs-compose/0.2/kustomization.yaml
-  task/inspect-image/0.1/inspect-image.yaml
-  task/inspect-image/0.2/kustomization.yaml
-  task/inspect-image/0.2/inspect-image.yaml
   task/operator-sdk-generate-bundle/0.1/operator-sdk-generate-bundle.yaml
   task/opm-get-bundle-version/0.1/opm-get-bundle-version.yaml
   task/opm-render-bundles/0.1/opm-render-bundles.yaml
