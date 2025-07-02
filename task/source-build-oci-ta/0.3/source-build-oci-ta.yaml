@@ -20,8 +20,10 @@ spec:
       type: string
       default: ""
     - name: BINARY_IMAGE
-      description: Binary image name from which to generate the source image
-        name.
+      description: Binary image name with tag.
+      type: string
+    - name: BINARY_IMAGE_DIGEST
+      description: Digest of the binary image.
       type: string
     - name: CACHI2_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
@@ -55,6 +57,10 @@ spec:
         value: /var/workdir/base-images.txt
       - name: BINARY_IMAGE
         value: $(params.BINARY_IMAGE)
+      - name: BINARY_IMAGE_DIGEST
+        value: $(params.BINARY_IMAGE_DIGEST)
+      - name: IMAGE_NOT_EXIST_FLAG
+        value: /var/workdir/image-not-exist
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -74,6 +80,11 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
+        if [[ ! $BINARY_IMAGE_DIGEST =~ ^sha256:[[:xdigit:]]+$ ]]; then
+          echo "$BINARY_IMAGE_DIGEST is not a valid sha256 digest."
+          exit 1
+        fi
+
         if [[ -n "$BASE_IMAGES" ]]; then
           echo "BASE_IMAGES param received:"
           printf "%s" "$BASE_IMAGES" | tee "$BASE_IMAGES_FILE"
@@ -82,17 +93,28 @@ spec:
 
         echo "BASE_IMAGES param is empty, inspecting the SBOM instead"
 
-        raw_inspect=$(skopeo inspect --raw "docker://$BINARY_IMAGE")
+        image_pinned_by_digest="${BINARY_IMAGE%:*}@${BINARY_IMAGE_DIGEST}"
+
+        if raw_inspect=$(skopeo inspect --raw "docker://${image_pinned_by_digest}"); then
+          echo "Got manifest of image ${image_pinned_by_digest}"
+        else
+          if [[ $? == 2 ]]; then
+            printf "Binary image %s no longer exists in the registry.\n" "$image_pinned_by_digest" |
+              tee "$IMAGE_NOT_EXIST_FLAG"
+            exit
+          else
+            exit 1
+          fi
+        fi
+
         if manifest_digest=$(jq -e -r '.manifests[0].digest' <<<"$raw_inspect"); then
           # The BINARY_IMAGE is an image index, each manifest in the list has its own SBOM.
           # We're gonna assume the base images are the same or similar enough in all the SBOMs.
-          echo "BINARY_IMAGE ($BINARY_IMAGE) is a manifest list, picking an arbitrary image from the list"
-          image_without_digest=${BINARY_IMAGE%@*}
-          image_without_tag=${image_without_digest%:*}
-          image=${image_without_tag}@${manifest_digest}
+          echo "Image (${image_pinned_by_digest}) is a manifest list, picking an arbitrary image from the list"
+          image=${image_pinned_by_digest%@*}@${manifest_digest}
         else
           # The image is a single manifest
-          image=$BINARY_IMAGE
+          image=$image_pinned_by_digest
         fi
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
@@ -134,7 +156,7 @@ spec:
             ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
         fi
     - name: build
-      image: quay.io/konflux-ci/source-container-build:latest@sha256:97d121aeeb64fd444e65ec6f13306d7e6b2f4c19134dd20f042197a349cb2f12
+      image: quay.io/konflux-ci/source-container-build:latest@sha256:ffe5b1c86d02c5f46b8fa90e92a4a01ae2a13f341c9cfc9d654081ae6a8f5bdf
       workingDir: /var/workdir
       env:
         - name: SOURCE_DIR
@@ -151,9 +173,21 @@ spec:
           value: /var/workdir/source_build_result.json
         - name: IGNORE_UNSIGNED_IMAGE
           value: $(params.IGNORE_UNSIGNED_IMAGE)
+        - name: RESULT_IMAGE_REF
+          value: $(results.IMAGE_REF.path)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+
+        if [ -f "$IMAGE_NOT_EXIST_FLAG" ]; then
+          echo "Drop building source container image."
+          printf "" >"$RESULT_SOURCE_IMAGE_URL"
+          printf "" >"$RESULT_SOURCE_IMAGE_DIGEST"
+          printf "" >"$RESULT_IMAGE_REF"
+          message=$(cat "$IMAGE_NOT_EXIST_FLAG")
+          printf "{\"status\": \"drop\", \"message\": \"%s\"}" "$message" >"$WS_BUILD_RESULT_FILE"
+          exit
+        fi
 
         app_dir=/opt/source_build
         registry_allowlist="
@@ -170,7 +204,7 @@ spec:
         base_images=$(if [[ -f "$BASE_IMAGES_FILE" ]]; then cat "$BASE_IMAGES_FILE"; fi)
 
         args=(
-          --output-binary-image "$BINARY_IMAGE"
+          --binary-image-ref "${BINARY_IMAGE}@${BINARY_IMAGE_DIGEST}"
           --workspace /var/workdir
           --source-dir "$SOURCE_DIR"
           --base-images "$base_images"
@@ -186,7 +220,7 @@ spec:
 
         cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
         cat "$RESULT_FILE" | jq -j ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"
-        jq -j '"\(.image_url)@\(.image_digest)"' "${RESULT_FILE}" >"$(results.IMAGE_REF.path)"
+        jq -j '"\(.image_url)@\(.image_digest)"' "${RESULT_FILE}" >"$RESULT_IMAGE_REF"
 
         cp "$RESULT_FILE" "$WS_BUILD_RESULT_FILE"
       computeResources:
