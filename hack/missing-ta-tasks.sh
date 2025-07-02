@@ -19,9 +19,6 @@ todo=(
   task/buildah-min/0.4/buildah-min.yaml
   task/buildah-rhtap/0.1/buildah-rhtap.yaml
   task/download-sbom-from-url-in-attestation/0.1/download-sbom-from-url-in-attestation.yaml
-  task/fbc-validation/0.1/fbc-validation.yaml
-  task/fbc-validation/0.2/kustomization.yaml
-  task/fbc-validation/0.2/fbc-validation.yaml
   task/gather-deploy-images/0.1/gather-deploy-images.yaml
   task/generate-odcs-compose/0.2/generate-odcs-compose.yaml
   task/generate-odcs-compose/0.2/kustomization.yaml
