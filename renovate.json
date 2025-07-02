@@ -278,9 +278,9 @@
         "^task/build-vm-image/.*/build-vm-image.yaml"
       ],
       "matchStrings": [
-        "BUILDAH_IMAGE\\s*\\n\\s*value:\\s*['\"]?(?<depName>[^'\":]+):(?<currentValue>[^'\":\\s]+)['\"]?"
+        "value: (?<depName>registry\\.access\\.redhat\\.com/ubi9/buildah[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
-      "depNameTemplate": "registry.access.redhat.com/ubi9/buildah",
+      "autoReplaceStringTemplate": "value: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "redhat"
     }
