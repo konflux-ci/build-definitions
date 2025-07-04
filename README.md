@@ -420,3 +420,33 @@ is the workflow:
   review process.
 
 The migration will be applied during next Renovate run scheduled by MintMaker.
+
+## Task Deprecation
+
+Often times when a new version of a task is introduced, the old version of the task doesn't need to
+be actively maintained anymore and can be deprecated. That doesn't necessarily mean that a task has
+to be removed from a repository completely (it can be though) for bookkeeping reasons and to have
+some grace period since we currently don't have a formal task deprecation process nor a policy in
+place (this is mostly due to a missing formal statement on how many task versions are supported at
+a given time).
+If you are a developer please use the following steps when deprecating a particular version of a
+task:
+
+- introduce a new version of a task
+- make sure you **DO NOT** reference an older task in your `kustomization.yaml` manifest and
+  that you have a brand new task definition YAML in place, this is so that the symlink we are about
+  to introduce doesn't confuse various validators and CI checks that are in place
+- move the old task to the `archived-tasks` top-level directory
+
+    ```bash
+    $ mkdir archived-tasks/<task_name> 2>/dev/null
+    $ git mv task/<task_name>/<old_version> archived-tasks/<task_name>
+    ```
+
+- symlink the old task from the main task location for easy historical version tracking
+
+    ```bash
+    $ ln -s archived-tasks/<task_name>/<old_version> task/<task_name>/<old_version>
+    ```
+
+- stage, commit, and contribute your deprecation change
