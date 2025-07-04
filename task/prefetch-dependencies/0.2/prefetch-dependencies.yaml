@@ -359,6 +359,13 @@ spec:
       hermeto --log-level="$LOG_LEVEL" inject-files "$(workspaces.source.path)/cachi2/output" \
       --for-output-dir=/cachi2/output
 
+      # NOTE: Compatibility hack, hermeto will create a hermeto.repo when processing RPMs (1 for
+      # each architecture) which may break users expecting cachi2.repo
+      find "$(workspaces.source.path)/cachi2/output" \
+        -type f \
+        -name hermeto.repo \
+        -execdir mv {} cachi2.repo \;
+
       # hack: the OCI generator would delete the function since it doesn't consider trap a "usage"
       if false; then
         rhsm_unregister
