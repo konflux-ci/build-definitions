@@ -416,6 +416,9 @@ spec:
           memory: 1Gi
       image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
       name: inject-sbom-and-push
+      env:
+        - name: TASKRUN_NAME
+          value: $(context.taskRun.name)
       script: |
         #!/bin/bash
         set -e
@@ -454,8 +457,8 @@ spec:
           --storage-driver "$STORAGE_DRIVER" \
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
-          "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+          "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
+          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME} after ${retries} tries"
           exit 1
         fi
 
