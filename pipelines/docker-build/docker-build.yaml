@@ -220,12 +220,14 @@ spec:
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
-      value: $(params.output-image)
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: BINARY_IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     runAfter:
     - build-image-index
     taskRef:
       name: source-build
-      version: "0.2"
+      version: "0.3"
     when:
     - input: $(tasks.init.results.build)
       operator: in
