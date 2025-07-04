@@ -64,6 +64,10 @@ func removeUnusedFunctions(f *syntax.File) []*syntax.Stmt {
 		if c, ok := node.(*syntax.CallExpr); ok && len(c.Args) > 0 {
 			// first argument of a call statement is the name
 			used = append(used, c.Args[0].Lit())
+			if len(c.Args) > 1 {
+				// get also second argument for use case : /usr/bin/retry method
+				used = append(used, c.Args[1].Lit())
+			}
 		}
 
 		return true

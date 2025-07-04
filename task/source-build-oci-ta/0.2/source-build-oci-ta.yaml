@@ -82,7 +82,11 @@ spec:
 
         echo "BASE_IMAGES param is empty, inspecting the SBOM instead"
 
-        raw_inspect=$(skopeo inspect --raw "docker://$BINARY_IMAGE")
+        skopeo_retries=3
+        if ! raw_inspect=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://$BINARY_IMAGE"); then
+          echo "Failed to inspect ${BINARY_IMAGE}"
+          exit 1
+        fi
         if manifest_digest=$(jq -e -r '.manifests[0].digest' <<<"$raw_inspect"); then
           # The BINARY_IMAGE is an image index, each manifest in the list has its own SBOM.
           # We're gonna assume the base images are the same or similar enough in all the SBOMs.

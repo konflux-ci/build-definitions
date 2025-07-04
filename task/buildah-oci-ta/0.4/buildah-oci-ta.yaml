@@ -448,9 +448,13 @@ spec:
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
           UNSHARE_ARGS+=("--net")
+          buildah_retries=3
 
           for image in $BASE_IMAGES; do
-            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
+            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"; then
+              echo "Failed to pull base image ${image}"
+              exit 1
+            fi
           done
           echo "Build will be executed with network isolation"
         fi
@@ -715,16 +719,17 @@ spec:
 
         echo "[$(date --utc -Ins)] Push image with unique tag"
 
-        retries=5
+        buildah_retries=3
+
         # Push to a unique tag based on the TaskRun name to avoid race conditions
         echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-        if ! buildah push \
+        if ! retry buildah push \
           --format="$push_format" \
-          --retry "$retries" \
+          --retry "$buildah_retries" \
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
           "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME} after ${retries} tries"
+          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
           exit 1
         fi
 
@@ -732,13 +737,13 @@ spec:
 
         # Push to a tag based on the git revision
         echo "Pushing to ${IMAGE}"
-        if ! buildah push \
+        if ! retry buildah push \
           --format="$push_format" \
-          --retry "$retries" \
+          --retry "$buildah_retries" \
           --tls-verify="$TLSVERIFY" \
           --digestfile "/var/workdir/image-digest" "$IMAGE" \
           "docker://$IMAGE"; then
-          echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+          echo "Failed to push sbom image to $IMAGE"
           exit 1
         fi
 
@@ -903,7 +908,13 @@ spec:
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
-        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
+        DOCKER_CONFIG=/tmp/auth
+        echo "Pushing sbom to registry"
+        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"; then
+          echo "Failed to push sbom to registry"
+          exit 1
+        fi
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"

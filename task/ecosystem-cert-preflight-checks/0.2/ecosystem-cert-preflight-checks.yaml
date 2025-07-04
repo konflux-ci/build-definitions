@@ -84,8 +84,14 @@ spec:
 
         declare -a _SKOPEO_INSPECT_ARGS
 
+        skopeo_retries=3
+
         echo "Checking the media type of the OCI artifact..."
-        _RAW_IMAGE_MANIFEST=$(skopeo inspect --raw "docker://${PARAM_IMAGE_URL}")
+        if ! _RAW_IMAGE_MANIFEST=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}")
+        then
+          echo "Failed to inspect ${PARAM_IMAGE_URL}"
+          exit 1
+        fi
         _IMAGE_MEDIA_TYPE=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.mediaType')
         echo "The media type of the OCI artifact is ${_IMAGE_MEDIA_TYPE}."
 
@@ -126,10 +132,14 @@ spec:
 
         # We purposely do not quote the array elements here, so that they are expanded by the shell as separate args.
         # shellcheck disable=SC2068
-        skopeo inspect ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}" \
+        if ! retry skopeo inspect --retry-times "$skopeo_retries" ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}" \
           | jq '.Labels | keys | .[]' -r \
           | { grep operators.operatorframework.io.bundle || true ;} \
           | tee /tmp/ecosystem-image-labels
+        then
+          echo "Failed to inspect ${PARAM_IMAGE_URL}"
+          exit 1
+        fi
 
         _OPFW_LABEL_COUNT=$(grep -c operators.operatorframework.io.bundle /tmp/ecosystem-image-labels || true)
         _MIN_LABELS=3
