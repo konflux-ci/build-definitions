@@ -536,9 +536,14 @@ spec:
       if [ "${HERMETIC}" == "true" ]; then
         BUILDAH_ARGS+=("--pull=never")
         UNSHARE_ARGS+=("--net")
+        buildah_retries=3
 
         for image in $BASE_IMAGES; do
-          unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
+          if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"
+          then
+            echo "Failed to pull base image ${image}"
+            exit 1
+          fi
         done
         echo "Build will be executed with network isolation"
       fi

@@ -42,9 +42,6 @@ spec:
       #!/bin/bash
 
       download_sbom_with_retry() {
-        status=-1
-        max_try=5
-        wait_sec=2
         local extra_args=("$@")
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
@@ -55,17 +52,11 @@ spec:
           exit 1
         fi
 
-        for run in $(seq 1 $max_try); do
-          status=0
-          DOCKER_CONFIG=/tmp/auth cosign download sbom "${extra_args[@]}" "$IMAGE_URL" 2>>err
-          status=$?
-          if [ "$status" -eq 0 ]; then
-            break
-          fi
-          sleep $wait_sec
-        done
-        if [ "$status" -ne 0 ]; then
-          echo "Failed to get SBOM after ${max_try} tries" >&2
+        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
+        DOCKER_CONFIG=/tmp/auth
+        if ! retry cosign download sbom "${extra_args[@]}" "$IMAGE_URL" 2>>err
+        then
+          echo "Failed to get SBOM" >&2
           cat err >&2
         fi
       }

@@ -202,6 +202,15 @@ spec:
         cat >scripts/script-build.sh <<'REMOTESSHEOF'
         #!/bin/sh
 
+        REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+
+        cat >>scripts/script-build.sh <<'REMOTESSHEOF'
+
         cd /var/workdir
 
         echo "Build the builder image using pack"
@@ -237,15 +246,24 @@ spec:
 
         if [ "${HERMETIC}" == "true" ]; then
           UNSHARE_ARGS+=("--net")
+          buildah_retries=3
 
           for image in ${BASE_IMAGES}; do
             echo "Pull the base image: $image using unshare"
-            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull --retry "$buildah_retries" $image
+            then
+              echo "Failed to pull base image ${image}"
+              exit 1
+            fi
           done
 
           for image in ${BUILDPACKS_IMAGES}; do
             echo "Pull the buildpacks image: $image using unshare"
-            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull $image
+            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- buildah pull --retry "$buildah_retries" $image
+            then
+              echo "Failed to pull buildpack image ${image}"
+              exit 1
+            fi
           done
 
           echo "Fetch lifecycle and patch the ${PACK_BUILDER_FILE} file ..."
@@ -449,32 +467,31 @@ spec:
 
         buildah --storage-driver "$STORAGE_DRIVER" commit "${BUILDAH_ARGS[@]}" "$container" "$IMAGE"
 
-        echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+        buildah_retries=3
 
-        retries=5
-        if ! buildah push \
-          --retry "$retries" \
+        echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+        if ! retry buildah push \
+          --retry "$buildah_retries" \
           --storage-driver "$STORAGE_DRIVER" \
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
-          "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME} after ${retries} tries"
+          "docker://${IMAGE%:*}:${TASKRUN_NAME}"
+        then
+          echo "Failed to push image ${IMAGE%:*}:${TASKRUN_NAME} to registry"
           exit 1
         fi
 
-
         echo "Pushing to ${IMAGE}"
-
-        if ! buildah push \
-          --retry "$retries" \
+        if ! retry buildah push \
+          --retry "$buildah_retries" \
           --storage-driver "$STORAGE_DRIVER" \
           --tls-verify="$TLSVERIFY" \
           --digestfile "/var/workdir/image-digest" "$IMAGE" \
-          "docker://$IMAGE"; then
-          echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+          "docker://$IMAGE"
+        then
+          echo "Failed to push image $IMAGE to registry"
           exit 1
         fi
-
 
         echo "Save the different results"
 
@@ -528,7 +545,12 @@ spec:
           update-ca-trust
         fi
 
-        cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        echo "Pushing sbom to registry"
+        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        then
+            echo "Failed to push sbom to registry"
+            exit 1
+        fi
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca

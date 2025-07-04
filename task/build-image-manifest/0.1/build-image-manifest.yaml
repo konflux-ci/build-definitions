@@ -136,38 +136,31 @@ spec:
         push_format=docker
       fi
 
-      status=-1
-      max_run=5
-      sleep_sec=10
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing image to registry"
-        buildah manifest push \
-          --format="$push_format" \
-          --tls-verify="$TLSVERIFY" \
-          --digestfile image-digest \
-          "$IMAGE" \
-          "docker://$IMAGE" && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push image ${IMAGE} to registry after ${max_run} tries"
+      buildah_retries=3
+
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://$IMAGE"
+      then
+          echo "Failed to push image ${IMAGE} to registry"
           exit 1
       fi
 
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing image to registry"
-        buildah manifest push \
-          --format="$push_format" \
-          --tls-verify="$TLSVERIFY" \
-          --digestfile image-digest \
-          "$IMAGE" \
-          "docker://${IMAGE%:*}:$(context.taskRun.name)" && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry after ${max_run} tries"
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)"
+      then
+          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry"
           exit 1
       fi
 
@@ -242,7 +235,15 @@ spec:
 
       # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
       mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
-      DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      # shellcheck disable=SC2034  # Variable is used by cosign indirectly
+      DOCKER_CONFIG=/tmp/auth
+
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"

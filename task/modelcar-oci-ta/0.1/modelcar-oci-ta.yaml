@@ -110,8 +110,12 @@ spec:
         set -eu
         set -o pipefail
 
-        oras pull "$MODEL_IMAGE" \
+        if ! retry oras pull "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
+        then
+          echo "Failed to pull ${MODEL_IMAGE} from registry"
+          exit 1
+        fi
         chmod -R g+wx models
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
@@ -156,10 +160,18 @@ spec:
         select-oci-auth "$IMAGE" >auth.json
 
         echo "Pushing complete artifact manifest to ${IMAGE}"
-        oras cp --to-registry-config auth.json --from-oci-layout "${TARGET_OCI}:latest" "$IMAGE"
-
+        if ! retry oras cp --to-registry-config auth.json --from-oci-layout "${TARGET_OCI}:latest" "$IMAGE"
+        then
+            echo "Failed to push complete artifact manifest to ${IMAGE}"
+            exit 1
+        fi
         echo "Push complete!"
-        RESULTING_DIGEST=$(oras resolve --registry-config auth.json "${IMAGE}")
+
+        if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}")
+        then
+          echo "Failed to get digest for ${IMAGE} from registry"
+          exit 1
+        fi
         echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
@@ -188,9 +200,20 @@ spec:
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
       workingDir: /var/workdir
       script: |
+        #!/bin/bash
+        set -e
+
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
-        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
+        DOCKER_CONFIG=/tmp/auth
+
+        echo "Pushing sbom to registry"
+        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        then
+            echo "Failed to push sbom to registry"
+            exit 1
+        fi
     - name: report-sbom-url
       image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
       workingDir: /var/workdir
