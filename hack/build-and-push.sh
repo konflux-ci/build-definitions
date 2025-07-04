@@ -228,14 +228,26 @@ inject_bundle_ref_to_pipelines() {
             {\"name\": \"kind\", \"value\": \"task\"}
         ]
     }"
+    echo "Bundle ref: ${bundle_ref}"
     local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
     find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
         while read -r pipeline_file; do
+            echo "Processing file: ${pipeline_file}"
             yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
             yq e "(.spec.finally[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
         done
 }
 
+inject_external_bundle_ref_to_pipelines() {
+    local -r external_task_dir=$1
+    local -r external_task_name=$2
+    local -r external_task_version=$3
+
+    external_task_file="$(find "$external_task_dir" -maxdepth 1 -type f \( -iname "*.yaml" -o -iname "*.yml" \))"
+    # fetch the task_budle from the external-task definition
+    external_task_bundle_with_digest=$(yq -e '.task_bundle' "$external_task_file")
+    inject_bundle_ref_to_pipelines "$external_task_name" "$external_task_version" "$external_task_bundle_with_digest"
+}
 # Get task version from task definition rather than the version in the directory path.
 # Arguments: task_file
 # The version is output to stdout.
@@ -521,10 +533,36 @@ build_push_tasks() {
     local previous_migration_bundle_digest
     local build_new_bundle
     local regex
+    
+
+
+    declare -A external_map
+
+    # Loop over external-task folder, inject the bundles in it
+    # and store a map with a task-name/task-version key to later compare to task folder
+    if [ -d external-task ]; then
+        external_task_paths=$(find external-task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | sort)
+        while read -r ext_task_dir ext_task_name ext_task_version; do
+            echo "Handling external task $ext_task_dir - $ext_task_name - $ext_task_version"
+            inject_external_bundle_ref_to_pipelines "$ext_task_dir" "$ext_task_name" "$ext_task_version"
+            key="$ext_task_name/$ext_task_version"
+            external_map["$key"]="$ext_task_dir"
+        done <<< "$external_task_paths"
+    fi
 
     find -L task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+
     while read -r task_dir task_name task_version
     do
+        key="$task_name/$task_version"
+        # Compare task with external-task
+        # Skip if we have the same task and version in task and in external-task - external-task was used
+        if [[ -n "${external_map[$key]}" ]]; then
+            echo "Duplicate found: $key - skipping"
+            continue
+        fi
+
+        echo "Handling task $task_dir - $task_name - $task_version"
         if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
             continue
         fi
