@@ -4,11 +4,13 @@
 
 The sast-coverity-check task uses Coverity tool to perform Static Application Security Testing (SAST).
 
-The documentation for this mode can be found here: <https://sig-product-docs.synopsys.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html>
+The documentation for this mode can be found here: <https://documentation.blackduck.com/bundle/coverity-docs/page/commands/topics/coverity_capture.html>
 
-The characteristics of these tasks are:
+This task will first attempt buildful scannning which instruments the Containerfile, and builds the container. If that attempt fails, it will
+then perform buildless capture on the source code.
 
-- Perform buildful scanning with Coverity
+Other details:
+
 - Only important findings are reported by default.  A parameter ( `IMP_FINDINGS_ONLY`) is provided to override this configuration.
 - The csdiff/v1 SARIF fingerprints are provided for all findings
 - A parameter ( `KFP_GIT_URL`) is provided to remove false positives providing a known false positives repository. By default, no repository is provided.
@@ -26,6 +28,8 @@ The characteristics of these tasks are:
 | KFP_GIT_URL               | Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.|SITE_DEFAULT|false|
 | PROJECT_NAME              | Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.                       | ""                        | no       |
 | RECORD_EXCLUDED           | If set to `true`, excluded findings will be written to a file named `excluded-findings.json` for auditing purposes.                   | false                     | no       |
+| TARGET_DIRS               |Target directories in component's source code. Multiple values should be separated with commas. This only applies to buildless capture, which is only attempted if buildful capture fails to produce and results.|.|no|
+
 |image-digest|Digest of the image to which the scan results should be associated.||true|
 |image-url|URL of the image to which the scan results should be associated.||true|
 
