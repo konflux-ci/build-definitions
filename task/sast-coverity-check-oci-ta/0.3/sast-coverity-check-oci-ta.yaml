@@ -619,9 +619,13 @@ spec:
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
           UNSHARE_ARGS+=("--net")
+          buildah_retries=3
 
           for image in $BASE_IMAGES; do
-            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
+            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"; then
+              echo "Failed to pull base image ${image}"
+              exit 1
+            fi
           done
           echo "Build will be executed with network isolation"
         fi
@@ -1033,15 +1037,22 @@ spec:
           set -x
           UPLOAD_FILE="$1"
           MEDIA_TYPE="$2"
-          retry oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+          oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
         )
 
         echo "Attaching scan results to ${IMAGE_URL}"
-        upload_file "coverity-results.sarif" "application/sarif+json"
+        if ! retry upload_file "coverity-results.sarif" "application/sarif+json"; then
+          echo "Failed to attach scan results to ${IMAGE_URL}"
+          exit 1
+        fi
 
         # upload excluded-findings.json if enabled
         if [ -f "excluded-findings.json" ]; then
-          upload_file "excluded-findings.json" "application/json"
+          echo "Attaching excluded findings to ${IMAGE_URL}"
+          if ! retry upload_file "excluded-findings.json" "application/json"; then
+            echo "Failed to attach excluded findings to ${IMAGE_URL}"
+            exit 1
+          fi
         fi
       computeResources:
         limits:

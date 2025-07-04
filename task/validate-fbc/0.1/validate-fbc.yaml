@@ -131,52 +131,36 @@ spec:
         digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" | tee "$(results.IMAGES_PROCESSED.path)"
 
-        status=-1
-        max_run=5
-        sleep_sec=10
-        for run in $(seq 1 $max_run); do
-          status=0
-          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
-          echo "Inspecting manifest for source image ${image_with_digest} (try $run/$max_run)."
-          skopeo inspect --no-tags docker://"${image_with_digest}" > "$IMAGE_INSPECT" && break || status=$?
-          if [ "$status" -eq 0 ]; then
-            break
-          fi
-        done
-        if [ "$status" -ne 0 ]; then
-            echo "Failed to inspect image ${image_with_digest}"
-            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
-            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-            exit 0
+        skopeo_retries=3
+
+        echo "Inspecting manifest for source image ${image_with_digest}."
+        if ! retry skopeo inspect --retry-times "$skopeo_retries" --no-tags docker://"${image_with_digest}" > "$IMAGE_INSPECT"
+        then
+          echo "Failed to inspect image ${image_with_digest}"
+          note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
         echo "Image ${image_with_digest} metadata:"
         cat "$IMAGE_INSPECT"
 
-        for run in $(seq 1 $max_run); do
-          status=0
-          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
-          echo "Inspecting manifest for source image ${image_with_digest} (try $run/$max_run)."
-          skopeo inspect --no-tags --raw docker://"${image_with_digest}" > "$RAW_IMAGE_INSPECT" || status=$?
-          if [ "$status" -eq 0 ]; then
-            break
-          fi
-        done
-        if [ "$status" -ne 0 ]; then
-            echo "Failed to get raw metadata of image ${image_with_digest}"
-            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
-            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-            exit 0
+        echo "Inspecting manifest for source image ${image_with_digest}."
+        if ! retry skopeo inspect --retry-times "$skopeo_retries" --no-tags --raw docker://"${image_with_digest}" > "$RAW_IMAGE_INSPECT"
+        then
+          echo "Failed to get raw metadata of image ${image_with_digest}"
+          note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
 
         echo "Image ${image_with_digest} raw metadata:"
         jq < "$RAW_IMAGE_INSPECT" # jq for readable formatting
 
-        status=0
         echo "Getting base image manifest for source image ${image_with_digest}."
-        get_base_image "${image_with_digest}" > /shared/base_image || status=$?
-        if [ "$status" -ne 0 ]; then
+        if ! get_base_image "${image_with_digest}" > /shared/base_image
+        then
           echo "Unable to find base image for ${image_with_digest}."
           note="Step inspect-image failed: Cannot find base image. For details, check Tekton task log."
           TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
@@ -194,21 +178,14 @@ spec:
         echo "" # the above has no newline
         base_image_with_digest=$(cat /shared/base_image_with_digest)
 
-        for run in $(seq 1 $max_run); do
-          status=0
-          [ "$run" -gt 1 ] && sleep $sleep_sec  # skip last sleep
-          echo "Inspecting base image ${base_image_with_digest} (try $run/$max_run)."
-          skopeo inspect --no-tags "docker://$base_image_with_digest"  > "$BASE_IMAGE_INSPECT" && break || status=$?
-          if [ "$status" -eq 0 ]; then
-            break
-          fi
-        done
-        if [ "$status" -ne 0 ]; then
-            echo "Failed to inspect base image ${base_image_with_digest}"
-            note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
-            TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
-            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-            exit 0
+        echo "Inspecting base image ${base_image_with_digest}."
+        if ! retry skopeo inspect --retry-times "$skopeo_retries" --no-tags "docker://$base_image_with_digest"  > "$BASE_IMAGE_INSPECT"
+        then
+          echo "Failed to inspect base image ${base_image_with_digest}"
+          note="Step inspect-image failed: Encountered errors while inspecting image. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
     - name: extract-and-validate
       image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
@@ -487,8 +464,13 @@ spec:
           echo "Related images not generated. Skipping attach."
           exit 0
         fi
-        attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "related-images+json" --digestfile "$(results.RELATED_IMAGES_DIGEST.path)" \
+        if ! retry attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "related-images+json" \
+          --digestfile "$(results.RELATED_IMAGES_DIGEST.path)" \
           /shared/related-images.json
+        then
+          echo "Failed to attach related images to ${IMAGE_URL}@${IMAGE_DIGEST}"
+          exit 1
+        fi
     - name: save-rendered-catalog
       computeResources:
         limits:
@@ -504,5 +486,10 @@ spec:
           echo "Catalog not generated. Skipping attach."
           exit 0
         fi
-        attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "rendered-catalog+json" --digestfile "$(results.RENDERED_CATALOG_DIGEST.path)" \
+        if ! retry attach-helper --subject "${IMAGE_URL}@${IMAGE_DIGEST}" --media-type-name "rendered-catalog+json" \
+          --digestfile "$(results.RENDERED_CATALOG_DIGEST.path)" \
           /shared/catalog.json
+        then
+          echo "Failed to attach catalog to ${IMAGE_URL}@${IMAGE_DIGEST}"
+          exit 1
+        fi

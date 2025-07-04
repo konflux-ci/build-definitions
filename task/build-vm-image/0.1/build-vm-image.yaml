@@ -215,14 +215,29 @@ spec:
 
         REMOTESSHEOF
 
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
 
         mkdir output
+        buildah_retries=3
+
         echo "PULLING BUILDER IMAGE"
-        time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry 10 $BOOTC_BUILDER_IMAGE
+        if ! retry time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
+        then
+            echo "Failed to pull image ${BOOTC_BUILDER_IMAGE} from registry"
+            exit 1
+        fi
         echo "PULLING IMAGE"
-        time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry 10 $SOURCE_IMAGE
+        if ! retry time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $SOURCE_IMAGE
+        then
+            echo "Failed to pull image ${SOURCE_IMAGE} from registry"
+            exit 1
+        fi
         echo "TAGGING IMAGE"
         time sudo podman tag $SOURCE_IMAGE $TAGGED_AS
         echo "RUNNING BUILD"
@@ -253,6 +268,11 @@ spec:
         export OUTPUT_IMAGE="$OUTPUT_IMAGE"
 
         REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
@@ -285,7 +305,14 @@ spec:
           # already compressed.
           buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
         fi
-        buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry 10 --all $OUTPUT_IMAGE
+
+        buildah_retries=3
+        echo "Pushing image $OUTPUT_IMAGE to registry"
+        if ! retry buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry "$buildah_retries" --all $OUTPUT_IMAGE
+        then
+            echo "Failed to push image ${OUTPUT_IMAGE} to registry"
+            exit 1
+        fi
 
         # At this point, we have pushed an image index of length 1 to the registry.
         # Next, extract a reference to the image manifest and expose that, throwing away the image index.
@@ -294,7 +321,12 @@ spec:
         MANIFEST_DIGEST=$(buildah manifest inspect --authfile /.docker/config.json $REPO@$IMAGE_INDEX_DIGEST | jq -r '.manifests[0].digest')
 
         # Overwrite the image index pullspec tag with the image manifest one
-        skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        echo "Overwriting image $OUTPUT_IMAGE in registry"
+        if ! retry skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        then
+            echo "Failed to overwrite image ${OUTPUT_IMAGE} in registry"
+            exit 1
+        fi
 
         # Finally, record all that in our results
         echo -n "$OUTPUT_IMAGE" | tee /tekton-results/IMAGE_URL
