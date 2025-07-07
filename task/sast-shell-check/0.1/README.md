@@ -2,9 +2,11 @@
 
 ## Description
 
-The sast-shell-check task uses [shellcheck](https://www.shellcheck.net/) to perform Static Application Security Testing (SAST). This task leverages a shellcheck wrapper ([csmock-plugin-shellcheck-core](https://github.com/csutils/csmock)) to run shellcheck on a directory tree.
+The sast-shell-check task uses [shellcheck](https://www.shellcheck.net/), which gives warnings and suggestions for bash/sh shell scripts, to perform Static Application Security Testing (SAST).
 
-ShellCheck is a static analysis tool, gives warnings and suggestions for bash/sh shell scripts.
+This task leverages a shellcheck wrapper ([csmock-plugin-shellcheck-core](https://github.com/csutils/csmock)) to run shellcheck on a directory tree.
+
+The number of shellcheck instances run in parallel can be indirectly configured by modifying the task CPU limit.
 
 ## Params
 
