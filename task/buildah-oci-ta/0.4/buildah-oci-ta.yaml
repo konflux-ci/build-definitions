@@ -110,6 +110,16 @@ spec:
         with remote VMs
       type: string
       default: "false"
+    - name: REUSE_COMPARISON_PARAMS
+      description: List of build parameters to compare for artifact reuse
+      type: string
+      default: |
+        - DOCKERFILE
+        - CONTEXT
+        - HERMETIC
+        - BUILD_ARGS
+        - BUILD_ARGS_FILE
+        - PREFETCH_INPUT
     - name: SBOM_TYPE
       description: 'Select the SBOM format to generate. Valid values: spdx,
         cyclonedx. Note: the SBOM from the prefetch task - if there is one
@@ -177,6 +187,8 @@ spec:
       type: string
       default: trusted-ca
   results:
+    - name: GIT_TREE_HASH
+      description: Git tree hash of the source code
     - name: IMAGE_DIGEST
       description: Digest of the image just built
     - name: IMAGE_REF
@@ -276,7 +288,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:3e2347b1ede5aeadcad365811639bff4b4611025e0a63c1ffb2569a22b6c636d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -287,7 +299,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
+      image: quay.io/bcook/buildah-task:latest
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -313,6 +325,8 @@ spec:
           value: $(params.COMMIT_SHA)
         - name: DOCKERFILE
           value: $(params.DOCKERFILE)
+        - name: REUSE_COMPARISON_PARAMS
+          value: $(params.REUSE_COMPARISON_PARAMS)
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -324,6 +338,203 @@ spec:
           echo "INFO: Using mounted CA bundle: $ca_bundle"
           cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
           update-ca-trust
+        fi
+
+        echo "[$(date --utc -Ins)] Calculate tree hash and check for reusable artifacts"
+
+        # Calculate tree hash from git commit
+        if [ -n "$COMMIT_SHA" ]; then
+          # Run git from the source directory without changing working directory
+          TREE_HASH=$(git -C "/var/workdir/source" show -s --format="%T" "$COMMIT_SHA")
+          echo "Tree hash for commit $COMMIT_SHA: $TREE_HASH"
+          # Store tree hash for reuse in other steps
+          echo "$TREE_HASH" >"/var/workdir/tree-hash"
+          # Emit the tree hash result
+          echo -n "$TREE_HASH" | tee $(results.GIT_TREE_HASH.path)
+        else
+          echo "No COMMIT_SHA provided, skipping artifact reuse"
+          TREE_HASH=""
+          # Store empty tree hash for reuse in other steps
+          echo "" >"/var/workdir/tree-hash"
+          # Emit empty tree hash result
+          echo -n "" | tee $(results.GIT_TREE_HASH.path)
+        fi
+
+        # Check for reusable artifacts if we have a tree hash
+        if [ -n "$TREE_HASH" ]; then
+          echo "Checking for reusable artifacts with tree hash: $TREE_HASH"
+
+          # Parse the comparison parameters from the YAML array
+          COMPARISON_PARAMS=()
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*([A-Z_]+)$ ]]; then
+              COMPARISON_PARAMS+=("${BASH_REMATCH[1]}")
+            fi
+          done <<<"$REUSE_COMPARISON_PARAMS"
+
+          echo "Parameters to compare: ${COMPARISON_PARAMS[*]}"
+
+          # Check if tree hash tag exists for this architecture
+          TREE_TAG="tree-$TREE_HASH"
+          IMAGE_REPO="${IMAGE%:*}"
+          CURRENT_ARCH=$(uname -m)
+
+          echo "Checking for tree tag: $TREE_TAG on $IMAGE_REPO for architecture: $CURRENT_ARCH"
+
+          # Use skopeo to check if the tree hash tag exists
+          if skopeo list-tags "docker://$IMAGE_REPO" | grep -q "\"$TREE_TAG\""; then
+            echo "Found existing tree hash tag: $TREE_TAG"
+
+            # Get the digest for the tree hash tag first
+            TREE_TAG_DIGEST=$(skopeo inspect "docker://$IMAGE_REPO:$TREE_TAG" | jq -r '.Digest')
+            if [ $? -ne 0 ] || [ -z "$TREE_TAG_DIGEST" ]; then
+              echo "Failed to get digest for tree hash tag"
+              echo "false" >"/var/workdir/artifact-reused"
+              echo "Proceeding with build due to digest retrieval failure"
+              exit 1
+            fi
+
+            # Validate attestation signature using cosign with digest
+            if cosign verify-attestation --key /etc/cosign/keys/rh03.pub --insecure-ignore-tlog --type https://slsa.dev/provenance/v0.2 "$IMAGE_REPO@$TREE_TAG_DIGEST" >/dev/null 2>&1; then
+              echo "Attestation signature verified successfully"
+            else
+              echo "Failed to verify attestation signature"
+              echo "false" >"/var/workdir/artifact-reused"
+              echo "Proceeding with build due to attestation verification failure"
+              exit 1
+            fi
+
+            # Use the digest for attestation download
+            ATTESTATION_JSON=$(cosign download attestation "$IMAGE_REPO@$TREE_TAG_DIGEST" 2>/dev/null | jq -r '.payload | @base64d | fromjson')
+            if [ $? -ne 0 ]; then
+              echo "Failed to download attestation for $IMAGE_REPO@$TREE_TAG"
+              echo "false" >"/var/workdir/artifact-reused"
+              echo "Proceeding with build due to attestation download failure"
+              exit 1
+            fi
+
+            # Verify tree hash in provenance matches our calculated tree hash
+            echo "Verifying tree hash in provenance..."
+            PROVENANCE_TREE_HASH=$(echo "$ATTESTATION_JSON" | jq -r '.predicate.buildConfig.tasks[] | select(.name == "build-container") | .results[] | select(.name == "GIT_TREE_HASH") | .value // empty')
+            if [ $? -ne 0 ] || [ -z "$PROVENANCE_TREE_HASH" ]; then
+              echo "Failed to extract tree hash from provenance"
+              echo "false" >"/var/workdir/artifact-reused"
+              echo "Proceeding with build due to provenance tree hash extraction failure"
+              exit 1
+            fi
+
+            if [ "$PROVENANCE_TREE_HASH" != "$TREE_HASH" ]; then
+              echo "Tree hash mismatch: provenance has $PROVENANCE_TREE_HASH, calculated $TREE_HASH"
+              echo "false" >"/var/workdir/artifact-reused"
+              echo "Proceeding with build due to tree hash mismatch"
+            else
+              echo "Tree hash verification successful: $TREE_HASH"
+
+              # Extract build parameters from attestation
+              EXISTING_PARAMS=$(echo "$ATTESTATION_JSON" | jq -r '.predicate.invocation.parameters')
+              if [ $? -ne 0 ]; then
+                echo "Failed to parse attestation parameters"
+                echo "false" >"/var/workdir/artifact-reused"
+                echo "Proceeding with build due to attestation parsing failure"
+                exit 1
+              fi
+
+              echo "Extracted build parameters from existing attestation"
+
+              # Compare current build parameters with existing ones
+              CONFIG_MATCHES=true
+
+              for param in "${COMPARISON_PARAMS[@]}"; do
+                # Convert UPPER_SNAKE_CASE to kebab-case for attestation lookup
+                param_kebab=$(echo "$param" | tr '[:upper:]' '[:lower:]' | sed 's/_/-/g')
+
+                # Get current parameter value
+                current_value=""
+                case "$param" in
+                DOCKERFILE)
+                  current_value="${DOCKERFILE:-}"
+                  ;;
+                CONTEXT)
+                  current_value="${CONTEXT:-}"
+                  # Map CONTEXT to path-context for attestation lookup
+                  param_kebab="path-context"
+                  ;;
+                HERMETIC)
+                  current_value="${HERMETIC:-}"
+                  ;;
+                BUILD_ARGS)
+                  current_value="${BUILD_ARGS:-}"
+                  ;;
+                BUILD_ARGS_FILE)
+                  current_value="${BUILD_ARGS_FILE:-}"
+                  ;;
+                PREFETCH_INPUT)
+                  current_value="${PREFETCH_INPUT:-}"
+                  ;;
+                *)
+                  echo "Unknown parameter: $param"
+                  CONFIG_MATCHES=false
+                  break
+                  ;;
+                esac
+
+                # Get existing parameter value from attestation
+                existing_value=$(echo "$EXISTING_PARAMS" | jq -r ".[\"$param_kebab\"] // empty")
+
+                # Compare values
+                if [ "$param" = "BUILD_ARGS" ]; then
+                  # Special handling for BUILD_ARGS - compare empty string with empty array
+                  if [ "$current_value" = "" ] && [ "$existing_value" = "[]" ]; then
+                    echo "Parameter $param matches: '$current_value' (empty) vs '$existing_value' (empty array)"
+                  elif [ "$current_value" = "$existing_value" ]; then
+                    echo "Parameter $param matches: '$current_value'"
+                  else
+                    echo "Parameter mismatch for $param: current='$current_value' vs existing='$existing_value'"
+                    CONFIG_MATCHES=false
+                    break
+                  fi
+                else
+                  # Regular comparison for other parameters
+                  if [ "$current_value" != "$existing_value" ]; then
+                    echo "Parameter mismatch for $param: current='$current_value' vs existing='$existing_value'"
+                    CONFIG_MATCHES=false
+                    break
+                  else
+                    echo "Parameter $param matches: '$current_value'"
+                  fi
+                fi
+              done
+
+              if [ "$CONFIG_MATCHES" = "true" ]; then
+                echo "All build parameters match, reusing existing artifact"
+
+                echo "Reusing existing artifact with tree hash: $TREE_HASH"
+                echo "$IMAGE_REPO:$TREE_TAG" >"/var/workdir/reused-image-ref"
+                echo "$TREE_TAG" >"/var/workdir/reused-image-tag"
+                echo "true" >"/var/workdir/artifact-reused"
+
+                # Skip the build process but continue to push step for label removal
+                echo "[$(date --utc -Ins)] Skipping build - reusing existing artifact"
+              else
+                echo "Build parameters do not match, proceeding with fresh build"
+                echo "false" >"/var/workdir/artifact-reused"
+                echo "Proceeding with build due to parameter mismatch"
+              fi
+            fi
+          else
+            echo "No existing tree hash tag found, proceeding with build"
+            echo "false" >"/var/workdir/artifact-reused"
+          fi
+        else
+          echo "No tree hash available, proceeding with build"
+          echo "false" >"/var/workdir/artifact-reused"
+        fi
+
+        # Check if we're reusing an artifact and skip the build if so
+        if [ -f "/var/workdir/artifact-reused" ] && [ "$(cat "/var/workdir/artifact-reused")" = "true" ]; then
+          echo "[$(date --utc -Ins)] Skipping build - reusing existing artifact"
+          echo "[$(date --utc -Ins)] End build"
+          exit 0
         fi
 
         echo "[$(date --utc -Ins)] Prepare Dockerfile"
@@ -448,13 +659,9 @@ spec:
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
           UNSHARE_ARGS+=("--net")
-          buildah_retries=3
 
           for image in $BASE_IMAGES; do
-            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"; then
-              echo "Failed to pull base image ${image}"
-              exit 1
-            fi
+            unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull "$image"
           done
           echo "Build will be executed with network isolation"
         fi
@@ -567,12 +774,7 @@ spec:
           if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
             # user is not running registration in the Containerfile: pre-register.
             echo "Pre-registering with subscription manager."
-            export RETRY_MAX_TRIES=6
-            if ! retry subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"; then
-              echo "Subscription-manager register failed"
-              exit 1
-            fi
-            unset RETRY_MAX_TRIES
+            subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
             trap 'subscription-manager unregister || true' EXIT
 
             # copy generated certificates to /shared volume
@@ -686,7 +888,7 @@ spec:
           add:
             - SETFCAP
     - name: push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
+      image: quay.io/bcook/buildah-task:latest
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -697,8 +899,8 @@ spec:
       env:
         - name: BUILDAH_FORMAT
           value: $(params.BUILDAH_FORMAT)
-        - name: TASKRUN_NAME
-          value: $(context.taskRun.name)
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
       script: |
         #!/bin/bash
         set -e
@@ -710,6 +912,13 @@ spec:
           echo "INFO: Using mounted CA bundle: $ca_bundle"
           cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
           update-ca-trust
+        fi
+
+        # Get tree hash from the result emitted by the build step
+        TREE_HASH=""
+        if [ -n "$COMMIT_SHA" ]; then
+          TREE_HASH=$(cat $(results.GIT_TREE_HASH.path))
+          echo "Tree hash from build step: $TREE_HASH"
         fi
 
         echo "[$(date --utc -Ins)] Convert image"
@@ -724,40 +933,111 @@ spec:
 
         echo "[$(date --utc -Ins)] Push image with unique tag"
 
-        buildah_retries=3
-
-        # Push to a unique tag based on the TaskRun name to avoid race conditions
-        echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-        if ! retry buildah push \
-          --format="$push_format" \
-          --retry "$buildah_retries" \
-          --tls-verify="$TLSVERIFY" \
-          "$IMAGE" \
-          "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
-          exit 1
+        retries=5
+        # Check if we're reusing an existing artifact
+        if [ -f "/var/workdir/artifact-reused" ] && [ "$(cat "/var/workdir/artifact-reused")" = "true" ]; then
+          echo "[$(date --utc -Ins)] Using reused artifact - skipping push step"
+          # For reused artifacts, we don't need to push anything here
+          # The reused image is already in the registry
+        else
+          # Push to a unique tag based on the TaskRun name to avoid race conditions
+          echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+          if ! buildah push \
+            --format="$push_format" \
+            --retry "$retries" \
+            --tls-verify="$TLSVERIFY" \
+            "$IMAGE" \
+            "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
+            echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+            exit 1
+          fi
         fi
 
-        echo "[$(date --utc -Ins)] Push image with git revision"
+        # Check if we're reusing an existing artifact
+        if [ -f "/var/workdir/artifact-reused" ] && [ "$(cat "/var/workdir/artifact-reused")" = "true" ]; then
+          echo "[$(date --utc -Ins)] Using reused artifact"
 
-        # Push to a tag based on the git revision
-        echo "Pushing to ${IMAGE}"
-        if ! retry buildah push \
-          --format="$push_format" \
-          --retry "$buildah_retries" \
-          --tls-verify="$TLSVERIFY" \
-          --digestfile "/var/workdir/image-digest" "$IMAGE" \
-          "docker://$IMAGE"; then
-          echo "Failed to push sbom image to $IMAGE"
-          exit 1
+          # Read the reused image reference
+          REUSED_IMAGE_REF=$(cat "/var/workdir/reused-image-ref")
+          REUSED_IMAGE_TAG=$(cat "/var/workdir/reused-image-tag")
+
+          echo "Reused image reference: $REUSED_IMAGE_REF"
+
+          # Check if this is a PR build (has IMAGE_EXPIRES_AFTER) and remove the label
+          if [ -n "$IMAGE_EXPIRES_AFTER" ]; then
+            echo "PR build detected, will remove expires-after label from reused artifact"
+            # The actual label removal will be handled in a separate step
+            # For now, just mark that we need to remove the label
+            echo "true" >"/var/workdir/remove-expires-label"
+          else
+            echo "false" >"/var/workdir/remove-expires-label"
+          fi
+
+          # Extract digest from the reused image
+          REUSED_DIGEST=$(skopeo inspect --raw "docker://$REUSED_IMAGE_REF" | jq -r '.config.digest')
+          echo "$REUSED_DIGEST" >"/var/workdir/image-digest"
+
+          # Set the results
+          echo "$REUSED_DIGEST" | tee $(results.IMAGE_DIGEST.path)
+          echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+          {
+            echo -n "${REUSED_IMAGE_REF%@*}@$REUSED_DIGEST"
+          } >"$(results.IMAGE_REF.path)"
+
+          # For reused artifacts, we don't need to download the image for SBOM analysis
+          # We'll reuse the existing SBOM from the reused image
+          echo "Skipping image download - will reuse existing SBOM"
+
+          echo "[$(date --utc -Ins)] Reused artifact processing complete"
+        else
+          echo "[$(date --utc -Ins)] Push image with git revision"
+
+          # Push to a tag based on the git revision
+          echo "Pushing to ${IMAGE}"
+          if ! buildah push \
+            --format="$push_format" \
+            --retry "$retries" \
+            --tls-verify="$TLSVERIFY" \
+            --digestfile "/var/workdir/image-digest" "$IMAGE" \
+            "docker://$IMAGE"; then
+            echo "Failed to push sbom image to $IMAGE after ${retries} tries"
+            exit 1
+          fi
+
+          # Add tree hash tag if we have a tree hash
+          if [ -n "$TREE_HASH" ]; then
+            echo "[$(date --utc -Ins)] Adding tree hash tag: tree-$TREE_HASH"
+
+            # Get the image digest
+            IMAGE_DIGEST=$(cat "/var/workdir/image-digest")
+
+            # Add the tree hash tag to the image
+            if ! buildah tag "$IMAGE" "${IMAGE%:*}:tree-$TREE_HASH"; then
+              echo "Failed to add tree hash tag"
+              exit 1
+            fi
+
+            # Push the tree hash tag
+            if ! buildah push \
+              --format="$push_format" \
+              --retry "$retries" \
+              --tls-verify="$TLSVERIFY" \
+              "${IMAGE%:*}:tree-$TREE_HASH" \
+              "docker://${IMAGE%:*}:tree-$TREE_HASH"; then
+              echo "Failed to push tree hash tag after ${retries} tries"
+              exit 1
+            fi
+
+            echo "Successfully added tree hash tag: tree-$TREE_HASH"
+          fi
+
+          cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
+          echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+          {
+            echo -n "${IMAGE}@"
+            cat "/var/workdir/image-digest"
+          } >"$(results.IMAGE_REF.path)"
         fi
-
-        cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
-        echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
-        {
-          echo -n "${IMAGE}@"
-          cat "/var/workdir/image-digest"
-        } >"$(results.IMAGE_REF.path)"
 
         echo
         echo "[$(date --utc -Ins)] End push"
@@ -805,6 +1085,11 @@ spec:
         syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
 
         echo "[$(date --utc -Ins)] End sbom-syft-generate"
+      when:
+        - input: $(workspaces.source.path)/artifact-reused
+          operator: in
+          values:
+            - "false"
     - name: prepare-sboms
       image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
       args:
@@ -886,6 +1171,11 @@ spec:
           memory: 256Mi
       securityContext:
         runAsUser: 0
+      when:
+        - input: $(workspaces.source.path)/artifact-reused
+          operator: in
+          values:
+            - "false"
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
       workingDir: /var/workdir
@@ -913,13 +1203,8 @@ spec:
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
-        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
-        DOCKER_CONFIG=/tmp/auth
-        echo "Pushing sbom to registry"
-        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"; then
-          echo "Failed to push sbom to registry"
-          exit 1
-        fi
+
+        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
 
         # Remove tag from IMAGE while allowing registry to contain a port number.
         sbom_repo="${IMAGE%:*}"
@@ -929,6 +1214,255 @@ spec:
 
         echo
         echo "[$(date --utc -Ins)] End upload-sbom"
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      when:
+        - input: $(workspaces.source.path)/artifact-reused
+          operator: in
+          values:
+            - "false"
+    - name: reuse-sbom
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      workingDir: /var/workdir
+      volumeMounts:
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Copy SBOM from reused artifact"
+
+        # Set up CA trust
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        # Pre-select the correct credentials
+        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
+
+        # Copy SBOM from reused artifact to new image tag
+        REUSED_IMAGE_REF=$(cat "/var/workdir/reused-image-ref")
+        NEW_IMAGE_REF=$(cat "$(results.IMAGE_REF.path)")
+
+        echo "Copying SBOM from $REUSED_IMAGE_REF to $NEW_IMAGE_REF"
+
+        # Download the existing SBOM from the reused image
+        cosign download sbom "$REUSED_IMAGE_REF" --type "$SBOM_TYPE" >existing-sbom.json
+
+        # Attach the existing SBOM to the new image tag
+        DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom existing-sbom.json --type "$SBOM_TYPE" "$NEW_IMAGE_REF"
+
+        # Set SBOM blob URL result
+        sbom_repo="${IMAGE%:*}"
+        sbom_digest="$(sha256sum existing-sbom.json | cut -d' ' -f1)"
+        echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+        echo "[$(date --utc -Ins)] End copy SBOM from reused artifact"
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      when:
+        - input: $(workspaces.source.path)/artifact-reused
+          operator: in
+          values:
+            - "true"
+    - name: remove-expires-label
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      workingDir: /var/workdir
+      volumeMounts:
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+      env:
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Update image labels if needed"
+
+        # Check if we need to remove the expires label or update commit ID
+        NEEDS_UPDATE=false
+        REMOVE_EXPIRES=false
+        UPDATE_COMMIT=false
+
+        if [ -f "/var/workdir/remove-expires-label" ] && [ "$(cat "/var/workdir/remove-expires-label")" = "true" ]; then
+          REMOVE_EXPIRES=true
+          NEEDS_UPDATE=true
+          echo "PR build detected, will remove expires-after label from reused artifact"
+        fi
+
+        # Check if commit ID has changed (reusing artifact with different commit)
+        if [ -f "/var/workdir/artifact-reused" ] && [ "$(cat "/var/workdir/artifact-reused")" = "true" ]; then
+          if [ -n "$COMMIT_SHA" ]; then
+            UPDATE_COMMIT=true
+            NEEDS_UPDATE=true
+            echo "Reusing artifact with different commit ID, will update vcs-ref label"
+          fi
+        fi
+
+        if [ "$NEEDS_UPDATE" = "true" ]; then
+          # Get the reused image reference
+          REUSED_IMAGE_REF=$(cat "/var/workdir/reused-image-ref")
+          REUSED_IMAGE_TAG=$(cat "/var/workdir/reused-image-tag")
+
+          # Create new tag for the updated image
+          NEW_TAG="${REUSED_IMAGE_TAG}-updated"
+          NEW_IMAGE_REF="${REUSED_IMAGE_REF%:*}:$NEW_TAG"
+
+          echo "Updating image labels from $REUSED_IMAGE_REF to $NEW_IMAGE_REF"
+
+          # Set up CA trust
+          ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+          if [ -f "$ca_bundle" ]; then
+            echo "INFO: Using mounted CA bundle: $ca_bundle"
+            cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+            update-ca-trust
+          fi
+
+          # Pre-select the correct credentials
+          mkdir -p /tmp/auth && select-oci-auth "$REUSED_IMAGE_REF" >/tmp/auth/config.json
+
+          # Create temporary working directory
+          WORKDIR="$(mktemp -d)"
+          trap "rm -rf $WORKDIR" EXIT
+
+          echo "[*] Inspecting image manifest for $REUSED_IMAGE_REF"
+          DOCKER_CONFIG=/tmp/auth skopeo inspect --raw "docker://$REUSED_IMAGE_REF" >"$WORKDIR/manifest.json"
+
+          echo "[*] Extracting config digest"
+          CONFIG_DIGEST=$(jq -r '.config.digest' "$WORKDIR/manifest.json")
+          CONFIG_FILE="sha256:$(echo "$CONFIG_DIGEST" | cut -d: -f2)"
+          CONFIG_PATH="$WORKDIR/config.json"
+
+          echo "[*] Pulling config blob only"
+          DOCKER_CONFIG=/tmp/auth skopeo copy "docker://$REUSED_IMAGE_REF" "dir:$WORKDIR/image"
+
+          # Debug: list what files were created
+          echo "[*] Files in image directory:"
+          find "$WORKDIR/image" -type f -exec ls -la {} \;
+
+          # Try to find the config file
+          CONFIG_FILES=$(find "$WORKDIR/image" -name "*$(echo "$CONFIG_DIGEST" | cut -d: -f2)*" -type f)
+          if [ -n "$CONFIG_FILES" ]; then
+            CONFIG_FILE_PATH=$(echo "$CONFIG_FILES" | head -1)
+            echo "[*] Found config file: $CONFIG_FILE_PATH"
+            cp "$CONFIG_FILE_PATH" "$CONFIG_PATH"
+          else
+            echo "[*] Config file not found, trying alternative paths"
+            # Try the original path
+            if [ -f "$WORKDIR/image/${CONFIG_FILE//:/-}" ]; then
+              cp "$WORKDIR/image/${CONFIG_FILE//:/-}" "$CONFIG_PATH"
+            else
+              echo "[*] Error: Could not find config file"
+              exit 1
+            fi
+          fi
+
+          echo "[*] Updating image labels"
+          # Start with the original config
+          jq '.' "$CONFIG_PATH" >"$WORKDIR/config-new.json"
+
+          # Remove expires-after label if needed
+          if [ "$REMOVE_EXPIRES" = "true" ]; then
+            echo "[*] Removing 'quay.expires-after' label"
+            jq 'del(.config.Labels["quay.expires-after"])' "$WORKDIR/config-new.json" >"$WORKDIR/config-temp.json"
+            mv "$WORKDIR/config-temp.json" "$WORKDIR/config-new.json"
+          fi
+
+          # Update vcs-ref label if needed
+          if [ "$UPDATE_COMMIT" = "true" ]; then
+            echo "[*] Updating 'vcs-ref' label to $COMMIT_SHA"
+            jq --arg commit "$COMMIT_SHA" '.config.Labels["vcs-ref"] = $commit' "$WORKDIR/config-new.json" >"$WORKDIR/config-temp.json"
+            mv "$WORKDIR/config-temp.json" "$WORKDIR/config-new.json"
+          fi
+
+          # Recalculate digest and size
+          CONFIG_SHA=$(sha256sum "$WORKDIR/config-new.json" | cut -d' ' -f1)
+          CONFIG_SIZE=$(stat -c%s "$WORKDIR/config-new.json")
+
+          echo "[*] Updating manifest with new config digest and size"
+          jq \
+            --arg digest "sha256:$CONFIG_SHA" \
+            --argjson size "$CONFIG_SIZE" \
+            '.config.digest = $digest | .config.size = $size' \
+            "$WORKDIR/manifest.json" >"$WORKDIR/manifest-new.json"
+
+          # Repack into oras layout
+          LAYOUT_DIR="$WORKDIR/layout"
+          mkdir -p "$LAYOUT_DIR/blobs/sha256"
+
+          cp "$WORKDIR/config-new.json" "$LAYOUT_DIR/blobs/sha256/$CONFIG_SHA"
+          cp "$WORKDIR/manifest-new.json" "$LAYOUT_DIR/manifest.json"
+
+          echo "[*] Writing OCI layout for oras"
+          cat >"$LAYOUT_DIR/index.json" <<EOF
+        {
+          "schemaVersion": 2,
+          "manifests": [{
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:$(
+            sha256sum "$WORKDIR/manifest-new.json" | cut -d' ' -f1
+          )",
+            "size": $(stat -c%s "$WORKDIR/manifest-new.json"),
+            "annotations": {
+              "org.opencontainers.image.ref.name": "$NEW_TAG"
+            }
+          }]
+        }
+        EOF
+
+          cat >"$LAYOUT_DIR/oci-layout" <<EOF
+        {
+          "imageLayoutVersion": "1.0.0"
+        }
+        EOF
+
+          echo "[*] Pushing updated image to ${REUSED_IMAGE_REF%:*}:$NEW_TAG"
+          cd "$WORKDIR"
+          DOCKER_CONFIG=/tmp/auth oras push "${REUSED_IMAGE_REF%:*}:$NEW_TAG" \
+            --config "config-new.json:application/vnd.oci.image.config.v1+json" \
+            "manifest-new.json"
+
+          if [ "$REMOVE_EXPIRES" = "true" ]; then
+            echo "[+] Done. Image pushed as $NEW_TAG without 'quay.expires-after' label."
+          fi
+          if [ "$UPDATE_COMMIT" = "true" ]; then
+            echo "[+] Done. Image pushed as $NEW_TAG with updated 'vcs-ref' label to $COMMIT_SHA."
+          fi
+
+          # Update the reused image reference to use the new tag
+          echo "${REUSED_IMAGE_REF%:*}:$NEW_TAG" >"/var/workdir/reused-image-ref"
+          echo "$NEW_TAG" >"/var/workdir/reused-image-tag"
+
+          # Get the new digest
+          NEW_DIGEST=$(DOCKER_CONFIG=/tmp/auth skopeo inspect --raw "docker://${REUSED_IMAGE_REF%:*}:$NEW_TAG" | jq -r '.config.digest')
+          echo "$NEW_DIGEST" >"/var/workdir/image-digest"
+
+          # Update the results
+          echo "$NEW_DIGEST" | tee $(results.IMAGE_DIGEST.path)
+          echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+          echo -n "${REUSED_IMAGE_REF%:*}:$NEW_TAG@$NEW_DIGEST" | tee $(results.IMAGE_REF.path)
+
+          echo "Updated reused image reference: ${REUSED_IMAGE_REF%:*}:$NEW_TAG"
+        else
+          echo "No need to update image labels"
+        fi
+
+        echo "[$(date --utc -Ins)] End update image labels"
       computeResources:
         limits:
           memory: 512Mi

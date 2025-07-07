@@ -28,6 +28,13 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
+|REUSE_COMPARISON_PARAMS|List of build parameters to compare for artifact reuse|- DOCKERFILE
+- CONTEXT
+- HERMETIC
+- BUILD_ARGS
+- BUILD_ARGS_FILE
+- PREFETCH_INPUT
+|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
@@ -46,6 +53,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 ## Results
 |name|description|
 |---|---|
+|GIT_TREE_HASH|Git tree hash of the source code|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
