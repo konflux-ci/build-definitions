@@ -72,6 +72,7 @@ spec:
       computeResources:
         limits:
           memory: 4Gi
+          cpu: "8"
         requests:
           memory: 4Gi
           cpu: "1"
@@ -128,8 +129,8 @@ spec:
 
         # generate full path for each dirname separated by comma
         declare -a ALL_TARGETS
-        IFS=","
-        for d in $TARGET_DIRS; do
+        IFS="," read -ra TARGET_ARRAY <<< "$TARGET_DIRS"
+        for d in "${TARGET_ARRAY[@]}"; do
           potential_path="${SOURCE_CODE_DIR}/${d}"
 
           resolved_path=$(realpath -m "$potential_path")
@@ -142,6 +143,16 @@ spec:
             exit 1
           fi
         done
+
+        # determine number of available CPU cores for shellcheck based on container cgroup v2 CPU limits
+        # this calculates the ceiling, so if the cpu limit is 0.5, the number of jobs will be 1.
+        if [ -z "$SC_JOBS" ] && [ -r "/sys/fs/cgroup/cpu.max" ]; then
+            read -r quota period < /sys/fs/cgroup/cpu.max
+            if [ "$quota" != "max" ] && [ -n "$period" ] && [ "$period" -gt 0 ]; then
+                export SC_JOBS=$(((quota + period - 1) / period))
+                echo "INFO: Setting SC_JOBS=${SC_JOBS} based on cgroups v2 max for run-shellcheck.sh"
+            fi
+        fi
 
         # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
         /usr/share/csmock/scripts/run-shellcheck.sh "${ALL_TARGETS[@]}"
