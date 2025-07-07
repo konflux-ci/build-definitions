@@ -40,6 +40,11 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
 |INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
+|REUSE_COMPARISON_EXCLUSIONS|List of build parameters to exclude from artifact reuse comparison|IMAGE_EXPIRES_AFTER, COMMIT_SHA, EVENT_TYPE, REMOVE_EXPIRES_LABEL|false|
+|REUSE_ARTIFACTS|Whether to enable artifact reuse feature. Set to "false" to disable artifact reuse and always perform a fresh build.|true|false|
+|REMOVE_EXPIRES_LABEL|Whether to always remove the expires label when reusing artifacts, regardless of pipeline type. When false, only removes the label in push pipelines.|false|false|
+|EVENT_TYPE|Pipeline event type from Pipelines as Code (e.g., "push", "pull_request"). Used to determine if expires label should be removed.|""|false|
+|PLATFORM|Platform/architecture for multi-arch builds (e.g., "amd64", "arm64"). Used to create platform-specific tree hash tags.|""|false|
 
 ## Results
 |name|description|

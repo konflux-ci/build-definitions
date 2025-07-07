@@ -1,0 +1,419 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.4"
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, konflux"
+  name: buildah
+spec:
+  description: |-
+    Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
+    In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
+    When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment.
+  params:
+    - description: Reference of the image buildah will produce.
+      name: IMAGE
+      type: string
+    - default: ./Dockerfile
+      description: Path to the Dockerfile to build.
+      name: DOCKERFILE
+      type: string
+    - default: .
+      description: Path to the directory to use as context.
+      name: CONTEXT
+      type: string
+    - default: "true"
+      description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
+      name: TLSVERIFY
+      type: string
+    - default: "false"
+      description: Determines if build will be executed without network access.
+      name: HERMETIC
+      type: string
+    - default: ""
+      description: In case it is not empty, the prefetched content should be made available to the build.
+      name: PREFETCH_INPUT
+      type: string
+    - default: ""
+      description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
+      name: IMAGE_EXPIRES_AFTER
+      type: string
+    - name: COMMIT_SHA
+      description: The image is built from this commit.
+      type: string
+      default: ""
+    - name: YUM_REPOS_D_SRC
+      description: Path in the git repository in which yum repository files are stored
+      default: repos.d
+    - name: YUM_REPOS_D_FETCHED
+      description: Path in source workspace where dynamically-fetched repos are present
+      default: fetched.repos.d
+    - name: YUM_REPOS_D_TARGET
+      description: Target path on the container in which yum repository files should be made available
+      default: /etc/yum.repos.d
+    - name: TARGET_STAGE
+      description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
+      type: string
+      default: ""
+    - name: ENTITLEMENT_SECRET
+      description: Name of secret which contains the entitlement certificates
+      type: string
+      default: "etc-pki-entitlement"
+    - name: ACTIVATION_KEY
+      default: activation-key
+      description: Name of secret which contains subscription activation key
+      type: string
+    - name: ADDITIONAL_SECRET
+      description: Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
+      type: string
+      default: "does-not-exist"
+    - name: BUILD_ARGS
+      description: Array of --build-arg values ("arg=value" strings)
+      type: array
+      default: []
+    - name: BUILD_ARGS_FILE
+      description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
+      type: string
+      default: ""
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+    - name: ADD_CAPABILITIES
+      description: Comma separated list of extra capabilities to add when running 'buildah build'
+      type: string
+      default: ""
+    - name: SQUASH
+      description: Squash all new and previous layers added as a part of this build, as per --squash
+      type: string
+      default: "false"
+    - name: STORAGE_DRIVER
+      description: Storage driver to configure for buildah
+      type: string
+      default: overlay
+    - name: SKIP_UNUSED_STAGES
+      description: Whether to skip stages in Containerfile that seem unused by subsequent stages
+      type: string
+      default: "true"
+    - name: LABELS
+      description: Additional key=value labels that should be applied to the image
+      type: array
+      default: []
+    - name: ANNOTATIONS
+      description: Additional key=value annotations that should be applied to the image
+      type: array
+      default: []
+    - name: ANNOTATIONS_FILE
+      description: Path to a file with additional key=value annotations that should be applied to the image
+      type: string
+      default: ""
+    - name: PRIVILEGED_NESTED
+      description: Whether to enable privileged mode, should be used only with remote VMs
+      type: string
+      default: "false"
+    - name: SKIP_SBOM_GENERATION
+      description: Skip SBOM-related operations. This will likely cause EC policies to fail if enabled
+      type: string
+      default: "false"
+    - name: SBOM_TYPE
+      description: >-
+        Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.
+      type: string
+      default: spdx
+    - name: BUILDAH_FORMAT
+      description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
+      type: string
+      default: oci
+    - name: ADDITIONAL_BASE_IMAGES
+      description: |-
+        Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
+      type: array
+      default: []
+    - name: WORKINGDIR_MOUNT
+      description: >-
+        Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).
+      type: string
+      default: ""
+    - name: INHERIT_BASE_IMAGE_LABELS
+      description: Determines if the image inherits the base image labels.
+      type: string
+      default: "true"
+    - name: REUSE_COMPARISON_EXCLUSIONS
+      description: List of build parameters to exclude from artifact reuse comparison
+      type: string
+      default: |
+        - IMAGE_EXPIRES_AFTER
+        - COMMIT_SHA
+        - EVENT_TYPE
+        - REMOVE_EXPIRES_LABEL
+    - name: REUSE_ARTIFACTS
+      description: Whether to enable artifact reuse feature. Set to "false" to disable artifact reuse and always perform a fresh build.
+      type: string
+      default: "true"
+    - name: REMOVE_EXPIRES_LABEL
+      description: Whether to always remove the expires label when reusing artifacts, regardless of pipeline type. When false, only removes the label in push pipelines.
+      type: string
+      default: "false"
+    - name: EVENT_TYPE
+      description: Pipeline event type from Pipelines as Code (e.g., "push", "pull_request"). Used to determine if expires label should be removed.
+      type: string
+      default: ""
+
+
+  results:
+    - description: Digest of the image just built
+      name: IMAGE_DIGEST
+    - description: Image repository and tag where the built image was pushed
+      name: IMAGE_URL
+    - description: Image reference of the built image
+      name: IMAGE_REF
+    - description: Git tree hash of the source code
+      name: GIT_TREE_HASH
+    - description: Reference to the reused image with digest (empty if no artifact was reused)
+      name: REUSED_IMAGE_REF
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification from provenance
+      type: string
+    - name: EVENT_TYPE
+      description: The type of event that triggered the build
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        memory: 4Gi
+      requests:
+        memory: 1Gi
+        cpu: '1'
+    volumeMounts:
+      - mountPath: /shared
+        name: shared
+    env:
+      - name: STORAGE_DRIVER
+        value: $(params.STORAGE_DRIVER)
+      - name: HERMETIC
+        value: $(params.HERMETIC)
+      - name: SOURCE_CODE_DIR
+        value: source
+      - name: CONTEXT
+        value: $(params.CONTEXT)
+      - name: IMAGE
+        value: $(params.IMAGE)
+      - name: TLSVERIFY
+        value: $(params.TLSVERIFY)
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.IMAGE_EXPIRES_AFTER)
+      - name: YUM_REPOS_D_SRC
+        value: $(params.YUM_REPOS_D_SRC)
+      - name: YUM_REPOS_D_FETCHED
+        value: $(params.YUM_REPOS_D_FETCHED)
+      - name: YUM_REPOS_D_TARGET
+        value: $(params.YUM_REPOS_D_TARGET)
+      - name: TARGET_STAGE
+        value: $(params.TARGET_STAGE)
+      - name: ENTITLEMENT_SECRET
+        value: $(params.ENTITLEMENT_SECRET)
+      - name: ACTIVATION_KEY
+        value: $(params.ACTIVATION_KEY)
+      - name: ADDITIONAL_SECRET
+        value: $(params.ADDITIONAL_SECRET)
+      - name: BUILD_ARGS_FILE
+        value: $(params.BUILD_ARGS_FILE)
+      - name: ADD_CAPABILITIES
+        value: $(params.ADD_CAPABILITIES)
+      - name: SQUASH
+        value: $(params.SQUASH)
+      - name: SKIP_UNUSED_STAGES
+        value: $(params.SKIP_UNUSED_STAGES)
+      - name: PRIVILEGED_NESTED
+        value: $(params.PRIVILEGED_NESTED)
+      - name: SKIP_SBOM_GENERATION
+        value: $(params.SKIP_SBOM_GENERATION)
+      - name: SBOM_TYPE
+        value: $(params.SBOM_TYPE)
+      - name: ANNOTATIONS_FILE
+        value: $(params.ANNOTATIONS_FILE)
+      - name: WORKINGDIR_MOUNT
+        value: $(params.WORKINGDIR_MOUNT)
+      - name: INHERIT_BASE_IMAGE_LABELS
+        value: $(params.INHERIT_BASE_IMAGE_LABELS)
+      - name: TASKRUN_NAME
+        value: $(context.taskRun.name)
+      - name: EVENT_TYPE
+        value: $(params.EVENT_TYPE)
+  steps:
+    - image: quay.io/bcook/buildah-task:latest
+      name: pre-build
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          memory: 512Mi
+          cpu: '0.5'
+      env:
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+        - name: REUSE_COMPARISON_EXCLUSIONS
+          value: $(params.REUSE_COMPARISON_EXCLUSIONS)
+        - name: REUSE_ARTIFACTS
+          value: $(params.REUSE_ARTIFACTS)
+        - name: EVENT_TYPE
+          value: $(params.EVENT_TYPE)
+        - name: IMAGE
+          value: $(params.IMAGE)
+      script: __SCRIPT_CONTENT_pre-build__
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      workingDir: $(workspaces.source.path)
+    - image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+      name: build
+      computeResources:
+        limits:
+          memory: 8Gi
+        requests:
+          memory: 2Gi
+          cpu: '1'
+      env:
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE)
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+      args:
+        - --build-args
+        - $(params.BUILD_ARGS[*])
+        - --labels
+        - $(params.LABELS[*])
+        - --annotations
+        - $(params.ANNOTATIONS[*])
+      script: __SCRIPT_CONTENT_build__
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: "/entitlement"
+          name: etc-pki-entitlement
+        - mountPath: /activation-key
+          name: activation-key
+        - mountPath: "/additional-secret"
+          name: additional-secret
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      workingDir: $(workspaces.source.path)
+    - name: push
+      image: quay.io/bcook/buildah-task:latest
+      env:
+        - name: BUILDAH_FORMAT
+          value: $(params.BUILDAH_FORMAT)
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+        - name: REMOVE_EXPIRES_LABEL
+          value: $(params.REMOVE_EXPIRES_LABEL)
+        - name: EVENT_TYPE
+          value: $(params.EVENT_TYPE)
+        - name: PLATFORM
+          value: $(params.PLATFORM)
+
+      script: __SCRIPT_CONTENT_push__
+      securityContext:
+        runAsUser: 0
+        capabilities:
+          add:
+            - SETFCAP
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      workingDir: $(workspaces.source.path)
+    - name: sbom-syft-generate
+      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
+      # Respect Syft configuration if the user has it in the root of their repository
+      # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+      workingDir: $(workspaces.source.path)/source
+      script: __SCRIPT_CONTENT_sbom-syft-generate__
+      volumeMounts:
+        - mountPath: /var/lib/containers
+          name: varlibcontainers
+        - mountPath: /shared
+          name: shared
+        - mountPath: /etc/pki/tls/certs/ca-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+    - name: prepare-sboms
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      args:
+        - --additional-base-images
+        - $(params.ADDITIONAL_BASE_IMAGES[*])
+      script: __SCRIPT_CONTENT_prepare-sboms__
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        runAsUser: 0
+    - name: upload-sbom
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      script: __SCRIPT_CONTENT_upload-sbom__
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      volumeMounts:
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      workingDir: $(workspaces.source.path)
+
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}
+    - name: shared
+      emptyDir: {}
+    - name: etc-pki-entitlement
+      secret:
+        secretName: $(params.ENTITLEMENT_SECRET)
+        optional: true
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
+    - name: additional-secret
+      secret:
+        secretName: $(params.ADDITIONAL_SECRET)
+        optional: true
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+  workspaces:
+    - name: source
+      description: Workspace containing the source code to build.

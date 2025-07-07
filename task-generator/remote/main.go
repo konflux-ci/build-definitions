@@ -288,10 +288,18 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
 		ret += `
-  echo "[$(date --utc -Ins)] Buildah pull"
-  buildah pull "oci:konflux-final-image:$IMAGE"
+
+  # Check if artifact reuse occurred - if so, skip pulling from local OCI directory
+  REUSED_IMAGE_REF=$(cat "$(results.REUSED_IMAGE_REF.path)" 2>/dev/null || echo "")
+  if [ -n "$REUSED_IMAGE_REF" ]; then
+    echo "[$(date --utc -Ins)] Artifact reuse detected, skipping local OCI pull"
+  else
+    echo "[$(date --utc -Ins)] Buildah pull"
+    buildah pull "oci:konflux-final-image:$IMAGE"
+  fi
 else
-  bash ` + containerScript + ` "$@"
+  bash ` + containerScript + ` "$@"`
+		ret += `
 fi
 echo "Build on remote host $SSH_HOST finished"
 
