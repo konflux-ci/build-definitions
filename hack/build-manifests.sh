@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # with the task name separated by a space, for example:
 # SKIP_TASKS="git-clone init"
 
-SKIP_TASKS="verify-signed-rpms"
+SKIP_TASKS=
 
 # You can ignore building manifests for some pipelines by providing the SKIP_PIPELINES variable
 # with the task name separated by a space, for example:
