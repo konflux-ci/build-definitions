@@ -96,12 +96,9 @@
         "task/deprecated-image-check/**",
         "task/fbc-fips-check-oci-ta/**",
         "task/fbc-fips-check/**",
-        "task/fbc-related-image-check/**",
         "task/fbc-target-index-pruning-check/**",
-        "task/fbc-validation/**",
         "task/fips-operator-bundle-check-oci-ta/**",
         "task/fips-operator-bundle-check/**",
-        "task/inspect-image/**",
         "task/sast-coverity-check-oci-ta/**",
         "task/sast-coverity-check/**",
         "task/sast-shell-check-oci-ta/**",
@@ -246,6 +243,17 @@
         "value: (?<depName>quay\\.io/konflux-ci/buildah[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "value: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^external-task/.*/.*/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "task_bundle: (?<depName>quay\\.io/konflux-ci/konflux-vanguard/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
     },
     {

@@ -101,6 +101,30 @@ make sure to run the `hack/generate-ta-tasks.sh` script to update the
 `${task_name}-oci-ta` Task definition. Not doing so will fail the
 [`.github/workflows/check-ta.yaml`](.github/workflows/check-ta.yaml) workflow.
 
+### External tasks
+
+External tasks are tasks that were built outside of build definitions.
+The option to add them to our pipelines is now available by adding them to the 
+external-task folder in the structure of a catalog including the name and version
+of the task, for example:
+
+```
+external-task/
+└── rpms-signature-scan
+    └── 0.2
+        └── rpms-signature-scan.yaml
+```
+
+The task definition yaml only includes the reference to the task bundle in the repository:
+```yaml
+task_bundle: quay.io/konflux-ci/konflux-vanguard/task-rpms-signature-scan:0.2@sha256:ea256cb37e60e49bc03b9639054e696a3ddffb97a24b3c3dda64b40986fd6d01
+```
+
+A renovate rule should be added in order to update the reference of the task's bundle, [example](https://github.com/konflux-ci/build-definitions/blob/79a84deef2d95c51520dba233228517a5864926f/renovate.json#L249-L259)
+
+Once the build-definitions CI will run and build all the tasks and pipelines it will first iterate over the external-task folder and will add these tasks to the pipelines, then, it will iterate over the internal tasks.
+To avoid duplications, the external task will get prioritize over the internal one. So if a task is found both in external-task and in task, the external-task will be in use.
+
 ### StepActions
 
 Take a look at the [Tekton documentation](https://tekton.dev/docs/pipelines/stepactions/) for more information about StepActions.
