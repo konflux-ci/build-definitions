@@ -4,7 +4,7 @@
     "config:base"
   ],
   "dependencyDashboard": false,
-  "prConcurrentLimit": 20,
+  "prConcurrentLimit": 40,
   "tekton": {
     "fileMatch": [
       "\\.yaml$",
@@ -91,7 +91,6 @@
         "stepactions/fips-operator-check-step-action/**",
         "task/clair-scan/**",
         "task/clamav-scan/**",
-        "task/coverity-availability-check-oci-ta/**",
         "task/coverity-availability-check/**",
         "task/deprecated-image-check/**",
         "task/fbc-fips-check-oci-ta/**",
@@ -131,6 +130,16 @@
       "groupName": "github-actions",
       "matchManagers": [
         "github-actions"
+      ],
+      "schedule": [
+        "on sunday"
+      ],
+      "automerge": true
+    },
+    {
+      "groupName": "go-modules",
+      "matchManagers": [
+        "gomod"
       ],
       "schedule": [
         "on sunday"
@@ -193,10 +202,7 @@
       "groupName": "tekton-tools-tasks",
       "description": "Updated and verified in tekton-tools so should be ignored here",
       "matchFileNames": [
-        "task/generate-odcs-compose/**",
-        "task/rpms-signature-scan/**",
-        "task/verify-signed-rpms/**",
-        "task/provision-env-with-ephemeral-namespace/**"
+        "task/rpms-signature-scan/**"
       ],
       "enabled": false
     },
