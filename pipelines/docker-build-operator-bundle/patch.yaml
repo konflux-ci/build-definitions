@@ -1,0 +1,44 @@
+---
+- op: add
+  path: /spec/description
+  value: |
+    This pipeline is ideal for building operator bundle images from a Containerfile while reducing network traffic.
+
+    _Uses `buildah` to create a container image. It also optionally creates a source image and runs some build-time tests. EC will flag a violation for [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) if any tasks are added to the pipeline.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-operator-bundle?tab=tags)_
+- op: replace
+  path: /metadata/name
+  value: docker-build-operator-bundle
+
+# Order of Tasks from the base docker-build Pipeline:
+# $ kustomize build pipelines/docker-build | yq .spec.tasks.[].name | nl -v 0
+# 0	init
+# 1	clone-repository
+# 2	prefetch-dependencies
+# 3	build-container
+# 4	build-image-index
+# 5	build-source-image
+# 6	deprecated-base-image-check
+# 7	clair-scan
+# 8	ecosystem-cert-preflight-checks
+# 9	sast-snyk-check
+# 10	clamav-scan
+# 11	sast-coverity-check
+# 12	coverity-availability-check
+# 13	sast-shell-check
+# 14	sast-unicode-check
+# 15	apply-tags
+# 16	push-dockerfile
+# 17	rpms-signature-scan
+
+# ecosystem-cert-preflight-checks Task
+- op: remove
+  path: /spec/tasks/8
+
+# sast-coverity-check Task
+- op: remove
+  path: /spec/tasks/10
+
+# coverity-availability-check Task
+- op: remove
+  path: /spec/tasks/10
