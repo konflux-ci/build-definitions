@@ -444,3 +444,36 @@ is the workflow:
   review process.
 
 The migration will be applied during next Renovate run scheduled by MintMaker.
+
+## Task Deprecation
+
+Often times when a new version of a task is introduced, the old version of the task may not need to
+be actively maintained anymore and can be deprecated. The whole deprecation process is driven
+primarily by the task maintainers who need to follow the steps outlined below to make sure Conforma
+will notify Konflux users of the fact that a particular task has been deprecated and they should
+migrate onto a newer version.
+
+If you are a task maintainer here's what you need to do when deprecating a particular version of a
+task:
+
+1. Set the `build.appstudio.redhat.com/expires-on` label on the old task version.
+2. Depending on whether you're adding a new version of a task or deprecating it completely set the
+   `build.appstudio.redhat.com/expiry-message` on the old version. There's a default expiration
+   message emitted by [Conforma](https://conforma.dev/docs/policy/tasks.html#_setting_task_expiry)
+   which may be handy if you're just adding a new version.
+3. Release a fresh build of the old task version with these labels (by merging the PR that sets the
+   labels).
+4. Move the old task to the `archived-tasks` top-level directory.
+
+    ```bash
+    $ mkdir archived-tasks/<task_name> 2>/dev/null
+    $ git mv task/<task_name>/<old_version> archived-tasks/<task_name>
+    ```
+5. Symlink the old task from the main task location for easy historical version tracking.
+
+    ```bash
+    $ ln -s archived-tasks/<task_name>/<old_version> task/<task_name>/<old_version>
+    ```
+6. Optionally, introduce a new version of the task. Make sure **NOT** to reference the old
+   version of the task in `kustomization.yaml` in such case as that would break CI.
+7. Once the old task is past its expiration date, it can be removed from the repository completely.
