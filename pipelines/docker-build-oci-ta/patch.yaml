@@ -15,6 +15,15 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
+
+- op: add
+  path: /spec/params/-
+  value:
+    name: dev-package-managers
+    description: Enable in-development package managers
+    type: string
+    default: "false"
+
 - op: remove
   path: /spec/workspaces/0
 # Order of Tasks from the base docker-build Pipeline:
@@ -73,6 +82,11 @@
   value:
     name: ociArtifactExpiresAfter
     value: $(params.image-expires-after)
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: dev-package-managers
+    value: $(params.dev-package-managers)
 - op: remove
   path: /spec/tasks/2/workspaces/0
 
