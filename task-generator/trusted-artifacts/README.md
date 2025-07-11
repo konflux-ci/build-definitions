@@ -26,8 +26,8 @@ to a Trusted Artifacts Tekton Task definition.
 
 Basic recipe consists of providing a base path to the non-Trusted Artifacts Task
 and declaring that the Task will either create or use Trusted Artifacts by
-setting the add to `create-source`, `create-cachi2`, `use-source` and/or
-`use-cachi2`.
+setting the add to `create-source`, `create-prefetch`, `use-source` and/or
+`use-prefetch`.
 
 For example:
 
@@ -48,7 +48,7 @@ The following is the list of supported options:
 
 | Option               | Type                                             | Description |
 |----------------------|--------------------------------------------------|-------------|
-| `add`                | sequence of strings                              | Task Steps to add, can be one or more of `create-source`, `create-cachi2`, `use-source` or `use-cachi2` |
+| `add`                | sequence of strings                              | Task Steps to add, can be one or more of `create-source`, `create-prefetch`, `use-source` or `use-prefetch` |
 | `addEnvironment`     | sequence of [EnvVar]                             | Additional environment variables to add to all existing Task Steps in the non-Trusted Artifact Task |
 | `additionalSteps`    | sequence of [AdditionalSteps](#additional-steps) | Additional Tekton Steps to add |
 | `addParams`          | sequence of Tekton [ParamSpec]s                  | Additional Tekton Task parameters to add to the Task |
