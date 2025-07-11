@@ -144,10 +144,13 @@ spec:
 
         dest="oci://${REPO%/*}"
 
-        output=$(
-          helm push "$chart_name"-"$chart_version".tgz "$dest" \
-            --registry-config ./scoped_authfile.json 2>&1
-        )
+        echo "Pushing image to registry"
+        if ! output="$(retry helm push "$chart_name"-"$chart_version".tgz "$dest" \
+          --registry-config ./scoped_authfile.json 2>&1)"; then
+          echo "Failed to push image to registry"
+          exit 1
+        fi
+
         pushed=$(echo "$output" | grep "Pushed" | awk '{print $2}')
         digest=$(echo "$output" | grep "Digest" | awk '{print $2}')
 

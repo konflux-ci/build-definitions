@@ -274,7 +274,11 @@ spec:
             echo "Selecting auth"
             select-oci-auth "$IMAGE_URL" > "$HOME/auth.json"
             echo "Attaching to ${IMAGE_URL}"
-            retry oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+            if ! retry oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+            then
+              echo "Failed to attach ${UPLOAD_FILE} to ${IMAGE_URL}"
+              exit 1
+            fi
         done
   workspaces:
   - name: workspace
