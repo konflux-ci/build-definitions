@@ -688,6 +688,8 @@ spec:
       env:
         - name: BUILDAH_FORMAT
           value: $(params.BUILDAH_FORMAT)
+        - name: TASKRUN_NAME
+          value: $(context.taskRun.name)
       script: |
         #!/bin/bash
         set -e
@@ -721,8 +723,8 @@ spec:
           --retry "$retries" \
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
-          "docker://${IMAGE%:*}:$(context.taskRun.name)"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:$(context.taskRun.name) after ${retries} tries"
+          "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
+          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME} after ${retries} tries"
           exit 1
         fi
 
