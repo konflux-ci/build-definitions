@@ -15,7 +15,7 @@ jobs:
           - task-generator/trusted-artifacts
     steps:
       - uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f
-      - uses: actions/setup-go@8d4083a006463573cfc77227acf5b80c61a5713a
+      - uses: actions/setup-go@7c0b336c9aab5e8ed4f0ad8b81225b125f9883e4
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f
       - name: Install Go
-        uses: actions/setup-go@8d4083a006463573cfc77227acf5b80c61a5713a
+        uses: actions/setup-go@7c0b336c9aab5e8ed4f0ad8b81225b125f9883e4
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -78,7 +78,7 @@ jobs:
           - task-generator/trusted-artifacts
     steps:
       - uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f
-      - uses: actions/setup-go@8d4083a006463573cfc77227acf5b80c61a5713a
+      - uses: actions/setup-go@7c0b336c9aab5e8ed4f0ad8b81225b125f9883e4
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -89,7 +89,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@624d0bca90f761ffa7ce50c41875a1a226969a02
+        uses: github/codeql-action/upload-sarif@f53ec7c550f4c3cafe07061ed7fba6f002286003
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif
