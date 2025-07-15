@@ -100,7 +100,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:0fcde0e606677c0c0c9661ba3efc642ea7d2d35011976598f290da532c992070
+      image: quay.io/konflux-ci/oras:latest@sha256:7f70f3235f77a9a84e9d5c386564ab367766f98b282b19ae0eaf167d0dcba5d7
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -128,7 +128,7 @@ spec:
         chmod -R g+w "$TARGET_OCI"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.6-1751440384
+      image: registry.access.redhat.com/ubi9/python-311:9.6-1752559660
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -150,7 +150,7 @@ spec:
         olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:0fcde0e606677c0c0c9661ba3efc642ea7d2d35011976598f290da532c992070
+      image: quay.io/konflux-ci/oras:latest@sha256:7f70f3235f77a9a84e9d5c386564ab367766f98b282b19ae0eaf167d0dcba5d7
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -179,7 +179,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster@sha256:c1baaa1dd8e32a399c77521fe2fd84ff087d64f4787c2e7c0ba6b2c048c8fa9c
+      image: quay.io/konflux-ci/mobster@sha256:51109021a96e12ad19de9f5ab7a076683250af18d98532385a033916882cd294
       workingDir: /var/workdir
       script: |
         #!/bin/bash
