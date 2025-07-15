@@ -216,6 +216,15 @@ spec:
               # Convert log to JSON format for EC
               jq -Rs '{ output: . }' "$logfile" > "$json_input"
 
+              # Check if ec command is available
+              if ! command -v ec >/dev/null 2>&1; then
+                echo "ERROR: ec command not found in clamav-db image"
+                note="Task $(context.task.name) failed: ec command not available in clamav-db image. For details, check Tekton task log."
+                ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+                echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+                exit 0
+              fi
+
               # Run EC (json)
               EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
