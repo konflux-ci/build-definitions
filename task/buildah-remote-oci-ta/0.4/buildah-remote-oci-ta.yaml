@@ -344,7 +344,7 @@ spec:
         rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
         rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -ra "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
+        rsync -ra --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
         rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
       fi
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
