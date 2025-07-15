@@ -208,7 +208,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		ret += "\n  rsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/.docker/:/root/.docker:Z\" \\\n"
-		ret += "\n  rsync -ra \"/usr/bin/retry\" \"$SSH_HOST:$BUILD_DIR/usr/bin/retry\""
+		ret += "\n  rsync -ra --mkpath \"/usr/bin/retry\" \"$SSH_HOST:$BUILD_DIR/usr/bin/retry\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z\" \\\n"
 		ret += "\n  rsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/results/:/tekton/results:Z\" \\\n"
