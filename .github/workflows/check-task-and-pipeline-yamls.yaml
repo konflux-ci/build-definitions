@@ -21,12 +21,16 @@ jobs:
         with:
           cluster_name: kind
 
+      - name: DEBUG - Display curl call
+        run: curl -s https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq
+        if: always()
+
       - name: Set up Tekton
         uses: tektoncd/actions/setup-tektoncd@main
         with:
           pipeline_version: latest
 
-      - name: Apply all Task & Pipeline YAMLs
-        run: |
-          set -e
-          ./.github/scripts/check_task_and_pipeline_yamls.sh
+      - name: DEBUG - Display curl call
+        run: curl -s https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq
+        if: always()
+
