@@ -234,7 +234,16 @@
       "matchFileNames": [
         "task/run-script-oci-ta/**"
       ]
+    },
+    {
+      "groupName": "mobster",
+      "matchFileNames": [
+        "task/**"
+      ],
+      "matchManagers": ["regex"],
+      "matchPackageNames": ["quay.io/konflux-ci/mobster"]
     }
+
   ],
   "postUpdateOptions": [
     "gomodTidy"
@@ -297,6 +306,17 @@
       "depNameTemplate": "registry.access.redhat.com/ubi9/buildah",
       "datasourceTemplate": "docker",
       "versioningTemplate": "redhat"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^task/[\\w-]+/[0-9.]+/[\\w-]+\\.yaml$"
+      ],
+      "matchStrings": [
+        "image: (?<depName>quay\\.io/konflux-ci/mobster[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
     }
   ]
 }
