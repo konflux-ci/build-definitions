@@ -35,6 +35,17 @@ spec:
     - name: GITHUB_APP_INSTALLATION_ID
       description: Installation ID of Github app in the organization
       default: "35269675"
+    - name: ALLOW_NON_HEAD_COMMIT_UPDATE
+      default: "false"
+      description: |
+        When set to "false", the task will fail unless the REVISION param is the latest (HEAD) commit on the "main" branch of the ORIGIN_REPO.
+        This prevents creating or updating a PR that would run the SCRIPT on a non-head commit.
+        (e.g., if the SCRIPT updates references, this check prevents them from being updated to an outdated version)
+
+        Downsides of this approach are:
+          1. description of a PR would be missing a link on failure
+          2. can be problematic for repos where the update task (or the whole push pipeline) doesn't run on every commit.
+            e.g., Merge one PR, then quickly merge one that doesn't run the update - now the update task is blocked until we merge something that does run the update task
   volumes:
     - name: infra-deployments-pr-creator
       secret:
@@ -133,6 +144,8 @@ spec:
           value: $(params.REVISION)
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
+        - name: ALLOW_NON_HEAD_COMMIT_UPDATE
+          value: "$(params.ALLOW_NON_HEAD_COMMIT_UPDATE)"
       script: |
         #!/usr/bin/env python3
         import json
@@ -153,6 +166,8 @@ spec:
 
         ORIGIN_REPO = os.environ["ORIGIN_REPO"]
         TARGET_GH_REPO = os.environ["TARGET_GH_REPO"]
+        REVISION = os.environ["REVISION"]
+        ALLOW_NON_HEAD_COMMIT_UPDATE = os.environ["ALLOW_NON_HEAD_COMMIT_UPDATE"].lower() == "true"
 
 
         class Response:
@@ -227,6 +242,13 @@ spec:
                 except urllib.error.HTTPError as e:
                     return Response(e.read(), e.code)
 
+            def _get_branch_ref_sha(self, repo, branch):
+                req = self._request("GET", f"/repos/{repo}/git/refs/heads/{branch}")
+
+                if req.status == 200:
+                    return req.json()["object"]["sha"], 200
+                return "", req.status
+
             def create_mr(self):
                 repo_name = ORIGIN_REPO.split('/')[-1]
                 logger.info("Create update pull request, head: %s, base: main", repo_name)
@@ -247,24 +269,45 @@ spec:
                 print(json_output)
                 return json_output
 
+            def verify_non_head_commit_update(self):
+                github_api_origin_repo = '/'.join(ORIGIN_REPO.split('/')[-2:])  # e.g. 'https:/github.com/repo/owner' -> 'repo/owner'
+                origin_main_branch_sha, _ = self._get_branch_ref_sha(github_api_origin_repo, "main")
+
+                if REVISION != origin_main_branch_sha:
+                    logger.error(f"Can't create/update the PR to a non-HEAD commit. REVISION: {REVISION}; origin repo main branch sha: {origin_main_branch_sha}")
+                    raise RuntimeError(f"Creating/Updating the PR would result in a non-HEAD commit update")
+
             def create_reset_branch(self):
                 branch = ORIGIN_REPO.split('/')[-1]
-                target_branch = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}").json()
-                main_branch_sha = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/main").json()['object']['sha']
-                if "ref" in target_branch:
+                _, target_status_code = self._get_branch_ref_sha(TARGET_GH_REPO, branch)
+                main_branch_sha, main_status_code = self._get_branch_ref_sha(TARGET_GH_REPO, "main")
+
+                if main_status_code != 200:
+                    logger.error(f"Could not retrieve SHA for 'main' branch in target repo '{TARGET_GH_REPO}', status: {main_status_code}")
+                    raise RuntimeError(f"Failed to get required 'main' branch SHA from repository {TARGET_GH_REPO}")
+
+                response = Response(content="", status=-1)
+                if target_status_code == 200:
                     logger.info("Update branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "PATCH",
                         f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "force": True}
                     )
-                else:
+                elif target_status_code == 404:
                     logger.info("Create branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "POST",
                         f"/repos/{TARGET_GH_REPO}/git/refs",
                         data={"sha": main_branch_sha, "ref": f"refs/heads/{branch}"}
                     )
+                else:
+                    logger.error(f"Could not determine status of branch '{branch}' in target repo '{TARGET_GH_REPO}', received unexpected status: {target_status_code}")
+                    raise RuntimeError(f"Unexpected error while checking for branch '{branch}' in {TARGET_GH_REPO}")
+
+                if response.status not in (200, 201):  # either updated or created
+                    logger.error(f"Failed to create/update reset branch. GitHub API responded with status code: {response.status}")
+                    raise RuntimeError(f"Failed to create/update reset branch. Response status code: {response.status}")
 
             def upload_content(self):
                 branch = ORIGIN_REPO.split('/')[-1]
@@ -333,6 +376,10 @@ spec:
                 app_id=app_id,
                 installation_id=os.environ.get('GITHUBAPP_INSTALLATION_ID'))
 
+            # race condition check
+            if not ALLOW_NON_HEAD_COMMIT_UPDATE:
+                github_app.verify_non_head_commit_update()
+
             github_app.create_reset_branch()
             github_app.upload_content()
             infra_pr = github_app.create_mr()
@@ -346,7 +393,7 @@ spec:
             description = infra_pr["body"]
             if description == None:
                 description = "Included PRs:"
-            new_pr_link = github_app.get_pr_url_from_sha(os.environ["REVISION"])
+            new_pr_link = github_app.get_pr_url_from_sha(REVISION)
             new_description = f"{description}\r\n- {new_pr_link}"
             logger.info("Update description of pull request %s:\n%s", infra_pr["url"], new_description)
             github_app.update_mr_description(infra_pr["url"], new_description)
