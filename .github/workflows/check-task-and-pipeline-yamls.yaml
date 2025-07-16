@@ -11,22 +11,33 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create k8s Kind Cluster
-        uses: helm/kind-action@v1.12.0
-        with:
-          cluster_name: kind
-
-      - name: Set up Tekton
-        uses: tektoncd/actions/setup-tektoncd@main
-        with:
-          pipeline_version: latest
-
-      - name: Apply all Task & Pipeline YAMLs
+      - name: Hit the GH API rate limit
         run: |
-          set -e
-          ./.github/scripts/check_task_and_pipeline_yamls.sh
+          #!/bin/bash
+          set -euo pipefail
+
+          for i in {1..61}; do
+            printf "Request %d: " "$i"
+            curl --fail-with-body --silent --show-error https://api.github.com/repos/tektoncd/cli/releases/latest |
+              jq 'if .assets then .assets[0].browser_download_url else . end' -r
+          done
+        continue-on-error: true
+
+      - name: Don't hit the GH API rate limit
+        run: |
+          #!/bin/bash
+          set -euo pipefail
+
+          headers=()
+          if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+            echo "Using GITHUB_TOKEN"
+            headers+=(--header "Authorization: Bearer ${GITHUB_TOKEN}")
+          fi
+
+          for i in {1..61}; do
+            printf "Request %d: " "$i"
+            curl --fail-with-body --silent --show-error "${headers[@]}" https://api.github.com/repos/tektoncd/cli/releases/latest |
+              jq 'if .assets then .assets[0].browser_download_url else . end' -r
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
