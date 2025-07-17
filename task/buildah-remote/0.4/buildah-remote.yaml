@@ -672,7 +672,8 @@ spec:
       touch /shared/base_images_digests
       echo "Recording base image digests used"
       for image in $BASE_IMAGES; do
-        base_image_digest=$(buildah images --format '{{ .Name }}:{{ .Tag }}@{{ .Digest }}' --filter reference="$image")
+        # Get the image pullspec and filter out a tag if it is not set
+        base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image")
         # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
         # if buildah did not use that particular image during build because it was skipped
         if [ -n "$base_image_digest" ]; then
@@ -926,7 +927,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/sbom-utility-scripts@sha256:1b714c468641e910f37c15aa53b867f0b9550a06650e07ffc0583338b963e7af
+    image: quay.io/konflux-ci/mobster:0.5.0-1752493098@sha256:51109021a96e12ad19de9f5ab7a076683250af18d98532385a033916882cd294
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -943,43 +944,13 @@ spec:
         exit 0
       fi
 
-      sboms_to_merge=(syft:sbom-source.json syft:sbom-image.json)
-
-      if [ -f "sbom-cachi2.json" ]; then
-        sboms_to_merge+=(cachi2:sbom-cachi2.json)
-      fi
-
-      echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
-      python3 /scripts/merge_sboms.py "${sboms_to_merge[@]}" > sbom.json
-
-      echo "Adding image reference to sbom"
-      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
-      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
-
-      python3 /scripts/add_image_reference.py \
-        --image-url "$IMAGE_URL" \
-        --image-digest "$IMAGE_DIGEST" \
-        --input-file sbom.json \
-        --output-file /tmp/sbom.tmp.json
-
-      mv /tmp/sbom.tmp.json sbom.json
-
-      echo "Adding base images data to sbom.json"
-      python3 /scripts/base_images_sbom_script.py \
-        --sbom=sbom.json \
-        --parsed-dockerfile=/shared/parsed_dockerfile.json \
-        --base-images-digests=/shared/base_images_digests
-
+      # Convert Tekton array params into Mobster params
       ADDITIONAL_BASE_IMAGES=()
       while [[ $# -gt 0 ]]; do
         case $1 in
           --additional-base-images)
             shift
-            while [[ $# -gt 0 && $1 != --* ]]
-            do
-              ADDITIONAL_BASE_IMAGES+=("$1")
-              shift
-            done
+            while [[ $# -gt 0 && $1 != --* ]]; do ADDITIONAL_BASE_IMAGES+=("$1"); shift; done
             ;;
           *)
             echo "unexpected argument: $1" >&2
@@ -988,16 +959,32 @@ spec:
         esac
       done
 
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+      echo "[$(date --utc -Ins)] Generate SBOM with mobster"
+
+      mobster_args=(
+        generate
+        --output sbom.json
+        oci-image
+        --from-syft "$(workspaces.source.path)/sbom-source.json"
+        --from-syft "$(workspaces.source.path)/sbom-image.json"
+        --image-pullspec "$IMAGE_URL"
+        --image-digest "$IMAGE_DIGEST"
+        --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
+        --base-image-digest-file "/shared/base_images_digests"
+      )
+
+      if [ -f "$(workspaces.source.path)/sbom-cachi2.json" ]; then
+        mobster_args+=(--from-hermeto "$(workspaces.source.path)/sbom-cachi2.json")
+      fi
+
       for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
-        IFS="@" read -ra BASE_IMAGE <<< "${ADDITIONAL_BASE_IMAGE}"
-        python3 /scripts/add_image_reference.py \
-          --builder-image \
-          --image-url "${BASE_IMAGE[0]}" \
-          --image-digest "${BASE_IMAGE[1]}" \
-          --input-file sbom.json \
-          --output-file /tmp/sbom.tmp.json
-        mv /tmp/sbom.tmp.json sbom.json
+        mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
       done
+
+      mobster "${mobster_args[@]}"
 
       echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:

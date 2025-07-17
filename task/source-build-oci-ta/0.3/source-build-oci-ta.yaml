@@ -142,17 +142,24 @@ spec:
                 .formulation[]?
                 | .components[]?
                 | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
-                | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
-                | .name + "@" + $matched.digest
+                | (
+                    .purl
+                    | capture("^pkg:oci/.*?@(?<digest>[a-z0-9]+:[a-f0-9]+)(?:\\?[^#]*repository_url=(?<repository_url>[^&#]*))?")
+                  ) as $matched
+                | $matched.repository_url + "@" + $matched.digest
             ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
         else
           echo ' (a package with a {"name": "konflux:container:is_base_image"} JSON-encoded annotation)'
           jq -r '
-                .packages[]
-                | select(any(.annotations[]?.comment; (fromjson?).name? == "konflux:container:is_base_image"))
-                | [.externalRefs[]? | select(.referenceType == "purl").referenceLocator] as $purls
-                | ($purls | first | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
-                | .name + "@" + $matched.digest
+                  .packages[]
+                  | select(any(.annotations[]?.comment; (fromjson?).name? == "konflux:container:is_base_image"))
+                  | [.externalRefs[]? | select(.referenceType == "purl").referenceLocator] as $purls
+                  | (
+                      $purls | first
+                      | capture("^pkg:oci/.*?@(?<digest>[a-z0-9]+:[a-f0-9]+)(?:\\?[^#]*repository_url=(?<repository_url>[^&#]*))?")
+                    ) as $matched
+                  | $matched.repository_url + "@" + $matched.digest
+
             ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
         fi
     - name: build
