@@ -17,8 +17,18 @@ jobs:
         with:
           cluster_name: kind
       - uses: tektoncd/actions/setup-tektoncd@main
+        id: setup-tektoncd
         with:
           pipeline_version: latest
+        continue-on-error: true
+      - name: Describe setup-tektoncd failure
+        if: steps.setup-tektoncd.outcome != 'success'
+        run: |
+          curl -s https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq
+          echo "The previous action setup-tektoncd seems to have failed due to a known issue caused by hitting the rate-limit"
+          echo "For more information, follow the following issue: https://github.com/tektoncd/actions/issues/9"
+          echo "The only known workaround at the moment is to re-run this workflow."
+          exit 1
       - name: Run check
         run: |
           DEBIAN_FRONTEND=noninteractive \
