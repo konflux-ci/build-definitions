@@ -1,0 +1,205 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-opm-command-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: This task runs an OPM command with user-specified arguments, passed as an array.
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+    - name: OPM_ARGS
+      description: The array of arguments to pass to the 'opm' command
+        (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).
+      type: array
+    - name: OPM_OUTPUT_PATH
+      description: Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json').
+        Relative to the root directory of given source code (Git repository).
+      type: string
+    - name: IDMS_PATH
+      description: Optional, path for ImageDigestMirrorSet file (e.g. '.tekton/images-mirror-set.yaml').
+      type: string
+      default: ""
+  results:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code with generated file-based catalog from catalog-template.yml.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: run-opm-command
+      image: registry.redhat.io/openshift4/ose-operator-registry-rhel9:v4.18
+      workingDir: /var/workdir/source
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+      securityContext:
+        runAsUser: 0
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+
+          echo "Running OPM command in working directory: $(pwd)"
+          echo "OPM Arguments received by script: '$@'"
+
+          # Ensure OPM_OUTPUT_PATH_PARAM is provided
+          if [[ -z "${OPM_OUTPUT_PATH_PARAM}" ]]; then
+            echo "Error: OPM_OUTPUT_PATH is a mandatory parameter and cannot be empty."
+            exit 1
+          fi
+
+          # Validate that the path is not absolute
+          if [[ "${OPM_OUTPUT_PATH_PARAM}" == /* ]]; then
+            echo "Error: OPM_OUTPUT_PATH must be a relative path, but got '${OPM_OUTPUT_PATH_PARAM}'."
+            exit 1
+          fi
+
+          # Get the directory part of the path
+          OUTPUT_DIR=$(dirname "${OPM_OUTPUT_PATH_PARAM}")
+
+          # Create the directory if it's not the current directory '.'
+          if [[ "${OUTPUT_DIR}" != "." ]]; then
+            echo "Ensuring directory '${OUTPUT_DIR}' exists."
+            mkdir -p "${OUTPUT_DIR}"
+          fi
+
+          echo "Running OPM command and writing the output to file: $(pwd)/${OPM_OUTPUT_PATH_PARAM}"
+
+          # Execute the opm command and redirect its output
+          opm "$@" > "${OPM_OUTPUT_PATH_PARAM}"
+
+          echo "OPM command finished"
+        - "opm"
+        - "$(params.OPM_ARGS[*])"
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 4Gi
+    - name: replace-related-images-pullspec-in-catalog
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.31@sha256:a7cae9e96663e277a3904d0c78630508ddb6cc8eebaa912a840bd20f68dcaad1
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      when:
+        - input: "$(params.IDMS_PATH)"
+          operator: notin
+          values: ["", "null"]
+      command: ["bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source /utils.sh
+
+          # Validate input arguments
+          if [[ $# -ne 2 ]]; then
+              echo "Error: The script requires 2 arguments: <path_to_idms_file> <path_to_catalog_file>" >&2
+              exit 1
+          fi
+
+          IDMS_FILE=$1
+          CATALOG_FILE=$2
+
+          # Check file existence
+          if [[ ! -f "$CATALOG_FILE" ]]; then
+              echo "Error: Catalog file not found at: ${CATALOG_FILE}" >&2
+              exit 1
+          fi
+
+          # Create temporary files
+          IMDS_MAP_TMP_FILE="$(mktemp)"
+          INPUT_CATALOG_FILE="$(mktemp)"
+          trap 'rm -f "$IMDS_MAP_TMP_FILE" "$INPUT_CATALOG_FILE"' EXIT
+
+          # Process mirror mapping
+          if [[ -f "${IDMS_FILE}" ]]; then
+            echo "Processing ImageDigestMirrorSet from ${IDMS_FILE}..."
+            mirror_set_yaml=$(cat "${IDMS_FILE}")
+            process_image_digest_mirror_set "${mirror_set_yaml}" > "$IMDS_MAP_TMP_FILE"
+
+            if ! jq -e . "$IMDS_MAP_TMP_FILE" > /dev/null 2>&1; then
+              echo "Error: The 'process_image_digest_mirror_set' function did not generate valid JSON." >&2
+              cat "$IMDS_MAP_TMP_FILE" >&2
+              exit 1
+            fi
+            echo "ImageDigestMirrorSet was processed successfully."
+          else
+            echo "ImageDigestMirrorSet file not found at: ${IDMS_FILE}."
+            echo "Skipping replacement."
+            exit 0
+          fi
+
+          MAPPING_JSON_CONTENT=$(cat "$IMDS_MAP_TMP_FILE")
+
+          echo "Starting direct replacement process"
+
+          # Create a working copy of the catalog
+          cp "$CATALOG_FILE" "$INPUT_CATALOG_FILE"
+
+          # Loop over sources from IDMS
+          for source_repository in $(echo "$MAPPING_JSON_CONTENT" | jq -r 'keys_unsorted[]'); do
+            # Loop over mirrors for each source from IDMS
+            for mirror_repository in $(echo "$MAPPING_JSON_CONTENT" | jq -r --arg key "$source_repository" '.[$key][]'); do
+              # This command is run for each mirror-source pair on the entire file.
+              #
+              # Pattern explained:
+              # s|...|...|g          - Substitute command with '|' as delimiter.
+              # ${mirror_repository} - Matches the literal mirror repository string.
+              # \([:@][^"']*\)       - This is the capture group (\1):
+              #   [:@]              - Matches the separator: a colon ':' for a tag or an '@' for a digest.
+              #   [^"']* - Matches everything after the separator until a quote or other specified character is found.
+              # ${source_repository}\1 - The replacement: the new source repository followed by the captured tag/digest.
+              sed -i -E "s|${mirror_repository}([:@][^\"', ]*)|${source_repository}\1|g" "$INPUT_CATALOG_FILE"
+            done
+          done
+
+          # Replace the original file with the file we actually modified.
+          mv "$INPUT_CATALOG_FILE" "$CATALOG_FILE"
+          chmod a+r "$CATALOG_FILE"
+
+          echo "Replacement process completed. ${CATALOG_FILE} has been updated."
+        - "bash"
+        - "$(params.IDMS_PATH)"
+        - "$(params.OPM_OUTPUT_PATH)"
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
