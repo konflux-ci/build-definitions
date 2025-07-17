@@ -44,6 +44,93 @@ spec:
       emptyDir: {}
 
   steps:
+    # Safeguard to prevent a race condition that can occur with successive PRs being merged
+    # e.g., when a PR 'A' is merged and it takes a long time to build the container, then PR 'B' is merged and
+    # finishes before 'A'. Then 'A' finishes and modifies the update PR to an outdated version
+    - name: race-condition-update-check
+      image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:24b22b51604bc3c2180f23a1761bb295e01e2fa96e6be448091322b08c300222
+      env:
+        - name: TASKRUN_NAME
+          value: $(context.taskRun.name)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Check possible race condition"
+
+        NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+        COORDINATION_LABEL="pipelinesascode.tekton.dev/original-prname"
+        SELF_PR_LABEL_JSONPATH='tekton\.dev/pipelineRun'
+
+        MY_PR_NAME=$(oc get taskrun -n "${NAMESPACE}" "${TASKRUN_NAME}" -o=jsonpath="{.metadata.labels['${SELF_PR_LABEL_JSONPATH}']}")
+        if [[ -z "${MY_PR_NAME}" ]]; then
+          echo "[ERROR] Could not find parent PipelineRun name on TaskRun '${TASKRUN_NAME}'." >&2
+          exit 1
+        fi
+
+        COORDINATION_LABEL_JSONPATH='pipelinesascode\.tekton\.dev/original-prname'
+        MY_DETAILS=$(oc get pipelinerun -n "${NAMESPACE}" "${MY_PR_NAME}" -o=jsonpath="{.metadata.labels['${COORDINATION_LABEL_JSONPATH}']}{' '}{.metadata.creationTimestamp}")
+        read -r COORDINATION_VALUE MY_TIMESTAMP <<< "${MY_DETAILS}"
+
+        if [[ -z "${COORDINATION_VALUE}" || -z "${MY_TIMESTAMP}" ]]; then
+          echo "[ERROR] Could not get coordination value or timestamp from PipelineRun '${MY_PR_NAME}'." >&2
+          exit 1
+        fi
+
+        echo "Getting other running PipelineRuns..."
+        OLDER_RUNNING_PRS=""
+        ALL_PRS_OUTPUT=$(oc get pipelinerun -n "${NAMESPACE}" \
+          -l "${COORDINATION_LABEL}=${COORDINATION_VALUE}" \
+          -o='custom-columns=NAME:.metadata.name,TIMESTAMP:.metadata.creationTimestamp,SUCCEEDED:.status.conditions[?(@.type=="Succeeded")].status' --no-headers)
+
+        echo "Processing competing PipelineRuns list..."
+        while read -r pr_name pr_timestamp pr_status; do
+          if [[ -z "${pr_name}" ]]; then
+              echo "  - Skipping empty line..."
+              continue
+          fi
+
+          echo "--------------------------------"
+          echo "  Inspecting PR: '${pr_name}'"
+
+          if [[ "${pr_name}" == "${MY_PR_NAME}" ]]; then
+            echo "  - This is the current PipelineRun, skipping..."
+            continue
+          fi
+
+          if [[ "${pr_timestamp}" < "${MY_TIMESTAMP}" ]]; then
+            echo "  - Timestamp check: [${pr_timestamp}] is OLDER than my time [${MY_TIMESTAMP}]. [PASS]"
+            if [[ "${pr_status}" != "True" ]] && [[ "${pr_status}" != "False" ]]; then
+              echo "  - PR ('${pr_name}') is still running, adding '${pr_name}' to the wait list..."
+              OLDER_RUNNING_PRS+="${pr_name} "
+            else
+              echo "  - PR ('${pr_name}') already finished, skipping..."
+            fi
+          else
+            echo "  - PR ('${pr_name}') is NEWER than 'self' PR, skipping..."
+          fi
+
+        done <<< "${ALL_PRS_OUTPUT}"
+        echo "===================================================="
+
+        if [[ -z "${OLDER_RUNNING_PRS}" ]]; then
+          echo "No older running PipelineRuns found, proceeding immediately..."
+          exit 0
+        fi
+
+        echo "Waiting for older PipelineRuns to complete: ${OLDER_RUNNING_PRS}"
+        for pr_to_wait_for in ${OLDER_RUNNING_PRS}; do
+          echo "  - Waiting for '${pr_to_wait_for}'..."
+
+          if ! oc wait --for=condition=Succeeded -n "${NAMESPACE}" "pipelinerun/${pr_to_wait_for}" --timeout=2h; then
+            echo "[ERROR]: Failed while waiting for PipelineRun '${pr_to_wait_for}' to complete, it may have timed out, failed, or been cancelled..." >&2
+            exit 1
+          fi
+
+          echo "  - '${pr_to_wait_for}' has completed."
+        done
+
+        echo "--- All older PipelineRuns have finished. Proceeding... ---"
     - name: git-clone-infra-deployments
       image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
       volumeMounts:
