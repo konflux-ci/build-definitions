@@ -62,6 +62,8 @@ spec:
           mirror_set_yaml=$(cat "${mirror_set}")
           image_mirror_map=$(process_image_digest_mirror_set "${mirror_set_yaml}")
           echo "${image_mirror_map}" > "/tekton/home/related-images-map.txt"
+          echo "Image mirror map:"
+          echo "${image_mirror_map}" | jq '.'
         else
           echo "Could not find Image mirror set at ${mirror_set}. Unreleased bundles and relatedImages will fail the scan."
         fi
@@ -106,24 +108,26 @@ spec:
               echo "Could not inspect original pullspec $bundle. Checking if there's a mirror present"
               if [ -n "${image_mirror_map}" ]; then
                 reg_and_repo=$(get_image_registry_and_repository "${bundle}")
-                echo "Mirror Map is $image_mirror_map"
-                mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image][]')
-                echo "Mirrors for $reg_and_repo are:"
-                printf "%s\n" "${mirrors[@]}"
+                mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image] // ["No mirrors found"] | .[]')
+                if [[ "${mirrors[0]}" == "No mirrors found" ]]; then
+                  echo "No mirrors found in image mirror map for ${reg_and_repo}"
+                else
+                  echo "Mirrors for $reg_and_repo are:"
+                  printf "%s\n" "${mirrors[@]}"
 
-                for mirror in "${mirrors[@]}"; do
-                  echo "Attempting to use mirror ${mirror}"
-                  replaced_image=$(replace_image_pullspec "$bundle" "$mirror")
-                  if ! bundle_out=$(opm render "$replaced_image"); then
-                    echo "Mirror $mirror is inaccessible."
-                    continue
-                  fi
-                  image_accessible=1
-                  echo "Replacing $bundle with $replaced_image"
-                  bundle="$replaced_image"
-                  break
-                done
-
+                  for mirror in "${mirrors[@]}"; do
+                    echo "Attempting to use mirror ${mirror}"
+                    replaced_image=$(replace_image_pullspec "$bundle" "$mirror")
+                    if ! bundle_out=$(opm render "$replaced_image"); then
+                      echo "Mirror $mirror is inaccessible."
+                      continue
+                    fi
+                    image_accessible=1
+                    echo "Replacing $bundle with $replaced_image"
+                    bundle="$replaced_image"
+                    break
+                  done
+                fi
               fi
             else
               image_accessible=1
