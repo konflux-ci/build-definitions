@@ -35,17 +35,6 @@ spec:
     - name: GITHUB_APP_INSTALLATION_ID
       description: Installation ID of Github app in the organization
       default: "35269675"
-    - name: ALLOW_NON_HEAD_COMMIT_UPDATE
-      default: "false"
-      description: |
-        When set to "false", the task will fail unless the REVISION param is the latest (HEAD) commit on the "main" branch of the ORIGIN_REPO.
-        This prevents creating or updating a PR that would run the SCRIPT on a non-head commit.
-        (e.g., if the SCRIPT updates references, this check prevents them from being updated to an outdated version)
-
-        Downsides of this approach are:
-          1. description of a PR would be missing a link on failure
-          2. can be problematic for repos where the update task (or the whole push pipeline) doesn't run on every commit.
-            e.g., Merge one PR, then quickly merge one that doesn't run the update - now the update task is blocked until we merge something that does run the update task
   volumes:
     - name: infra-deployments-pr-creator
       secret:
@@ -144,8 +133,6 @@ spec:
           value: $(params.REVISION)
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
-        - name: ALLOW_NON_HEAD_COMMIT_UPDATE
-          value: "$(params.ALLOW_NON_HEAD_COMMIT_UPDATE)"
       script: |
         #!/usr/bin/env python3
         import json
@@ -167,7 +154,6 @@ spec:
         ORIGIN_REPO = os.environ["ORIGIN_REPO"]
         TARGET_GH_REPO = os.environ["TARGET_GH_REPO"]
         REVISION = os.environ["REVISION"]
-        ALLOW_NON_HEAD_COMMIT_UPDATE = os.environ["ALLOW_NON_HEAD_COMMIT_UPDATE"].lower() == "true"
 
 
         class Response:
@@ -269,14 +255,6 @@ spec:
                 print(json_output)
                 return json_output
 
-            def verify_non_head_commit_update(self):
-                github_api_origin_repo = '/'.join(ORIGIN_REPO.split('/')[-2:])  # e.g. 'https:/github.com/repo/owner' -> 'repo/owner'
-                origin_main_branch_sha, _ = self._get_branch_ref_sha(github_api_origin_repo, "main")
-
-                if REVISION != origin_main_branch_sha:
-                    logger.error(f"Can't create/update the PR to a non-HEAD commit. REVISION: {REVISION}; origin repo main branch sha: {origin_main_branch_sha}")
-                    raise RuntimeError(f"Creating/Updating the PR would result in a non-HEAD commit update")
-
             def create_reset_branch(self):
                 branch = ORIGIN_REPO.split('/')[-1]
                 _, target_status_code = self._get_branch_ref_sha(TARGET_GH_REPO, branch)
@@ -375,10 +353,6 @@ spec:
                 key_path,
                 app_id=app_id,
                 installation_id=os.environ.get('GITHUBAPP_INSTALLATION_ID'))
-
-            # race condition check
-            if not ALLOW_NON_HEAD_COMMIT_UPDATE:
-                github_app.verify_non_head_commit_update()
 
             github_app.create_reset_branch()
             github_app.upload_content()
