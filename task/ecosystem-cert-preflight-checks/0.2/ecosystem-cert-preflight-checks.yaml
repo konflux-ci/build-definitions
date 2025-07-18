@@ -248,16 +248,17 @@ spec:
         if [ -n "$platform" ]; then
           # Extract part after slash if present
           arch="${platform#*/}"
-          if [ "$arch" = "x86_64" ]; then
+          if [ "$arch" = "x86_64" ] || [ "$arch" = "local" ] || [ "$arch" = "localhost" ]; then
             arch="amd64"
           fi
 
-          # Validate against supported arch list. If it's not a known arch, fallback to amd64
+          # Validate against supported arch list. If it's not a known arch, return an error result
           case "$arch" in
             amd64|ppc64le|arm64|s390x)
               ;;
             *)
-              arch="amd64"
+              echo "Error: Unsupported or malformed architecture: '$arch' (parsed from platform: '$platform')"
+              exit 0
               ;;
           esac
 
@@ -333,6 +334,10 @@ spec:
             PFLT_FAIL_COUNT=$((PFLT_FAIL_COUNT+$(jq -r '.results.failed | length' "${RESULT_JSON_PATH}")))
             PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
         done
+
+        # Mark as ERROR if no results were recorded, which can occur when an unsupported or malformed
+        # architecture is parsed from the `platform` parameter.
+        if [[ $PFLT_FAIL_COUNT -eq 0 ]] && [[ $PFLT_PASS_COUNT -eq 0 ]] ; then PFLT_RESULT="ERROR" ; fi
 
         if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
         PFLT_NOTE="Task preflight is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
