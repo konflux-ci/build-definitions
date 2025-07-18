@@ -119,6 +119,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|platform| The platform the image is built on.| | |
 ### git-clone:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -335,6 +336,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |ARTIFACT_TYPE| The artifact type, either introspected or set.| |
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
+|IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
 ### git-clone:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

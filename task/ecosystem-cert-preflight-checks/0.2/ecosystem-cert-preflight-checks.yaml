@@ -3,7 +3,7 @@ kind: Task
 metadata:
   name: ecosystem-cert-preflight-checks
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.2.1"
 spec:
   description: >-
     Scans container images for certification readiness. Note that running this
@@ -24,6 +24,10 @@ spec:
       type: string
       description: The type of artifact. Select from application, operatorbundle, or introspect.
       default: "introspect"
+    - name: platform
+      type: string
+      description: The platform the image is built on.
+      default: ""
 
   results:
     - name: TEST_OUTPUT
@@ -35,6 +39,9 @@ spec:
     - name: ARTIFACT_TYPE_SET_BY
       description: How the artifact type was set.
       value: $(steps.introspect.results.artifact-type-set-by)
+    - name: IMAGES_PROCESSED
+      description: Collected image digests
+      value: $(steps.app-set-outcome.results.images-processed)
   steps:
     - name: introspect
       resources:
@@ -213,7 +220,6 @@ spec:
 
     - name: app-check
       image: quay.io/opdev/preflight:stable@sha256:13381cfff3275e1573380faeb10bc3186d7b646e0c38767f83d560d96af5a108
-      args: ["check", "container", "$(params.image-url)"]
       resources:
         limits:
           memory: 4Gi
@@ -225,6 +231,41 @@ spec:
           value: "$(steps.generate-container-auth.results.auth-json-path)"
         - name: PFLT_KONFLUX
           value: "true"
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
+        - name: PARAM_PLATFORM
+          value: $(params.platform)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        image_url="${PARAM_IMAGE_URL}"
+        platform="${PARAM_PLATFORM}"
+
+        if [ -n "$platform" ]; then
+          # Extract part after slash if present
+          arch="${platform#*/}"
+          if [ "$arch" = "x86_64" ] || [ "$arch" = "local" ] || [ "$arch" = "localhost" ]; then
+            arch="amd64"
+          fi
+
+          # Validate against supported arch list. If it's not a known arch, return an error result
+          case "$arch" in
+            amd64|ppc64le|arm64|s390x)
+              ;;
+            *)
+              echo "Error: Unsupported or malformed architecture: '$arch' (parsed from platform: '$platform')"
+              exit 0
+              ;;
+          esac
+
+          /usr/local/bin/preflight check container "$image_url" --platform "$arch"
+        else
+          /usr/local/bin/preflight check container "$image_url"
+        fi
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
@@ -251,6 +292,8 @@ spec:
       results:
       - name: test-output
         description: The overall outcome of this task.
+      - name: images-processed
+        description: Processed image digests.
       when:
       - input: "$(steps.introspect.results.artifact-type)"
         operator: in
@@ -258,6 +301,9 @@ spec:
       volumeMounts:
         - name: pfltoutputdir
           mountPath: /artifacts
+      env:
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
       script: |
         #!/usr/bin/env bash
 
@@ -289,6 +335,10 @@ spec:
             PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
         done
 
+        # Mark as ERROR if no results were recorded, which can occur when an unsupported or malformed
+        # architecture is parsed from the `platform` parameter.
+        if [[ $PFLT_FAIL_COUNT -eq 0 ]] && [[ $PFLT_PASS_COUNT -eq 0 ]] ; then PFLT_RESULT="ERROR" ; fi
+
         if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
         PFLT_NOTE="Task preflight is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
 
@@ -310,6 +360,26 @@ spec:
         }')
         echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
 
+        # Generate IMAGES_PROCESSED
+        images_processed_template='{"image": {"pullspec": "'"$PARAM_IMAGE_URL"'", "digests": [%s]}}'
+        declare -a digests_processed=()
+
+        # Extract processed image digests from "/artifacts/$arch/cert-image.json"
+        while read -r cert_image_file; do
+          docker_image_digest=$(jq '.docker_image_digest' "$cert_image_file")
+          if [[ -n "$docker_image_digest" && ! " ${digests_processed[*]} " == *" \"$docker_image_digest\" "* ]]; then
+            digests_processed+=("\"$docker_image_digest\"")
+          fi
+        done < <(find /artifacts -type f -name "cert-image.json")
+
+        image_digest=$(skopeo inspect "docker://${PARAM_IMAGE_URL}" | jq -r '.Digest')
+        if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
+          digests_processed+=("\"$image_digest\"")
+        fi
+
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+        final_output="${images_processed_template/\[%s]/[$digests_processed_string]}"
+        echo -n "${final_output}" > "$(step.results.images-processed.path)"
     - name: final-outcome
       resources:
         limits:
