@@ -156,6 +156,10 @@ spec:
         set -o pipefail
         set -o nounset
 
+        declare -r ANNOTATION_HAS_MIGRATION="dev.konflux-ci.task.has-migration"
+        declare -r ANNOTATION_IS_MIGRATION="dev.konflux-ci.task.is-migration"
+        declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
+
         mapfile -t FILES <"${TASK_FILE}"
         [[ ${#FILES[@]} -eq 0 ]] &&
           echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
@@ -191,9 +195,91 @@ spec:
           echo "$prepared_task_file"
         }
 
+        # check if migration file exists in given task bundle and task_version.
+        # Arguments: task_bundle, task_version, migration_file
+        check_existing_migration_file() {
+          local -r task_bundle=$1
+          local -r task_version=$2
+          local -r migration_file=$3
+
+          # Check if task bundle has an attached migration file.
+          local filename
+          local found=
+          local artifact_refs
+
+          # List attached artifacts, that have specific artifact type and annotation.
+          # Then, find out the migration artifact.
+          #
+          # Minimum version oras 1.2.0 is required for option --format
+          artifact_refs=$(
+            oras discover "$task_bundle" --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" --format json |
+              jq -r "
+              .manifests[]
+              | select(.annotations.\"${ANNOTATION_IS_MIGRATION}\" == \"true\")
+              | .reference"
+          )
+          while read -r artifact_ref; do
+            if [ -z "$artifact_ref" ]; then
+              continue
+            fi
+            filename=$(
+              retry oras pull --format json "$artifact_ref" | jq -r "
+                .files[]
+                | select(.annotations.\"org.opencontainers.image.title\" == \"${task_version}.sh\")
+                | .annotations.\"org.opencontainers.image.title\"
+                "
+            )
+
+            if [ -n "$filename" ]; then
+              if diff "$filename" "$migration_file" >/dev/null; then
+                found=true
+                break
+              else
+                echo "error: task bundle $task_bundle has migration artifact $artifact_ref, but the migration content is different: $filename" 1>&2
+                exit 1
+              fi
+            fi
+          done <<<"$artifact_refs"
+
+          # the same migration file exist
+          if [ "$found" == "true" ]; then
+            echo 1
+          fi
+          # migratioan file doesn't exist
+          echo 0
+        }
+
+        attach_migration_file() {
+          local -r task_bundle=$1
+          local -r task_version=$2
+          local -r migration_file=$3
+          local -r auth_json=$4
+
+          cd "${migration_file%/*}"
+          retry oras attach \
+            --registry-config "${auth_json}" \
+            --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
+            --annotation "${ANNOTATION_IS_MIGRATION}=true" \
+            "$task_bundle" "${migration_file##*/}"
+
+          local status=$?
+          if [[ $status -ne 0 ]]; then
+            echo "failed to attach migration script file to $task_bundle"
+            echo 1
+          fi
+
+          echo "Attached migration file $migration_file to $task_bundle"
+
+          echo 0
+        }
+
         # task_dir is where all the tasks definitions reside
         # all tasks definitions are in the same task_dir, so extracting it from the first element is enough
-        task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
+        read -r task_dir task_name task_version <<<"$(
+          dirname "${FILES[0]}" |
+            awk -F'/' '{ print $0, $6, $7 }'
+        )"
+        echo "info: build and push task $task_dir"
 
         # If task is kustomized, generate it and replace the FILES value with the value of the generated task
         # All other files will be ignored.
@@ -203,6 +289,22 @@ spec:
         else
           echo "Task is not Kustomized - continue"
         fi
+
+        # go to source dir and check migration script
+        has_migration=false
+        pushd "/var/workdir/${SOURCE_CODE_DIR}"
+        migration_file="task/${task_name}/${task_version}/migrations/${task_version}.sh"
+        if [ ! -d ".git" ]; then
+          echo ".git folder is not found, go to correct git root directory and check it again"
+          exit 1
+        fi
+        if [ -f "$migration_file" ] && git show "$REVISION" --oneline --name-only | grep -q "$migration_file"; then
+          # There is a migration file matching the task concrete version and
+          # is included in the same commit with the task.
+          echo "there is an migration file ${migration_file} in revision ${REVISION}"
+          has_migration=true
+        fi
+        popd
 
         ANNOTATIONS=()
         ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
@@ -227,6 +329,10 @@ spec:
         description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
         ANNOTATIONS+=("org.opencontainers.image.description=${description}")
 
+        if [ "$has_migration" == "true" ]; then
+          ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
+        fi
+
         echo "Added annotations:"
         ANNOTATION_FLAGS=()
         for annotation in "${ANNOTATIONS[@]}"; do
@@ -242,10 +348,35 @@ spec:
           echo "Failed to push bundle ${IMAGE} to registry"
           exit 1
         fi
-        echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
+
         digest="${OUT#*Pushed Tekton Bundle to *@}"
+        IMAGE_REF="${IMAGE}@${digest}"
+
+        echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
         echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
-        echo -n "${IMAGE}@${digest}" >"$(results.IMAGE_REF.path)"
+        echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
+
+        if [ "$has_migration" == "true" ]; then
+          migration_file="/var/workdir/${SOURCE_CODE_DIR}/${migration_file}"
+          has_existing_migration_file=$(check_existing_migration_file "${IMAGE_REF}" "${task_version}" "${migration_file}")
+          if [[ -z ${has_existing_migration_file} ]]; then
+            echo "there is different migration script file in task bundle ${IMAGE_REF}, failed"
+            exit 1
+          fi
+
+          if [[ ${has_existing_migration_file} -eq 1 ]]; then
+            echo "the same migration file exists in task bundle ${IMAGE_REF}, skipped"
+            exit 0
+          fi
+
+          echo "attach migration script to $IMAGE_REF"
+          select-oci-auth "${IMAGE_REF}" >"${HOME}/auth.json"
+          status=0
+          status=$(attach_migration_file "${IMAGE_REF}" "${task_version}" "${migration_file}" "${HOME}/auth.json")
+          if [ "$status" -ne 0 ]; then
+            exit 1
+          fi
+        fi
 
         # cleanup task file
         [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
