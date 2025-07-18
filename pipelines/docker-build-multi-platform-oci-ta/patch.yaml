@@ -54,6 +54,14 @@
   value:
   - build-images
 
+# ecosystem-cert-preflight-checks
+- op: add
+  path: /spec/tasks/8/matrix
+  value:
+    params:
+      - name: platform
+        value: ["$(params.build-platforms)"]
+
 # Order of pipeline parameters
 # $ kustomize build pipelines/docker-build-oci-ta | yq ".spec.params.[].name" | nl -v 0
 #      0  git-url
