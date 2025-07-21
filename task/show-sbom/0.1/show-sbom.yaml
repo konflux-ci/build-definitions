@@ -52,8 +52,7 @@ spec:
           exit 1
         fi
 
-        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
-        DOCKER_CONFIG=/tmp/auth
+        export DOCKER_CONFIG=/tmp/auth
         if ! retry cosign download sbom "${extra_args[@]}" "$IMAGE_URL" 2>>err
         then
           echo "Failed to get SBOM" >&2

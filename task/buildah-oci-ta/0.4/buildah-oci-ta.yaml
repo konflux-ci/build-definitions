@@ -904,8 +904,7 @@ spec:
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
-        # shellcheck disable=SC2034  # Variable is used by cosign indirectly
-        DOCKER_CONFIG=/tmp/auth
+        export DOCKER_CONFIG=/tmp/auth
         echo "Pushing sbom to registry"
         if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"; then
           echo "Failed to push sbom to registry"
