@@ -18,8 +18,11 @@ if yq -e "$tasks_root"' | select(.name == "build-oci-artifact")' "$pipeline_file
 elif yq -e "$tasks_root"' | select(.name == "build-image-index")' "$pipeline_file" >/dev/null; then
     image_digest_value="\$(tasks.build-image-index.results.IMAGE_DIGEST)"
     image_url_value="\$(tasks.build-image-index.results.IMAGE_URL)"
+elif yq -e "$tasks_root"' | select(.name == "build-container")' "$pipeline_file" >/dev/null; then
+    image_digest_value="\$(tasks.build-container.results.IMAGE_DIGEST)"
+    image_url_value="\$(tasks.build-container.results.IMAGE_URL)"
 else
-    echo "Neither build-oci-artifact nor build-image-index tasks found."
+    echo "None of build-container, build-oci-artifact nor build-image-index tasks found."
     exit 0
 fi
 
