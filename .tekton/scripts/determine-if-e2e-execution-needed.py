@@ -33,8 +33,9 @@ def get_tasks_covered_by_e2e():
         output = result.stdout
         task_names = output.split()
         add_only_unique_task_names(task_names)
-        # Get the task names from pipeline finally
-        result = subprocess.run([f"yq -e '.spec.finally[].taskRef.name' {pipeline_path}"], shell=True, capture_output=True, text=True)
+        # Get the task names from pipeline finally. Not all tasks have finally tasks, so do not
+        # enforce an error if no matches are found.
+        result = subprocess.run([f"yq '.spec.finally[].taskRef.name' {pipeline_path}"], shell=True, capture_output=True, text=True)
         if result.stderr != "":
             sys.stderr.write(f"[ERROR] failed to get tasks inside .spec.finally: {result.stderr}\n")
             sys.exit(1)
