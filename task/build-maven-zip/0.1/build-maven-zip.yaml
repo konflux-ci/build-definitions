@@ -137,10 +137,38 @@ spec:
         echo "The maven zip file is not found!"
         exit 1
       fi
+    securityContext:
+      capabilities:
+        add:
+          - SETFCAP
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  - image: quay.io/konflux-ci/mobster:0.6.0-1753174420@sha256:c7002b4f892f62881838607fb4d6e46ab82b9d6bf49c72304138c18308b9af33
+    name: save-sbom
+    computeResources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    script: |
+      #!/bin/bash
+      set -euo pipefail
 
-      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+      # Save the SBOM produced by Cachi2 using mobster so it can be merged into the final SBOM later
       if [ -f "$(workspaces.source.path)/cachi2/output/bom.json" ]; then
-        cp -vf "$(workspaces.source.path)/cachi2/output/bom.json" ./sbom.json
+        mobster generate \
+                --output sbom.json \
+                oci-image \
+                --from-hermeto "$(workspaces.source.path)/cachi2/output/bom.json" \
+                --image-pullspec "$IMAGE_URL" \
+                --image-digest "$IMAGE_DIGEST"
       else
         echo "The SBOM file for fetched artifacts is not found!"
         exit 1
