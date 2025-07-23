@@ -189,12 +189,12 @@ spec:
 
         # Save the SBOM produced by Cachi2 using mobster so it can be merged into the final SBOM later
         if [ -f "/var/workdir/cachi2/output/bom.json" ]; then
-        mobster generate \
-                --output sbom.json \
-                oci-image \
-                --from-hermeto "/var/workdir/cachi2/output/bom.json" \
-                --image-pullspec "$IMAGE_URL" \
-                --image-digest "$IMAGE_DIGEST"
+          mobster generate \
+            --output sbom.json \
+            oci-image \
+            --from-hermeto "/var/workdir/cachi2/output/bom.json" \
+            --image-pullspec "$IMAGE_URL" \
+            --image-digest "$IMAGE_DIGEST"
         else
           echo "The SBOM file for fetched artifacts is not found!"
           exit 1
@@ -203,8 +203,8 @@ spec:
         limits:
           memory: 512Mi
         requests:
-          memory: 256Mi
           cpu: 100m
+          memory: 256Mi
       securityContext:
         capabilities:
           add:
