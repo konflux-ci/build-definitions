@@ -36,9 +36,9 @@ type Recipe struct {
 	RemoveWorkspaces   []string              `json:"removeWorkspaces"`
 	Replacements       map[string]string     `json:"replacements"`
 	Suffix             string                `json:"suffix"`
-	createCachi2       bool
+	createPrefetch     bool
 	createSource       bool
-	useCachi2          bool
+	usePrefetch        bool
 	useSource          bool
 }
 
@@ -56,9 +56,9 @@ func readRecipe(path string) (*Recipe, error) {
 	}
 
 	sort.Strings(recipe.Add)
-	_, recipe.createCachi2 = slices.BinarySearch(recipe.Add, "create-cachi2")
+	_, recipe.createPrefetch = slices.BinarySearch(recipe.Add, "create-prefetch")
 	_, recipe.createSource = slices.BinarySearch(recipe.Add, "create-source")
-	_, recipe.useCachi2 = slices.BinarySearch(recipe.Add, "use-cachi2")
+	_, recipe.usePrefetch = slices.BinarySearch(recipe.Add, "use-prefetch")
 	_, recipe.useSource = slices.BinarySearch(recipe.Add, "use-source")
 
 	if !filepath.IsAbs(recipe.Base) {
