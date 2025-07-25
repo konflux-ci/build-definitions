@@ -60,7 +60,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:e8fecdffee1c681d50398d4c6a4fa74ec351de66153ebcb4e4b3c62ac68b1c5b
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -138,7 +138,7 @@ spec:
             ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
         fi
     - name: build
-      image: quay.io/konflux-ci/source-container-build:latest@sha256:97d121aeeb64fd444e65ec6f13306d7e6b2f4c19134dd20f042197a349cb2f12
+      image: quay.io/konflux-ci/source-container-build:latest@sha256:1c23c19da354baddc1fa54b6f0c8850f3e193a5bdce06135d148a7b7a460da13
       workingDir: /var/workdir
       env:
         - name: SOURCE_DIR
