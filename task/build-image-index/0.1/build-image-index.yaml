@@ -107,6 +107,7 @@ spec:
         TOADD="$i"
         TOADD_URL="$(echo "$i" | cut -d@ -f1)"
         TOADD_DIGEST="$(echo "$i" | cut -d@ -f2)"
+        
         if [[ $(echo "$i" | tr -cd ":" | wc -c) == 2 ]]; then
           #format is repository:tag@sha256:digest
           #we need to remove the tag, and just reference the digest
@@ -114,6 +115,7 @@ spec:
           TOADD_REPOSITORY="$(echo "$i" | cut -d: -f1)"
           TOADD="${TOADD_REPOSITORY}@${TOADD_DIGEST}"
         fi
+        
         if [[ "$ALWAYS_BUILD_INDEX" != "true" ]]; then
           echo "Skipping image index generation. Returning results for $TOADD."
           echo -n "${TOADD_URL}" > "$(results.IMAGE_URL.path)"
@@ -121,6 +123,7 @@ spec:
           echo -n "${TOADD}" > "$(results.IMAGES.path)"
           exit 0
         fi
+        
         echo "Adding $TOADD"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
