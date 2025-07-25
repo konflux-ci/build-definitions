@@ -129,18 +129,37 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+  - name: run-opm-command
+    params:
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+    - name: ociStorage
+      value: $(params.output-image).opm
+    - name: ociArtifactExpiresAfter
+      value: $(params.image-expires-after)
+    - name: OPM_ARGS
+      value: []
+    - name: OPM_OUTPUT_PATH
+      value: ""
+    - name: IDMS_PATH
+      value: ""
+    runAfter:
+    - clone-repository
+    taskRef:
+      name: run-opm-command-oci-ta
+      version: "0.1"
   - name: prefetch-dependencies
     params:
     - name: input
       value: $(params.prefetch-input)
     - name: SOURCE_ARTIFACT
-      value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
     - name: ociStorage
       value: $(params.output-image).prefetch
     - name: ociArtifactExpiresAfter
       value: $(params.image-expires-after)
     runAfter:
-    - clone-repository
+    - run-opm-command
     taskRef:
       name: prefetch-dependencies-oci-ta
       version: "0.2"
