@@ -28,12 +28,9 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
-|REUSE_COMPARISON_PARAMS|List of build parameters to compare for artifact reuse|- DOCKERFILE
-- CONTEXT
-- HERMETIC
-- BUILD_ARGS
-- BUILD_ARGS_FILE
-- PREFETCH_INPUT
+|REUSE_ARTIFACTS|Whether to enable artifact reuse feature. Set to "false" to disable artifact reuse and always perform a fresh build.|true|false|
+|REUSE_COMPARISON_EXCLUSIONS|List of build parameters to exclude from artifact reuse comparison|- IMAGE_EXPIRES_AFTER
+- COMMIT_SHA
 |false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
@@ -57,5 +54,6 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
+|REUSED_IMAGE_REF|Reference to the reused image (empty if no artifact was reused)|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 

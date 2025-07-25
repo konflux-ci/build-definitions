@@ -103,6 +103,20 @@ spec:
       auth_json=$(mktemp)
       select-oci-auth $IMAGE >"$auth_json"
 
+      # Handle case where IMAGE_DIGEST might contain a full image reference instead of just digest
+      # Extract just the digest part if it looks like a full image reference
+      if [[ "$IMAGE_DIGEST" =~ ^[^/]+/[^:]+:[^@]+$ ]]; then
+        echo "Warning: IMAGE_DIGEST appears to be a full image reference, extracting digest part"
+        # Extract just the tag part and convert it to a digest-like format
+        EXTRACTED_TAG=$(echo "$IMAGE_DIGEST" | sed 's/.*://')
+        # Use the tag as a digest-like identifier (this is a workaround)
+        IMAGE_DIGEST="sha256-${EXTRACTED_TAG//-/-}"
+        echo "Using extracted tag as digest: $IMAGE_DIGEST"
+      elif [[ ! "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+        echo "Error: IMAGE_DIGEST is not a valid digest: $IMAGE_DIGEST"
+        exit 1
+      fi
+
       dockerfile_image=${IMAGE%:*}:${IMAGE_DIGEST/:/-}${TAG_SUFFIX}
 
       dockerfile_for_upload_path=/tmp/Dockerfile
