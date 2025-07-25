@@ -16,6 +16,7 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 ## Results
 |name|description|
 |---|---|
+|HAS_MIGRATION|Whether migration script file exists|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed with tag only|
