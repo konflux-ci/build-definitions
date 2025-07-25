@@ -160,6 +160,7 @@
 ### tkn-bundle:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|HAS_MIGRATION| Whether migration script file exists| |
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.1:IMAGES|

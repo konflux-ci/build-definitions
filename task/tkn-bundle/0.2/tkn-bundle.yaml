@@ -40,6 +40,8 @@ spec:
     name: IMAGE_URL
   - description: Image reference of the built image
     name: IMAGE_REF
+  - name: HAS_MIGRATION
+    description: Whether migration script file exists
   stepTemplate:
     env:
     - name: HOME
@@ -48,6 +50,8 @@ spec:
       value: tekton_task_files
     - name: SOURCE_CODE_DIR
       value: source
+    - name: migration_file_path
+      value: migration_file
   steps:
   - image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
     name: modify-task-files
@@ -131,13 +135,6 @@ spec:
       value: $(params.URL)
     - name: REVISION
       value: $(params.REVISION)
-    results:
-    - name: HAS_MIGRATION
-      description: Whether the task has a migration script
-    - name: MIGRATION_FILE
-      description: Path to the migration file
-    - name: TASK_VERSION
-      description: Version of the task
     script: |
       #!/bin/env bash
 
@@ -147,7 +144,6 @@ spec:
 
       declare -r ANNOTATION_HAS_MIGRATION="dev.konflux-ci.task.has-migration"
 
-      # shellcheck disable=SC2153
       mapfile -t FILES <"${TASK_FILE}"
       [[ ${#FILES[@]} -eq 0 ]] &&
         echo "No YAML files matched by \"$CONTEXT\" in \"$(workspaces.source.path)/${SOURCE_CODE_DIR}\", aborting the build" &&
@@ -250,7 +246,6 @@ spec:
         echo "    - $annotation"
       done
 
-      # shellcheck disable=SC2153
       echo "Pushing bundle ${IMAGE} to registry"
       # shellcheck disable=SC2046
       if ! OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
@@ -265,10 +260,9 @@ spec:
       echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
       echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
       echo -n "${IMAGE}@${digest}" >"$(results.IMAGE_REF.path)"
-      echo -n "${has_migration}" > "$(results.HAS_MIGRATION.path)"
-      echo -n "${task_version}" > "$(results.TASK_VERSION.path)"
-      echo -n "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${migration_file}" > "$(results.MIGRATION_FILE.path)"
-
+      echo -n "${has_migration}" >"$(results.HAS_MIGRATION.path)"
+      # shellcheck disable=SC2154
+      echo "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${migration_file}" > "${migration_file_path}"
       # cleanup task file
       [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
     securityContext:
@@ -277,13 +271,6 @@ spec:
   - image: quay.io/konflux-ci/appstudio-utils@sha256:37d8a83ec1ff40445260d519faef2cedd02ca55d3eac3acb01e75ea8420bd731
     name: attach-migration-file
     workingDir: $(workspaces.source.path)
-    env:
-      - name: IMAGE_REF
-        value: "$(steps.build.results.IMAGE_REF)"
-      - name: MIGRATION_FILE
-        value: "$(steps.build.results.MIGRATION_FILE)"
-      - name: TASK_VERSION
-        value: "$(steps.build.results.TASK_VERSION)"
     when:
     - input: "$(steps.build.results.HAS_MIGRATION)"
       operator: in
@@ -298,11 +285,12 @@ spec:
       declare -r ANNOTATION_IS_MIGRATION="dev.konflux-ci.task.is-migration"
       declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
 
-      echo "attach migration script to $IMAGE_REF"
-      select-oci-auth "${IMAGE_REF}" > "${HOME}/auth.json"
+      # shellcheck disable=SC2154
+      migration_file=$(cat "${migration_file_path}")
+      task_version=$(basename "${migration_file}" .sh)
 
-      # shellcheck disable=SC2153
-      has_existing_migration_file=$(check_existing_migration_file "${IMAGE_REF}" "${TASK_VERSION}" "${MIGRATION_FILE}")
+
+      has_existing_migration_file=$(check_existing_migration_file "${IMAGE_REF}" "${task_version}" "${migration_file}")
       if [[ -z ${has_existing_migration_file} ]]; then
         echo "there are an error when checking migration file in task bundle ${IMAGE_REF}"
         exit 1
@@ -313,7 +301,10 @@ spec:
         exit 0
       fi
 
-      status=$(attach_migration_file "${IMAGE_REF}" "${TASK_VERSION}" "${MIGRATION_FILE}" "${HOME}/auth.json")
+      echo "attach migration script to $IMAGE_REF"
+      select-oci-auth "${IMAGE_REF}" > "${HOME}/auth.json"
+
+      status=$(attach_migration_file "${IMAGE_REF}" "${task_version}" "${migration_file}" "${HOME}/auth.json")
       if [ "$status" -ne 0 ]; then
         echo "failed to attach migration file to ${IMAGE_REF}"
         exit 1
@@ -369,9 +360,12 @@ spec:
         if [ -n "$found" ]; then
           return 1
         fi
-        # migration file doesn't exist
+        # migratioan file doesn't exist
         return 0
       }
+
+      # cleanup migration script file
+      [[ -f "${migration_file_path}" ]] && rm -f "${migration_file_path}"
 
       attach_migration_file() {
         local -r task_bundle=$1
