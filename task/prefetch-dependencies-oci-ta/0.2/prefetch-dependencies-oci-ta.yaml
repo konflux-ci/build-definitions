@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1751286687@sha256:383329bf9c4f968e87e85d30ba3a5cb988a3bbde28b8e4932dcd3a025fd9c98c
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1752587672@sha256:6d5a6576c83816edcc0da7ed62ba69df8f6ad3cbe659adde2891bfbec4dbf187
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,7 +148,7 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:1b744ca303ae1e017e15921c74130ae2b6760712d4ce129901dea3bc14c6092c
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.31.0@sha256:66727e54af4f4e96911541fc120ef973f1311bd33cc97f7c26bef801fc29f85f
+      image: quay.io/konflux-ci/hermeto:0.32.0@sha256:65e7477f78b1f031e413af7522f93a191bed86d750b6ddba5760b6c36e0df31e
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -405,7 +405,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:1b744ca303ae1e017e15921c74130ae2b6760712d4ce129901dea3bc14c6092c
       args:
         - create
         - --store
