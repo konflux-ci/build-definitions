@@ -1,5 +1,8 @@
 # build-helm-chart task
 
+> **Deprecated**: This task is deprecated. Please remove it from your pipeline.
+  Deprecation date: 2025-07-28
+
 The task packages and pushes a Helm chart to an OCI repository.
 As Helm charts require to have a semver-compatible version to be packaged, the
 task relies on git tags in order to determine the chart version during runtime.
