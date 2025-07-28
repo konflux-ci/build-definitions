@@ -22,12 +22,16 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
+|HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |IMAGE|Reference of the image buildah will produce.||true|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
+|NO_PROXY|Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.|""|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
+|PROXY_CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the proxy CA bundle data.|ca-bundle.crt|false|
+|PROXY_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read proxy CA bundle data from.|proxy-ca-bundle|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|

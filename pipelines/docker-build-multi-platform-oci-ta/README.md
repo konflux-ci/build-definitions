@@ -62,14 +62,18 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
+|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| | |
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_APPEND_PLATFORM| Whether to append a sanitized platform architecture on the IMAGE tag| false| 'true'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
+|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| | |
 |PLATFORM| The platform to build on| None| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|
+|PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
+|PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| proxy-ca-bundle| |
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
@@ -209,15 +213,19 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
+|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| | |
 |IMAGE| The task will build a container image and tag it locally as $IMAGE, but will not push the image anywhere. Due to the relationship between this task and the buildah task, the parameter is required, but its value is mostly irrelevant.| None| '$(params.output-image)'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
+|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| | |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| |
 |PROJECT_NAME| | | |
+|PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
+|PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| proxy-ca-bundle| |
 |RECORD_EXCLUDED| | false| |
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
