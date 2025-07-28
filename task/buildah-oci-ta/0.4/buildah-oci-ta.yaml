@@ -653,10 +653,10 @@ spec:
 
         echo "[$(date --utc -Ins)] Add metadata"
 
-        # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+        # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
         if [ -f "/tmp/cachi2/output/bom.json" ]; then
-          echo "Making copy of sbom-cachi2.json"
-          cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+          echo "Making copy of sbom-prefetch.json"
+          cp /tmp/cachi2/output/bom.json ./sbom-prefetch.json
         fi
 
         touch /shared/base_images_digests
@@ -824,8 +824,8 @@ spec:
 
         sboms_to_merge=(syft:sbom-source.json syft:sbom-image.json)
 
-        if [ -f "sbom-cachi2.json" ]; then
-          sboms_to_merge+=(cachi2:sbom-cachi2.json)
+        if [ -f "sbom-prefetch.json" ]; then
+          sboms_to_merge+=(hermeto:sbom-prefetch.json)
         fi
 
         echo "Merging sboms: (${sboms_to_merge[*]}) => sbom.json"
