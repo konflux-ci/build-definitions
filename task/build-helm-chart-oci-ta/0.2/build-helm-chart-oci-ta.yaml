@@ -291,13 +291,15 @@ spec:
           exit 1
         fi
 
-        # Extract digest from the skopeo copy output
-        digest=$(echo "$skopeo_output" | grep "Copying config" | awk '{print $3}' 2>/dev/null || echo "")
-        if [ -n "$digest" ]; then
-          echo "Successfully retrieved digest from skopeo copy: $digest"
-        else
-          echo "Could not retrieve digest from skopeo copy output"
+        # Get the manifest digest of the pushed chart
+        # The manifest digest is the SHA256 of the entire manifest JSON
+        if ! manifest_digest=$(skopeo inspect --raw "docker://$pushed" | sha256sum | awk '{print "sha256:" $1}' 2>/dev/null); then
+          echo "Could not retrieve manifest digest from pushed image"
           echo "This does not affect the main functionality"
+          digest=""
+        else
+          echo "Successfully retrieved manifest digest: $manifest_digest"
+          digest="$manifest_digest"
         fi
 
         # Set IMAGE_URL result to the URL with sanitized semver tag (what was actually pushed)
