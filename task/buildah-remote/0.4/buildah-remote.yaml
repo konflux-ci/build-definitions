@@ -163,6 +163,25 @@ spec:
     description: Determines if the image inherits the base image labels.
     name: INHERIT_BASE_IMAGE_LABELS
     type: string
+  - default: ""
+    description: HTTP/HTTPS proxy to use for the buildah pull and build operations.
+      Will not be passed through to the container during the build process.
+    name: HTTP_PROXY
+    type: string
+  - default: ""
+    description: Comma separated list of hosts or domains which should bypass the
+      HTTP/HTTPS proxy.
+    name: NO_PROXY
+    type: string
+  - default: proxy-ca-bundle
+    description: The name of the ConfigMap to read proxy CA bundle data from.
+    name: PROXY_CA_TRUST_CONFIG_MAP_NAME
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the proxy CA bundle
+      data.
+    name: PROXY_CA_TRUST_CONFIG_MAP_KEY
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -266,6 +285,10 @@ spec:
       value: $(params.COMMIT_SHA)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
+    - name: BUILDAH_HTTP_PROXY
+      value: $(params.HTTP_PROXY)
+    - name: BUILDAH_NO_PROXY
+      value: $(params.NO_PROXY)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
     name: build
     script: |-
@@ -320,6 +343,7 @@ spec:
         rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
         rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
         rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
+        rsync -ra /mnt/proxy-ca-bundle/ "$SSH_HOST:$BUILD_DIR/volumes/proxy-ca-bundle/"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         rsync -ra --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
         rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
@@ -333,6 +357,24 @@ spec:
       #!/bin/bash
       set -euo pipefail
       cd $(workspaces.source.path)
+
+      function set_proxy {
+        if [ -n "${BUILDAH_HTTP_PROXY}" ]; then
+          echo "[$(date --utc -Ins)] Setting proxy to ${BUILDAH_HTTP_PROXY}"
+          export HTTP_PROXY="${BUILDAH_HTTP_PROXY}"
+          export HTTPS_PROXY="${BUILDAH_HTTP_PROXY}"
+          export ALL_PROXY="${BUILDAH_HTTP_PROXY}"
+          if [ -n "${BUILDAH_NO_PROXY}" ]; then
+            echo "[$(date --utc -Ins)] Bypassing proxy for ${BUILDAH_NO_PROXY}"
+            export NO_PROXY="${BUILDAH_NO_PROXY}"
+          fi
+        fi
+      }
+
+      function unset_proxy {
+        echo "[$(date --utc -Ins)] Unsetting proxy"
+        unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
+      }
 
       echo "[$(date --utc -Ins)] Validate context path"
 
@@ -359,9 +401,22 @@ spec:
       echo "[$(date --utc -Ins)] Update CA trust"
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      proxy_ca_bundle=/mnt/proxy-ca-bundle/ca-bundle.crt
+      update_ca_trust=false
+
       if [ -f "$ca_bundle" ]; then
-        echo "INFO: Using mounted CA bundle: $ca_bundle"
-        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        echo "[$(date --utc -Ins)] Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors/ca-bundle.crt
+        update_ca_trust=true
+      fi
+
+      if [ -f "$proxy_ca_bundle" ] && [ -n "${BUILDAH_HTTP_PROXY}" ]; then
+        echo "[$(date --utc -Ins)] Using mounted proxy CA bundle: $proxy_ca_bundle"
+        cp -vf $proxy_ca_bundle /etc/pki/ca-trust/source/anchors/proxy-ca-bundle.crt
+        update_ca_trust=true
+      fi
+
+      if [ "$update_ca_trust" = "true" ]; then
         update-ca-trust
       fi
 
@@ -480,6 +535,8 @@ spec:
         UNSHARE_ARGS+=("--net")
         buildah_retries=3
 
+        set_proxy
+
         for image in $BASE_IMAGES; do
           if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"
           then
@@ -487,6 +544,9 @@ spec:
             exit 1
           fi
         done
+
+        unset_proxy
+
         echo "Build will be executed with network isolation"
       fi
 
@@ -664,6 +724,7 @@ spec:
           "${ANNOTATIONS[@]}"
           --tls-verify="$TLSVERIFY" --no-cache
           --ulimit nofile=4096:4096
+          --http-proxy=false
           -f "$dockerfile_copy" -t "$IMAGE" .
       )
       buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
@@ -678,10 +739,14 @@ spec:
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
+      set_proxy
+
       echo "[$(date --utc -Ins)] Run buildah build"
       echo "[$(date --utc -Ins)] ${command}"
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
+
+      unset_proxy
 
       echo "[$(date --utc -Ins)] Add metadata"
 
@@ -761,12 +826,15 @@ spec:
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
+          -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \
+          -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \
           -v "${BUILD_DIR@Q}/workspaces/source:$(workspaces.source.path):Z" \
           -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
           -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
           -v "${BUILD_DIR@Q}/volumes/activation-key:/activation-key:Z" \
           -v "${BUILD_DIR@Q}/volumes/additional-secret:/additional-secret:Z" \
           -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
+          -v "${BUILD_DIR@Q}/volumes/proxy-ca-bundle:/mnt/proxy-ca-bundle:Z" \
           -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
           -v "${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z" \
           -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
@@ -803,6 +871,9 @@ spec:
       name: additional-secret
     - mountPath: /mnt/trusted-ca
       name: trusted-ca
+      readOnly: true
+    - mountPath: /mnt/proxy-ca-bundle
+      name: proxy-ca-bundle
       readOnly: true
     - mountPath: /ssh
       name: ssh
@@ -1093,6 +1164,13 @@ spec:
       name: $(params.caTrustConfigMapName)
       optional: true
     name: trusted-ca
+  - configMap:
+      items:
+      - key: $(params.PROXY_CA_TRUST_CONFIG_MAP_KEY)
+        path: ca-bundle.crt
+      name: $(params.PROXY_CA_TRUST_CONFIG_MAP_NAME)
+      optional: true
+    name: proxy-ca-bundle
   - name: ssh
     secret:
       optional: false
