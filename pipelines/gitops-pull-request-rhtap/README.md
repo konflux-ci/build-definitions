@@ -78,7 +78,7 @@
 |IGNORE_REKOR| Skip Rekor transparency log checks during validation.| false| |
 |IMAGES| Spec section of an ApplicationSnapshot resource. Not all fields of the resource are required. A minimal example:  ```json   {     "components": [       {         "containerImage": "quay.io/example/repo:latest"       }     ]   } ```  Each `containerImage` in the `components` array is validated. | None| '$(tasks.get-images-to-verify.results.IMAGES_TO_VERIFY)'|
 |INFO| Include rule titles and descriptions in the output. Set to `"false"` to disable it.| true| |
-|POLICY_CONFIGURATION| Name of the policy configuration (EnterpriseContractPolicy resource) to use. `namespace/name` or `name` syntax supported. If namespace is omitted the namespace where the task runs is used. You can also specify a policy configuration using a git url, e.g. `github.com/enterprise-contract/config//slsa3`. | enterprise-contract-service/default| '$(params.ec-policy-configuration)'|
+|POLICY_CONFIGURATION| Name of the policy configuration (EnterpriseContractPolicy resource) to use. `namespace/name` or `name` syntax supported. If namespace is omitted the namespace where the task runs is used. You can also specify a policy configuration using a git url, e.g. `github.com/conforma/config//slsa3`. | enterprise-contract-service/default| '$(params.ec-policy-configuration)'|
 |PUBLIC_KEY| Public key used to verify signatures. Must be a valid k8s cosign reference, e.g. k8s://my-space/my-secret where my-secret contains the expected cosign.pub attribute.| | '$(params.ec-public-key)'|
 |REKOR_HOST| Rekor host for transparency log lookups| | '$(params.ec-rekor-host)'|
 |SINGLE_COMPONENT| Reduce the Snapshot to only the component whose build caused the Snapshot to be created| false| |
