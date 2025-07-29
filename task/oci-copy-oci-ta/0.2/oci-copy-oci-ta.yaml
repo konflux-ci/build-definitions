@@ -73,12 +73,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:c2e8fae49033165e2213d57a00c7c9b9c88f6dc6550e093c14b211cbe82284b1
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -107,7 +107,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      image: quay.io/konflux-ci/oras:latest@sha256:f8184e192f95ea5eb0e334c7d6381b36111b394e4967f8e2bd22d3f156b7f94d
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -316,7 +316,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster@sha256:1b53ca81dc7427e6362b311180532cfbc431f83fa11e7e1154df1c26e3a46a0b
+      image: quay.io/konflux-ci/mobster@sha256:ec95420e4d2bd94f1ddb0650baba1c7fb55781ec669ff8f7c0b9b710cd531575
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -341,7 +341,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:93bb15cff64b708263055a5814b24a0b450d8724b86a7e5206396f25d81fcc21
+      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
       workingDir: /var/workdir
       script: |
         #!/bin/bash
