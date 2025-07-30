@@ -996,6 +996,8 @@ This approach prevents various attack vectors while maintaining the efficiency b
 
 7. **Fake Tree Hash Tags**: Malicious actors could potentially create fake tree hash tags to trigger reuse attempts.
 
+8. **Compromised Buildah Task**: An artifact produced by a compromised buildah task could be reused, potentially spreading malicious code or vulnerabilities.
+
 ### Mitigation Strategies
 
 1. **Multi-Layered Verification**: The system does not trust tree hash tags alone but performs comprehensive verification including attestation signatures, tree hash consistency, and parameter matching.
@@ -1015,6 +1017,8 @@ This approach prevents various attack vectors while maintaining the efficiency b
 8. **Graceful Degradation**: Any verification failure results in a fresh build rather than potentially insecure reuse.
 
 9. **Tree Hash Mismatch Protection**: If the tree hash in the signed provenance doesn't match the calculated tree hash, the system will fail to reuse the artifact, preventing potential security issues.
+
+10. **Provenance Chain Verification**: Policy engines can inspect both the original build provenance and the reuse pipeline provenance, since the immutable reference to the original artifact is emitted as a result when an artifact is reused, enabling end-to-end security verification.
 
 ### Security Verification Flow
 
