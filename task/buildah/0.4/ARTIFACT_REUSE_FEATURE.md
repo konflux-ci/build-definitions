@@ -524,10 +524,10 @@ flowchart TD
     classDef failure fill:#f5c6cb,stroke:#721c24,color:#721c24
     
     %% Apply colors to yes paths (green)
-    class B,Y,X,AA,CC,DD,EE yesPath
+    class B,X,AA,CC,DD,EE yesPath
     
     %% Apply colors to no paths (red)
-    class C,G,K,N,S,V,BB,FF noPath
+    class C,G,K,N,S,V,BB,FF,Y noPath
     
     %% Apply colors to final outcomes
     class EE success
