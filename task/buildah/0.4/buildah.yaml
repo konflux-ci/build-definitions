@@ -170,6 +170,11 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the proxy CA bundle data.
     default: ca-bundle.crt
+  - name: BUILD_TIMESTAMP
+    description: Defines the single build time for all buildah builds in seconds since UNIX epoch
+    type: string
+    default: ""
+
 
   results:
   - description: Digest of the image just built
@@ -240,6 +245,8 @@ spec:
       value: $(params.WORKINGDIR_MOUNT)
     - name: INHERIT_BASE_IMAGE_LABELS
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
@@ -564,12 +571,20 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
       [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      BUILD_TIMESTAMP_RFC3339=""
+      if [ -n "$BUILD_TIMESTAMP" ]; then
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      else
+        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+      fi
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")

@@ -187,6 +187,11 @@ spec:
       data.
     name: PROXY_CA_TRUST_CONFIG_MAP_KEY
     type: string
+  - default: ""
+    description: Defines the single build time for all buildah builds in seconds since
+      UNIX epoch
+    name: BUILD_TIMESTAMP
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -262,6 +267,8 @@ spec:
       value: $(params.WORKINGDIR_MOUNT)
     - name: INHERIT_BASE_IMAGE_LABELS
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     - name: PLATFORM
@@ -654,12 +661,20 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
       [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      BUILD_TIMESTAMP_RFC3339=""
+      if [ -n "$BUILD_TIMESTAMP" ]; then
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      else
+        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+      fi
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
@@ -856,6 +871,7 @@ spec:
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
+          -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
           -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \

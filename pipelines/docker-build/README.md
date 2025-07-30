@@ -55,6 +55,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| |
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
 |BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
+|BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch| | |
 |COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
