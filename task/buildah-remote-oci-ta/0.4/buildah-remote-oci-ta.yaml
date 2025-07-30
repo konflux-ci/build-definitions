@@ -663,13 +663,52 @@ spec:
                   echo "All build parameters match, checking for SBOM availability..."
                   # Check if the reused image has an SBOM attached
                   if cosign download sbom "${IMAGE%:*}:${SELECTED_CANDIDATE}" >/dev/null 2>&1; then
-                    echo "SBOM found on reused image, proceeding with reuse"
-                    echo "true" >"/var/workdir/artifact-reused"
-                    echo "${IMAGE%:*}:${SELECTED_CANDIDATE}" >"/var/workdir/reused-image-ref"
-                    echo "${SELECTED_CANDIDATE}" >"/var/workdir/reused-image-tag"
-                    # Store the reused image reference with digest as result for downstream steps
-                    echo -n "${IMAGE%:*}@${TREE_TAG_DIGEST}" | tee "$(results.REUSED_IMAGE_REF.path)"
-                    echo "Reusing existing artifact with tree hash: ${TREE_HASH}"
+                    echo "SBOM found on reused image, verifying SBOM integrity..."
+                    # Extract SBOM blob URL from attestation
+                    ATTESTATION_SBOM_REF=$(echo "$ATTESTATION_JSON" | jq -r '.predicate.buildConfig.tasks[] | select(.results[]?.name == "SBOM_BLOB_URL") | .results[] | select(.name == "SBOM_BLOB_URL") | .value // empty')
+                    if [ -n "$ATTESTATION_SBOM_REF" ]; then
+                      echo "Found SBOM reference in attestation: $ATTESTATION_SBOM_REF"
+                      # Extract expected digest from attestation SBOM reference
+                      EXPECTED_SBOM_DIGEST="${ATTESTATION_SBOM_REF##*@sha256:}"
+                      echo "Expected SBOM digest from attestation: $EXPECTED_SBOM_DIGEST"
+                      # Download SBOM from image and calculate its digest
+                      if cosign download sbom "${IMAGE%:*}:${SELECTED_CANDIDATE}" >downloaded-sbom.json 2>/dev/null; then
+                        ACTUAL_SBOM_DIGEST=$(sha256sum downloaded-sbom.json | cut -d' ' -f1)
+                        echo "Actual SBOM digest from image: $ACTUAL_SBOM_DIGEST"
+                        if [ "$EXPECTED_SBOM_DIGEST" = "$ACTUAL_SBOM_DIGEST" ]; then
+                          echo "✅ SBOM integrity verified: digest matches attestation"
+                          echo "SBOM found on reused image, proceeding with reuse"
+                          echo "true" >"/var/workdir/artifact-reused"
+                          echo "${IMAGE%:*}:${SELECTED_CANDIDATE}" >"/var/workdir/reused-image-ref"
+                          echo "${SELECTED_CANDIDATE}" >"/var/workdir/reused-image-tag"
+                          # Store the reused image reference with digest as result for downstream steps
+                          echo -n "${IMAGE%:*}@${TREE_TAG_DIGEST}" | tee "$(results.REUSED_IMAGE_REF.path)"
+                          echo "Reusing existing artifact with tree hash: ${TREE_HASH}"
+                        else
+                          echo "❌ SBOM integrity check failed: digest mismatch"
+                          echo "Expected: $EXPECTED_SBOM_DIGEST"
+                          echo "Actual: $ACTUAL_SBOM_DIGEST"
+                          echo "SBOM may have been tampered with, proceeding with build for security compliance"
+                          echo "false" >"/var/workdir/artifact-reused"
+                          # Emit empty REUSED_IMAGE_REF to indicate no reuse
+                          echo "" | tee "$(results.REUSED_IMAGE_REF.path)"
+                        fi
+                        # Clean up downloaded SBOM
+                        rm -f downloaded-sbom.json
+                      else
+                        echo "❌ Failed to download SBOM from image for integrity verification"
+                        echo "Proceeding with build for security compliance"
+                        echo "false" >"/var/workdir/artifact-reused"
+                        # Emit empty REUSED_IMAGE_REF to indicate no reuse
+                        echo "" | tee "$(results.REUSED_IMAGE_REF.path)"
+                      fi
+                    else
+                      echo "⚠️ No SBOM reference found in attestation"
+                      echo "Cannot verify SBOM integrity, proceeding with build for security compliance"
+                      echo "false" >"/var/workdir/artifact-reused"
+                      # Emit empty REUSED_IMAGE_REF to indicate no reuse
+                      echo "" | tee "$(results.REUSED_IMAGE_REF.path)"
+                    fi
                   else
                     echo "No SBOM found on reused image, proceeding with build for security compliance"
                     echo "false" >"/var/workdir/artifact-reused"
@@ -1260,7 +1299,7 @@ spec:
         should_remove_expires=false
         if skopeo inspect --authfile "$AUTHFILE" "docker://$REUSED_IMAGE_REF" | jq -e '.Labels["quay.expires-after"]' >/dev/null 2>&1; then
           echo "Image has expires label, checking if it should be removed."
-          if [ "${REMOVE_EXPIRES_LABEL}" = "true" ] || [ "${EVENT_TYPE:-}" = "push" ]; then
+          if [ "${REMOVE_EXPIRES_LABEL}" = "true" ] || [ "${EVENT_TYPE:-}" = "push" ] || [ "${EVENT_TYPE:-}" = "incoming" ]; then
             should_remove_expires=true
           fi
         fi
@@ -1338,8 +1377,12 @@ spec:
       # Get tree hash from the result emitted by the build step
       TREE_HASH=""
       if [ -n "$COMMIT_SHA" ]; then
-        TREE_HASH=$(cat "$(results.GIT_TREE_HASH.path)")
-        echo "Tree hash from build step: $TREE_HASH"
+        TREE_HASH=$(cat "$(results.GIT_TREE_HASH.path)" 2>/dev/null || echo "")
+        if [ -n "$TREE_HASH" ]; then
+          echo "Tree hash from build step: $TREE_HASH"
+        else
+          echo "No tree hash available (pre-build step may not have run)"
+        fi
       fi
       echo "[$(date --utc -Ins)] Convert image"
       # While we can build images with the desired format, we will simplify any local

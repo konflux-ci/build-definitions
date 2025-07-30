@@ -44,7 +44,7 @@ if [ -n "$REUSED_IMAGE_REF" ]; then
   should_remove_expires=false
   if skopeo inspect --authfile "$AUTHFILE" "docker://$REUSED_IMAGE_REF" | jq -e '.Labels["quay.expires-after"]' >/dev/null 2>&1; then
     echo "Image has expires label, checking if it should be removed."
-    if [ "${REMOVE_EXPIRES_LABEL}" = "true" ] || [ "${EVENT_TYPE:-}" = "push" ]; then
+    if [ "${REMOVE_EXPIRES_LABEL}" = "true" ] || [ "${EVENT_TYPE:-}" = "push" ] || [ "${EVENT_TYPE:-}" = "incoming" ]; then
       should_remove_expires=true
     fi
   fi
@@ -139,8 +139,12 @@ fi
 # Get tree hash from the result emitted by the build step
 TREE_HASH=""
 if [ -n "$COMMIT_SHA" ]; then
-  TREE_HASH=$(cat "$(results.GIT_TREE_HASH.path)")
-  echo "Tree hash from build step: $TREE_HASH"
+  TREE_HASH=$(cat "$(results.GIT_TREE_HASH.path)" 2>/dev/null || echo "")
+  if [ -n "$TREE_HASH" ]; then
+    echo "Tree hash from build step: $TREE_HASH"
+  else
+    echo "No tree hash available (pre-build step may not have run)"
+  fi
 fi
 echo "[$(date --utc -Ins)] Convert image"
 # While we can build images with the desired format, we will simplify any local

@@ -387,7 +387,7 @@ if skopeo inspect "docker://${IMAGE%:*}:${TREE_TAG}" >/dev/null 2>&1; then
                 echo "Found SBOM reference in attestation: $ATTESTATION_SBOM_REF"
                 
                 # Extract expected digest from attestation SBOM reference
-                EXPECTED_SBOM_DIGEST=$(echo "$ATTESTATION_SBOM_REF" | sed 's/.*@sha256://')
+                EXPECTED_SBOM_DIGEST="${ATTESTATION_SBOM_REF##*@sha256:}"
                 echo "Expected SBOM digest from attestation: $EXPECTED_SBOM_DIGEST"
                 
                 # Download SBOM from image and calculate its digest

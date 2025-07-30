@@ -108,7 +108,7 @@ A set of build parameters that must match for artifact reuse. The system compare
 
 ### Expiration Label Control
 The `REMOVE_EXPIRES_LABEL` parameter controls whether expiration labels are removed when reusing artifacts:
-- **Default behavior**: Only removes labels in push pipelines (when `event_type = "push"`)
+- **Default behavior**: Only removes labels in push pipelines (when `event_type = "push"` or `event_type = "incoming"`)
 - **Manual override**: Set to `"true"` to always remove labels regardless of pipeline type
 - **Preserve labels**: Set to `"false"` to never remove labels (useful for non-Pipelines as Code environments)
 
@@ -1067,7 +1067,7 @@ New **task parameters** added to the task are automatically included in comparis
 
 ### Pipeline Type Detection
 The system uses Pipelines as Code's `event_type` variable to detect pipeline type:
-- **`event_type = "push"`**: Push pipeline (production builds)
+- **`event_type = "push"` or `event_type = "incoming"`**: Push pipeline (production builds)
 - **`event_type = "pull_request"`**: PR pipeline (development builds)
 - **`event_type = "not set"`**: Non-Pipelines as Code environment or manual retriggers (including `/retest` on PRs)
 
@@ -1091,7 +1091,7 @@ The system intelligently removes `quay.expires-after` labels based on pipeline t
 
 ### Automatic Label Removal Logic
 The system removes expiration labels when:
-1. **Push Pipelines**: When `event_type` equals "push" (Pipelines as Code) AND `IMAGE_EXPIRES_AFTER` is set
+1. **Push Pipelines**: When `event_type` equals "push" or "incoming" (Pipelines as Code) AND `IMAGE_EXPIRES_AFTER` is set
 2. **Manual Override**: When `REMOVE_EXPIRES_LABEL` parameter is set to "true" (regardless of pipeline type)
 
 **Important**: The system preserves expiration labels when:

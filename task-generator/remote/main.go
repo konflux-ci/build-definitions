@@ -135,9 +135,21 @@ fi
 			}
 			step.Script = ret
 			continue
-		} else if step.Name != "build" {
+		}
+		// Skip non-build steps that don't have scripts (like volume mounts)
+		if step.Script == "" && step.Name != "build" {
 			continue
 		}
+
+		// For non-build steps, just include them as-is with image adjustment
+		if step.Name != "build" {
+			// Add image adjustment for non-build steps
+			if taskVersion != "0.1" {
+				step.Script = adjustRemoteImage + step.Script
+			}
+			continue
+		}
+
 		podmanArgs := ""
 
 		ret = `#!/bin/bash
