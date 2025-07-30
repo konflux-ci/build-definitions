@@ -57,6 +57,11 @@ spec:
       description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
       type: string
       default: ""
+    - name: BUILD_TIMESTAMP
+      description: Defines the single build time for all buildah builds in
+        seconds since UNIX epoch
+      type: string
+      default: ""
     - name: CACHI2_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the prefetched dependencies.
@@ -264,6 +269,8 @@ spec:
         value: $(params.ANNOTATIONS_FILE)
       - name: BUILD_ARGS_FILE
         value: $(params.BUILD_ARGS_FILE)
+      - name: BUILD_TIMESTAMP
+        value: $(params.BUILD_TIMESTAMP)
       - name: CONTEXT
         value: $(params.CONTEXT)
       - name: ENTITLEMENT_SECRET
@@ -656,12 +663,20 @@ spec:
         fi
 
         DEFAULT_LABELS=(
-          "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
           "--label" "architecture=$(uname -m)"
           "--label" "vcs-type=git"
         )
         [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
         [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+        BUILD_TIMESTAMP_RFC3339=""
+        if [ -n "$BUILD_TIMESTAMP" ]; then
+          BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+          DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+          DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+          ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+        else
+          DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+        fi
 
         # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
         LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
