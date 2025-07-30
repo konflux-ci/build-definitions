@@ -988,21 +988,13 @@ This approach prevents various attack vectors while maintaining the efficiency b
 
 3. **Tree Hash Collisions**: While extremely unlikely, git tree hash collisions could theoretically cause incorrect artifact reuse.
 
-4. **Attestation Tampering**: If the public key (`rh03.pub`) is compromised or incorrectly distributed, malicious attestations could be accepted.
+4. **Attestation Tampering**: If the Chains private key is compromised or incorrectly distributed, malicious attestations could be accepted.
 
-5. **Registry Access Control**: The system relies on registry access for tree hash tag discovery and image operations.
+5. **Digest Resolution Attacks**: The `skopeo inspect` command could be vulnerable to man-in-the-middle attacks if not properly authenticated.
 
-6. **Build Parameter Injection**: Malicious build parameters could potentially be injected if the parameter comparison logic has vulnerabilities.
+6. **Workspace Data Exposure**: Reuse flags and intermediate data stored in the workspace could be exposed to subsequent pipeline steps.
 
-7. **Digest Resolution Attacks**: The `skopeo inspect` command could be vulnerable to man-in-the-middle attacks if not properly authenticated.
-
-8. **Workspace Data Exposure**: Reuse flags and intermediate data stored in the workspace could be exposed to subsequent pipeline steps.
-
-9. **Provenance Tree Hash Mismatch**: If the tree hash in the signed provenance doesn't match the calculated tree hash, the system will fail to reuse the artifact, preventing potential security issues.
-
-10. **Dynamic Parameter Discovery**: The automatic discovery of parameters from environment variables could potentially include sensitive data if not properly filtered.
-
-11. **Fake Tree Hash Tags**: Malicious actors could potentially create fake tree hash tags to trigger reuse attempts.
+7. **Fake Tree Hash Tags**: Malicious actors could potentially create fake tree hash tags to trigger reuse attempts.
 
 ### Mitigation Strategies
 
@@ -1010,21 +1002,19 @@ This approach prevents various attack vectors while maintaining the efficiency b
 
 2. **Attestation Verification**: Implement proper attestation signature verification using trusted public keys.
 
-3. **Parameter Validation**: Validate all build parameters before comparison to prevent injection attacks.
+3. **Parameter Validation**: Validate relevant build parameters are identical
 
-4. **Registry Authentication**: Ensure all registry operations use proper authentication and TLS.
+4. **Audit Trail**: The reused artifacts provenance includes an immutable reference to the reused artifact.
 
-5. **Audit Logging**: Log all artifact reuse decisions for security auditing.
+5. **Fallback Mechanisms**: Implement proper fallback to fresh builds when verification fails.
 
-6. **Fallback Mechanisms**: Implement proper fallback to fresh builds when verification fails.
+6. **Tree Hash Verification**: Verify that the tree hash in the signed provenance matches the calculated tree hash to ensure provenance integrity.
 
-7. **Tree Hash Verification**: Verify that the tree hash in the signed provenance matches the calculated tree hash to ensure provenance integrity.
+7. **Exclusion List Management**: Maintain a comprehensive exclusion list to prevent sensitive parameters from being compared.
 
-8. **Environment Variable Filtering**: Carefully filter environment variables to exclude system and sensitive data.
+8. **Graceful Degradation**: Any verification failure results in a fresh build rather than potentially insecure reuse.
 
-9. **Exclusion List Management**: Maintain a comprehensive exclusion list to prevent sensitive parameters from being compared.
-
-10. **Graceful Degradation**: Any verification failure results in a fresh build rather than potentially insecure reuse.
+9. **Tree Hash Mismatch Protection**: If the tree hash in the signed provenance doesn't match the calculated tree hash, the system will fail to reuse the artifact, preventing potential security issues.
 
 ### Security Verification Flow
 
