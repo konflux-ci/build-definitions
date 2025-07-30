@@ -80,8 +80,23 @@ spec:
       script: |
         #!/bin/bash
 
+        skopeo_retries=3
         IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
-        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST")
+
+        if ! raw_inspect=$(skopeo inspect --retry-times "$skopeo_retries" --raw "docker://${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"); then
+          echo "skopeo failed to inspect image: ${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
+          exit 1
+        fi
+
+        if manifest_digest=$(jq -e -r '.manifests[0].digest' <<< "$raw_inspect"); then
+            # use first image digest from index
+            CHECK_IMAGE="$IMAGE_WITHOUT_TAG@$manifest_digest"
+        else
+            # image is single manifest
+            CHECK_IMAGE="${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
+        fi
+
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --retry-times "$skopeo_retries" --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://${CHECK_IMAGE}")
 
         if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
           IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
@@ -89,7 +104,7 @@ spec:
           for tag in "${tags_array[@]}"
           do
               echo "Applying tag $tag"
-              skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
+              skopeo copy --retry-times "$skopeo_retries" --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
           done
         else
           echo "No additional tags specified in the image labels"
