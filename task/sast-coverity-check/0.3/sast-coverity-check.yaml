@@ -164,6 +164,11 @@ spec:
     description: Determines if the image inherits the base image labels.
     name: INHERIT_BASE_IMAGE_LABELS
     type: string
+  - default: ""
+    description: Defines the single build time for all buildah builds in seconds since
+      UNIX epoch
+    name: BUILD_TIMESTAMP
+    type: string
   - description: Digest of the image to which the scan results should be associated.
     name: image-digest
     type: string
@@ -262,6 +267,8 @@ spec:
       value: $(params.WORKINGDIR_MOUNT)
     - name: INHERIT_BASE_IMAGE_LABELS
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
     volumeMounts:
     - mountPath: /shared
       name: shared
@@ -627,13 +634,16 @@ spec:
         VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
       fi
 
+      BUILD_TIMESTAMP_RFC3339="$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')"
+
       DEFAULT_LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
       [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      [ -n "$BUILD_TIMESTAMP" ] && DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
