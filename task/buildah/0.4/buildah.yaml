@@ -148,6 +148,10 @@ spec:
     description: Determines if the image inherits the base image labels.
     type: string
     default: "true"
+  - name: BUILD_TIMESTAMP
+    description: Defines the single build time for all buildah builds in seconds since UNIX epoch
+    type: string
+    default: ""
 
 
   results:
@@ -219,6 +223,8 @@ spec:
       value: $(params.WORKINGDIR_MOUNT)
     - name: INHERIT_BASE_IMAGE_LABELS
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
 
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
@@ -452,12 +458,16 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
+        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
       [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      if [ -n "$BUILD_TIMESTAMP" ]; then
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      fi
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
