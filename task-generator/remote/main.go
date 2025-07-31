@@ -135,9 +135,21 @@ fi
 			}
 			step.Script = ret
 			continue
-		} else if step.Name != "build" {
+		}
+		// Skip non-build steps that don't have scripts (like volume mounts)
+		if step.Script == "" && step.Name != "build" {
 			continue
 		}
+
+		// For non-build steps, just include them as-is with image adjustment
+		if step.Name != "build" {
+			// Add image adjustment for non-build steps
+			if taskVersion != "0.1" {
+				step.Script = adjustRemoteImage + step.Script
+			}
+			continue
+		}
+
 		podmanArgs := ""
 
 		ret = `#!/bin/bash
@@ -288,10 +300,18 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
 		ret += `
-  echo "[$(date --utc -Ins)] Buildah pull"
-  buildah pull "oci:konflux-final-image:$IMAGE"
+
+  # Check if artifact reuse occurred - if so, skip pulling from local OCI directory
+  REUSED_IMAGE_REF=$(cat "$(results.REUSED_IMAGE_REF.path)" 2>/dev/null || echo "")
+  if [ -n "$REUSED_IMAGE_REF" ]; then
+    echo "[$(date --utc -Ins)] Artifact reuse detected, skipping local OCI pull"
+  else
+    echo "[$(date --utc -Ins)] Buildah pull"
+    buildah pull "oci:konflux-final-image:$IMAGE"
+  fi
 else
-  bash ` + containerScript + ` "$@"
+  bash ` + containerScript + ` "$@"`
+		ret += `
 fi
 echo "Build on remote host $SSH_HOST finished"
 

@@ -21,6 +21,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |CONTEXT|Path to the directory to use as context.|.|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
+|EVENT_TYPE|Pipeline event type from Pipelines as Code (e.g., "push", "pull_request"). Used to determine if expires label should be removed.|""|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |IMAGE|Reference of the image buildah will produce.||true|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
@@ -28,6 +29,13 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
+|REMOVE_EXPIRES_LABEL|Whether to always remove the expires label when reusing artifacts, regardless of pipeline type. When false, only removes the label in push pipelines.|false|false|
+|REUSE_ARTIFACTS|Whether to enable artifact reuse feature. Set to "false" to disable artifact reuse and always perform a fresh build.|true|false|
+|REUSE_COMPARISON_EXCLUSIONS|List of build parameters to exclude from artifact reuse comparison|- IMAGE_EXPIRES_AFTER
+- COMMIT_SHA
+- EVENT_TYPE
+- REMOVE_EXPIRES_LABEL
+|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
@@ -46,8 +54,11 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 ## Results
 |name|description|
 |---|---|
+|EVENT_TYPE|The type of event that triggered the build|
+|GIT_TREE_HASH|Git tree hash of the source code|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
+|REUSED_IMAGE_REF|Reference to the reused image with digest (empty if no artifact was reused)|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 
