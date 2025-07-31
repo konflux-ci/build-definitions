@@ -53,6 +53,8 @@ spec:
       type: string
       default: "false"
   results:
+    - name: IMAGES
+      description: Image reference of the built image containing both the repository and the digest
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
     - name: IMAGE_REF
@@ -154,7 +156,7 @@ spec:
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        set -eu
+        set -eux
         set -o pipefail
 
         select-oci-auth "$IMAGE" >auth.json
@@ -177,6 +179,29 @@ spec:
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         echo
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
+        # trying out new stuff
+        # Extract digest list from oras
+        DIGESTS=$(oras manifest fetch \
+          --registry-config auth.json \
+          --format go-template \
+          --template '{{range .content.manifests}}{{.digest}},{{end}}' \
+          "$IMAGE")
+
+        # Remove trailing comma
+        DIGESTS="${DIGESTS%,}"
+
+        # Compose full image references
+        IMAGES=""
+        IFS=',' read -ra DIGEST_ARR <<<"$DIGESTS"
+        for DIGEST in "${DIGEST_ARR[@]}"; do
+          IMAGES+="${IMAGE}@${DIGEST}, "
+        done
+
+        # Trim trailing comma and space
+        IMAGES="${IMAGES%, }"
+
+        # Output result
+        echo -n "$IMAGES" > "$(results.IMAGES.path)"
 
     - name: sbom-generate
       image: quay.io/konflux-ci/mobster@sha256:5af1aa13f97ff2006e33b1e5d422c3a0b178ae000b35c9309f952b5fb4c174ff
