@@ -980,6 +980,10 @@ spec:
         mobster_args+=(--from-hermeto "$(workspaces.source.path)/sbom-cachi2.json")
       fi
 
+      if [ -n "${TARGET_STAGE}" ]; then
+        mobster_args+=(--dockerfile-target "${TARGET_STAGE}")
+      fi
+
       for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
         mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
       done
