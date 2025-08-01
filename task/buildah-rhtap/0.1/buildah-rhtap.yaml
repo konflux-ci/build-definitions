@@ -143,7 +143,7 @@ spec:
     workingDir: $(workspaces.source.path)/source
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json@1.5=/tmp/files/sbom-source.json
-      syft oci-dir:/tmp/files/image --output cyclonedx-json@1.5=/tmp/files/sbom-image.json
+      syft oci-dir:/tmp/files/image --output cyclonedx-json@1.5=/tmp/files/sbom-image.json --source-name "${IMAGE}"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
