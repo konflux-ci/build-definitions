@@ -22,6 +22,8 @@ spec:
   results:
     - name: build
       description: Defines if the image in param image-url should be built
+    - name: build-timestamp
+      description: Defines when the build process started in seconds from UNIX epoch
 
   steps:
     - name: init
@@ -54,3 +56,5 @@ spec:
         else
           echo -n "false" > $(results.build.path)
         fi
+
+        date +%s > "$(results.build-timestamp.path)"
