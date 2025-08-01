@@ -216,19 +216,37 @@ spec:
               # Convert log to JSON format for EC
               jq -Rs '{ output: . }' "$logfile" > "$json_input"
 
-              # Run EC (json)
-              EC_EXPERIMENTAL=1 ec test \
+              # Run EC (json) with explicit error handling
+              if ! EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
+                --no-fail \
                 -o json \
-                "$json_input" || true
+                "$json_input"; then
+
+                # ec command execution failed (not policy failure)
+                echo "ERROR: ec command execution failed"
+                note="Task $(context.task.name) failed: ec command execution failed. For details, check Tekton task log."
+                ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+                echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+                exit 0
+              fi
 
               # workaround: due to a bug in ec-cli, we cannot generate json and appstudio output at the same time, running it again
-              EC_EXPERIMENTAL=1 ec test \
+              if ! EC_EXPERIMENTAL=1 ec test \
                 --namespace required_checks \
                 --policy /project/clamav/virus-check.rego \
+                --no-fail \
                 -o appstudio \
-                "$json_input" | tee "$json_output" || true
+                "$json_input" | tee "$json_output"; then
+
+                # ec command execution failed (not policy failure)
+                echo "ERROR: ec command execution failed"
+                note="Task $(context.task.name) failed: ec command execution failed. For details, check Tekton task log."
+                ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+                echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+                exit 0
+              fi
 
               cat "$json_output"
             done
