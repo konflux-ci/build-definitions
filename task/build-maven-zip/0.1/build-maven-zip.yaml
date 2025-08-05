@@ -161,7 +161,7 @@ spec:
       IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
       IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
 
-      # Save the SBOM produced by Cachi2 using mobster so it can be merged into the final SBOM later
+      # Use Mobster to generate maven-zip file using the Hermeto (Cachi2) output
       if [ -f "$(workspaces.source.path)/cachi2/output/bom.json" ]; then
         mobster generate \
                 --output sbom.json \
