@@ -252,7 +252,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Digest of the image to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.2 task parameters
+### sast-unicode-check:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -262,8 +262,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### show-sbom:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -298,9 +298,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.4:image-digest ; clamav-scan:0.3:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.2:image-digest ; apply-tags:0.2:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.4:image-digest ; clamav-scan:0.3:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.3:image-digest ; apply-tags:0.2:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.3:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.2:image-url ; apply-tags:0.2:IMAGE_URL ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.3:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.3:image-url ; apply-tags:0.2:IMAGE_URL ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -374,7 +374,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.2 task results
+### sast-unicode-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
@@ -391,7 +391,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.4:source ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.2:workspace ; push-dockerfile:0.1:workspace|
+|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.4:source ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.3:workspace ; push-dockerfile:0.1:workspace|
 ## Available workspaces from tasks
 ### buildah:0.4 task workspaces
 |name|description|optional|workspace from pipeline
@@ -425,7 +425,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.2 task workspaces
+### sast-unicode-check:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
