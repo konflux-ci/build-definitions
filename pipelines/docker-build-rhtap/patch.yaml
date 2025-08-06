@@ -102,10 +102,7 @@
       value: "$(params.build-args-file)"
 # Change references from build-image-index to build-container
 - op: replace
-  path: /spec/finally/0/params/0/value  # show-sbom.params.IMAGE_URL
-  value: $(tasks.build-container.results.IMAGE_URL)
-- op: replace
-  path: /spec/finally/1/params/3/value  # show-summary.params.build-task-status
+  path: /spec/finally/0/params/3/value  # show-summary.params.build-task-status
   value: $(tasks.build-container.status)
 - op: replace
   path: /spec/results/0/value  # IMAGE_URL
@@ -246,8 +243,13 @@
     taskRef:
       kind: Task
       name: update-deployment
-- op: replace
-  path: /spec/finally/0/taskRef
+- op: add
+  path: /spec/finally/0
   value:
-    name: show-sbom-rhdh
-    version: "0.1"
+    name: show-sbom
+    taskRef:
+      name: show-sbom-rhdh
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-container.results.IMAGE_URL)

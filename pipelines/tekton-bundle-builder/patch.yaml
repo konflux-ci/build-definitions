@@ -31,8 +31,7 @@
 #     17  rpms-signature-scan
 # Order of finally tasks from the base template:
 # kustomize build pipelines/template-build/ | yq ".spec.finally.[].name" | nl -v 0
-#      0  show-sbom
-#      1  show-summary
+#      0  show-summary
 - op: add
   path: /spec/tasks/3/params
   value:
@@ -65,5 +64,3 @@
   path: /spec/tasks/6   # deprecated-base-image-check
 - op: remove
   path: /spec/tasks/5   # build-source-image
-- op: remove
-  path: /spec/finally/0  # show-sbom
