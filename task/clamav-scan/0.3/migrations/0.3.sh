@@ -21,22 +21,22 @@ if ! yq -e '.spec.tasks[] | select(.name == "'"$TASK_NAME"'")' "$pipeline_file" 
 fi
 
 # Check if the task already has a matrix
-if yq -e '.spec.tasks[] | select(.name == "'"$TASK_NAME"'") | has("matrix")' "$pipeline_file" >/dev/null 2>&1; then
-  echo "Matrix already exists for task '$TASK_NAME'. No changes made."
-else
-  echo "Adding matrix for task '$TASK_NAME'..."
-  yq -i "
-  (.spec.tasks[] 
-    | select(.name == \"clamav-scan\" and .matrix == null)
-  ).matrix = {
-    \"params\": [
-      {
-        \"name\": \"image-arch\",
-        \"value\": [\"\$(params.build-platforms)\"]
-      }
-    ]
-  }
-" "$pipeline_file"
-
-  echo "Adding matrix for task '$TASK_NAME' completed!"
-fi
+#if yq -e '.spec.tasks[] | select(.name == "'"$TASK_NAME"'") | has("matrix")' "$pipeline_file" >/dev/null 2>&1; then
+#  echo "Matrix already exists for task '$TASK_NAME'. No changes made."
+#else
+#  echo "Adding matrix for task '$TASK_NAME'..."
+#  yq -i "
+#  (.spec.tasks[]
+#    | select(.name == \"clamav-scan\" and .matrix == null)
+#  ).matrix = {
+#    \"params\": [
+#      {
+#        \"name\": \"image-arch\",
+#        \"value\": [\"\$(params.build-platforms)\"]
+#      }
+#    ]
+#  }
+#" "$pipeline_file"
+#
+#  echo "Adding matrix for task '$TASK_NAME' completed!"
+#fi

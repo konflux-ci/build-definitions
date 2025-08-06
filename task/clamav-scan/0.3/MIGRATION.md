@@ -14,4 +14,5 @@ Changes:
 
 Renovate bot PR will be created with warning icon for a clamav-scan which is expected, no actions from users are required for the task.
 
-For multi-arch build, `matrix` will be added to build pipeline definition file automatically by script migrations/0.3.sh when MintMaker runs [pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
+Important:
+Do not enable matrix in PipelineRuns until https://issues.redhat.com/browse/KONFLUX-9576 is resolved.
