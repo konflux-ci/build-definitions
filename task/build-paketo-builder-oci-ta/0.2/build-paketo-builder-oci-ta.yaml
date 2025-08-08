@@ -130,14 +130,14 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2712c8a6453fc9db5fc4c2d9d952554a4eea46d2fdba47a272b79fa07f8c8c40
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - args:
         - "$(params.BUILD_ARGS[*])"
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
       name: "run-script"
       script: |-
         #!/usr/bin/env bash
@@ -360,7 +360,7 @@ spec:
         requests:
           cpu: 500m
           memory: 1Gi
-      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
+      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:d97ca4eb3a57ced6f94508a1d1efacb5e78a6956201ffc4f82b50193f56c6a06
       name: sbom-syft-generate
       script: |
         #!/bin/bash
@@ -396,7 +396,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:fe0dd5de37aee1f8809dc417c7d661bfb3574cf801ef595fb5633a419af5070e
+      image: quay.io/konflux-ci/sbom-utility-scripts@sha256:136f655c47d5714a0c9263e97a4052e374f2d90f9d86cca52837b6c1871e5942
       name: prepare-sboms
       script: |
         #!/bin/bash
@@ -432,7 +432,7 @@ spec:
         requests:
           cpu: "1"
           memory: 1Gi
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b82d465a06c926882d02b721cf8a8476048711332749f39926a01089cf85a3f9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
       name: inject-sbom-and-push
       env:
         - name: TASKRUN_NAME
