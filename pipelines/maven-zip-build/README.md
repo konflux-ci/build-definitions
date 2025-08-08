@@ -84,6 +84,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| |
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| |
 |BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | |
+|BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch| | |
 |COMMIT_SHA| The image is built from this commit.| | |
 |CONTEXT| Path to the directory to use as context.| .| |
 |COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
@@ -204,6 +205,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+|build-timestamp| Defines when the build process started in seconds from UNIX epoch| |
 ### sast-coverity-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
