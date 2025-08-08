@@ -366,7 +366,7 @@ spec:
 
         # Extract processed image digests from "/artifacts/$arch/cert-image.json"
         while read -r cert_image_file; do
-          docker_image_digest=$(jq '.docker_image_digest' "$cert_image_file")
+          docker_image_digest=$(jq -r '.docker_image_digest' "$cert_image_file")
           if [[ -n "$docker_image_digest" && ! " ${digests_processed[*]} " == *" \"$docker_image_digest\" "* ]]; then
             digests_processed+=("\"$docker_image_digest\"")
           fi
