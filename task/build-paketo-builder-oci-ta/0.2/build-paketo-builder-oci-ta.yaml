@@ -144,6 +144,28 @@ spec:
         set -eu
         set -o pipefail
 
+        echo "[$(date --utc -Ins)] Validate context path"
+
+        if [ -z "$CONTEXT" ]; then
+          echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
+          CONTEXT="."
+        fi
+
+        source_dir_path=$(realpath "$SOURCE_CODE_DIR")
+        context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
+
+        case "$context_dir_path" in
+          "$source_dir_path" | "$source_dir_path/"*)
+            # path is valid, do nothing
+            ;;
+          *)
+            echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
+            echo "Source path: $source_dir_path" >&2
+            echo "Resolved path: $context_dir_path" >&2
+            exit 1
+            ;;
+        esac
+
         echo "Step 1 :: Configure SSH and rsync folders from tekton to the VM"
         mkdir -p ~/.ssh
         if [ -e "/ssh/error" ]; then
