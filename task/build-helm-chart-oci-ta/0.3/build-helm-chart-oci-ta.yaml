@@ -3,12 +3,8 @@ apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: build-helm-chart-oci-ta
-  annotations:
-    build.appstudio.redhat.com/expires-on: "2025-09-01T00:00:00Z"
-    build.appstudio.redhat.com/expiry-message: This task is deprecated, please
-      remove it from your pipeline. You can use build-helm-chart-oci-ta v0.3 instead.
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.3"
 spec:
   description: |-
     The task packages and pushes a Helm chart to an OCI repository.
@@ -60,10 +56,12 @@ spec:
       description: An identifying prefix on which the version tag is to be
         matched
       default: helm-
-    - name: VALUES_FILE
-      description: Name of the values file to process for image substitution
-        (e.g., values.yaml, values-prod.yaml)
-      default: values.yaml
+    - name: VALUES_FILES
+      description: Array of values file names to process for image substitution
+        (e.g., ["values.yaml", "values-prod.yaml", "values-dev.yaml"])
+      type: array
+      default:
+        - values.yaml
     - name: VERSION_SUFFIX
       description: A suffix to be added to the version string
       default: ""
@@ -116,11 +114,14 @@ spec:
           value: $(params.TAG_PREFIX)
         - name: IMAGE_MAPPINGS
           value: $(params.IMAGE_MAPPINGS)
-        - name: VALUES_FILE
-          value: $(params.VALUES_FILE)
+      args:
+        - "$(params.VALUES_FILES[*])"
       script: |
         #!/bin/bash
         set -ex
+
+        # The values files are passed as arguments
+        VALUES_FILES_ARGS="$*"
 
         cd "$SOURCE_CODE_DIR"/"$CHART_CONTEXT"
 
@@ -145,7 +146,7 @@ spec:
             source_image=$(echo "$mapping" | jq -r '.source')
             target_image=$(echo "$mapping" | jq -r '.target')
 
-            echo "Replacing '$source_image' with '$target_image' in templates and $VALUES_FILE..."
+            echo "Replacing '$source_image' with '$target_image' in templates and values files..."
 
             # Find all YAML files in templates directory and substitute images
             if [ -d "templates" ]; then
@@ -154,51 +155,57 @@ spec:
               done
             fi
 
-            # Also process the specified values file if it exists
-            if [ -f "$VALUES_FILE" ]; then
-              echo "Processing $VALUES_FILE..."
+            # Process the specified values files if they exist
+            # Use arguments passed to the script
+            for values_file in $VALUES_FILES_ARGS; do
 
-              # Extract repository and tag from target_image using bash syntax
-              if [[ "$target_image" == *:* ]]; then
-                # Image has a tag
-                target_repo="${target_image%:*}"
-                target_tag="${target_image#*:}"
+              if [ -f "$values_file" ]; then
+                echo "Processing $values_file..."
+
+                # Extract repository and tag from target_image using bash syntax
+                if [[ "$target_image" == *:* ]]; then
+                  # Image has a tag
+                  target_repo="${target_image%:*}"
+                  target_tag="${target_image#*:}"
+                else
+                  # Image has no tag, default to latest
+                  target_repo="$target_image"
+                  target_tag="latest"
+                fi
+
+                # Extract repository and tag from source_image for comparison
+                if [[ "$source_image" == *:* ]]; then
+                  # Image has a tag
+                  source_repo="${source_image%:*}"
+                  source_tag="${source_image#*:}"
+                else
+                  # Image has no tag, default to latest
+                  source_repo="$source_image"
+                  source_tag="latest"
+                fi
+
+                # Use yq to replace simple image fields (not repository/tag pairs)
+                # Find all image fields that match the source_image exactly and replace with target_image
+                # Handle nested image fields at any level in the YAML structure, including arrays
+                yq -i "
+                  with(.. | select(type == \"!!map\" and has(\"image\") and .image == \"$source_image\");
+                    .image = \"$target_image\"
+                  )
+                " "$values_file"
+
+                # Use yq to properly handle YAML structure with repository/tag pairs
+                # Find all image objects that have repository/tag fields matching source_image
+                # Handle nested image structures at any level in the YAML, including arrays
+                yq -i "
+                  with(.. | select(type == \"!!map\" and has(\"image\") and .image.repository? == \"$source_repo\" and (.image.tag? // \"latest\") == \"$source_tag\");
+                    .image.repository = \"$target_repo\" |
+                    .image.tag = \"$target_tag\"
+                  )
+                " "$values_file"
               else
-                # Image has no tag, default to latest
-                target_repo="$target_image"
-                target_tag="latest"
+                echo "Warning: Values file '$values_file' not found, skipping..."
               fi
-
-              # Extract repository and tag from source_image for comparison
-              if [[ "$source_image" == *:* ]]; then
-                # Image has a tag
-                source_repo="${source_image%:*}"
-                source_tag="${source_image#*:}"
-              else
-                # Image has no tag, default to latest
-                source_repo="$source_image"
-                source_tag="latest"
-              fi
-
-              # Use yq to replace simple image fields (not repository/tag pairs)
-              # Find all image fields that match the source_image exactly and replace with target_image
-              # Handle nested image fields at any level in the YAML structure, including arrays
-              yq -i "
-                with(.. | select(type == \"!!map\" and has(\"image\") and .image == \"$source_image\");
-                  .image = \"$target_image\"
-                )
-              " "$VALUES_FILE"
-
-              # Use yq to properly handle YAML structure with repository/tag pairs
-              # Find all image objects that have repository/tag fields matching source_image
-              # Handle nested image structures at any level in the YAML, including arrays
-              yq -i "
-                with(.. | select(type == \"!!map\" and has(\"image\") and .image.repository? == \"$source_repo\" and (.image.tag? // \"latest\") == \"$source_tag\");
-                  .image.repository = \"$target_repo\" |
-                  .image.tag = \"$target_tag\"
-                )
-              " "$VALUES_FILE"
-            fi
+            done
           done
 
           echo "Image substitution completed."
