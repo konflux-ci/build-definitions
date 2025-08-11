@@ -2,12 +2,12 @@ module github.com/konflux-ci/build-definitions/task-generator/trusted-artifacts
 
 go 1.24.0
 
-toolchain go1.24.5
+toolchain go1.24.6
 
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.6
-	github.com/tektoncd/pipeline v1.3.0
+	github.com/tektoncd/pipeline v1.3.1
 	github.com/zregvart/tkn-fmt v0.0.0-20240614122620-a2995427266c
 	k8s.io/api v0.33.3
 	k8s.io/apimachinery v0.33.3
