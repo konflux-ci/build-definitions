@@ -728,7 +728,28 @@ spec:
           BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
         done
 
-        dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
+        # Dockerfile-json cannot parse Buildah's host variables, we have to pass them manually
+        BUILDAH_INFO=$(buildah info)
+        BUILDAH_OS=$(jq -r '.host.os' <<<"$BUILDAH_INFO")
+        BUILDAH_ARCH=$(jq -r '.host.arch' <<<"$BUILDAH_INFO")
+        BUILDAH_VARIANT=$(jq -r '.host.variant' <<<"$BUILDAH_INFO")
+        BUILDAH_PLATFORM="${BUILDAH_OS}/${BUILDAH_ARCH}"
+
+        DOCKERFILE_ARG_FLAGS=()
+
+        # Reference for variables:
+        # https://docs.docker.com/build/building/variables/#pre-defined-build-arguments
+        PREFIXES=('BUILD' 'TARGET')
+        for PREFIX in "${PREFIXES[@]}"; do
+          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}PLATFORM=${BUILDAH_PLATFORM}")
+          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}OS=${BUILDAH_OS}")
+          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}ARCH=${BUILDAH_ARCH}")
+          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}VARIANT=${BUILDAH_VARIANT}")
+        done
+
+        DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
+
+        dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
         BASE_IMAGES=$(
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
             tr -d '"' |
