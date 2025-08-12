@@ -149,105 +149,114 @@ spec:
           value: $(params.URL)
         - name: REVISION
           value: $(params.REVISION)
-      script: |
-        #!/bin/env bash
-
-        set -o errexit
-        set -o pipefail
-        set -o nounset
-
-        mapfile -t FILES <"${TASK_FILE}"
-        [[ ${#FILES[@]} -eq 0 ]] &&
-          echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
-          exit 1
-        exec 3>&1
-
-        function escape_tkn_bundle_arg() {
-          # the arguments to `tkn bundle --annotate` need to be escaped in a curious way
-          # see https://github.com/tektoncd/cli/issues/2402 for details
-
-          local arg=$1
-          # replace single double-quotes with double double-quotes (this escapes the double-quotes)
-          local escaped_arg=${arg//\"/\"\"}
-          # wrap the whole thing in double-quotes (this escapes commas)
-          printf '"%s"' "$escaped_arg"
-        }
-
-        # Check if task is kustomized
-        # A task considered to be kustomized when a kustomization file is found in the task dir
-        is_kustomized_task() {
-          local -r task_dir=$1
-          if [[ -f "$task_dir/kustomization.yaml" || -f "$task_dir/kustomization.yml" ]]; then
-            return 0
-          fi
-          return 1
-        }
-
-        # Generate a task from the kustomization file
-        generate_kustomized_task() {
-          local -r task_dir=$1
-          local -r prepared_task_file="$task_dir/generated-kustomized-task.yaml"
-          kubectl kustomize "$task_dir" >"$prepared_task_file"
-          echo "$prepared_task_file"
-        }
-
-        # task_dir is where all the tasks definitions reside
-        # all tasks definitions are in the same task_dir, so extracting it from the first element is enough
-        task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
-
-        # If task is kustomized, generate it and replace the FILES value with the value of the generated task
-        # All other files will be ignored.
-        if is_kustomized_task "$task_dir"; then
-          echo "Generating a kustomized task from $task_dir"
-          FILES=("$(generate_kustomized_task "$task_dir")")
-        else
-          echo "Task is not Kustomized - continue"
-        fi
-
-        ANNOTATIONS=()
-        ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
-        ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
-        ANNOTATIONS+=("org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}")
-
-        # Ensure an empty string is output rather than string "null" if the version label is not present
-        task_version=$(yq '.metadata.labels."app.kubernetes.io/version"' "${FILES[@]}" | sed '/null/d' | tr -d '[:space:]')
-        ANNOTATIONS+=("org.opencontainers.image.version=${task_version}")
-
-        if [ -f "${task_dir}/README.md" ]; then
-          ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
-        fi
-
-        if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
-          ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${URL}/tree/${REVISION}/${CONTEXT}/TROUBLESHOOTING.md")
-        fi
-
-        if [ -f "${task_dir}/USAGE.md" ]; then
-          ANNOTATIONS+=("dev.tekton.docs.usage=${URL}/tree/${REVISION}/${CONTEXT}/USAGE.md")
-        fi
-        description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
-        ANNOTATIONS+=("org.opencontainers.image.description=${description}")
-
-        echo "Added annotations:"
-        ANNOTATION_FLAGS=()
-        for annotation in "${ANNOTATIONS[@]}"; do
-          ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
-          echo "    - $annotation"
-        done
-
-        echo "Pushing bundle ${IMAGE} to registry"
-        # shellcheck disable=SC2046
-        if ! OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
-          $(printf ' -f %s' "${FILES[@]}") |
-          tee /proc/self/fd/3)"; then
-          echo "Failed to push bundle ${IMAGE} to registry"
-          exit 1
-        fi
-        echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
-        digest="${OUT#*Pushed Tekton Bundle to *@}"
-        echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
-        echo -n "${IMAGE}@${digest}" >"$(results.IMAGE_REF.path)"
-
-        # cleanup task file
-        [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
+      script: "#!/bin/env bash\n\nset -o errexit\nset -o pipefail\nset -o
+        nounset\n\ndeclare -r ANNOTATION_HAS_MIGRATION=\"dev.konflux-ci.task.has-migration\"\ndeclare
+        -r ANNOTATION_IS_MIGRATION=\"dev.konflux-ci.task.is-migration\"\ndeclare
+        -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT=\"text/x-shellscript\"\n# The annotation
+        value points to the task bundle which has a migration that's most
+        recent to the task with the annotation\ndeclare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE=\"dev.konflux-ci.task.previous-migration-bundle\"\n\nmapfile
+        -t FILES <\"${TASK_FILE}\"\n[[ ${#FILES[@]} -eq 0 ]] &&\n  echo \"No
+        YAML files matched by \\\"$CONTEXT\\\" in \\\"/var/workdir/${SOURCE_CODE_DIR}\\\",
+        aborting the build\" &&\n  exit 1\nexec 3>&1\n\nfunction escape_tkn_bundle_arg()
+        {\n  # the arguments to `tkn bundle --annotate` need to be escaped
+        in a curious way\n  # see https://github.com/tektoncd/cli/issues/2402
+        for details\n\n  local arg=$1\n  # replace single double-quotes with
+        double double-quotes (this escapes the double-quotes)\n  local escaped_arg=${arg//\\\"/\\\"\\\"}\n
+        \ # wrap the whole thing in double-quotes (this escapes commas)\n
+        \ printf '\"%s\"' \"$escaped_arg\"\n}\n\n# Check if task is kustomized\n#
+        A task considered to be kustomized when a kustomization file is found
+        in the task dir\nis_kustomized_task() {\n  local -r task_dir=$1\n
+        \ if [[ -f \"$task_dir/kustomization.yaml\" || -f \"$task_dir/kustomization.yml\"
+        ]]; then\n    return 0\n  fi\n  return 1\n}\n\n# Generate a task from
+        the kustomization file\ngenerate_kustomized_task() {\n  local -r task_dir=$1\n
+        \ local -r prepared_task_file=\"$task_dir/generated-kustomized-task.yaml\"\n
+        \ kubectl kustomize \"$task_dir\" >\"$prepared_task_file\"\n  echo
+        \"$prepared_task_file\"\n}\n\n# Get task version from task definition
+        rather than the version in the directory path.\n# Arguments: task_file\n#
+        The version is output to stdout.\nget_concrete_task_version() {\n
+        \ local -r task_file=$1\n  # Ensure an empty string is output rather
+        than string \"null\" if the version label is not present\n  yq '.metadata.labels.\"app.kubernetes.io/version\"'
+        \"$task_file\" | sed '/null/d' | tr -d '[:space:]'\n}\n\n# Attach
+        migration file to given task bundle.\n# Arguments: task_dir, concrete_task_version,
+        task_bundle\nattach_migration_file() {\n  local -r task_dir=$1\n  local
+        -r concrete_task_version=$2\n  local -r task_bundle=$3\n  local -r
+        migration_file=$4\n\n  # Check if task bundle has an attached migration
+        file.\n  local filename\n  local found=\n  local artifact_refs\n\n
+        \ # List attached artifacts, that have specific artifact type and
+        annotation.\n  # Then, find out the migration artifact.\n  #\n  #
+        Minimum version oras 1.2.0 is required for option --format\n  artifact_refs=$(\n
+        \   retry oras discover \"$task_bundle\" --artifact-type \"$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT\"
+        --format json |\n      jq -r \"\n            .manifests[]\n            |
+        select(.annotations.\\\"${ANNOTATION_IS_MIGRATION}\\\" == \\\"true\\\")\n
+        \           | .reference\"\n  )\n  while read -r artifact_ref; do\n
+        \   if [ -z \"$artifact_ref\" ]; then\n      continue\n    fi\n    filename=$(\n
+        \     retry oras pull --format json \"$artifact_ref\" | jq -r \"\n
+        \               .files[]\n                | select(.annotations.\\\"org.opencontainers.image.title\\\"
+        == \\\"${concrete_task_version}.sh\\\")\n                | .annotations.\\\"org.opencontainers.image.title\\\"\n
+        \               \"\n    )\n\n    if [ -n \"$filename\" ]; then\n      if
+        diff \"$filename\" \"$migration_file\" >/dev/null; then\n        found=true\n
+        \       break\n      else\n        echo \"error: task bundle $task_bundle
+        has migration artifact $artifact_ref, but the migration content is
+        different: $filename\" 1>&2\n        exit 1\n      fi\n    fi\n  done
+        <<<\"$artifact_refs\"\n\n  if [ -n \"$found\" ]; then\n    return
+        0\n  fi\n\n  ( \n    cd \"${migration_file%/*}\"\n    retry oras attach
+        \\\n      --registry-config \"$AUTH_JSON\" \\\n      --artifact-type
+        \"$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT\" \\\n      --annotation \"${ANNOTATION_IS_MIGRATION}=true\"
+        \\\n      \"$task_bundle\" \"${migration_file##*/}\"\n  )\n\n  echo\n
+        \ echo \"Attached migration file ${migration_file} to ${task_bundle}\"\n\n
+        \ return 0\n}\n\n# Find previous bundle that has a migration and output
+        its digest.\nfind_previous_migration_bundle_digest() {\n  local -r
+        task_name=${1:?Missing task name}\n  local -r task_version=${2:?Missing
+        task version}\n\n  local bundle_ref\n  bundle_ref=$(generate_tagged_task_bundle
+        \"$task_name\" \"$task_version\")\n  local ns_repo=${bundle_ref%:*}
+        # remove tag\n  ns_repo=${ns_repo#*/}          # remove registry\n
+        \ # Retain the tag used for matching tag names\n  local -r name_pattern=\"${bundle_ref##*:}-\"\n
+        \ unset bundle_ref\n\n  local -r params=\"onlyActiveTags=true&filter_tag_name=like:${name_pattern}&limit=1\"\n
+        \ local -r url_list_tags=\"https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}\"\n\n
+        \ local manifest_digest\n  manifest_digest=$(curl --fail -sL \"$url_list_tags\"
+        | jq -r '.tags[].manifest_digest')\n  if [ -z \"$manifest_digest\"
+        ]; then\n    # There is no tag yet. That would mean this is the first
+        time to build the task bundle.\n    return 0\n  fi\n  curl --fail
+        -sL -o /tmp/manifest.json \"https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}\"\n\n
+        \ local has_migration\n  has_migration=$(jq -r \".annotations.\\\"${ANNOTATION_HAS_MIGRATION}\\\"\"
+        </tmp/manifest.json)\n  if [ \"$has_migration\" == \"true\" ]; then\n
+        \   echo \"$manifest_digest\"\n    return 0\n  fi\n\n  local prev_bundle_digest\n
+        \ prev_bundle_digest=$(jq -r \".annotations.\\\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\\\"\"
+        </tmp/manifest.json)\n  if [ -n \"$prev_bundle_digest\" ] && [ \"$prev_bundle_digest\"
+        != \"null\" ]; then\n    # This bundle points to a previous bundle
+        that has migration.\n    echo \"$prev_bundle_digest\"\n    return
+        0\n  fi\n\n  # Otherwise, output empty to indicate not point any bundle.\n
+        \ echo\n  return 0\n}\n\n# task_dir is where all the tasks definitions
+        reside\n# all tasks definitions are in the same task_dir, so extracting
+        it from the first element is enough\ntask_dir=$(echo \"${FILES[0]}\"
+        | awk -F'/' '{NF--; print $0}' OFS='/')\ntask_version=$(get_concrete_task_version
+        \"${FILES[0]}\")\n\n# If task is kustomized, generate it and replace
+        the FILES value with the value of the generated task\n# All other
+        files will be ignored.\nif is_kustomized_task \"$task_dir\"; then\n
+        \ echo \"Generating a kustomized task from $task_dir\"\n  FILES=(\"$(generate_kustomized_task
+        \"$task_dir\")\")\nelse\n  echo \"Task is not Kustomized - continue\"\nfi\n\necho
+        \"info: finding the previous task bundle that has a migration\" 1>&2\nprevious_migration_bundle_digest=$(find_previous_migration_bundle_digest)\n\nmigration_file=\"${task_dir}/migrations/${task_version}.sh\"\n\nhas_migration=false\nif
+        [ -f \"$migration_file\" ] && git show \"$task_file_sha\" --oneline
+        --name-only | grep -q \"$migration_file\"; then\n  # There is a migration
+        file matching the task concrete version and\n  # is included in the
+        same commit with the task.\n  has_migration=true\nfi\n\nANNOTATIONS=()\nANNOTATIONS+=(\"org.opencontainers.image.source=${URL}\")\nANNOTATIONS+=(\"org.opencontainers.image.revision=${REVISION}\")\nANNOTATIONS+=(\"org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}\")\nANNOTATIONS+=(\"org.opencontainers.image.version=${task_version}\")\n\nif
+        [ -f \"${task_dir}/README.md\" ]; then\n  ANNOTATIONS+=(\"org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md\")\nfi\n\nif
+        [ -f \"${task_dir}/TROUBLESHOOTING.md\" ]; then\n  ANNOTATIONS+=(\"dev.tekton.docs.troubleshooting=${URL}/tree/${REVISION}/${CONTEXT}/TROUBLESHOOTING.md\")\nfi\n\nif
+        [ -f \"${task_dir}/USAGE.md\" ]; then\n  ANNOTATIONS+=(\"dev.tekton.docs.usage=${URL}/tree/${REVISION}/${CONTEXT}/USAGE.md\")\nfi\ndescription=$(yq
+        '.spec.description' \"${FILES[@]}\" | sed '/null/d' | tr -d '')\nANNOTATIONS+=(\"org.opencontainers.image.description=${description}\")\n\nif
+        [ \"$has_migration\" == \"true\" ]; then\n  ANNOTATIONS+=(\"${ANNOTATION_HAS_MIGRATION}=true\")\nfi\n\nANNOTATIONS+=(\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${previous_migration_bundle_digest}\")\n\necho
+        \"Added annotations:\"\nANNOTATION_FLAGS=()\nfor annotation in \"${ANNOTATIONS[@]}\";
+        do\n  ANNOTATION_FLAGS+=(\"--annotate\" \"$(escape_tkn_bundle_arg
+        \"$annotation\")\")\n  echo \"    - $annotation\"\ndone\n\necho \"Pushing
+        bundle ${IMAGE} to registry\"\n# shellcheck disable=SC2046\nif ! OUT=\"$(retry
+        tkn bundle push \"${ANNOTATION_FLAGS[@]}\" \"$IMAGE\" \\\n  $(printf
+        ' -f %s' \"${FILES[@]}\") |\n  tee /proc/self/fd/3)\"; then\n  echo
+        \"Failed to push bundle ${IMAGE} to registry\"\n  exit 1\nfi\n\ndigest=\"${OUT#*Pushed
+        Tekton Bundle to *@}\"\nIMAGE_REF=\"${IMAGE}@${digest}\"\n\necho -n
+        \"$IMAGE\" >\"$(results.IMAGE_URL.path)\"\necho -n \"${digest}\" >\"$(results.IMAGE_DIGEST.path)\"\necho
+        -n \"${IMAGE_REF}\" >\"$(results.IMAGE_REF.path)\"\n\nif [ \"$has_migration\"
+        == \"true\" ]; then\n  attach_migration_file \"$task_dir\" \"$concrete_task_version\"
+        \"$task_bundle_with_digest\" \"$migration_file\"\nfi\n\n# cleanup
+        task file\n[[ -f \"${TASK_FILE}\" ]] && rm -f \"${TASK_FILE}\"\n"
       securityContext:
         runAsUser: 0
