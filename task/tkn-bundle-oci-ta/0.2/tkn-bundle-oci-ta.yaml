@@ -164,6 +164,7 @@ spec:
         # The annotation means to check if the manifest is from task bundle
         declare -r ANNOTATION_TASK_BUNDLE_DESCRIPTION="org.opencontainers.image.description"
 
+        # shellcheck disable=SC2153
         mapfile -t FILES <"${TASK_FILE}"
         [[ ${#FILES[@]} -eq 0 ]] &&
           echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
@@ -348,22 +349,24 @@ spec:
         echo "info: finding the previous task bundle that has a migration" 1>&2
         previous_migration_bundle_digest=$(find_previous_migration_bundle_digest)
 
-        # check migration script in commit
+        # check if migration script file in commit if migration file doesn't exist in previous bundle digest
+        # since we allow only one migration script file for one task version
         has_migration=false
-        pushd "/var/workdir/${SOURCE_CODE_DIR}"
         migration_file="${task_dir}/migrations/${task_version}.sh"
-
-        if [ ! -d ".git" ]; then
-          echo ".git folder is not found, please switch to correct git root directory and check it again"
-          exit 1
+        if [[ -z ${previous_migration_bundle_digest} ]]; then
+          pushd "/var/workdir/${SOURCE_CODE_DIR}"
+          if [ ! -d ".git" ]; then
+            echo ".git folder is not found, please switch to correct git root directory and check it again"
+            exit 1
+          fi
+          if [ -f "$migration_file" ] && git show "$REVISION" --oneline --name-only | grep -q "$migration_file"; then
+            # There is a migration file matching the task concrete version and
+            # is included in the same commit with the task.
+            echo "there is an migration file ${migration_file} in revision ${REVISION}"
+            has_migration=true
+          fi
+          popd
         fi
-        if [ -f "$migration_file" ] && git show "$REVISION" --oneline --name-only | grep -q "$migration_file"; then
-          # There is a migration file matching the task concrete version and
-          # is included in the same commit with the task.
-          echo "there is an migration file ${migration_file} in revision ${REVISION}"
-          has_migration=true
-        fi
-        popd
 
         ANNOTATIONS=()
         ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
@@ -435,6 +438,7 @@ spec:
         fi
 
         # cleanup task file
+        # shellcheck disable=SC2153
         [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
       securityContext:
         runAsUser: 0
