@@ -161,8 +161,6 @@ spec:
         declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
         # The annotation value points to the task bundle which has a migration that's most recent to the task with the annotation
         declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
-        # The annotation means to check if the manifest is from task bundle
-        declare -r ANNOTATION_TASK_BUNDLE_DESCRIPTION="org.opencontainers.image.description"
 
         # shellcheck disable=SC2153
         mapfile -t FILES <"${TASK_FILE}"
@@ -292,12 +290,12 @@ spec:
           local ns_repo=${IMAGE%:*} # remove tag
           ns_repo=${ns_repo#*/}     # remove registry
 
-          # fetch 5 manifests to find out a task bundle since some of them are artifact
-          local -r params="onlyActiveTags=true&limit=5"
+          # fetch manifests to find out a task bundle since some of them are artifact
+          local -r params="onlyActiveTags=true"
           local -r url_list_tags="https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}"
 
           local manifest_digests
-          manifest_digests=$(curl --fail -sL "$url_list_tags" | jq '.tags[] | select(.name | test("^((?!on-pr-).)*$"))' | jq -r '.manifest_digest')
+          manifest_digests=$(curl --fail -sL "$url_list_tags" | jq '.tags[] | select(.name | test("^(?!.*(on-pr-|sha)).*$"))' | jq -r '.manifest_digest')
           if [ -z "$manifest_digests" ]; then
             # There is no tag yet. That would mean this is the first time to build the task bundle.
             return 0
@@ -306,8 +304,8 @@ spec:
           # check migration file in gotten manifests in case artifact manifests are mixed with task bundle manifests
           for manifest_digest in $manifest_digests; do
             curl --fail -sL -o "${HOME}/manifest.json" "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
-            if ! jq -e '.annotations | has("'"$ANNOTATION_TASK_BUNDLE_DESCRIPTION"'")' "${HOME}/manifest.json" >/dev/null; then
-              # if annotation org.opencontainers.image.description doesn't exist, it means this is not task bundle, skip
+            if ! jq '(.mediaType == "application/vnd.docker.distribution.manifest.v2+json") and (.layers[0].annotations["dev.tekton.image.kind"] == "task")' "${HOME}/manifest.json" >/dev/null; then
+              # if mediaType is not "application/vnd.docker.distribution.manifest.v2+json" or image kind is not "task", it means this is not task bundle, skip
               continue
             fi
 
