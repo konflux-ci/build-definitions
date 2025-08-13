@@ -247,14 +247,15 @@ spec:
         local -r task_version=$2
         local -r migration_file=$3
         local -r auth_json=$4
-        (
-          cd "${migration_file%/*}"
-          retry oras attach \
-            --registry-config "${auth_json}" \
-            --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
-            --annotation "${ANNOTATION_IS_MIGRATION}=true" \
-            "$task_bundle" "${migration_file##*/}"
-        )
+
+        pushd "${migration_file%/*}"
+        retry oras attach \
+          --registry-config "${auth_json}" \
+          --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
+          --annotation "${ANNOTATION_IS_MIGRATION}=true" \
+          "$task_bundle" "${migration_file##*/}"
+        popd
+
         local status=$?
         if [[ $status -ne 0 ]]; then
           echo "failed to attach migration script file to $task_bundle"
@@ -266,57 +267,69 @@ spec:
         return 0
       }
 
-      # Find previous bundle that has a migration and output its digest.
+      # Find previous bundle that has a migration script file and output its digest.
       find_previous_migration_bundle_digest() {
-        local ns_repo=${IMAGE%:*}  # remove tag
-        ns_repo=${ns_repo#*/}  # remove registry
+        local ns_repo=${IMAGE#*/} # Remove registry
+        local ns_repo=${ns_repo%:*} # Remove tag if exists
+        local page=1 url result
 
-        # fetch manifests to find out a task bundle since some of them are artifact
-        local page=1
-        while true; do
-          local -r params="onlyActiveTags=true&limit=50&page=$page"
-          local -r url_list_tags="https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}"
+        # handle single digest
+        process_single_digest() {
+          local digest=$1
 
-          local manifest_digests
-          # find out the task bundle manifest digests of the tags from push event containing neither "on-pr-" nor "sha"
-          manifest_digests=$(curl --fail -sL "$url_list_tags" | jq '.tags[] | select(.name | test("^(?!.*(on-pr-|sha)).*$"))' | jq -r '.manifest_digest')
-          if [ -z "$manifest_digests" ]; then
-              # There is no tag yet. That would mean this is the first time to build the task bundle.
-              return 0
+          curl --fail -sL -o "${HOME}/manifest.json" "https://quay.io/v2/${ns_repo}/manifests/${digest}" || return 1
+
+          # check whether task bundl exists
+          if ! jq -e '(.mediaType == "application/vnd.docker.distribution.manifest.v2+json") and
+                      (.layers[0].annotations["dev.tekton.image.kind"] == "task")' "${HOME}/manifest.json" >/dev/null; then
+            return 1
           fi
 
+          # find valid digest with migration script file
+          jq -r --arg ANNOT "$ANNOTATION_HAS_MIGRATION" \
+               --arg PREV "$ANNOTATION_PREVIOUS_MIGRATION_BUNDLE" '
+            if .annotations[$ANNOT] == "true" then .manifest_digest
+            elif .annotations[$PREV]? != null then .annotations[$PREV]
+            else empty end' "${HOME}/manifest.json" | {
+                read -r result && echo "$result"
+                return 0
+            }
+          return 0
+        }
+
+        # iterate all pages
+        while :; do
+          url="https://quay.io/api/v1/repository/${ns_repo}/tag/?onlyActiveTags=true&limit=50&page=$page"
+          
+          # handle digests in this page
+          local response
+          response=$(curl --fail -sL "$url")
+
+          # try to get task bundle from push event by filter out "on-pr-"" and "sha" string since its tag contains neither "on-pr-" nor "sha"
+          # then handle its digest
+          local manifest_digests
+          manifest_digests=$(echo "$response" | jq -r '.tags[] | select(.name | test("^(?!.*(on-pr-|sha)).*$")) | .manifest_digest')
+          if [ -z "$manifest_digests" ]
+          then
+            # There is no tag yet. That would mean this is the first time to build the task bundle.
+            break
+          fi
           # check migration file in gotten manifests in case artifact manifests are mixed with task bundle manifests
           for manifest_digest in $manifest_digests
           do
-            curl --fail -sL -o "${HOME}/manifest.json" "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
-            if ! jq -e '(.mediaType == "application/vnd.docker.distribution.manifest.v2+json") and (.layers[0].annotations["dev.tekton.image.kind"] == "task")' "${HOME}/manifest.json" >/dev/null; then
-              # if mediaType is not "application/vnd.docker.distribution.manifest.v2+json" or image kind is not "task", it means this is not task bundle, skip
-              continue
-            fi
-
-            local has_migration
-            has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" <"${HOME}/manifest.json")
-            if [ "$has_migration" == "true" ]; then
-              echo "$manifest_digest"
+            if result=$(process_single_digest "$manifest_digest")
+            then
+              echo "$result"
               return 0
             fi
-
-            local prev_bundle_digest
-            prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" <"${HOME}/manifest.json")
-            if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
-              # This bundle points to a previous bundle that has migration.
-              echo "$prev_bundle_digest"
-              return 0
-            fi
-            # Otherwise, output empty to indicate there is no previous bundle digest with migration file.
-            echo
-            return 0
           done
+
+          # check pagination
+          echo "$response" | jq -e '.has_additional != true' >/dev/null && break
           ((page++))
         done
-        # Otherwise, output empty to indicate not point any bundle.
-        echo
-        return 0
+
+        echo  # return empty if unfound
       }
 
       # task_dir is where the task definition reside
@@ -338,18 +351,18 @@ spec:
 
       # check if migration script file in commit
       has_migration=false
-      prefix="$(workspaces.source.path)/${SOURCE_CODE_DIR}/"
-      relative_task_dir="${task_dir#$prefix}" # get the task file path starting from "task"
-      migration_file="${relative_task_dir}/migrations/${task_version}.sh"
+      migration_file="${task_dir}/migrations/${task_version}.sh"
       pushd "$(workspaces.source.path)/${SOURCE_CODE_DIR}"
       if [ ! -d ".git" ]; then
         echo ".git folder is not found, please switch to correct git root directory and check it again"
         exit 1
       fi
-      if [ -f "$migration_file" ] && git show "$REVISION" --oneline --name-only | grep -q "$migration_file"; then
+      prefix="$(workspaces.source.path)/${SOURCE_CODE_DIR}/"
+      relative_migration_file_path="${migration_file#$prefix}" # get the relative migration file path like task/<task-name>/<task_version>/migrations/<task_version>.sh
+      if [ -f "$relative_migration_file_path" ] && git show "$REVISION" --oneline --name-only | grep -q "$relative_migration_file_path"; then
         # There is a migration file matching the task concrete version and
         # is included in the same commit with the task.
-        echo "there is an migration file ${migration_file} in revision ${REVISION}"
+        echo "there is an migration file ${relative_migration_file_path} in revision ${REVISION}"
         has_migration=true
       fi
       popd
@@ -405,7 +418,6 @@ spec:
       echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
 
       if [ "$has_migration" == "true" ]; then
-        migration_file="$(workspaces.source.path)/${SOURCE_CODE_DIR}/${migration_file}"
         has_migration_file=$(bundle_has_migration "${IMAGE_REF}" "${task_version}" "${migration_file}")
         if [[ -z ${has_migration_file} ]]; then
           echo "there is different migration script file in task bundle ${IMAGE_REF}, failed"
