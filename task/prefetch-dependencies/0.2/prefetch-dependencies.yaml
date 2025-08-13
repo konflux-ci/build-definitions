@@ -225,6 +225,36 @@ spec:
         echo "$input"
       }
 
+      function retry() {
+        local status
+        local interval=1
+        local retry=0
+        local -r factor=${RETRY_FACTOR:-2}
+        local -r max_tries=${RETRY_MAX_TRIES:-10}
+        while true; do
+          echo "Executing:" "${@}" >&2
+          "$@" 2> /tmp/errors.txt && break
+          status=$?
+          cat /tmp/errors.txt >&2
+          ((retry += 1))
+          if [ $retry -ge "$max_tries" ]; then
+            echo "error: Command failed after ${max_tries} tries with status ${status}" >&2
+            return $status
+          fi
+
+          echo "warning: Command failed and will retry, ${retry} try" >&2
+
+          unauthorized_error=$(grep -ci "unauthorized" /tmp/errors.txt)
+          if [ "$unauthorized_error" -ne 0 ]; then
+            echo "error: Unauthorized error, wrong registry credentials provided, won't retry" >&2
+            return 1
+          fi
+
+          ((interval = interval * factor))
+          sleep "$interval"
+        done
+      }
+
       if [ -z "${INPUT}" ]; then
         # Confirm input was provided
         echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
@@ -278,9 +308,12 @@ spec:
         RHSM_ACT_KEY=$(cat /activation-key/activationkey)
 
         echo "Registering with Red Hat subscription manager."
-        subscription-manager register \
-            --org "${RHSM_ORG}" \
-            --activationkey "${RHSM_ACT_KEY}" || exit 1
+        export RETRY_MAX_TRIES=6
+        if ! retry subscription-manager register --org "${RHSM_ORG}" --activationkey "${RHSM_ACT_KEY}"; then
+            echo "Subscription-manager register failed"
+            exit 1
+        fi
+        unset RETRY_MAX_TRIES
 
         trap rhsm_unregister EXIT
 
