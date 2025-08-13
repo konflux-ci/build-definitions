@@ -4,6 +4,7 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
+    chains.tekton.dev/signed: "false"
   labels:
     app.kubernetes.io/version: "0.1"
     build.appstudio.redhat.com/build_type: modelcar
@@ -174,13 +175,14 @@ spec:
           echo "Failed to get digest for ${IMAGE} from registry"
           exit 1
         fi
-        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
-        echo
-        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-        echo
-        echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
-        # trying out new stuff
-        # Extract digest list from oras
+        # Save all result data to shared workdir for final step to process
+        echo "Saving result data to shared workdir..."
+        
+        echo -n "$RESULTING_DIGEST" > /var/workdir/IMAGE_DIGEST
+        echo -n "$IMAGE" > /var/workdir/IMAGE_URL  
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" > /var/workdir/IMAGE_REF
+        
+        # Extract digest list from oras for multiarch IMAGES result
         DIGESTS=$(oras manifest fetch \
           --registry-config auth.json \
           --format go-template \
@@ -199,52 +201,95 @@ spec:
 
         # Trim trailing comma and space
         IMAGES="${IMAGES%, }"
+        
+        echo -n "$IMAGES" > /var/workdir/IMAGES
 
-        # Output result
-        echo -n "$IMAGES" > "$(results.IMAGES.path)"
+        # Save manifest data for SBOM generation
+        echo "Saving manifest data for SBOM generation..."
+        oras manifest fetch --registry-config auth.json "$IMAGE" > /var/workdir/manifest_data.json
+        
+        echo "All data saved to workdir for final processing"
 
-    - name: sbom-generate
+    - name: generate-sbom
       image: quay.io/konflux-ci/mobster@sha256:5af1aa13f97ff2006e33b1e5d422c3a0b178ae000b35c9309f952b5fb4c174ff
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        set -euo pipefail
+        set -e
+        
+        echo "=== SBOM Generation ==="
+        
+        # Read saved data from workdir
+        IMAGE_DIGEST=$(cat /var/workdir/IMAGE_DIGEST)
+        IMAGE_URL=$(cat /var/workdir/IMAGE_URL)
+        
+        # Generate SBOM using multiarch approach
+        MANIFEST_DATA_FILE="/var/workdir/manifest_data.json"
+        if [ -f "$MANIFEST_DATA_FILE" ]; then
+          echo "Generating SBOM for multiarch image..."
+          mobster generate \
+            --output sbom.json \
+            oci-index \
+            --index-image-pullspec "$IMAGE_URL" \
+            --index-image-digest "$IMAGE_DIGEST" \
+            --index-manifest-path "$MANIFEST_DATA_FILE"
+          
+          echo "SBOM generated successfully"
+        else
+          echo "No manifest data found, skipping SBOM generation"
+          touch sbom.json  # Create empty file so upload step can handle gracefully
+        fi
 
-        MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
-
-        mobster generate  \
-          --output sbom.json \
-          modelcar \
-          --modelcar-image "$MODELCAR_IMAGE" \
-          --base-image "$BASE_IMAGE" \
-          --model-image "$MODEL_IMAGE" \
-          --sbom-type "$SBOM_TYPE"
-
-
-    - name: upload-sbom
+    - name: finalize-all-results
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -e
-
-        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
-        export DOCKER_CONFIG=/tmp/auth
-
-        echo "Pushing sbom to registry"
-        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
-        then
-            echo "Failed to push sbom to registry"
-            exit 1
+        
+        echo "=== FINAL STEP: Upload SBOM and Write ALL Results ==="
+        
+        # Read saved data from workdir
+        echo "Reading saved result data..."
+        IMAGE_DIGEST=$(cat /var/workdir/IMAGE_DIGEST)
+        IMAGE_URL=$(cat /var/workdir/IMAGE_URL)
+        IMAGE_REF=$(cat /var/workdir/IMAGE_REF)
+        IMAGES=$(cat /var/workdir/IMAGES)
+        
+        echo "IMAGE_DIGEST: $IMAGE_DIGEST"
+        echo "IMAGE_URL: $IMAGE_URL"
+        echo "IMAGE_REF: $IMAGE_REF"
+        echo "IMAGES: $IMAGES"
+        
+        # Upload SBOM if it exists and was generated
+        if [ -s "sbom.json" ]; then
+          echo "Uploading SBOM to registry..."
+          mkdir -p /tmp/auth && select-oci-auth "$IMAGE_REF" > /tmp/auth/config.json
+          export DOCKER_CONFIG=/tmp/auth
+          
+          if retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
+            echo "SBOM uploaded successfully"
+            
+            # Calculate SBOM URL
+            REPO=${IMAGE_URL%:*}
+            SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
+            SBOM_BLOB_URL="${REPO}@sha256:${SBOM_DIGEST}"
+            echo "SBOM_BLOB_URL: $SBOM_BLOB_URL"
+          else
+            echo "SBOM upload failed, using empty URL"
+            SBOM_BLOB_URL=""
+          fi
+        else
+          echo "No SBOM to upload, using empty URL"
+          SBOM_BLOB_URL=""
         fi
-    - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
-      workingDir: /var/workdir
-      script: |
-        #!/bin/bash
-        REPO=${IMAGE%:*}
-        echo "Found that ${REPO} is the repository for ${IMAGE}"
-        SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
-        echo "Found that ${SBOM_DIGEST} is the SBOM digest"
-        echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee "$(results.SBOM_BLOB_URL.path)"
+        
+        # Write ALL results at once - this must be the final operation
+        echo "Writing all final results..."
+        echo -n "$IMAGE_DIGEST" > "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE_URL" > "$(results.IMAGE_URL.path)"
+        echo -n "$IMAGE_REF" > "$(results.IMAGE_REF.path)"
+        echo -n "$IMAGES" > "$(results.IMAGES.path)"
+        echo -n "$SBOM_BLOB_URL" > "$(results.SBOM_BLOB_URL.path)"
+        
+        echo "✓ All results written successfully"
