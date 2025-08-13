@@ -71,8 +71,6 @@ spec:
     - name: model-secret
       secret:
         secretName: $(params.MODEL_IMAGE_AUTH)
-    - name: shared
-      emptyDir: {}
     - name: trusted-ca
       configMap:
         items:
@@ -101,8 +99,8 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:16d77d29cbdfdb7d77272c9c0c8b8c7f2d397c5e6381363b8d01766aa8bb518f
+    - name: download-models-and-create-base
+      image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -112,20 +110,14 @@ spec:
         set -eu
         set -o pipefail
 
-        if ! retry oras pull "$MODEL_IMAGE" \
+        if ! oras pull "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
         then
           echo "Failed to pull ${MODEL_IMAGE} from registry"
           exit 1
         fi
         chmod -R g+wx models
-    - name: create-modelcar-base-image
-      image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
-      workingDir: /var/workdir
-      script: |
-        #!/bin/bash
-        set -eu
-        set -o pipefail
+
         oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
         chmod -R g+w "$TARGET_OCI"
 
@@ -151,12 +143,12 @@ spec:
         pip install olot=="${OLOT_VERSION}"
         olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
-    - name: push-image
+    - name: push-and-write-results
       image: quay.io/konflux-ci/oras:latest@sha256:16d77d29cbdfdb7d77272c9c0c8b8c7f2d397c5e6381363b8d01766aa8bb518f
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        set -eux
+        set -eu
         set -o pipefail
 
         select-oci-auth "$IMAGE" >auth.json
@@ -174,13 +166,14 @@ spec:
           echo "Failed to get digest for ${IMAGE} from registry"
           exit 1
         fi
-        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
-        echo
-        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-        echo
+        
+        
+        # Write main results IMMEDIATELY (following build-image-manifest pattern)
+        echo -n "$RESULTING_DIGEST" > "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" > "$(results.IMAGE_URL.path)"
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
-        # trying out new stuff
-        # Extract digest list from oras
+        
+        # Extract digest list from oras for multiarch IMAGES result
         DIGESTS=$(oras manifest fetch \
           --registry-config auth.json \
           --format go-template \
@@ -199,27 +192,46 @@ spec:
 
         # Trim trailing comma and space
         IMAGES="${IMAGES%, }"
-
-        # Output result
+        
         echo -n "$IMAGES" > "$(results.IMAGES.path)"
 
-    - name: sbom-generate
+        # Save manifest data for oci-index SBOM generation
+        oras manifest fetch --registry-config auth.json "$IMAGE" > manifest_data.json
+
+    - name: generate-sbom
       image: quay.io/konflux-ci/mobster@sha256:5af1aa13f97ff2006e33b1e5d422c3a0b178ae000b35c9309f952b5fb4c174ff
       workingDir: /var/workdir
       script: |
         #!/bin/bash
-        set -euo pipefail
+        set -e
 
+        echo "=== GENERATE DUAL SBOM ==="
+        
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
+        IMAGE_DIGEST=$(cat "$(results.IMAGE_DIGEST.path)")
+        IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
+        
+        echo "MODELCAR_IMAGE: $MODELCAR_IMAGE"
+        echo "BASE_IMAGE: $BASE_IMAGE"
+        echo "MODEL_IMAGE: $MODEL_IMAGE"
 
-        mobster generate  \
-          --output sbom.json \
-          modelcar \
-          --modelcar-image "$MODELCAR_IMAGE" \
-          --base-image "$BASE_IMAGE" \
-          --model-image "$MODEL_IMAGE" \
-          --sbom-type "$SBOM_TYPE"
-
+        # Generate ONLY OCI Index SBOM (testing multiarch approach)
+        if [ -f "manifest_data.json" ]; then
+          echo "Generating OCI Index SBOM for multiarch..."
+          mobster generate \
+            --output sbom.json \
+            oci-index \
+            --index-image-pullspec "$IMAGE_URL" \
+            --index-image-digest "$IMAGE_DIGEST" \
+            --index-manifest-path "manifest_data.json"
+          echo "✓ OCI Index SBOM generated"
+        else
+          echo "No manifest data found, cannot generate SBOM"
+          exit 1
+        fi
+        
+        echo "✓ SBOM generation completed"
+        
 
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
@@ -228,23 +240,31 @@ spec:
         #!/bin/bash
         set -e
 
+        echo "=== UPLOAD SBOM ==="
+        
+        IMAGE_REF=$(cat "$(results.IMAGE_REF.path)")
+        IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
+        
+        echo "IMAGE_REF: $IMAGE_REF"
+        echo "IMAGE_URL: $IMAGE_URL"
+        
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-        mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+        mkdir -p /tmp/auth && select-oci-auth "$IMAGE_REF" > /tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
-        echo "Pushing sbom to registry"
-        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
-        then
-            echo "Failed to push sbom to registry"
+        # Upload OCI Index SBOM only
+        echo "Uploading OCI Index SBOM..."
+        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
+            echo "Failed to push oci-index sbom to registry"
             exit 1
         fi
-    - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
-      workingDir: /var/workdir
-      script: |
-        #!/bin/bash
-        REPO=${IMAGE%:*}
-        echo "Found that ${REPO} is the repository for ${IMAGE}"
-        SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
-        echo "Found that ${SBOM_DIGEST} is the SBOM digest"
-        echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee "$(results.SBOM_BLOB_URL.path)"
+        echo "✓ OCI Index SBOM uploaded successfully"
+
+        # Calculate SBOM URL (from oci-index SBOM)
+        sbom_repo="${IMAGE_URL%:*}"
+        sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+        SBOM_BLOB_URL="${sbom_repo}@sha256:${sbom_digest}"
+        echo "SBOM_BLOB_URL: $SBOM_BLOB_URL"
+        echo -n "$SBOM_BLOB_URL" > "$(results.SBOM_BLOB_URL.path)"
+        
+        echo "✓ SBOM upload completed"
