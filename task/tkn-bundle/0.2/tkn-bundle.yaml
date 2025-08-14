@@ -269,8 +269,8 @@ spec:
 
       # Find previous bundle that has a migration script file and output its digest.
       find_previous_migration_bundle_digest() {
-        local ns_repo=${IMAGE#*/} # Remove registry
-        local ns_repo=${ns_repo%:*} # Remove tag if exists
+        local ns_repo=${IMAGE%:*}  # remove tag if exists
+        ns_repo=${ns_repo#*/}  # remove registry
         local page=1 url result
 
         # handle single digest
