@@ -189,14 +189,14 @@ spec:
           yq '.metadata.labels."app.kubernetes.io/version"' "$task_file" | sed '/null/d' | tr -d '[:space:]'
       }
 
-      # check if migration file exists in given task bundle and task_version.
+      # check if migration script file exists in given task bundle and task_version.
       # Arguments: task_bundle, task_version, migration_file
       bundle_has_migration() {
         local -r task_bundle=$1
         local -r task_version=$2
         local -r migration_file=$3
 
-        # Check if task bundle has an attached migration file.
+        # Check if task bundle has an attached migration script file.
         local filename
         local found=
         local artifact_refs
@@ -235,7 +235,7 @@ spec:
           fi
         done <<<"$artifact_refs"
 
-        # the same migration file exist
+        # the same migration script file exist
         if [ "$found" == "true" ]; then
           echo true
         fi
@@ -263,7 +263,7 @@ spec:
           return 1
         fi
 
-        echo "Attached migration file $migration_file to $task_bundle"
+        echo "Attached migration script file $migration_file to $task_bundle"
 
         return 0
       }
@@ -383,9 +383,9 @@ spec:
         relative_migration_file_path=$(realpath --relative-to="$prefix" "$migration_file") # get the relative migration script file path like task/<task-name>/<task_version>/migrations/<task_version>.sh
 
         if git show "$REVISION" --oneline --name-only | grep -q "$relative_migration_file_path"; then
-          # There is a migration file matching the task concrete version and
+          # There is a migration script file matching the task concrete version and
           # is included in the same commit with the task.
-          echo "there is an migration file ${relative_migration_file_path} in revision ${REVISION}"
+          echo "there is a migration script file ${relative_migration_file_path} in revision ${REVISION}"
           has_migration=true
         fi
       fi
@@ -449,7 +449,7 @@ spec:
         fi
 
         if [[ "${has_migration_file}" == "true" ]]; then
-          echo "the same migration file exists in task bundle ${IMAGE_REF}, skipped"
+          echo "the same migration script file exists in task bundle ${IMAGE_REF}, skipped"
           exit 0
         fi
 
