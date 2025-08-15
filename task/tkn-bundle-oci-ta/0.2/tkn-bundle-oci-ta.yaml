@@ -394,13 +394,17 @@ spec:
           echo ".git folder is not found, please switch to correct git root directory and check it again"
           exit 1
         fi
-        prefix="/var/workdir/${SOURCE_CODE_DIR}/"
-        relative_migration_file_path="${migration_file#"$prefix"}" # get the relative migration file path like task/<task-name>/<task_version>/migrations/<task_version>.sh
-        if [ -f "$relative_migration_file_path" ] && git show "$REVISION" --oneline --name-only | grep -q "$relative_migration_file_path"; then
-          # There is a migration file matching the task concrete version and
-          # is included in the same commit with the task.
-          echo "there is an migration file ${relative_migration_file_path} in revision ${REVISION}"
-          has_migration=true
+
+        if [ -f "$migration_file" ]; then
+          prefix="/var/workdir/${SOURCE_CODE_DIR}/"
+          relative_migration_file_path=$(realpath --relative-to="$prefix" "$migration_file") # get the relative migration script file path like task/<task-name>/<task_version>/migrations/<task_version>.sh
+
+          if git show "$REVISION" --oneline --name-only | grep -q "$relative_migration_file_path"; then
+            # There is a migration file matching the task concrete version and
+            # is included in the same commit with the task.
+            echo "there is an migration file ${relative_migration_file_path} in revision ${REVISION}"
+            has_migration=true
+          fi
         fi
         popd
 
