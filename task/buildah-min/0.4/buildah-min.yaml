@@ -95,6 +95,11 @@ spec:
       data.
     name: caTrustConfigMapKey
     type: string
+  - default: "true"
+    description: Whether to keep compatibility location at /root/buildinfo/ for ICM
+      injection
+    name: ICM_KEEP_COMPAT_LOCATION
+    type: string
   - default: ""
     description: Comma separated list of extra capabilities to add when running 'buildah
       build'
@@ -275,7 +280,9 @@ spec:
       value: $(params.HTTP_PROXY)
     - name: BUILDAH_NO_PROXY
       value: $(params.NO_PROXY)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+    - name: ICM_KEEP_COMPAT_LOCATION
+      value: $(params.ICM_KEEP_COMPAT_LOCATION)
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     name: build
     script: |
       #!/bin/bash
@@ -376,7 +383,11 @@ spec:
       # Inject the image content manifest into the container we are producing.
       # This will generate the content-sets.json file and copy it by appending a COPY
       # instruction to the Containerfile.
-      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      icm_opts=()
+      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+        icm_opts+=(-c)
+      fi
+      inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -721,7 +732,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     name: push
     script: |
       #!/bin/bash

@@ -95,6 +95,11 @@ spec:
         build process.
       type: string
       default: ""
+    - name: ICM_KEEP_COMPAT_LOCATION
+      description: Whether to keep compatibility location at /root/buildinfo/
+        for ICM injection
+      type: string
+      default: "true"
     - name: IMAGE
       description: The task will build a container image and tag it locally
         as $IMAGE, but will not push the image anywhere. Due to the relationship
@@ -535,6 +540,8 @@ spec:
           value: $(params.HTTP_PROXY)
         - name: BUILDAH_NO_PROXY
           value: $(params.NO_PROXY)
+        - name: ICM_KEEP_COMPAT_LOCATION
+          value: $(params.ICM_KEEP_COMPAT_LOCATION)
         - name: ADDITIONAL_VOLUME_MOUNTS
           value: |-
             /opt/coverity:/opt/coverity
@@ -641,7 +648,11 @@ spec:
         # Inject the image content manifest into the container we are producing.
         # This will generate the content-sets.json file and copy it by appending a COPY
         # instruction to the Containerfile.
-        inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+        icm_opts=()
+        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+          icm_opts+=(-c)
+        fi
+        inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
         echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 

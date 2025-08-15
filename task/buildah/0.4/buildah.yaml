@@ -86,6 +86,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: ICM_KEEP_COMPAT_LOCATION
+    description: Whether to keep compatibility location at /root/buildinfo/ for ICM injection
+    type: string
+    default: "true"
   - name: ADD_CAPABILITIES
     description: Comma separated list of extra capabilities to add when running 'buildah build'
     type: string
@@ -238,7 +242,7 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
 
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     name: build
     computeResources:
       limits:
@@ -257,6 +261,8 @@ spec:
       value: $(params.HTTP_PROXY)
     - name: BUILDAH_NO_PROXY
       value: $(params.NO_PROXY)
+    - name: ICM_KEEP_COMPAT_LOCATION
+      value: $(params.ICM_KEEP_COMPAT_LOCATION)
     args:
       - --build-args
       - $(params.BUILD_ARGS[*])
@@ -364,7 +370,11 @@ spec:
       # Inject the image content manifest into the container we are producing.
       # This will generate the content-sets.json file and copy it by appending a COPY
       # instruction to the Containerfile.
-      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      icm_opts=()
+      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+        icm_opts+=(-c)
+      fi
+      inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -706,7 +716,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - name: push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)

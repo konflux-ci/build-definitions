@@ -32,6 +32,8 @@ Other details:
 
 |image-digest|Digest of the image to which the scan results should be associated.||true|
 |image-url|URL of the image to which the scan results should be associated.||true|
+|ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
+
 
 For path exclusions defined in the known-false-positives (KFP) repo to be applied to scan results, the component name should match the respective directory in KFP. By default this is sourced from the `"appstudio.openshift.io/component"` label, but the `PROJECT_NAME` parameter can be used to override this.
 

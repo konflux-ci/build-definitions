@@ -42,6 +42,8 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
 |PLATFORM|The platform to build on||true|
 |IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
+|ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
+
 
 ## Results
 |name|description|

@@ -23,6 +23,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
+|ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
 |IMAGE|Reference of the image buildah will produce.||true|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
