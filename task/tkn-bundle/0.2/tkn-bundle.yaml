@@ -275,12 +275,10 @@ spec:
         local page=1 url
         local manifest_file="${HOME}/manifest.json"
 
-        trap 'rm -f "$manifest_file"' EXIT
-
         is_task_bundle() {
             local digest=$1
             local url="https://quay.io/v2/${ns_repo}/manifests/${digest}"
-            if ! retry curl --fail -sL -o "$manifest_file" "$url"; then
+            if ! retry curl --fail -L --no-progress-meter -o "$manifest_file" "$url"; then
                 echo "failed to get manifest from $url "
                 return 1
             fi
@@ -300,8 +298,8 @@ spec:
 
           # get tag list of page $page
           local response
-          if ! response=$(retry curl --fail -sL "$url"); then
-            echo "failed to get the tag list from $url"
+          if ! response=$(retry curl --fail -L --no-progress-meter "$url"); then
+            # failed to get the tag list from $url
             return 1
           fi
 
@@ -324,11 +322,21 @@ spec:
 
             # get the digest with migration script file
             if [ "$is_task" = "true" ]; then
-              jq -r --arg ANNOT "$ANNOTATION_HAS_MIGRATION" \
-                 --arg PREV "$ANNOTATION_PREVIOUS_MIGRATION_BUNDLE" '
-              if .annotations[$ANNOT] == "true" then .manifest_digest
-              elif .annotations[$PREV]? != null then .annotations[$PREV]
-              else empty end' "$manifest_file"
+              local has_migration
+              has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" "$manifest_file")
+              if [ "$has_migration" == "true" ]; then
+                  echo "$manifest_digest"
+                  return 0
+              fi
+
+              local prev_bundle_digest
+              prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" "$manifest_file")
+              if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
+                  # This bundle points to a previous bundle that has migration.
+                  echo "$prev_bundle_digest"
+                  return 0
+              fi
+              echo
               return 0
             fi
             continue
