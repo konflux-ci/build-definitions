@@ -73,12 +73,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:1b744ca303ae1e017e15921c74130ae2b6760712d4ce129901dea3bc14c6092c
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a6a680a91d17772dd894356f2800fa0f9d4feb4c82deb44b4f5f5954d8fa1885
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: push
-      image: quay.io/konflux-ci/oras:latest@sha256:16f7158cce03054630ccfdc1332a76c1517d805ff707826d2ccf29f09b1228eb
+      image: quay.io/konflux-ci/oras:latest@sha256:720ad83b2b7f9239b0f04fabbeea568611dd07c18ad99f79b98ad0e5aa76331c
       workingDir: /var/workdir
       env:
         - name: IMAGE
