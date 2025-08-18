@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout build-defintions Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: "${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
           path: build-definitions
@@ -58,7 +58,7 @@ jobs:
 
       - name: Checkout konflux-ci/konflux-ci Repository
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci
