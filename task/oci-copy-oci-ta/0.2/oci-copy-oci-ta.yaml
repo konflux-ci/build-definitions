@@ -73,7 +73,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2712c8a6453fc9db5fc4c2d9d952554a4eea46d2fdba47a272b79fa07f8c8c40
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a6a680a91d17772dd894356f2800fa0f9d4feb4c82deb44b4f5f5954d8fa1885
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -107,7 +107,7 @@ spec:
           cat "/var/workdir/vars/$filename"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:1b693397e53b8c0ad2511c3a76f97b83caae335056f4c460a027d51edf1ec8a4
+      image: quay.io/konflux-ci/oras:latest@sha256:720ad83b2b7f9239b0f04fabbeea568611dd07c18ad99f79b98ad0e5aa76331c
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -316,7 +316,7 @@ spec:
           add:
             - SETFCAP
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster@sha256:1298794cb6c6bc3aa42a2f1206e8ec1497e9a105675a663648f31236a2dc605d
+      image: quay.io/konflux-ci/mobster@sha256:3603ad3858f87c0071563b4830b359333e14de09aeed445c074177ae936870f2
       workingDir: /var/workdir
       script: |
         #!/bin/bash

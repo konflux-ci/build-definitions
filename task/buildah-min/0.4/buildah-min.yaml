@@ -95,6 +95,11 @@ spec:
       data.
     name: caTrustConfigMapKey
     type: string
+  - default: "true"
+    description: Whether to keep compatibility location at /root/buildinfo/ for ICM
+      injection
+    name: ICM_KEEP_COMPAT_LOCATION
+    type: string
   - default: ""
     description: Comma separated list of extra capabilities to add when running 'buildah
       build'
@@ -275,7 +280,9 @@ spec:
       value: $(params.HTTP_PROXY)
     - name: BUILDAH_NO_PROXY
       value: $(params.NO_PROXY)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+    - name: ICM_KEEP_COMPAT_LOCATION
+      value: $(params.ICM_KEEP_COMPAT_LOCATION)
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     name: build
     script: |
       #!/bin/bash
@@ -376,7 +383,11 @@ spec:
       # Inject the image content manifest into the container we are producing.
       # This will generate the content-sets.json file and copy it by appending a COPY
       # instruction to the Containerfile.
-      inject-icm-to-containerfile "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      icm_opts=()
+      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+        icm_opts+=(-c)
+      fi
+      inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -443,7 +454,28 @@ spec:
         BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
       done
 
-      dockerfile-json "${BUILD_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
+      # Dockerfile-json cannot parse Buildah's host variables, we have to pass them manually
+      BUILDAH_INFO=$(buildah info)
+      BUILDAH_OS=$(jq -r '.host.os' <<< "$BUILDAH_INFO")
+      BUILDAH_ARCH=$(jq -r '.host.arch' <<< "$BUILDAH_INFO")
+      BUILDAH_VARIANT=$(jq -r '.host.variant' <<< "$BUILDAH_INFO")
+      BUILDAH_PLATFORM="${BUILDAH_OS}/${BUILDAH_ARCH}"
+
+      DOCKERFILE_ARG_FLAGS=()
+
+      # Reference for variables:
+      # https://docs.docker.com/build/building/variables/#pre-defined-build-arguments
+      PREFIXES=('BUILD' 'TARGET')
+      for PREFIX in "${PREFIXES[@]}"; do
+        DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}PLATFORM=${BUILDAH_PLATFORM}")
+        DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}OS=${BUILDAH_OS}")
+        DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}ARCH=${BUILDAH_ARCH}")
+        DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}VARIANT=${BUILDAH_VARIANT}")
+      done
+
+      DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
+
+      dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
       BASE_IMAGES=$(
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
             tr -d '"' |
@@ -721,7 +753,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     name: push
     script: |
       #!/bin/bash
@@ -799,7 +831,7 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
+  - image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:d97ca4eb3a57ced6f94508a1d1efacb5e78a6956201ffc4f82b50193f56c6a06
     name: sbom-syft-generate
     script: |
       echo "[$(date --utc -Ins)] Generate SBOM"

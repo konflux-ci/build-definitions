@@ -227,13 +227,13 @@ spec:
         buildah_retries=3
 
         echo "PULLING BUILDER IMAGE"
-        if ! retry time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
+        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
         then
             echo "Failed to pull image ${BOOTC_BUILDER_IMAGE} from registry"
             exit 1
         fi
         echo "PULLING IMAGE"
-        if ! retry time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $SOURCE_IMAGE
+        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $SOURCE_IMAGE
         then
             echo "Failed to pull image ${SOURCE_IMAGE} from registry"
             exit 1
