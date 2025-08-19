@@ -1,0 +1,119 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.21.1"
+    tekton.dev/tags: package-operator
+    tekton.dev/platforms: linux/amd64
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: package-operator-package
+  name: package-operator-package
+spec:
+  description: |-
+    Given a git repository, a reference (as in, tag or commit) and a path within the
+    repository this task will create a package-operator package.    The process of how a pko package is defined and packaged is documented
+    [here](https://package-operator.run/docs/guides/packaging-an-application/).
+    This task expects the package definition, will build it using `kubectl-package`
+    and push the created package to the given OCI registry destination.
+  params:
+    - name: SRC_PATH
+      description: Path of the directory within the repository that contains package manifest.
+      type: string
+    - name: DST_URL
+      description: URL where to push the generated pko package to.
+      type: string
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the package just built
+    - name: IMAGE_URL
+      description: Image repository and tag where the built package was pushed
+    - name: IMAGE_REF
+      description: Image reference of the built package
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification from provenance
+      type: string
+  workspaces:
+    - name: source
+      description: Workspace containing the source code to build.
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: ca-bundle.crt
+            path: ca-bundle.crt
+        name: trusted-ca
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+  - name: build-pkg
+    image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:a003501@sha256:2acd8331cf101ba16a2905e38ac6767275988f64851374ddbe33f037450c9e90
+    env:
+      - name: DST_URL
+        value: $(params.DST_URL)
+      - name: SRC_PATH
+        value: $(params.SRC_PATH)
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+
+      cd "$SRC_PATH"
+
+      digest=$(kubectl-package build --tag "$DST_URL" --push . --output-format digest)
+      echo -n "$digest" > "$(results.IMAGE_DIGEST.path)"
+      echo -n "$DST_URL" > "$(results.IMAGE_URL.path)"
+      echo -n "$DST_URL@$digest" > "$(results.IMAGE_REF.path)"
+    workingDir: $(workspaces.source.path)/source
+  - name: build-sbom
+    workingDir: $(workspaces.source.path)
+    image: quay.io/konflux-ci/mobster:1.0.0-1761030771@sha256:f751b8fb47409eeef7c3235f201a5a9c137a5014cf7f1474340298101c7b1a0f
+    env:
+      - name: SRC_PATH
+        value: $(params.SRC_PATH)
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+
+      cd source
+      git config --global --add safe.directory .
+
+      src_ref="$(git rev-parse --verify HEAD)"
+      src_repo_url="$(git remote get-url origin)"
+      cd -
+
+      url="$src_repo_url#ref=$src_ref&path=$SRC_PATH"
+
+      mobster generate --output sbom.json pko-package --sbom-type spdx \
+        --url "$url" --package-pullspec "$(cat "$(results.IMAGE_REF.path)")" --package-digest "$(cat "$(results.IMAGE_DIGEST.path)")"
+  - name: push-sbom
+    workingDir: $(workspaces.source.path)
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    env:
+      - name: DST_URL
+        value: $(params.DST_URL)
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom sbom.json --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
+
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo=sbom_repo="${IMAGE_URL%:*}"
+      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" > "$(results.SBOM_BLOB_URL.path)"
+      cosign attach sbom --sbom sbom.json --type spdx "$DST_URL"
