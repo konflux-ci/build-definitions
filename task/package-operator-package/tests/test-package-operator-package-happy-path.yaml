@@ -1,0 +1,59 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-package-operator-package
+spec:
+  description: |
+    Test the package-operator-package by building a stub package and pushing it somewhere.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-package-operator-package
+      taskRef:
+        name: package-operator-package
+      params:
+        - name: SRC_REPO_URL
+          value: https://github.com/package-operator/package-operator.git
+        - name: SRC_REF
+          value: dbcfde1e37c6773ec51ff3620f1a9d2c3d07a99d
+        - name: SRC_PATH
+          value: config/packages/test-stub
+        - name: DST_URL
+          value: registry-service.kind-registry/test-stub:latest
+    - name: verify-package-operator-package-result
+      params:
+        - name: DST_URL
+          value: registry-service.kind-registry/test-stub:latest
+      taskSpec:
+        params:
+          - name: DST_URL
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              name: trusted-ca
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: run-package-operator-package-test
+            env:
+              - name: DST_URL
+                value: $(params.DST_URL)
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+              mkdir image
+              cd image
+              oc image extract $DST_URL
+              [ -f package/manifest.yaml ]
+              echo "pass"
+      runAfter:
+        - run-package-operator-package
