@@ -1,0 +1,125 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.21.1"
+    tekton.dev/tags: package-operator
+    tekton.dev/platforms: linux/amd64
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: package-operator-package
+  name: package-operator-package
+spec:
+  description: |-
+    Given a git repository, a reference (as in, tag or commit) and a path within the
+    repository this task will create a package-operator package.
+
+    The process of how a pko package is defined and packaged is documented
+    [here](https://package-operator.run/docs/guides/packaging-an-application/).
+    This task expects the package definition, will build it using `kubectl-package`
+    and push the created package to the given OCI registry destination.
+  params:
+    - name: SRC_REPO_URL
+      description: URL of the git repo containing the package definition.
+      type: string
+    - name: SRC_REF
+      description: Git ref (branch, tag, commit) to use on the given src repo.
+      type: string
+    - name: SRC_PATH
+      description: Path within the check out src repo containing the package definition.
+      type: string
+    - name: DST_URL
+      description: URL where to push the generated pko package to.
+      type: string
+  volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: ca-bundle.crt
+            path: ca-bundle.crt
+        name: trusted-ca
+  stepTemplate:
+    env:
+      - name: SRC_REPO_URL
+        value: $(params.SRC_REPO_URL)
+      - name: SRC_REF
+        value: $(params.SRC_REF)
+      - name: SRC_PATH
+        value: $(params.SRC_PATH)
+      - name: DST_URL
+        value: $(params.DST_URL)
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+  - name: git-clone
+    image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
+    workingDir: /var/workdir
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      git clone "$SRC_REPO_URL" repo
+      cd repo
+      git config advice.detachedHead false
+      git checkout "$SRC_REF"
+  - name: build-pkg
+    image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794@sha256:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794
+    workingDir: /var/workdir
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      kubectl-package build --tag "$DST_URL" --push "repo/$SRC_PATH"
+  - name: sbom
+    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    workingDir: /var/workdir
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      echo '{
+        "spdxVersion": "SPDX-2.3",
+        "dataLicense": "CC0-1.0",
+        "documentNamespace": "https://package-operator.run",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "creationInfo": {
+          "creators": ["Tool: kubectl-package"]
+        },
+        "name": "package-operator-package",
+        "packages": [
+          {
+            "SPDXID": "SPDXRef-package-operator-package",
+            "name": "package-operator-package",
+            "downloadLocation": "NOASSERTION",
+            "licenseConcluded": "NOASSERTION",
+            "supplier": "NOASSERTION",
+            "externalRefs": [
+              {
+                "referenceType": "purl",
+                "referenceCategory": "PACKAGE-MANAGER"
+              }
+            ]
+          }
+        ],
+        "relationships": [
+          {
+            "spdxElementId": "SPDXRef-DOCUMENT",
+            "relationshipType": "DESCRIBES",
+            "relatedSpdxElement": "SPDXRef-package-operator-package"
+          }
+        ]
+      }
+      ' | jq \
+        --arg datearg "$(date --iso-8601=seconds -u)" \
+        --arg srcrefarg "$SRC_REF" \
+        --arg urlarg "${SRC_REPO_URL}?ref=${SRC_REF}&path=${SRC_PATH}" \
+        '.
+        | .creationInfo.created |= $datearg
+        | .packages[0].versionInfo |= $srcrefarg
+        | .packages[0].externalRefs[0].referenceLocator = $urlarg
+        ' > sbom.json
+      cosign attach sbom --sbom sbom.json --type spdx "$DST_URL"
