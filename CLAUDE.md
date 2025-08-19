@@ -1,0 +1,4 @@
+- Use additional rules from:
+  - @.cursor/rules/basic.mdc
+  - @.cursor/rules/git.mdc
+  - @.cursor/rules/tekton.mdc
