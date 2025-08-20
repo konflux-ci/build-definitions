@@ -22,3 +22,5 @@ Scans source code for non-printable unicode characters in all text files.
 |---|---|
 |TEST_OUTPUT|Tekton task test output.|
 
+
+## Additional info

@@ -15,3 +15,5 @@ Create a catalog index and render the provided bundles into it
 |name|description|optional|
 |---|---|---|
 |source|Workspace with the source code|false|
+
+## Additional info

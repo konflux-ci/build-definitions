@@ -20,3 +20,5 @@ Discover Dockerfile from source code and push it to registry as an OCI artifact.
 |---|---|
 |IMAGE_REF|Digest-pinned image reference to the Dockerfile image.|
 
+
+## Additional info

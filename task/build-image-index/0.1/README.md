@@ -23,3 +23,5 @@ This takes existing Image Manifests and combines them in an Image Index.
 |IMAGE_REF|Image reference of the built image containing both the repository and the digest|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 
+
+## Additional info

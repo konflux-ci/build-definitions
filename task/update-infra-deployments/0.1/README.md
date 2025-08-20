@@ -20,3 +20,5 @@ Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' pa
 |name|description|optional|
 |---|---|---|
 |artifacts|Workspace containing arbitrary artifacts used during the task run.|true|
+
+## Additional info

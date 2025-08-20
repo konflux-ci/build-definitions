@@ -14,3 +14,5 @@ Summary Pipeline Task. Prints PipelineRun information, removes image repository 
 |name|description|optional|
 |---|---|---|
 |workspace|The workspace where source code is included.|true|
+
+## Additional info

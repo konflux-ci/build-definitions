@@ -20,3 +20,5 @@ Given a file in the user's source directory, copy content from arbitrary urls in
 |IMAGE_URL|Repository where the artifact was pushed|
 |SBOM_BLOB_URL|Link to the SBOM blob pushed to the registry.|
 
+
+## Additional info

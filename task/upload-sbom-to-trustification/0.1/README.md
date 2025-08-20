@@ -35,3 +35,5 @@ Optional keys:
 |name|description|optional|
 |---|---|---|
 |sboms|Directory containing the SBOMs to upload|false|
+
+## Additional info

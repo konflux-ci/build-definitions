@@ -35,3 +35,5 @@ It is possible to change the default date formats for `SOURCE_DATE` and `ACTUAL_
 |actual-date|The actual date identified by this task. This can be used in other tasks if trying to establish parity between labels and tags.|
 |actual-date-epoch|The epoch of the actual date. This can be used in other tasks if trying to establish parity between labels and tags.|
 
+
+## Additional info

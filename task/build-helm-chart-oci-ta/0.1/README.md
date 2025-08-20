@@ -28,3 +28,5 @@ from the tag, followed by an abbreviated SHA as build metadata.
 |IMAGE_DIGEST|Digest of the OCI-Artifact just built|
 |IMAGE_URL|OCI-Artifact repository and tag where the built OCI-Artifact was pushed|
 
+
+## Additional info

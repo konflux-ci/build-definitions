@@ -20,3 +20,5 @@ Source image build.
 |SOURCE_IMAGE_DIGEST|The source image digest.|
 |SOURCE_IMAGE_URL|The source image url.|
 
+
+## Additional info
