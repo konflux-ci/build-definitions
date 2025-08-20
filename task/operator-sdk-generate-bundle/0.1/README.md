@@ -17,3 +17,5 @@ Generate an OLM bundle using the operator-sdk
 |name|description|optional|
 |---|---|---|
 |source|Workspace with the source code|false|
+
+## Additional info

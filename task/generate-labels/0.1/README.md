@@ -30,3 +30,5 @@ The following environment variables are defined for use in label-templates
 |actual-date|The actual date identified by this task. This can be used in other tasks if trying to establish parity between labels and tags.|
 |actual-date-epoch|The epoch of the actual date. This can be used in other tasks if trying to establish parity between labels and tags.|
 
+
+## Additional info

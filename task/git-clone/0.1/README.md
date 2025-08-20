@@ -25,8 +25,8 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |fetchTags|Fetch all tags for the repo.|false|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
-|mergeTargetBranch|Whether to merge the target branch into the revision after checkout.|false|false|
-|targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|"main"|false|
+|mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|
+|targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
 
 ## Results
 |name|description|
@@ -34,10 +34,10 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |commit|The precise commit SHA that was fetched by this Task.|
 |short-commit|The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters|
 |url|The precise URL that was fetched by this Task.|
-|merged_sha|The SHA of the commit after merging the target branch (if mergeTargetBranch is true) |
 |commit-timestamp|The commit timestamp of the checkout|
 |CHAINS-GIT_URL|The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.|
 |CHAINS-GIT_COMMIT|The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.|
+|merged_sha|The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).|
 
 ## Workspaces
 |name|description|optional|
@@ -45,3 +45,5 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |output|The git repo will be cloned onto the volume backing this Workspace.|false|
 |ssh-directory|A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. |true|
 |basic-auth|A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. |true|
+
+## Additional info
