@@ -1,7 +1,42 @@
-# Build Helm Chart OCI TA Task
+# build-helm-chart-oci-ta task
 
-This Tekton task packages and pushes a Helm chart to an OCI repository with support for
-image substitution.
+The task packages and pushes a Helm chart to an OCI repository.
+As Helm charts require to have a semver-compatible version to be packaged, the
+task relies on git tags in order to determine the chart version during runtime.
+
+The task computes the version based on the git commit SHA distance from the latest
+tag prefixed with the value of TAG_PREFIX. The value of that tag will be used as
+the version's X.Y values, and the Z value will be computed by the commit's distance
+from the tag, followed by an abbreviated SHA as build metadata.
+
+The task also supports image substitution in the chart templates. Use the IMAGE_MAPPINGS
+parameter to specify source images to be replaced with target images and tags.
+
+Version 0.2 includes improved digest extraction from skopeo copy operations.
+
+## Parameters
+|name|description|default value|required|
+|---|---|---|---|
+|CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|CHART_CONTEXT|Path relative to SOURCE_CODE_DIR where the chart is located|dist/chart/|false|
+|COMMIT_SHA|Git commit sha to build chart for||true|
+|IMAGE_MAPPINGS|JSON array of image mappings to substitute in chart templates. Format: [{"source": "localhost/my/repo", "target": "quay.io/myorg/myapp"}] Source images will be replaced with target images in all YAML files in templates/. The task automatically appends the tag format: VERSION_SUFFIX-COMMIT_SHA (or just COMMIT_SHA if VERSION_SUFFIX is empty).|[]|false|
+|IMAGE|Full image reference with tag (e.g., quay.io/redhat-user-workloads/konflux-vanguard-tenant/caching/squid:on-pr-{{revision}})||true|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|SOURCE_CODE_DIR|Path relative to the workingDir where the code was pulled into|source|false|
+|TAG_PREFIX|An identifying prefix on which the version tag is to be matched|helm-|false|
+|VALUES_FILES|Array of values file names to process for image substitution (e.g., ["values.yaml", "values-prod.yaml", "values-dev.yaml"])|["values.yaml"]|false|
+|VERSION_SUFFIX|A suffix to be added to the version string|""|false|
+
+## Results
+|name|description|
+|---|---|
+|IMAGE_DIGEST|Digest of the OCI-Artifact just built|
+|IMAGE_URL|OCI-Artifact repository and tag where the built OCI-Artifact was pushed|
+
+
+## Additional info
 
 ## Features
 
@@ -10,29 +45,6 @@ image substitution.
 - **Image Substitution**: Replaces source images with target images in chart templates
 - **Git-based Versioning**: Uses git tags to determine chart versions
 - **Trusted Artifacts**: Uses trusted artifacts for source code access
-
-## Parameters
-
-| Parameter | Description | Default | Required |
-|-----------|-------------|---------|----------|
-| `IMAGE` | Full image reference with tag (e.g., quay.io/redhat-user-workloads/konflux-vanguard-tenant/caching/squid:on-pr-{{revision}}) | - | Yes |
-| `COMMIT_SHA` | Git commit SHA to build chart for | - | Yes |
-| `SOURCE_ARTIFACT` | The Trusted Artifact URI pointing to the artifact with the application source code | - | Yes |
-| `SOURCE_CODE_DIR` | Path relative to workingDir where code was pulled | `source` | No |
-| `CHART_CONTEXT` | Path relative to SOURCE_CODE_DIR where chart is located | `dist/chart/` | No |
-| `VERSION_SUFFIX` | Suffix to be added to the version string | `""` | No |
-| `TAG_PREFIX` | Prefix for version tag matching | `helm-` | No |
-| `IMAGE_MAPPINGS` | JSON array of image mappings for substitution. Substitutions occur in templates/ and all specified values files. | `[]` | No |
-| `VALUES_FILES` | Array of values file names to process for image substitution (e.g., ["values.yaml", "values-prod.yaml"]) | `["values.yaml"]` | No |
-| `CA_TRUST_CONFIG_MAP_NAME` | ConfigMap name for CA bundle | `trusted-ca` | No |
-| `CA_TRUST_CONFIG_MAP_KEY` | ConfigMap key for CA bundle | `ca-bundle.crt` | No |
-
-## Results
-
-| Result | Description |
-|--------|-------------|
-| `IMAGE_DIGEST` | Digest of the OCI-Artifact just built |
-| `IMAGE_URL` | OCI-Artifact repository and tag where the built OCI-Artifact was pushed |
 
 ## Image Substitution
 
@@ -257,4 +269,3 @@ The task calculates chart versions based on git tags:
 - The task preserves YAML formatting and quotes target images consistently
 - Source images are matched exactly (no partial matching)
 - The task is idempotent - running it multiple times with the same mappings is safe
-

@@ -1,7 +1,8 @@
-# build-helm-chart task
-
+## Warning
 > **Deprecated**: This task is deprecated. Please remove it from your pipeline.
   Deprecation date: 2025-07-28
+
+# build-helm-chart task
 
 The task packages and pushes a Helm chart to an OCI repository.
 As Helm charts require to have a semver-compatible version to be packaged, the
@@ -16,15 +17,23 @@ from the tag, followed by an abbreviated SHA as build metadata.
 |name|description|default value|required|
 |---|---|---|---|
 |REPO|Designated registry for the chart to be pushed to||true|
-|COMMIT_SHA|Git commit sha to build chart for|alpha|true|
+|COMMIT_SHA|Git commit sha to build chart for||true|
 |SOURCE_CODE_DIR|Path relative to the workingDir where the code was pulled into|source|false|
-|CHART_CONTEXT|Path relative to SOURCE_CODE_DIR where the chart is located|dist/chart|false|
+|CHART_CONTEXT|Path relative to SOURCE_CODE_DIR where the chart is located|dist/chart/|false|
 |VERSION_SUFFIX|A suffix to be added to the version string|""|false|
 |TAG_PREFIX|An identifying prefix on which the version tag is to be matched|helm-|false|
 |CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 
+## Results
+|name|description|
+|---|---|
+|IMAGE_DIGEST|Digest of the OCI-Artifact just built|
+|IMAGE_URL|OCI-Artifact repository and tag where the built OCI-Artifact was pushed|
+
 ## Workspaces
 |name|description|optional|
 |---|---|---|
-|source|Workspace with the source code|false|
+|source|Workspace containing the source code to build.|false|
+
+## Additional info

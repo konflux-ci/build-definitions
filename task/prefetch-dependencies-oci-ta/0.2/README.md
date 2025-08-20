@@ -49,3 +49,5 @@ params:
 |---|---|---|
 |git-basic-auth|A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. |true|
 |netrc|Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. |true|
+
+## Additional info

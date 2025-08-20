@@ -1,29 +1,26 @@
-# sbom-json-check task
-
-## Deprecation notice
-
+## Warning
 This task is deprecated with set deprecation date on 2024-09-30. EC will report presence of this task as violation after this date and before only as warning, please remove it from you pipeline.
 
-## Description:
+# sbom-json-check task
 
-The sbom-json-check task verifies the integrity and security of a Software Bill of Materials (SBOM) file in JSON format using the CyloneDX tool.
+Verifies the integrity and security of the Software Bill of Materials (SBOM) file in JSON format using CyloneDX tool.
 
-The syntax of the sbom-cyclonedx.json file (found in the `/root/buildinfo/content_manifests/` directory) is checked using the CyloneDX tool, which is being led by longtime security community leader Open Web Application Security Project (OWASP). CycloneDX is a self-defined “lightweight SBOM standard designed for use in application security contexts and supply chain component analysis.”
+## Parameters
+|name|description|default value|required|
+|---|---|---|---|
+|IMAGE_URL|Fully qualified image name to verify.||true|
+|IMAGE_DIGEST|Image digest.||true|
+|CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 
-## Params:
+## Results
+|name|description|
+|---|---|
+|TEST_OUTPUT|Tekton task test output.|
+|IMAGES_PROCESSED|Images processed in the task.|
 
-| name                     | description                                                            | default       |
-|--------------------------|------------------------------------------------------------------------|---------------|
-| IMAGE_URL                | Fully qualified image name to verify.                                  | None          |
-| IMAGE_DIGEST             | Image digest.                                                          | None          |
-| CA_TRUST_CONFIG_MAP_NAME | The name of the ConfigMap to read CA bundle data from.                 | trusted-ca    |
-| CA_TRUST_CONFIG_MAP_KEY  | The name of the key in the ConfigMap that contains the CA bundle data. | ca-bundle.crt |
 
-## Results:
-
-| name                  | description              |
-|-----------------------|--------------------------|
-| TEST_OUTPUT     | Tekton task test output. |
+## Additional info
 
 ## Source repository for image:
 

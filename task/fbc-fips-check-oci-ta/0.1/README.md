@@ -17,3 +17,5 @@ In order to resolve them, this task expects a ImageDigestMirrorSet file located 
 |IMAGES_PROCESSED|Images processed in the task.|
 |TEST_OUTPUT|Tekton task test output.|
 
+
+## Additional info

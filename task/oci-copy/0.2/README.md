@@ -1,12 +1,6 @@
 # oci-copy task
 
-Given an `oci-copy.yaml` file in the user's source directory, the `oci-copy` task will copy content from arbitrary urls into the OCI registry.
-
-It generates a limited SBOM and pushes that into the OCI registry alongside the image.
-
-It is not to be considered safe for general use as it cannot provide a high degree of provenance for artficats and reports them only as "general" type artifacts in the purl spec it reports in the SBOM. Use only in limited situations.
-
-Note: the bearer token secret, if specified, will be sent to **all servers listed in the oci-copy.yaml file**.
+Given a file in the user's source directory, copy content from arbitrary urls into the OCI registry.
 
 ## Parameters
 |name|description|default value|required|
@@ -28,7 +22,9 @@ Note: the bearer token secret, if specified, will be sent to **all servers liste
 ## Workspaces
 |name|description|optional|
 |---|---|---|
-|source|Workspace containing the source code to copy.|false|
+|source|Workspace containing the source artifacts to copy|false|
+
+## Additional info
 
 ## oci-copy.yaml schema
 JSON schema for the `oci-copy.yaml` file.
