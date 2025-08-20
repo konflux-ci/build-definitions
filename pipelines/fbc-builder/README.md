@@ -62,6 +62,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
 |HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| | |
+|ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_APPEND_PLATFORM| Whether to append a sanitized platform architecture on the IMAGE tag| false| 'true'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
@@ -157,19 +158,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### run-opm-command-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|IDMS_PATH| Optional, path for ImageDigestMirrorSet file. It defaults to .tekton/images-mirror-set.yaml`| .tekton/images-mirror-set.yaml| |
-|OPM_ARGS| The array of arguments to pass to the 'opm' command (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).| None| []|
+|FILE_TO_UPDATE_PULLSPEC| Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.| | |
+|IDMS_PATH| Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'| .tekton/images-mirror-set.yaml| |
+|OPM_ARGS| The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).| []| []|
 |OPM_OUTPUT_PATH| Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).| None| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
-|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| None| '$(params.image-expires-after)'|
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts. Empty string means no expiration.| None| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).opm'|
-### show-sbom:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|PLATFORM| Specific architecture to display the SBOM for. An example arch would be "linux/amd64". If IMAGE_URL refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".| linux/amd64| |
 ### validate-fbc:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -190,7 +185,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGES| List of all referenced image manifests| |
 |IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; apply-tags:0.2:IMAGE_DIGEST ; validate-fbc:0.1:IMAGE_DIGEST ; fbc-target-index-pruning-check:0.1:IMAGE_DIGEST ; fbc-fips-check-oci-ta:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.2:IMAGE_URL ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.2:IMAGE_URL ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-remote-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

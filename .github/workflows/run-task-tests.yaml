@@ -14,14 +14,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout build-defintions Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: "${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
           path: build-definitions
 
       - name: Get all changed files in the PR from task directory
         id: changed-dirs
-        uses: tj-actions/changed-files@f963b3f3562b00b6d2dd25efc390eb04e51ef6c6
+        uses: tj-actions/changed-files@2036da178f85576f1940fedb74bb93a36cd89ab7
         with:
           files: |
             # Any task yaml or script (including its tests) is changed
@@ -58,7 +58,7 @@ jobs:
 
       - name: Checkout konflux-ci/konflux-ci Repository
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci

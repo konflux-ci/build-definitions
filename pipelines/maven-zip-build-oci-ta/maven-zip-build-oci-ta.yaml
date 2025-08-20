@@ -13,14 +13,7 @@ spec:
 
     _Uses `prefetch-dependencies` to fetch all artifacts which will be the content of the maven zip, and then uses `build-maven-zip-oci-ta` to create zip and push it to quay.io as oci-artifact. Information is shared between tasks using OCI artifacts instead of PVCs.
     This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-maven-zip-build-oci-ta?tab=tags)_
-  finally:
-  - name: show-sbom
-    params:
-    - name: IMAGE_URL
-      value: $(tasks.build-oci-artifact.results.IMAGE_URL)
-    taskRef:
-      name: show-sbom
-      version: "0.1"
+  finally: []
   params:
   - description: Source Repository URL
     name: git-url
