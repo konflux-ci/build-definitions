@@ -149,6 +149,14 @@ spec:
           value: $(params.URL)
         - name: REVISION
           value: $(params.REVISION)
+        - name: EVENT_TYPE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['pipelinesascode.tekton.dev/event-type']
+        - name: ON_CEL_EXPRESSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/on-cel-expression']
       script: |
         #!/bin/env bash
 
@@ -161,6 +169,8 @@ spec:
         declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
         # The annotation value points to the task bundle which has a migration that's most recent to the task with the annotation
         declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
+        # the event type for comment test/retest on commit
+        declare -r test_comments=("test-all-comment" "test-comment" "retest-all-comment" "retest-comment")
 
         # shellcheck disable=SC2153
         mapfile -t FILES <"${TASK_FILE}"
@@ -368,6 +378,23 @@ spec:
           return 0
         }
 
+        # Find previous bundle from the specifix image for the rebuild
+        find_previous_migration_bundle_digest_from_image() {
+          local prev_bundle_digest
+          prev_bundle_digest=$(retry skopeo inspect --no-tags --raw "docker://$IMAGE" | jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"")
+          local status=$?
+          if [[ status -ne 0 ]]; then
+            echo
+            return 1
+          fi
+          if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
+            echo "$prev_bundle_digest"
+            return 0
+          fi
+          echo
+          return 0
+        }
+
         # task_dir is where the task definition reside
         # this task run for only one task file, so extracting it from the first element is enough
         task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
@@ -383,7 +410,13 @@ spec:
         fi
 
         echo "info: finding the previous task bundle that has a migration" 1>&2
-        previous_migration_bundle_digest=$(find_previous_migration_bundle_digest)
+        # check if this is a retest comment for pushed code and task bundle with the same revisioin as tag exists
+        if printf '%s\n' "${test_comments[@]}" | grep -q "^${EVENT_TYPE}$" && [[ "$ON_CEL_EXPRESSION" == *"event == \"push\""* ]] && retry skopeo inspect "docker://$IMAGE" >/dev/null 2>&1; then
+          echo "this is a rebuild for push event, and task bundle $IMAGE has existed in registry, so use the prev_bundle_digest in existing task bundle"
+          previous_migration_bundle_digest=$(find_previous_migration_bundle_digest_from_image)
+        else
+          previous_migration_bundle_digest=$(find_previous_migration_bundle_digest)
+        fi
 
         # check if migration script file exists in commit
         has_migration=false
@@ -394,12 +427,14 @@ spec:
           echo ".git folder is not found, please switch to correct git root directory and check it again"
           exit 1
         fi
+
         if [ -f "$migration_file" ]; then
           prefix="/var/workdir/${SOURCE_CODE_DIR}/"
           relative_migration_file_path=$(realpath --relative-to="$prefix" "$migration_file") # get the relative migration script file path like task/<task-name>/<task_major_version>/migrations/<task_version>.sh
 
           relative_task_file_path=$(realpath --relative-to="$prefix" "${FILES[0]}")
           task_file_sha=$(git log -n 1 --pretty=format:%H -- "$relative_task_file_path")
+
           if git show "$task_file_sha" --oneline --name-only | grep -q "$relative_migration_file_path"; then
             # There is a migration script file matching the task concrete version and
             # is included in the same commit with the task.
