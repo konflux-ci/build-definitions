@@ -215,20 +215,33 @@ spec:
         echo "BASE_IMAGE: $BASE_IMAGE"
         echo "MODEL_IMAGE: $MODEL_IMAGE"
 
-        # Generate ONLY OCI Index SBOM (testing multiarch approach)
+        # Generate ModelCar SBOM (for component relationships)
+        echo "Generating ModelCar SBOM..."
+        mobster generate \
+          --output modelcar.sbom.json \
+          modelcar \
+          --modelcar-image "$MODELCAR_IMAGE" \
+          --base-image "$BASE_IMAGE" \
+          --model-image "$MODEL_IMAGE" \
+          --sbom-type "$SBOM_TYPE"
+        echo "✓ ModelCar SBOM generated"
+
+        # Generate OCI Index SBOM (for multiarch base image information)  
         if [ -f "manifest_data.json" ]; then
           echo "Generating OCI Index SBOM for multiarch..."
           mobster generate \
-            --output sbom.json \
+            --output oci-index.sbom.json \
             oci-index \
             --index-image-pullspec "$IMAGE_URL" \
             --index-image-digest "$IMAGE_DIGEST" \
             --index-manifest-path "manifest_data.json"
           echo "✓ OCI Index SBOM generated"
         else
-          echo "No manifest data found, cannot generate SBOM"
-          exit 1
+          echo "Warning: No manifest data found, skipping OCI Index SBOM"
         fi
+
+        # Use ModelCar SBOM as primary (for backward compatibility)
+        cp modelcar.sbom.json sbom.json
         
         echo "✓ SBOM generation completed"
         
@@ -252,17 +265,27 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$IMAGE_REF" > /tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
-        # Upload OCI Index SBOM only
-        echo "Uploading OCI Index SBOM..."
-        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
-            echo "Failed to push oci-index sbom to registry"
+        # Upload ModelCar SBOM (primary)
+        echo "Uploading ModelCar SBOM..."
+        if ! retry cosign attach sbom --sbom modelcar.sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
+            echo "Failed to push modelcar sbom to registry"
             exit 1
         fi
-        echo "✓ OCI Index SBOM uploaded successfully"
+        echo "✓ ModelCar SBOM uploaded successfully"
 
-        # Calculate SBOM URL (from oci-index SBOM)
+        # Upload OCI Index SBOM (for multiarch base image info)
+        if [ -f "oci-index.sbom.json" ]; then
+          echo "Uploading OCI Index SBOM..."
+          if retry cosign attach sbom --sbom oci-index.sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
+              echo "✓ OCI Index SBOM uploaded successfully"
+          else
+              echo "Warning: Failed to upload OCI Index SBOM, continuing..."
+          fi
+        fi
+
+        # Calculate SBOM URL (from primary ModelCar SBOM)
         sbom_repo="${IMAGE_URL%:*}"
-        sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+        sbom_digest="$(sha256sum modelcar.sbom.json | cut -d' ' -f1)"
         SBOM_BLOB_URL="${sbom_repo}@sha256:${sbom_digest}"
         echo "SBOM_BLOB_URL: $SBOM_BLOB_URL"
         echo -n "$SBOM_BLOB_URL" > "$(results.SBOM_BLOB_URL.path)"
