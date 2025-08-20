@@ -338,7 +338,7 @@ spec:
               fi
 
               # get the digest with migration script file
-              if [ "$is_task" = "true" ]; then
+              if [ "$is_task" == "true" ]; then
                 local has_migration
                 has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" "$manifest_file")
                 if [ "$has_migration" == "true" ]; then
@@ -394,12 +394,14 @@ spec:
           echo ".git folder is not found, please switch to correct git root directory and check it again"
           exit 1
         fi
+
         if [ -f "$migration_file" ]; then
           prefix="/var/workdir/${SOURCE_CODE_DIR}/"
           relative_migration_file_path=$(realpath --relative-to="$prefix" "$migration_file") # get the relative migration script file path like task/<task-name>/<task_major_version>/migrations/<task_version>.sh
 
           relative_task_file_path=$(realpath --relative-to="$prefix" "${FILES[0]}")
           task_file_sha=$(git log -n 1 --pretty=format:%H -- "$relative_task_file_path")
+
           if git show "$task_file_sha" --oneline --name-only | grep -q "$relative_migration_file_path"; then
             # There is a migration script file matching the task concrete version and
             # is included in the same commit with the task.
@@ -429,11 +431,20 @@ spec:
         description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
         ANNOTATIONS+=("org.opencontainers.image.description=${description}")
 
-        if [ "$has_migration" == "true" ]; then
-          ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
-        fi
-
         ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${previous_migration_bundle_digest}")
+
+        if [ "$has_migration" == "true" ]; then
+          if [ -n "$previous_migration_bundle_digest" ]; then
+            previous_task_bundle="${IMAGE%%:*}@${previous_migration_bundle_digest}"
+            if ! has_same_migration_in_previous_task_bundle=$(bundle_has_migration "${previous_task_bundle}" "${task_version}" "${migration_file}") || [[ "${has_same_migration_in_previous_task_bundle}" == "false" ]]; then
+              ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
+            fi
+            # still ignore the migration script file if the same migration script file has been attached to previous task bundle
+            # especially for repush or PR with .tekton/ files change only
+            echo "the same migration script file exists in previous task bundle ${previous_task_bundle} for pushed event, skipped"
+            has_migration=false
+          fi
+        fi
 
         echo "Added annotations:"
         ANNOTATION_FLAGS=()
