@@ -147,40 +147,40 @@ spec:
                 - mountPath: /tekton/home/.docker/config.json
                   subPath: .dockerconfigjson
                   name: quay-secret
-            # - name: update-acceptable-bundles
-            #   image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
-            #   workingDir: $(workspaces.source.path)/source
-            #   env:
-            #   - name: REVISION
-            #     value: "$(params.revision)"
-            #   - name: GIT_URL
-            #     value: "$(params.git-url)"
-            #   - name: GITHUB_TOKEN
-            #     valueFrom:
-            #       secretKeyRef:
-            #         name: "{{ git_auth_secret }}"
-            #         key: "git-provider-token"
-            #   script: |
-            #     #!/bin/bash
-            #     set -euo pipefail
+            - name: update-acceptable-bundles
+              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              workingDir: $(workspaces.source.path)/source
+              env:
+              - name: REVISION
+                value: "$(params.revision)"
+              - name: GIT_URL
+                value: "$(params.git-url)"
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: "{{ git_auth_secret }}"
+                    key: "git-provider-token"
+              script: |
+                #!/bin/bash
+                set -euo pipefail
 
-            #     DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
-            #     DATA_BUNDLE_TAG=$(date '+%s')
-            #     export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
+                DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
+                DATA_BUNDLE_TAG=$(date '+%s')
+                export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
 
-            #     list=()
-            #     for f in "$@"; do
-            #       [[ -f "$f" ]] && list+=("$f")
-            #     done
+                list=()
+                for f in "$@"; do
+                  [[ -f "$f" ]] && list+=("$f")
+                done
 
-            #     .tekton/scripts/build-acceptable-bundles.sh "${list[@]}"
+                .tekton/scripts/build-acceptable-bundles.sh "${list[@]}"
 
-            #     echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
-            #   args:
-            #     - $(workspaces.source.path)/task-bundle-list-konflux-ci
-            #     - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
-            #     - $(workspaces.source.path)/task-bundle-list-appstudio
-            #     - $(workspaces.source.path)/pipeline-bundle-list-appstudio
+                echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
+              args:
+                - $(workspaces.source.path)/task-bundle-list-konflux-ci
+                - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+                - $(workspaces.source.path)/task-bundle-list-appstudio
+                - $(workspaces.source.path)/pipeline-bundle-list-appstudio
           volumes:
           - name: quay-secret
             secret:
