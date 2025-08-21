@@ -215,16 +215,34 @@ spec:
         echo "BASE_IMAGE: $BASE_IMAGE"
         echo "MODEL_IMAGE: $MODEL_IMAGE"
 
-        # Generate ModelCar SBOM (for component relationships)
-        echo "Generating ModelCar SBOM..."
-        mobster generate \
-          --output modelcar.sbom.json \
-          modelcar \
-          --modelcar-image "$MODELCAR_IMAGE" \
-          --base-image "$BASE_IMAGE" \
-          --model-image "$MODEL_IMAGE" \
-          --sbom-type "$SBOM_TYPE"
-        echo "✓ ModelCar SBOM generated"
+        # Parse IMAGES result to get individual arch-specific images
+        IMAGES_LIST=$(cat "$(results.IMAGES.path)")
+        echo "IMAGES_LIST: $IMAGES_LIST"
+        
+        # Convert comma-separated list to array
+        IFS=', ' read -ra IMAGE_ARRAY <<< "$IMAGES_LIST"
+        
+        echo "Generating ModelCar SBOMs for each architecture..."
+        SBOM_FILES=()
+        
+        # Generate ModelCar SBOM for each arch-specific image
+        for i in "${!IMAGE_ARRAY[@]}"; do
+          ARCH_IMAGE="${IMAGE_ARRAY[$i]}"
+          ARCH_NAME="arch-$(printf "%02d" $i)"
+          SBOM_FILE="modelcar-${ARCH_NAME}.sbom.json"
+          
+          echo "Generating ModelCar SBOM for $ARCH_IMAGE..."
+          mobster generate \
+            --output "$SBOM_FILE" \
+            modelcar \
+            --modelcar-image "$ARCH_IMAGE" \
+            --base-image "$BASE_IMAGE" \
+            --model-image "$MODEL_IMAGE" \
+            --sbom-type "$SBOM_TYPE"
+          
+          SBOM_FILES+=("$SBOM_FILE")
+          echo "✓ ModelCar SBOM generated for $ARCH_NAME: $SBOM_FILE"
+        done
 
         # Generate OCI Index SBOM (for multiarch base image information)  
         if [ -f "manifest_data.json" ]; then
@@ -236,12 +254,19 @@ spec:
             --index-image-digest "$IMAGE_DIGEST" \
             --index-manifest-path "manifest_data.json"
           echo "✓ OCI Index SBOM generated"
+          SBOM_FILES+=("oci-index.sbom.json")
         else
           echo "Warning: No manifest data found, skipping OCI Index SBOM"
         fi
 
-        # Use ModelCar SBOM as primary (for backward compatibility)
-        cp modelcar.sbom.json sbom.json
+        # Use first ModelCar SBOM as primary for backward compatibility
+        if [ ${#SBOM_FILES[@]} -gt 0 ]; then
+          cp "${SBOM_FILES[0]}" sbom.json
+          echo "Primary SBOM: ${SBOM_FILES[0]}"
+        fi
+        
+        # Save SBOM files list for upload step
+        printf '%s\n' "${SBOM_FILES[@]}" > sbom_files_list.txt
         
         echo "✓ SBOM generation completed"
         
@@ -265,28 +290,59 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$IMAGE_REF" > /tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
-        # Upload ModelCar SBOM (primary)
-        echo "Uploading ModelCar SBOM..."
-        if ! retry cosign attach sbom --sbom modelcar.sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
-            echo "Failed to push modelcar sbom to registry"
-            exit 1
+        # Read SBOM files list and IMAGES list
+        IMAGES_LIST=$(cat "$(results.IMAGES.path)")
+        IFS=', ' read -ra IMAGE_ARRAY <<< "$IMAGES_LIST"
+        
+        echo "Uploading SBOMs for all architectures..."
+        UPLOADED_SBOMS=()
+        
+        # Upload ModelCar SBOM for each architecture-specific image
+        if [ -f "sbom_files_list.txt" ]; then
+          readarray -t SBOM_FILES < sbom_files_list.txt
+          
+          for i in "${!IMAGE_ARRAY[@]}"; do
+            if [ $i -lt ${#SBOM_FILES[@]} ]; then
+              ARCH_IMAGE="${IMAGE_ARRAY[$i]}"
+              SBOM_FILE="${SBOM_FILES[$i]}"
+              
+              # Skip if this is the OCI Index SBOM (handle separately)
+              if [[ "$SBOM_FILE" == "oci-index.sbom.json" ]]; then
+                continue
+              fi
+              
+              echo "Uploading $SBOM_FILE to $ARCH_IMAGE..."
+              if retry cosign attach sbom --sbom "$SBOM_FILE" --type "$SBOM_TYPE" "$ARCH_IMAGE"; then
+                echo "✓ $SBOM_FILE uploaded successfully to $ARCH_IMAGE"
+                UPLOADED_SBOMS+=("$SBOM_FILE")
+              else
+                echo "Warning: Failed to upload $SBOM_FILE to $ARCH_IMAGE"
+              fi
+            fi
+          done
         fi
-        echo "✓ ModelCar SBOM uploaded successfully"
 
-        # Upload OCI Index SBOM (for multiarch base image info)
+        # Upload OCI Index SBOM to main image reference
         if [ -f "oci-index.sbom.json" ]; then
-          echo "Uploading OCI Index SBOM..."
+          echo "Uploading OCI Index SBOM to main image $IMAGE_REF..."
           if retry cosign attach sbom --sbom oci-index.sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
               echo "✓ OCI Index SBOM uploaded successfully"
+              UPLOADED_SBOMS+=("oci-index.sbom.json")
           else
               echo "Warning: Failed to upload OCI Index SBOM, continuing..."
           fi
         fi
 
-        # Calculate SBOM URL (from primary ModelCar SBOM)
-        sbom_repo="${IMAGE_URL%:*}"
-        sbom_digest="$(sha256sum modelcar.sbom.json | cut -d' ' -f1)"
-        SBOM_BLOB_URL="${sbom_repo}@sha256:${sbom_digest}"
+        # Calculate SBOM URL (from primary SBOM - first uploaded)
+        if [ ${#UPLOADED_SBOMS[@]} -gt 0 ]; then
+          PRIMARY_SBOM="${UPLOADED_SBOMS[0]}"
+          sbom_repo="${IMAGE_URL%:*}"
+          sbom_digest="$(sha256sum "$PRIMARY_SBOM" | cut -d' ' -f1)"
+          SBOM_BLOB_URL="${sbom_repo}@sha256:${sbom_digest}"
+        else
+          echo "Warning: No SBOMs uploaded successfully"
+          SBOM_BLOB_URL=""
+        fi
         echo "SBOM_BLOB_URL: $SBOM_BLOB_URL"
         echo -n "$SBOM_BLOB_URL" > "$(results.SBOM_BLOB_URL.path)"
         
