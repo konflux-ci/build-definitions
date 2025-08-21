@@ -23,12 +23,11 @@ spec:
         the prefetched dependencies.
       type: string
       default: ""
+    - name: IMAGE
+      description: Reference of the image ko will produce.
     - name: KO_DEFAULTBASEIMAGE
       description: base image for ko build
       default: ""
-    - name: KO_DOCKER_REPO
-      description: ko environment variable which identifies where to push images
-      type: string
     - name: KO_IMAGE
       description: ko image to use for builds
       default: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/ko-builder:127e70d57df2a6b75bf3a2bb233a6223fb6a8cab"
@@ -95,8 +94,6 @@ spec:
       env:
         - name: DOCKER_CONFIG
           value: "/opt/app-root/src/.docker"
-        - name: KO_DOCKER_REPO
-          value: "$(params.KO_DOCKER_REPO)"
         - name: KO_DEFAULTBASEIMAGE
           value: "$(params.KO_DEFAULTBASEIMAGE)"
         - name: GOFLAGS
@@ -105,7 +102,14 @@ spec:
         #!/bin/bash
         set -euo pipefail
 
-        ko build $(params.BUILD_ARGS) $(params.MAIN) 2>&1 | tee build.log
+        # Note: component value should equal the base name of MAIN.
+        export KO_DOCKER_REPO=$(dirname "$(params.IMAGE)")
+        base=$(basename "$(params.IMAGE)")
+        component="${base%:*}"
+        tag="${base##*:}"
+
+        args="-B $(params.BUILD_ARGS) -t ${tag}"
+        ko build ${args} $(params.MAIN) 2>&1 | tee build.log
 
         digest=$(grep Published build.log | grep -v SBOM | awk '{print $4}' | awk -F@ '{print $2}')
         url=$(grep Publishing build.log | awk '{print $4}')
