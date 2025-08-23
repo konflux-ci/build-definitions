@@ -256,7 +256,12 @@ spec:
       operator: in
       values:
       - "false"
-  - name: clair-scan
+  - matrix:
+      params:
+      - name: image-platform
+        value:
+        - $(params.build-platforms)
+    name: clair-scan
     params:
     - name: image-digest
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -266,7 +271,7 @@ spec:
     - build-image-index
     taskRef:
       name: clair-scan
-      version: "0.2"
+      version: "0.3"
     when:
     - input: $(params.skip-checks)
       operator: in
