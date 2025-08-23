@@ -1,0 +1,330 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.3"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: clair-scan
+spec:
+  description: >-
+    Scans container images for vulnerabilities using Clair, by comparing the components of container image against Clair's vulnerability databases.
+  params:
+    - name: image-digest
+      description: Image digest to scan.
+    - name: image-url
+      description: Image URL.
+    - name: image-platform
+      description: The platform built by.
+      default: ""
+    - name: docker-auth
+      description: unused, should be removed in next task version.
+      default: ""
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+    - name: SCAN_OUTPUT
+      description: Clair scan result.
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task.
+    - name: REPORTS
+      description: Mapping of image digests to report digests
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+    - name: get-image-manifests
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+
+        imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
+        # strip new-line escape symbol from parameter and save it to variable
+        imageanddigest=$(echo $imagewithouttag@$IMAGE_DIGEST)
+        echo "Inspecting raw image manifest $imageanddigest."
+
+        # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
+        image_manifests=$(get_image_manifests -i "${imageanddigest}")
+        if [ -n "$image_manifests" ]; then
+          echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r arch arch_sha; do
+            echo "$arch_sha" > /tekton/home/image-manifest-$arch.sha
+          done
+        else
+          echo "Failed to get image manifests from image \"$imageanddigest\""
+          note="Task $(context.task.name) failed: Failed to get image manifests from image \"$imageanddigest\". For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+    - name: get-vulnerabilities
+      image: quay.io/konflux-ci/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
+      computeResources:
+        limits:
+          memory: 6Gi
+        requests:
+          memory: 2Gi
+          cpu: 500m
+      imagePullPolicy: Always
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+        - name: IMAGE_PLATFORM
+          value: $(params.image-platform)
+      workingDir: /tekton/home
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+        # shellcheck source=/utils.sh
+        . /utils.sh
+
+        imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
+        images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+        digests_processed=()
+
+        # the quay report format used by the Conftest rules in the
+        # conftest-vulnerabilities step doesn't contain the "issued" date which
+        # we require in the policy rules, so we resort to running clair-action
+        # twice to produce both quay and clair formatted output
+        clair_report() {
+          { retry clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair | tee  "clair-report-$2.json"; } && \
+          { retry clair-action convert  --file-path="clair-report-$2.json" --format=quay > "clair-result-$2.json"; }
+        }
+
+        run_clair_on_arch() {
+          local arch="$1"
+          local sha_file="image-manifest-$arch.sha"
+
+          if [ -e "$sha_file" ]; then
+            local arch_sha
+            arch_sha=$(<"$sha_file")
+            local digest="${imagewithouttag}@${arch_sha}"
+
+            echo "Running clair-action on $arch image manifest..."
+            clair_report "$digest" "$arch" || true
+
+            digests_processed+=("\"$arch_sha\"")
+           fi
+        }
+
+        platform="${IMAGE_PLATFORM}"
+
+        # If a platform is specified, extract the architecture and run clair-action on the corresponding image manifest
+        if [ -n "$platform" ]; then
+          arch="${platform#*/}"
+          if [ "$arch" = "x86_64" ] || [ "$arch" = "local" ] || [ "$arch" = "localhost" ]; then
+            arch="amd64"
+          fi
+          # Validate against supported arch list. If it's not a known arch, fallback to amd64
+          case "$arch" in
+            amd64|ppc64le|arm64|s390x)
+              ;;
+            *)
+              echo "Error: Unsupported or malformed architecture: '$arch' (parsed from platform: '$platform')"
+              exit 0
+              ;;
+          esac
+
+          run_clair_on_arch "$arch"
+
+        # If no platform is specified, run clair-action on all available image manifests
+        else
+          for sha_file in image-manifest-*.sha; do
+            if [ -e "$sha_file" ]; then
+              arch=$(basename "$sha_file" | sed 's/image-manifest-//;s/.sha//')
+              run_clair_on_arch "$arch"
+            fi
+          done
+        fi
+
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+
+        images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
+        echo "$images_processed" > images-processed.json
+    - name: oci-attach-report
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      workingDir: /tekton/home
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        if ! compgen -G "clair-report-*.json" > /dev/null; then
+          echo 'No Clair reports generated. Skipping upload.'
+          exit 0
+        fi
+
+        echo "Selecting auth"
+        select-oci-auth "$IMAGE_URL" > "$HOME/auth.json"
+
+        repository="${IMAGE_URL/:*/}"
+
+        arch() {
+          report_file="$1"
+          arch="${report_file/*-}"
+          echo "${arch/.json/}"
+        }
+
+        MEDIA_TYPE='application/vnd.redhat.clair-report+json'
+
+        reports_json=""
+        for f in clair-report-*.json; do
+          digest=$(cat "image-manifest-$(arch "$f").sha")
+          image_ref="${repository}@${digest}"
+          echo "Attaching $f to ${image_ref}"
+          if ! report_digest="$(retry oras attach --no-tty --format go-template='{{.digest}}' --registry-config \
+            "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          then
+            echo "Failed to attach ${f} to ${image_ref}"
+            exit 1
+          fi
+          # shellcheck disable=SC2016
+          reports_json="$(yq --output-format json --indent=0 eval-all '. as $i ireduce ({}; . * $i)' <(echo "${reports_json}") <(echo "${digest}: ${report_digest}"))"
+        done
+        echo "${reports_json}" > reports.json
+    - name: conftest-vulnerabilities
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+      # the cluster will set imagePullPolicy to IfNotPresent
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        clair_result_files=$(ls /tekton/home/clair-result-*.json)
+        if [ -z "$clair_result_files" ]; then
+          echo "Previous step [get-vulnerabilities] failed: No clair-result files found in /tekton/home."
+        fi
+
+        missing_vulnerabilities_files=""
+        for file in $clair_result_files; do
+          file_suffix=$(basename "$file" | sed 's/clair-result-//;s/.json//')
+          if [ ! -s "$file" ]; then
+            echo "Previous step [get-vulnerabilities] failed: $file is empty."
+          else
+            /usr/bin/conftest test --no-fail $file \
+            --policy /project/clair/vulnerabilities-check.rego --namespace required_checks \
+            --output=json | tee /tekton/home/clair-vulnerabilities-$file_suffix.json || true
+          fi
+
+          #check for missing "clair-vulnerabilities-<arch>/image-index" file and create a string
+          if [ ! -f "/tekton/home/clair-vulnerabilities-$file_suffix.json" ]; then
+            missing_vulnerabilities_files+="${missing_vulnerabilities_files:+, }/tekton/home/clair-vulnerabilities-$file_suffix.json"
+          fi
+        done
+
+        if [ -n "$missing_vulnerabilities_files" ]; then
+          note="Task $(context.task.name) failed: $missing_vulnerabilities_files did not generate. For details, check Tekton task log."
+          TEST_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "$missing_vulnerabilities_files did not generate correctly. For details, check conftest command in Tekton task log."
+          echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+          exit 0
+        fi
+
+        scan_result='{"vulnerabilities":{"critical":0, "high":0, "medium":0, "low":0, "unknown":0}, "unpatched_vulnerabilities":{"critical":0, "high":0, "medium":0, "low":0, "unknown":0}}'
+        for file in /tekton/home/clair-vulnerabilities-*.json; do
+            result=$(jq -rce \
+                '{
+                    vulnerabilities:{
+                      critical: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      high: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      medium: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      low: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      unknown: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unknown_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
+                    },
+                    unpatched_vulnerabilities:{
+                      critical: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_critical_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      high: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_high_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      medium: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_medium_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      low: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_low_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0),
+                      unknown: (.[] | .warnings? // [] | map(select(.metadata.details.name=="clair_unpatched_unknown_vulnerabilities").metadata."vulnerabilities_number" // 0)| add // 0)
+                    }
+                }' "$file")
+
+            scan_result=$(jq -s -rce \
+                  '.[0].vulnerabilities.critical += .[1].vulnerabilities.critical |
+                  .[0].vulnerabilities.high += .[1].vulnerabilities.high |
+                  .[0].vulnerabilities.medium += .[1].vulnerabilities.medium |
+                  .[0].vulnerabilities.low += .[1].vulnerabilities.low |
+                  .[0].vulnerabilities.unknown += .[1].vulnerabilities.unknown |
+                  .[0].unpatched_vulnerabilities.critical += .[1].unpatched_vulnerabilities.critical |
+                  .[0].unpatched_vulnerabilities.high += .[1].unpatched_vulnerabilities.high |
+                  .[0].unpatched_vulnerabilities.medium += .[1].unpatched_vulnerabilities.medium |
+                  .[0].unpatched_vulnerabilities.low += .[1].unpatched_vulnerabilities.low |
+                  .[0].unpatched_vulnerabilities.unknown += .[1].unpatched_vulnerabilities.unknown |
+                  .[0]' <<<"$scan_result $result")
+        done
+
+        echo "$scan_result" | tee "$(results.SCAN_OUTPUT.path)"
+
+        cat /tekton/home/images-processed.json | tee $(results.IMAGES_PROCESSED.path)
+        # shellcheck disable=SC2154
+        cat /tekton/home/reports.json > "$(results.REPORTS.path)"
+
+        note="Task $(context.task.name) completed: Refer to Tekton task result SCAN_OUTPUT for vulnerabilities scanned by Clair."
+        TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "$note")
+        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.ca-trust-config-map-name)
+      items:
+        - key: $(params.ca-trust-config-map-key)
+          path: ca-bundle.crt
+      optional: true
