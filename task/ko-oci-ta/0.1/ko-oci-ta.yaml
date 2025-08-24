@@ -99,9 +99,10 @@ spec:
         - name: GOFLAGS
           value: "-buildvcs=false"
       volumeMounts:
-        - mountPath: /mnt/trusted-ca
-          name: trusted-ca
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           readOnly: true
+          subPath: ca-bundle.crt
       script: |
         #!/bin/bash
         set -euo pipefail
