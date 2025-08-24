@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.2/apply-tags.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.4/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.2/apply-tags.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -47,11 +47,11 @@ spec:
           - name: ARGS
             value: --report --project-name=konflux-ci/build-definitions
           - name: image-url
-            value: $(tasks.build-appstudio-utils.results.IMAGE_URL)
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
           - name: image-digest
-            value: $(tasks.build-appstudio-utils.results.IMAGE_DIGEST)
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
         taskRef:
           name: sast-snyk-check
         workspaces:
@@ -67,29 +67,49 @@ spec:
           - name: source
             workspace: workspace
       - name: build-appstudio-utils
+        matrix:
+          params:
+          - name: PLATFORM
+            value:
+            - linux/x86_64
+            - linux/arm64
         params:
           - name: IMAGE
             value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
           - name: CONTEXT
             value: appstudio-utils
+          - name: IMAGE_APPEND_PLATFORM
+            value: "true"
         runAfter:
           - clone-repository
         taskRef:
-          name: buildah
+          name: buildah-remote
         workspaces:
           - name: source
             workspace: workspace
 
+      - name: build-appstudio-utils-index
+        params:
+          - name: IMAGE
+            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+          - name: IMAGES
+            value:
+            - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
+        runAfter:
+          - build-appstudio-utils
+        taskRef:
+          name: build-image-index
+
       - name: apply-additional-image-tags
         params:
           - name: IMAGE_URL
-            value: $(tasks.build-appstudio-utils.results.IMAGE_URL)
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
           - name: IMAGE_DIGEST
-            value: $(tasks.build-appstudio-utils.results.IMAGE_DIGEST)
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
           - name: ADDITIONAL_TAGS
             value: ["latest"]
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
         taskRef:
           name: apply-tags
 
@@ -98,7 +118,7 @@ spec:
           - name: revision
             value: "$(params.revision)"
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
           - ec-task-checks
           - create-repositories-if-missing
         workspaces:
@@ -190,7 +210,7 @@ spec:
 
       - name: create-repositories-if-missing
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
         taskSpec:
           steps:
             - name: run-create-bundle-repos
