@@ -98,6 +98,10 @@ spec:
           value: "$(params.KO_DEFAULTBASEIMAGE)"
         - name: GOFLAGS
           value: "-buildvcs=false"
+      volumeMounts:
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
       script: |
         #!/bin/bash
         set -euo pipefail
