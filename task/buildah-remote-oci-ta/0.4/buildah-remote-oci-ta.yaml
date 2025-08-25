@@ -57,6 +57,11 @@ spec:
     name: BUILD_ARGS_FILE
     type: string
   - default: ""
+    description: Defines the single build time for all buildah builds in seconds since
+      UNIX epoch
+    name: BUILD_TIMESTAMP
+    type: string
+  - default: ""
     description: The Trusted Artifact URI pointing to the artifact with the prefetched
       dependencies.
     name: CACHI2_ARTIFACT
@@ -233,6 +238,8 @@ spec:
       value: $(params.ANNOTATIONS_FILE)
     - name: BUILD_ARGS_FILE
       value: $(params.BUILD_ARGS_FILE)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: ENTITLEMENT_SECRET
@@ -685,15 +692,65 @@ spec:
       fi
 
       DEFAULT_LABELS=(
-        "--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%S')"
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
       [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+      BUILD_TIMESTAMP_RFC3339=""
+      if [ -n "$BUILD_TIMESTAMP" ]; then
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      else
+        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+      fi
+
+      label_pairs=()
+      # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
+      touch base_images_labels.json
+      if [[ "$INHERIT_BASE_IMAGE_LABELS" == "true" ]] && [[ -n "$BASE_IMAGES" ]]; then
+        FINAL_BASE_IMAGE=$(
+          jq -r '.Stages[-1] | if .From.Stage then empty else .BaseName end | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
+            tr -d '"' |
+            tr -d "'"
+        )
+        if [[ -n "$FINAL_BASE_IMAGE" ]]; then
+          buildah pull "$FINAL_BASE_IMAGE" >/dev/null
+          buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
+        fi
+      fi
 
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      # Get all the default and explicit labels so that they can be written into labels.json
+      for label in "${LABELS[@]}"; do
+        if [[ "$label" != "--label" ]]; then
+          label_pairs+=("$label")
+        fi
+      done
+
+      # Labels that we explicitly add to the image
+      [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
+
+      while IFS= read -r label; do
+        label_pairs+=("$label")
+      done < <(jq -r '.Stages[].Commands[] | select(.Name == "LABEL") | .Labels[] | "\(.Key)=\(.Value)"' /shared/parsed_dockerfile.json | sed 's/"//g')
+
+      printf '%s\n' "${label_pairs[@]}" | jq -Rn '
+        [ inputs | select(length>0) ]
+      | map( split("=") | {(.[0]): (.[1] // "")} )
+        | add' >"image_labels.json"
+
+      jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      echo "" >>"$dockerfile_copy"
+      echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
 
       echo "[$(date --utc -Ins)] Register sub-man"
 
@@ -810,6 +867,10 @@ spec:
 
       unset_proxy
 
+      # Check if labels in the image match actual labels
+      echo "Check difference between labels.json in the image and actual labels"
+      diff <(jq --sort-keys . "$SOURCE_CODE_DIR/$CONTEXT/labels.json") <(buildah inspect "$IMAGE" | jq --sort-keys '.OCIv1.config.Labels') || true
+
       echo "[$(date --utc -Ins)] Add metadata"
 
       # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
@@ -867,6 +928,7 @@ spec:
           -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
+          -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e CONTEXT="${CONTEXT@Q}" \
           -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
           -e HERMETIC="${HERMETIC@Q}" \
