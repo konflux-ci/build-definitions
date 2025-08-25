@@ -64,7 +64,7 @@ spec:
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
-        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1754296591'
+        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1755720754'
       - name: PLATFORM
         value: $(params.PLATFORM)
       - name: IMAGE_APPEND_PLATFORM
@@ -76,7 +76,7 @@ spec:
         name: varlibcontainers
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2712c8a6453fc9db5fc4c2d9d952554a4eea46d2fdba47a272b79fa07f8c8c40
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7263233979258cf8abd8a5fd968671c0f3c461f30e6041c5efc0bc25d9bc973d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -124,7 +124,7 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:121ccc64ade7c25fa85e9476d6a318d0020afb159cfc0217c082c04261b3bfdf
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
       computeResources:
         limits:
           memory: 512Mi
