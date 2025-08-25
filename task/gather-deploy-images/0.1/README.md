@@ -17,3 +17,5 @@ Extract images from deployment YAML to pass to EC for validation
 |name|description|optional|
 |---|---|---|
 |source|Should contain a cloned gitops repo at the ./source subpath|false|
+
+## Additional info

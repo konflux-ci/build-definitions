@@ -1,14 +1,29 @@
 # run-opm-command-oci-ta task
 
-This Task allows you to execute `opm` (Operator Package Manager) commands within a Tekton Pipeline. It's designed to work with **Trusted Artifacts** and helps in automating the process of generating and validating OPM-related outputs, such as file-based catalogs.
+This task runs an OPM command with user-specified arguments, passed as an array. It can optionally replace pullspecs in a catalog-template file before running the command.
 
----
+## Parameters
+|name|description|default value|required|
+|---|---|---|---|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
+|ociArtifactExpiresAfter|Expiration date for the trusted artifacts. Empty string means no expiration.||true|
+|FILE_TO_UPDATE_PULLSPEC|Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.|""|false|
+|OPM_ARGS|The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).|[]|false|
+|OPM_OUTPUT_PATH|Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).||true|
+|IDMS_PATH|Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'|.tekton/images-mirror-set.yaml|false|
 
-## Table of Contents
+## Results
+|name|description|
+|---|---|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code with generated file-based catalog from catalog-template.yml.|
 
-* [Overview](#overview)
-* [Parameters](#parameters)
-* [Results](#results)
+
+## Additional info
+
+This Task allows you to execute `opm` (Operator Package Manager) commands 
+within a Tekton Pipeline. It's designed to work with **Trusted Artifacts** 
+and helps in automating the process of generating and validating OPM-related outputs, such as file-based catalogs.
 
 ---
 
@@ -22,23 +37,3 @@ The `run-opm-command-oci-ta` Task performs the following key steps:
 4.  **Creates Trusted Artifact**: Uploads the modified source directory (including the `opm` command's output) as a new Trusted Artifact.
 
 ---
-
-## Parameters
-
-| Parameter                   | Description                                                                                                                                                              | Type     | Required | Default                              |
-| :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- | :------- | :----------------------------------- |
-| `SOURCE_ARTIFACT`           | The Trusted Artifact URI pointing to the artifact with the application source code.                                                                           | `string` | Yes      |                                      |
-| `ociStorage`                | The OCI repository where the Trusted Artifacts are stored.                                                                                                    | `string` | Yes      |                                      |
-| `ociArtifactExpiresAfter`   | Expiration date for the trusted artifacts. Empty string means no expiration.                                                                           | `string` | No       | `""` (empty string)                  |
-| `FILE_TO_UPDATE_PULLSPEC`   | Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.                              | `string` | No       | `""`                                 |
-| `OPM_ARGS`                  | An array of arguments to pass directly to the `opm` command (e.g., `['alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']`).                    | `array`  | Yes      | `[]`                       |
-| `OPM_OUTPUT_PATH`           | The relative path for the `opm` command's output file (e.g., `'v4.18/catalog/example-operator/catalog.json'`). Relative to the root directory of the source code. | `string` | Yes      |                                      |
-| `IDMS_PATH`                 | Path to an `ImageDigestMirrorSet` file (e.g., `.tekton/images-mirror-set.yaml`). Used to replace related image pullspecs in the catalog.           | `string` | No       | `.tekton/images-mirror-set.yaml` |
-
----
-
-## Results
-
-| Result            | Description                                                                                                                     |
-| :---------------- | :------------------------------------------------------------------------------------------------------------------------------ |
-| `SOURCE_ARTIFACT` | The Trusted Artifact URI pointing to the artifact with the application source code, now including the generated file-based catalog. |

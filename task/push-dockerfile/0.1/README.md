@@ -23,3 +23,5 @@ Discover Dockerfile from source code and push it to registry as an OCI artifact.
 |name|description|optional|
 |---|---|---|
 |workspace|Workspace containing the source code from where the Dockerfile is discovered.|false|
+
+## Additional info

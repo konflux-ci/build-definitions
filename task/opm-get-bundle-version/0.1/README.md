@@ -16,3 +16,5 @@ Fetch the current version of the provided OLM bundle image
 |name|description|optional|
 |---|---|---|
 |workspace|The shared workspace between steps|false|
+
+## Additional info

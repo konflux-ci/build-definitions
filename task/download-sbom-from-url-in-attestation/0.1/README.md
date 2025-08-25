@@ -41,3 +41,5 @@ are taken verbatim from the input object. For example, the output files could be
 |name|description|optional|
 |---|---|---|
 |sboms|SBOMs will be downloaded to (a subdirectory of) this workspace.|false|
+
+## Additional info

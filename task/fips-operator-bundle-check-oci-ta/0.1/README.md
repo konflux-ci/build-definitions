@@ -15,3 +15,5 @@ The fips-operator-bundle-check task uses the check-payload tool to verify if an 
 |IMAGES_PROCESSED|Images processed in the task.|
 |TEST_OUTPUT|Tekton task test output.|
 
+
+## Additional info

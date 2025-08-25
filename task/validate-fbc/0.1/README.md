@@ -17,3 +17,6 @@ Ensures file-based catalog (FBC) components are uniquely linted for proper const
 |RELATED_IMAGES_DIGEST|Digest for attached json file containing related images|
 |IMAGES_PROCESSED|Images processed in the task.|
 |RENDERED_CATALOG_DIGEST|Digest for attached json file containing the FBC fragment's opm rendered catalog.|
+
+
+## Additional info

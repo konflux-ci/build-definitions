@@ -23,3 +23,5 @@ ShellCheck is a static analysis tool, gives warnings and suggestions for bash/sh
 |---|---|
 |TEST_OUTPUT|Tekton task test output.|
 
+
+## Additional info

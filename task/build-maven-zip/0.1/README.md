@@ -26,3 +26,5 @@ Note that this task needs the output of prefetch-dependencies task. If it is not
 |name|description|optional|
 |---|---|---|
 |source|Workspace containing the source code to build.|false|
+
+## Additional info
