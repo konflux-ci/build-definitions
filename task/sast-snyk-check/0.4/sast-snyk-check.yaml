@@ -132,7 +132,7 @@ spec:
             PROJECT_NAME=${COMPONENT_LABEL}
         fi
 
-        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+        echo "INFO: The PROJECT_NAME used is: ${PROJECT_NAME}"
 
         # Installation of Red Hat certificates for cloning Red Hat internal repositories
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
@@ -170,6 +170,7 @@ spec:
         done)
 
         set +e
+        echo "INFO: Running 'snyk code test'.."
         # We do want to expand ARGS (it can be multiple CLI flags, not just one)
         # shellcheck disable=SC2086
         snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$SOURCE_CODE_DIR" --max-depth=1 --sarif-file-output="${SOURCE_CODE_DIR}"/sast_snyk_check_out.json 1>&2>> stdout.txt
@@ -185,33 +186,39 @@ spec:
             | csgrep --mode=json --strip-path-prefix="source/"  \
             > sast_snyk_check_out_all_findings.json
 
-          echo "Results:"
-          (set -x && csgrep --mode=evtstat sast_snyk_check_out_all_findings.json)
+          echo "INFO: Initial results:"
+          csgrep --mode=evtstat sast_snyk_check_out_all_findings.json
 
           if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
-            # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
-            PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
-            echo -n "Probing ${PROBE_URL}... "
+            KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          fi
+          PROBE_URL="${KFP_GIT_URL%.git}" # trims '.git' suffix
+
+          # create the KFP clone directory regardless
+          KFP_DIR="known-false-positives"
+          KFP_CLONED="0"
+          mkdir "${KFP_DIR}"
+
+          # We check if the KFP_GIT_URL variable is set to clone and apply the filters or not
+          if [[ -n "${KFP_GIT_URL}" ]]; then
+            # Default location only reachable from internal Konflux instances, check reachable first
+            echo -n "INFO: Probing ${PROBE_URL}... "
             if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
-              echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-              KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-            else
-              echo "Setting KFP_GIT_URL to empty string"
-              KFP_GIT_URL=
+              echo "INFO: Trying to clone known-false-positives.."
+              git clone "${KFP_GIT_URL}" "${KFP_DIR}" && KFP_CLONED="1"
             fi
           fi
 
-          # We check if the KFP_GIT_URL variable is set to apply the filters or not
-          if [[ -z "${KFP_GIT_URL}" ]]; then
-            echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+          if [[ "${KFP_CLONED}" -eq "0" ]]; then
+            echo "WARN: Failed to clone know-false-positives at ${KFP_GIT_URL}, scan results will not be filtered"
             mv sast_snyk_check_out_all_findings.json filtered_sast_snyk_check_out.json
           else
-            echo "Filtering false positives in results files using csfilter-kfp..."
+            echo "INFO: Filtering false positives in results files using csfilter-kfp..."
 
             CMD=(
               csfilter-kfp
               --verbose
-              --kfp-git-url="${KFP_GIT_URL}"
+              --kfp-dir="${KFP_DIR}"
               --project-nvr="${PROJECT_NAME}"
             )
 
@@ -224,12 +231,11 @@ spec:
             status=$?
             set -e
             if [ "$status" -ne 0 ]; then
-              echo "Error: failed to filter known false positives" >&2
-              return 1
+              echo "WARN: failed to filter known false positives" >&2
             else
-              echo "Message: Succeed to filter known false positives" >&2
+              echo "INFO: Succeeded filtering known false positives" >&2
             fi
-            echo "Results after filtering:"
+            echo "INFO: Results after filtering:"
             (set -x && csgrep --mode=evtstat filtered_sast_snyk_check_out.json)
           fi
 
