@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1754584681@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350@sha256:2f06ae0e6d3d9c4f610d32c480338eef474867f435d8d28625f2985e8acde6e8
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,7 +148,7 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:cc327cfc6e310378aac80310ca6144997e0da09c9a0c97a72b941d5d41c84706
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f7138b497698ab9d7ee11101dcfe431a13c9bd74bf0e22c844f1b8c31fae16ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.33.0@sha256:50a0225a7a0ff7e074f519d6eb0f5bee265665daab807fd561adc397fd5bd03f
+      image: quay.io/konflux-ci/hermeto:0.34.0@sha256:e2b4c926703919db6465da7ae45fe604bf9652ff6debefc897f2962b8e112c96
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -407,10 +407,12 @@ spec:
 
         # Some repos with go submodules would fail during prefetch dependencies task
         # Forcing fetching tags serves as a workaround
-        if [[ "$(cd "/var/workdir/source" && ! git fetch --tags)" ]]; then
-          echo "Retrying fetch command..."
-          "$(cd "/var/workdir/source" && git fetch --tags)"
+        export RETRY_MAX_TRIES=2
+        WORKSPACE_SOURCE="/var/workdir/source"
+        if ! (cd "$WORKSPACE_SOURCE" && retry git fetch --tags); then
+          exit 1
         fi
+        unset RETRY_MAX_TRIES
 
         cachi2 --log-level="$LOG_LEVEL" $config_flag fetch-deps \
           $dev_pacman_flag \
@@ -438,7 +440,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:cc327cfc6e310378aac80310ca6144997e0da09c9a0c97a72b941d5d41c84706
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f7138b497698ab9d7ee11101dcfe431a13c9bd74bf0e22c844f1b8c31fae16ad
       args:
         - create
         - --store
