@@ -106,6 +106,9 @@ for ITEM in $TEST_ITEMS; do
   
   cp "$TASK_PATH" "$TASK_COPY"
 
+  # Create test namespace
+  ${KUBECTL_CMD} create namespace ${TEST_NS} || echo "Couldn't create namespace"
+
   # run the pre-apply-task-hook.sh if exists
   if [ -f ${TESTS_DIR}/pre-apply-task-hook.sh ]
   then
@@ -113,11 +116,8 @@ for ITEM in $TEST_ITEMS; do
     ${TESTS_DIR}/pre-apply-task-hook.sh "$TASK_COPY"
   fi
 
-  # Create test namespace
-  ${KUBECTL_CMD} create namespace ${TEST_NS}
-
   # Create the service account appstudio-pipeline (konflux spedific requirement)
-  $KUBECTL_CMD create sa appstudio-pipeline -n ${TEST_NS}
+  $KUBECTL_CMD create sa appstudio-pipeline -n ${TEST_NS} || echo "Couldn't create serviceaccount"
 
   # dry-run this YAML to validate and also get formatting side-effects.
   ${KUBECTL_CMD} -n ${TEST_NS} create -f ${TASK_COPY} --dry-run=client -o yaml
