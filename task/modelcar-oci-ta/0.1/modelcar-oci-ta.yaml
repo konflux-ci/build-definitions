@@ -197,6 +197,194 @@ spec:
 
         # Save manifest data for oci-index SBOM generation
         oras manifest fetch --registry-config auth.json "$IMAGE" > manifest_data.json
+        
+        # Create architecture mapping using oras templates and awk
+        echo "Creating architecture mapping for multiarch SBOM generation..."
+        echo "BASE_IMAGE: $BASE_IMAGE"
+        
+        # Parse base image manifests using awk for reliable text processing
+        echo "Parsing base image manifests with awk..."
+        
+        # Extract base repo without tag/digest
+        base_repo="$(echo "$BASE_IMAGE" | cut -d@ -f1 | cut -d: -f1)"
+        
+        # Get arch:digest pairs with fallback template paths
+        echo "Trying .content.manifests template path for base image..."
+        base_arch_digests=$(oras manifest fetch \
+          --format go-template \
+          --template '{{range .content.manifests}}{{.platform.architecture}}:{{.digest}} {{end}}' \
+          "$BASE_IMAGE" 2>/dev/null)
+          
+        if [[ -z "$base_arch_digests" ]]; then
+          echo "No results from .content.manifests, trying .manifests..."
+          base_arch_digests=$(oras manifest fetch \
+            --format go-template \
+            --template '{{range .manifests}}{{.platform.architecture}}:{{.digest}} {{end}}' \
+            "$BASE_IMAGE" 2>/dev/null)
+        fi
+        
+        if [[ -z "$base_arch_digests" ]]; then
+          echo "ERROR: Could not extract arch:digest pairs from BASE_IMAGE manifest"
+          echo "This may not be a multiarch image or manifest structure is unexpected"
+          exit 1
+        fi
+        
+        echo "Base arch:digest pairs: '$base_arch_digests'"
+        
+        # Create base images mapping file using awk with detailed logging
+        echo "$base_arch_digests" | awk -v base_repo="$base_repo" '
+        BEGIN {
+          print "=== AWK: Processing base image arch:digest pairs ===" > "/dev/stderr"
+          processed = 0
+        }
+        {
+          print "AWK: Processing line with " NF " fields: " $0 > "/dev/stderr"
+          for (i = 1; i <= NF; i++) {
+            print "AWK: Field " i ": " $i > "/dev/stderr"
+            split_count = split($i, parts, ":")
+            print "AWK: Split into " split_count " parts" > "/dev/stderr"
+            
+            if (split_count >= 3) {
+              arch = parts[1]
+              digest = parts[2] ":" parts[3]
+              print "AWK: Parsed arch='" arch "', digest='" digest "'" > "/dev/stderr"
+              
+              if (arch != "" && arch != "<no" && digest != "" && digest != ":") {
+                output_line = arch "|" base_repo "@" digest
+                print output_line
+                print "✓ Base image for " arch ": " base_repo "@" digest > "/dev/stderr"
+                processed++
+              } else {
+                print "AWK: Skipped due to invalid arch/digest" > "/dev/stderr"
+              }
+            } else {
+              print "AWK: Skipped field - insufficient parts (" split_count ")" > "/dev/stderr"
+            }
+          }
+        }
+        END {
+          print "AWK: Processed " processed " base images" > "/dev/stderr"
+        }' > base_images.txt
+        
+        echo "Base images mapping created:"
+        cat base_images.txt
+        
+        # Parse built image manifests using awk  
+        echo "Processing built image manifests with awk..."
+        built_repo="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
+        
+        # Get built image arch:digest pairs with fallback
+        echo "Trying .content.manifests template path for built image..."
+        built_arch_digests=$(oras manifest fetch --registry-config auth.json \
+          --format go-template \
+          --template '{{range .content.manifests}}{{.platform.architecture}}:{{.digest}} {{end}}' \
+          "$IMAGE" 2>/dev/null)
+          
+        if [[ -z "$built_arch_digests" ]]; then
+          echo "No results from .content.manifests, trying .manifests..."
+          built_arch_digests=$(oras manifest fetch --registry-config auth.json \
+            --format go-template \
+            --template '{{range .manifests}}{{.platform.architecture}}:{{.digest}} {{end}}' \
+            "$IMAGE" 2>/dev/null)
+        fi
+        
+        if [[ -z "$built_arch_digests" ]]; then
+          echo "ERROR: Could not extract arch:digest pairs from built IMAGE manifest"
+          echo "This may not be a multiarch image or manifest structure is unexpected"
+          exit 1
+        fi
+        
+        echo "Built arch:digest pairs: '$built_arch_digests'"
+        
+        # Create built images mapping and join with base images using awk
+        echo "$built_arch_digests" | awk -v built_repo="$built_repo" -v base_image="$BASE_IMAGE" '
+        BEGIN {
+          print "=== AWK: Loading base images mapping ===" > "/dev/stderr"
+          base_count = 0
+          
+          # Load base images mapping
+          while ((getline line < "base_images.txt") > 0) {
+            if (split(line, parts, "|") >= 2) {
+              base_images[parts[1]] = parts[2]
+              print "AWK: Loaded base mapping: " parts[1] " -> " parts[2] > "/dev/stderr"
+              base_count++
+            }
+          }
+          close("base_images.txt")
+          print "AWK: Loaded " base_count " base image mappings" > "/dev/stderr"
+          
+          print "=== AWK: Processing built image arch:digest pairs ===" > "/dev/stderr"
+          arch_count = 0
+        }
+        {
+          print "AWK: Processing built line with " NF " fields: " $0 > "/dev/stderr"
+          for (i = 1; i <= NF; i++) {
+            print "AWK: Built field " i ": " $i > "/dev/stderr"
+            split_count = split($i, parts, ":")
+            print "AWK: Split into " split_count " parts" > "/dev/stderr"
+            
+            if (split_count >= 3) {
+              arch = parts[1]
+              digest = parts[2] ":" parts[3]
+              print "AWK: Parsed built arch='" arch "', digest='" digest "'" > "/dev/stderr"
+              
+              if (arch != "" && arch != "<no" && digest != "" && digest != ":") {
+                built_image = built_repo "@" digest
+                
+                if (arch in base_images) {
+                  final_base = base_images[arch]
+                  print "AWK: Found matching base image for " arch > "/dev/stderr"
+                } else {
+                  final_base = base_image
+                  print "AWK: No specific base image for " arch ", using default" > "/dev/stderr"
+                }
+                
+                output_line = arch "|" built_image "|" final_base
+                print output_line
+                print "✓ " arch ": " built_image " (base: " final_base ")" > "/dev/stderr"
+                arch_count++
+              } else {
+                print "AWK: Skipped due to invalid built arch/digest" > "/dev/stderr"
+              }
+            } else {
+              print "AWK: Skipped built field - insufficient parts (" split_count ")" > "/dev/stderr"
+            }
+          }
+        }
+        END {
+          print "AWK: Architecture mapping created for " arch_count " architectures" > "/dev/stderr"
+        }' > arch_mapping.txt
+        
+        echo "Final architecture mapping created:"
+        cat arch_mapping.txt
+        
+        # Get arch count for validation
+        arch_count=$(wc -l < arch_mapping.txt)
+        
+        echo "=== VALIDATION CHECKS ==="
+        echo "Base images file:"
+        if [ -f "base_images.txt" ]; then
+          echo "  Lines: $(wc -l < base_images.txt)"
+          echo "  Content preview: $(head -2 base_images.txt)"
+        else
+          echo "  ERROR: base_images.txt not found!"
+        fi
+        
+        echo "Architecture mapping file:"
+        if [ -f "arch_mapping.txt" ]; then
+          echo "  Lines: $(wc -l < arch_mapping.txt)"
+          echo "  Content preview: $(head -2 arch_mapping.txt)"
+        else
+          echo "  ERROR: arch_mapping.txt not found!"
+        fi
+        
+        if [ $arch_count -eq 0 ]; then
+          echo "ERROR: No architectures found in final mapping!"
+          echo "This may not be a multiarch image or template parsing failed"
+          exit 1
+        fi
+        
+        echo "✓ Architecture mapping completed successfully"
 
     - name: generate-sbom
       image: quay.io/konflux-ci/mobster@sha256:5af1aa13f97ff2006e33b1e5d422c3a0b178ae000b35c9309f952b5fb4c174ff
@@ -215,34 +403,104 @@ spec:
         echo "BASE_IMAGE: $BASE_IMAGE"
         echo "MODEL_IMAGE: $MODEL_IMAGE"
 
-        # Parse IMAGES result to get individual arch-specific images
-        IMAGES_LIST=$(cat "$(results.IMAGES.path)")
-        echo "IMAGES_LIST: $IMAGES_LIST"
+        # Validate tools and files before starting
+        echo "=== ENVIRONMENT VALIDATION ==="
+        echo "Checking required tools:"
+        which awk || echo "WARNING: awk not found in PATH"
+        which mobster || echo "ERROR: mobster not found in PATH"
         
-        # Convert comma-separated list to array
-        IFS=', ' read -ra IMAGE_ARRAY <<< "$IMAGES_LIST"
+        echo "Checking input files:"
+        if [ ! -f "arch_mapping.txt" ]; then
+          echo "ERROR: arch_mapping.txt not found!"
+          echo "Files in workdir:"
+          ls -la /var/workdir/
+          exit 1
+        fi
+        echo "  arch_mapping.txt: $(wc -l < arch_mapping.txt) lines"
         
-        echo "Generating ModelCar SBOMs for each architecture..."
-        SBOM_FILES=()
+        echo "Generating ModelCar SBOMs for each architecture using correct base images..."
         
-        # Generate ModelCar SBOM for each arch-specific image
-        for i in "${!IMAGE_ARRAY[@]}"; do
-          ARCH_IMAGE="${IMAGE_ARRAY[$i]}"
-          ARCH_NAME="arch-$(printf "%02d" $i)"
-          SBOM_FILE="modelcar-${ARCH_NAME}.sbom.json"
+        # Process architecture mapping using awk for reliable parsing
+        echo "Processing architecture mapping with awk..."
+        
+        # Initialize result files
+        > sbom_files_list.txt
+        > arch_images_list.txt
+        
+        # Use awk to process each line and generate SBOMs with detailed logging
+        sbom_count=$(awk -F'|' -v model_image="$MODEL_IMAGE" -v sbom_type="$SBOM_TYPE" '
+        BEGIN {
+          print "=== AWK: Starting SBOM generation ===" > "/dev/stderr"
+          success_count = 0
+          total_lines = 0
+        }
+        {
+          total_lines++
+          print "AWK: Processing line " total_lines ": " $0 > "/dev/stderr"
+          print "AWK: NF=" NF ", Field1='" $1 "', Field2='" $2 "', Field3='" $3 "'" > "/dev/stderr"
           
-          echo "Generating ModelCar SBOM for $ARCH_IMAGE..."
-          mobster generate \
-            --output "$SBOM_FILE" \
-            modelcar \
-            --modelcar-image "$ARCH_IMAGE" \
-            --base-image "$BASE_IMAGE" \
-            --model-image "$MODEL_IMAGE" \
-            --sbom-type "$SBOM_TYPE"
-          
-          SBOM_FILES+=("$SBOM_FILE")
-          echo "✓ ModelCar SBOM generated for $ARCH_NAME: $SBOM_FILE"
-        done
+          if (NF >= 3 && $1 != "") {
+            arch = $1
+            built_image = $2
+            base_image = $3
+            sbom_file = "modelcar-" arch ".sbom.json"
+            
+            print "=== Generating ModelCar SBOM for " arch " ===" > "/dev/stderr"
+            print "  Built image: " built_image > "/dev/stderr"
+            print "  Base image: " base_image > "/dev/stderr"
+            print "  Model image: " model_image > "/dev/stderr"
+            print "  SBOM file: " sbom_file > "/dev/stderr"
+            
+            # Generate SBOM using mobster - add quotes for safety
+            cmd = "mobster generate --output \"" sbom_file "\" modelcar --modelcar-image \"" built_image "\" --base-image \"" base_image "\" --model-image \"" model_image "\" --sbom-type \"" sbom_type "\""
+            print "AWK: Executing command: " cmd > "/dev/stderr"
+            
+            exit_code = system(cmd)
+            print "AWK: Command exit code: " exit_code > "/dev/stderr"
+            
+            if (exit_code == 0) {
+              print "✓ ModelCar SBOM generated for " arch ": " sbom_file > "/dev/stderr"
+              print sbom_file >> "sbom_files_list.txt"
+              print built_image >> "arch_images_list.txt"
+              success_count++
+            } else {
+              print "✗ Failed to generate SBOM for " arch " (exit code: " exit_code ")" > "/dev/stderr"
+            }
+          } else {
+            print "AWK: Skipped line - insufficient fields or empty arch" > "/dev/stderr"
+          }
+        }
+        END {
+          print "AWK: Processed " total_lines " lines, " success_count " successful SBOMs" > "/dev/stderr"
+          print success_count
+        }' arch_mapping.txt)
+        
+        echo "Generated $sbom_count ModelCar SBOMs"
+        
+        echo "=== FINAL VALIDATION ==="
+        echo "SBOM files list:"
+        if [ -f "sbom_files_list.txt" ]; then
+          echo "  Lines: $(wc -l < sbom_files_list.txt)"
+          echo "  Files: $(cat sbom_files_list.txt | tr '\n' ' ')"
+        else
+          echo "  ERROR: sbom_files_list.txt not found!"
+        fi
+        
+        echo "Architecture images list:"
+        if [ -f "arch_images_list.txt" ]; then
+          echo "  Lines: $(wc -l < arch_images_list.txt)"
+          echo "  Images: $(head -2 arch_images_list.txt | tr '\n' ' ')..."
+        else
+          echo "  ERROR: arch_images_list.txt not found!"
+        fi
+        
+        echo "Generated SBOM files on disk:"
+        ls -la *.sbom.json || echo "  No SBOM files found!"
+        
+        if [ $sbom_count -eq 0 ]; then
+          echo "ERROR: No ModelCar SBOMs were generated successfully"
+          exit 1
+        fi
 
         # Generate OCI Index SBOM (for multiarch base image information)  
         if [ -f "manifest_data.json" ]; then
@@ -254,19 +512,18 @@ spec:
             --index-image-digest "$IMAGE_DIGEST" \
             --index-manifest-path "manifest_data.json"
           echo "✓ OCI Index SBOM generated"
-          SBOM_FILES+=("oci-index.sbom.json")
         else
           echo "Warning: No manifest data found, skipping OCI Index SBOM"
         fi
 
-        # Use first ModelCar SBOM as primary for backward compatibility
-        if [ ${#SBOM_FILES[@]} -gt 0 ]; then
-          cp "${SBOM_FILES[0]}" sbom.json
-          echo "Primary SBOM: ${SBOM_FILES[0]}"
+        # Set primary SBOM for backward compatibility (first arch-specific SBOM)
+        if [ -f "sbom_files_list.txt" ] && [ -s "sbom_files_list.txt" ]; then
+          PRIMARY_SBOM=$(head -n 1 sbom_files_list.txt)
+          if [ -f "$PRIMARY_SBOM" ]; then
+            cp "$PRIMARY_SBOM" sbom.json
+            echo "Primary SBOM: $PRIMARY_SBOM"
+          fi
         fi
-        
-        # Save SBOM files list for upload step
-        printf '%s\n' "${SBOM_FILES[@]}" > sbom_files_list.txt
         
         echo "✓ SBOM generation completed"
         
@@ -290,42 +547,48 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$IMAGE_REF" > /tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
-        # Read SBOM files list and IMAGES list
-        IMAGES_LIST=$(cat "$(results.IMAGES.path)")
-        IFS=', ' read -ra IMAGE_ARRAY <<< "$IMAGES_LIST"
-        
         echo "Uploading SBOMs for all architectures..."
         UPLOADED_SBOMS=()
         
         # Upload ModelCar SBOM for each architecture-specific image
-        if [ -f "sbom_files_list.txt" ]; then
+        if [ -f "sbom_files_list.txt" ] && [ -f "arch_images_list.txt" ]; then
           readarray -t SBOM_FILES < sbom_files_list.txt
+          readarray -t ARCH_IMAGES < arch_images_list.txt
           
-          for i in "${!IMAGE_ARRAY[@]}"; do
-            if [ $i -lt ${#SBOM_FILES[@]} ]; then
-              ARCH_IMAGE="${IMAGE_ARRAY[$i]}"
+          echo "Found ${#SBOM_FILES[@]} SBOM files and ${#ARCH_IMAGES[@]} arch images"
+          echo "=== DEBUGGING ARCH UPLOADS ==="
+          echo "SBOM files: $(cat sbom_files_list.txt | tr '\n' ' ')"
+          echo "Arch images: $(cat arch_images_list.txt | tr '\n' ' ')"
+          
+          for i in "${!SBOM_FILES[@]}"; do
+            if [ $i -lt ${#ARCH_IMAGES[@]} ]; then
               SBOM_FILE="${SBOM_FILES[$i]}"
+              ARCH_IMAGE="${ARCH_IMAGES[$i]}"
               
-              # Skip if this is the OCI Index SBOM (handle separately)
-              if [[ "$SBOM_FILE" == "oci-index.sbom.json" ]]; then
-                continue
-              fi
+              echo "=== Upload $((i+1))/${#SBOM_FILES[@]} ==="
+              echo "SBOM file: $SBOM_FILE"
+              echo "Target image: $ARCH_IMAGE"
+              echo "SBOM size: $(ls -lh "$SBOM_FILE" 2>/dev/null | awk '{print $5}' || echo 'file not found')"
               
-              echo "Uploading $SBOM_FILE to $ARCH_IMAGE..."
               if retry cosign attach sbom --sbom "$SBOM_FILE" --type "$SBOM_TYPE" "$ARCH_IMAGE"; then
                 echo "✓ $SBOM_FILE uploaded successfully to $ARCH_IMAGE"
                 UPLOADED_SBOMS+=("$SBOM_FILE")
               else
-                echo "Warning: Failed to upload $SBOM_FILE to $ARCH_IMAGE"
+                echo "✗ Failed to upload $SBOM_FILE to $ARCH_IMAGE"
               fi
             fi
           done
+        else
+          echo "Warning: SBOM files list or arch images list not found"
         fi
 
-        # Upload OCI Index SBOM to main image reference
+        # Upload OCI Index SBOM to main image reference (digest-only format)
         if [ -f "oci-index.sbom.json" ]; then
-          echo "Uploading OCI Index SBOM to main image $IMAGE_REF..."
-          if retry cosign attach sbom --sbom oci-index.sbom.json --type "$SBOM_TYPE" "$IMAGE_REF"; then
+          # Remove tag from IMAGE_URL and construct proper digest reference
+          IMAGE_REPO="${IMAGE_URL%:*}"  # Remove everything after the last colon (the tag)
+          MAIN_IMAGE_DIGEST="${IMAGE_REPO}@$(cat "$(results.IMAGE_DIGEST.path)")"
+          echo "Uploading OCI Index SBOM to main image $MAIN_IMAGE_DIGEST..."
+          if retry cosign attach sbom --sbom oci-index.sbom.json --type "$SBOM_TYPE" "$MAIN_IMAGE_DIGEST"; then
               echo "✓ OCI Index SBOM uploaded successfully"
               UPLOADED_SBOMS+=("oci-index.sbom.json")
           else
