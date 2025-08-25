@@ -11,10 +11,10 @@ metadata:
   name: docker-build
 spec:
   description: |
-    This pipeline is ideal for building container images from a Containerfile while reducing network traffic.
+    This pipeline is ideal for building container images from a Containerfile that can be used in Konflux deployments.
 
-    _Uses `buildah` to create a container image. It also optionally creates a source image and runs some build-time tests. EC will flag a violation for [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) if any tasks are added to the pipeline.
-    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build?tab=tags)_
+    _Uses `buildah` to create a multi-arch container image. It also optionally creates a source image and runs some build-time tests. EC will flag a violation for [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) if any custom tasks are added to the pipeline.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-core-services-docker-build?tab=tags)_
   finally:
   - name: show-summary
     params:
@@ -142,7 +142,7 @@ spec:
     description: Build a source image.
     name: build-source-image
     type: string
-  - default: "false"
+  - default: "true"
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
@@ -162,6 +162,12 @@ spec:
     name: update-repo-name
   - default: ""
     name: slack-webhook-notification-team
+  - default:
+    - linux/x86_64
+    description: List of platforms to build the container images on. The available
+      set of values is determined by the configuration of the multi-platform-controller.
+    name: build-platforms
+    type: array
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -220,7 +226,12 @@ spec:
       workspace: git-auth
     - name: netrc
       workspace: netrc
-  - name: build-container
+  - matrix:
+      params:
+      - name: PLATFORM
+        value:
+        - $(params.build-platforms)
+    name: build-images
     params:
     - name: IMAGE
       value: $(params.output-image)
@@ -241,10 +252,12 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
+    - name: IMAGE_APPEND_PLATFORM
+      value: "true"
     runAfter:
     - prefetch-dependencies
     taskRef:
-      name: buildah
+      name: buildah-remote
       version: "0.4"
     when:
     - input: $(tasks.init.results.build)
@@ -266,9 +279,9 @@ spec:
       value: $(params.build-image-index)
     - name: IMAGES
       value:
-      - $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
+      - $(tasks.build-images.results.IMAGE_REF[*])
     runAfter:
-    - build-container
+    - build-images
     taskRef:
       name: build-image-index
       version: "0.1"
@@ -332,7 +345,12 @@ spec:
       operator: in
       values:
       - "false"
-  - name: ecosystem-cert-preflight-checks
+  - matrix:
+      params:
+      - name: platform
+        value:
+        - $(params.build-platforms)
+    name: ecosystem-cert-preflight-checks
     params:
     - name: image-url
       value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -365,7 +383,12 @@ spec:
     workspaces:
     - name: workspace
       workspace: workspace
-  - name: clamav-scan
+  - matrix:
+      params:
+      - name: image-arch
+        value:
+        - $(params.build-platforms)
+    name: clamav-scan
     params:
     - name: image-digest
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)

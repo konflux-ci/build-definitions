@@ -1,0 +1,110 @@
+- op: add
+  path: /spec/description
+  value: |
+    This pipeline is ideal for building container images from a Containerfile that can be used in Konflux deployments.
+
+    _Uses `buildah` to create a multi-arch container image. It also optionally creates a source image and runs some build-time tests. EC will flag a violation for [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) if any custom tasks are added to the pipeline.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-core-services-docker-build?tab=tags)_
+
+# Order of Tasks from the base docker-build Pipeline:
+# $ kustomize build pipelines/docker-build | yq ".spec.tasks.[].name" | nl -v 0
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  build-source-image
+#      6  deprecated-base-image-check
+#      7  clair-scan
+#      8  ecosystem-cert-preflight-checks
+#      9  sast-snyk-check
+#     10  clamav-scan
+#     11  sast-coverity-check
+#     12  coverity-availability-check
+#     13  sast-shell-check
+#     14  sast-unicode-check
+#     15  apply-tags
+#     16  push-dockerfile
+#     17  rpms-signature-scan
+
+# build-container
+- op: replace
+  path: /spec/tasks/3/name
+  value: build-images
+- op: replace
+  path: /spec/tasks/3/taskRef/name
+  value: buildah-remote
+- op: add
+  path: /spec/tasks/3/matrix
+  value:
+    params:
+      - name: PLATFORM
+        value: ["$(params.build-platforms)"]
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: IMAGE_APPEND_PLATFORM
+    value: "true"
+# Remove PRIVILEGE_NESTED task param
+- op: remove
+  path: /spec/tasks/3/params/9
+
+# build-image-index
+- op: replace
+  path: /spec/tasks/4/params/4/value  # IMAGES
+  value:
+    - $(tasks.build-images.results.IMAGE_REF[*])
+- op: replace
+  path: /spec/tasks/4/runAfter
+  value:
+  - build-images
+
+# ecosystem-cert-preflight-checks
+- op: add
+  path: /spec/tasks/8/matrix
+  value:
+    params:
+      - name: platform
+        value: ["$(params.build-platforms)"]
+
+# Order of pipeline parameters
+# $ kustomize build pipelines/docker-build | yq ".spec.params.[].name" | nl -v 0
+#      0  git-url
+#      1  revision
+#      2  output-image
+#      3  path-context
+#      4  dockerfile
+#      5  rebuild
+#      6  skip-checks
+#      7  hermetic
+#      8  prefetch-input
+#      9  image-expires-after
+#     10  build-source-image
+#     11  build-image-index
+#     12  build-args
+#     13  build-args-file
+#     14  privileged-nested
+
+# Remove privilege-nested pipeline param
+- op: remove
+  path: /spec/params/14
+# We want to always build the image index by default
+- op: replace
+  path: /spec/params/11/default  # build-image-index
+  value: "true"
+
+# Add a pipeline definition parameter to customize the build platforms
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-platforms
+    description: List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.
+    type: array
+    default:
+      - "linux/x86_64"
+- op: add
+  path: /spec/tasks/10/matrix
+  value:
+    params:
+      - name: image-arch
+        value: ["$(params.build-platforms)"]
