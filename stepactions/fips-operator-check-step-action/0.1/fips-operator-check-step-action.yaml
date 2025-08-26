@@ -25,13 +25,21 @@ spec:
     # shellcheck source=/dev/null
     . /utils.sh
 
-    success_counter=0
-    warnings_counter=0
-    error_counter=0
-    failure_counter=0
+    # Create temporary files for thread-safe counters
+    success_counter_file=$(mktemp)
+    warnings_counter_file=$(mktemp)
+    error_counter_file=$(mktemp)
+    failure_counter_file=$(mktemp)
+    echo "0" > "$success_counter_file"
+    echo "0" > "$warnings_counter_file"
+    echo "0" > "$error_counter_file"
+    echo "0" > "$failure_counter_file"
 
     export RETRY_COUNT=2
     export RETRY_INTERVAL=5
+
+    # Set default parallel jobs if not provided
+    PARALLEL_JOBS=${PARALLEL_JOBS:-5}
 
     if [ ! -e "/tekton/home/unique_related_images.txt" ]; then
       echo "No relatedImages to process"
@@ -58,10 +66,23 @@ spec:
       echo "${image_mirror_map}" | jq '.'
     fi
 
-    declare -i count=0
-    for related_image in "${related_images[@]}"; do
+    # Function to increment counter atomically
+    increment_counter() {
+      local counter_file="$1"
+      local lockfile="${counter_file}.lock"
+      (
+        flock -x 9
+        local current
+        current=$(cat "$counter_file")
+        echo $((current + 1)) > "$counter_file"
+      ) 9>"$lockfile"
+    }
+
+    # Function to process a single image
+    process_image() {
+      local related_image="$1"
+      local count="$2"
       related_image="${related_image//$'\n'/}"
-      count+=1
       echo "Processing related image ${count} of ${#related_images[@]}: ${related_image}"
 
       image_accessible=0
@@ -94,8 +115,8 @@ spec:
 
       if [[ $image_accessible -eq 0 ]]; then
         echo -e "Error: Unable to scan image: Could not inspect image ${related_image} for labels\n"
-        error_counter=$((error_counter + 1))
-        continue
+        increment_counter "$error_counter_file"
+        return
       fi
       component_label=$(echo "${image_labels}" | grep 'com.redhat.component=' | cut -d= -f2 | tr -d '\n\r' | xargs || true)
       version_label=$(echo "${image_labels}" | grep '^version=' | cut -d= -f2 | tr -d '\n\r' | xargs || true)
@@ -106,15 +127,15 @@ spec:
 
       if [ -z "${component_label}" ]; then
         echo -e "Error: Unable to scan image: Could not get com.redhat.component label for ${related_image}\n"
-        error_counter=$((error_counter + 1))
-        continue
+        increment_counter "$error_counter_file"
+        return
       fi
 
       # Convert image to OCI format since umoci can only handle the OCI format
       if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
         echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
-        error_counter=$((error_counter + 1))
-        continue
+        increment_counter "$error_counter_file"
+        return
       fi
 
       # Unpack OCI image
@@ -122,8 +143,8 @@ spec:
           --image "/tekton/home/${component_label}-${version_label}-${release_label}:latest" \
           "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}"; then
         echo -e "Error: Unable to scan image: Could not unpack OCI image ${related_image}\n"
-        error_counter=$((error_counter + 1))
-        continue
+        increment_counter "$error_counter_file"
+        return
       fi
 
       # Run check-payload on the unpacked image
@@ -136,21 +157,46 @@ spec:
           --output-format=csv \
           --output-file="/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
         echo -e "check-payload scan failed for ${related_image}\n"
-        failure_counter=$((failure_counter + 1))
-        continue
+        increment_counter "$failure_counter_file"
+        return
       fi
 
       if [ -f "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv" ]; then
         if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful for ${related_image}\n"
-          success_counter=$((success_counter + 1))
+          increment_counter "$success_counter_file"
         elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful with warnings for ${related_image}\n"
-          warnings_counter=$((warnings_counter + 1))
+          increment_counter "$warnings_counter_file"
         fi
       fi
+    }
 
+    # Process images in parallel
+    declare -i count=0
+    for related_image in "${related_images[@]}"; do
+      count+=1
+
+      # Wait for available slot if we've reached max parallel jobs
+      while [ "$(jobs -r | wc -l)" -ge "${PARALLEL_JOBS}" ]; do
+        sleep 1
+      done
+
+      # Start processing image in background
+      process_image "$related_image" "$count" &
     done
+
+    # Wait for all background jobs to complete
+    wait
+
+    # Read final counter values
+    success_counter=$(cat "$success_counter_file")
+    warnings_counter=$(cat "$warnings_counter_file")
+    error_counter=$(cat "$error_counter_file")
+    failure_counter=$(cat "$failure_counter_file")
+
+    # Clean up temporary files
+    rm -f "$success_counter_file" "$warnings_counter_file" "$error_counter_file" "$failure_counter_file"
 
     note="Task $(context.task.name) failed: Some images could not be scanned. For details, check Tekton task log."
     ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
