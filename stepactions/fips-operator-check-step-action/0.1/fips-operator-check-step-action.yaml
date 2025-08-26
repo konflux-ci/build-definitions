@@ -25,11 +25,13 @@ spec:
     # shellcheck source=/dev/null
     . /utils.sh
 
-    # Create temporary files for thread-safe counters
+    # Create temporary files for thread-safe counters and failure tracking
     success_counter_file=$(mktemp)
     warnings_counter_file=$(mktemp)
     error_counter_file=$(mktemp)
     failure_counter_file=$(mktemp)
+    error_details_file=$(mktemp)
+    failure_details_file=$(mktemp)
     echo "0" > "$success_counter_file"
     echo "0" > "$warnings_counter_file"
     echo "0" > "$error_counter_file"
@@ -78,6 +80,18 @@ spec:
       ) 9>"$lockfile"
     }
 
+    # Function to log failure details atomically
+    log_failure() {
+      local details_file="$1"
+      local image="$2"
+      local reason="$3"
+      local lockfile="${details_file}.lock"
+      (
+        flock -x 9
+        echo "FAILED: $image - $reason" >> "$details_file"
+      ) 9>"$lockfile"
+    }
+
     # Function to process a single image
     process_image() {
       local related_image="$1"
@@ -86,8 +100,10 @@ spec:
       echo "Processing related image ${count} of ${#related_images[@]}: ${related_image}"
 
       image_accessible=0
-      if ! image_labels=$(get_image_labels "$related_image"); then
+      local get_labels_output
+      if ! get_labels_output=$(get_image_labels "$related_image" 2>&1); then
         echo "Could not inspect original pullspec $related_image. Checking if there's a mirror present"
+        echo "get_image_labels output: $get_labels_output"
         if [ -n "${image_mirror_map}" ]; then
           reg_and_repo=$(get_image_registry_and_repository "${related_image}")
           mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image][]')
@@ -97,11 +113,14 @@ spec:
           for mirror in "${mirrors[@]}"; do
             echo "Attempting to use mirror ${mirror}"
             replaced_image=$(replace_image_pullspec "$related_image" "$mirror")
-            if ! image_labels=$(get_image_labels "$replaced_image"); then
+            local mirror_labels_output
+            if ! mirror_labels_output=$(get_image_labels "$replaced_image" 2>&1); then
               echo "Mirror $mirror is inaccessible."
+              echo "get_image_labels output: $mirror_labels_output"
               continue
             fi
             image_accessible=1
+            image_labels="$mirror_labels_output"
             echo "Replacing $related_image with $replaced_image"
             related_image="$replaced_image"
             break
@@ -110,11 +129,14 @@ spec:
         fi
       else
         image_accessible=1
+        image_labels="$get_labels_output"
         echo "Successfully inspected $related_image. Mirror not required."
       fi
 
       if [[ $image_accessible -eq 0 ]]; then
-        echo -e "Error: Unable to scan image: Could not inspect image ${related_image} for labels\n"
+        local error_msg="Could not inspect image for labels"
+        echo -e "Error: Unable to scan image: $error_msg\n"
+        log_failure "$error_details_file" "$related_image" "$error_msg - Output: $get_labels_output"
         increment_counter "$error_counter_file"
         return
       fi
@@ -126,23 +148,33 @@ spec:
       echo "Release label is ${release_label}"
 
       if [ -z "${component_label}" ]; then
-        echo -e "Error: Unable to scan image: Could not get com.redhat.component label for ${related_image}\n"
+        local error_msg="Could not get com.redhat.component label"
+        echo -e "Error: Unable to scan image: $error_msg\n"
+        log_failure "$error_details_file" "$related_image" "$error_msg"
         increment_counter "$error_counter_file"
         return
       fi
 
       # Convert image to OCI format since umoci can only handle the OCI format
-      if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
-        echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
+      local skopeo_output
+      if ! skopeo_output=$(retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest" 2>&1); then
+        local error_msg="Could not convert image to OCI format"
+        echo -e "Error: Unable to scan image: $error_msg\n"
+        echo "Command output: $skopeo_output"
+        log_failure "$error_details_file" "$related_image" "$error_msg - Output: $skopeo_output"
         increment_counter "$error_counter_file"
         return
       fi
 
       # Unpack OCI image
-      if ! retry umoci raw unpack --rootless \
+      local umoci_output
+      if ! umoci_output=$(retry umoci raw unpack --rootless \
           --image "/tekton/home/${component_label}-${version_label}-${release_label}:latest" \
-          "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}"; then
-        echo -e "Error: Unable to scan image: Could not unpack OCI image ${related_image}\n"
+          "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}" 2>&1); then
+        local error_msg="Could not unpack OCI image"
+        echo -e "Error: Unable to scan image: $error_msg\n"
+        echo "Command output: $umoci_output"
+        log_failure "$error_details_file" "$related_image" "$error_msg - Output: $umoci_output"
         increment_counter "$error_counter_file"
         return
       fi
@@ -150,13 +182,17 @@ spec:
       # Run check-payload on the unpacked image
       # The check-payload command fails with exit 1 when the scan for an image is unsuccessful
       # or when the image is not FIPS compliant. Hence, count those as failures and not errors
-      if ! check-payload scan local \
+      local check_payload_output
+      if ! check_payload_output=$(check-payload scan local \
           --path="/tekton/home/unpacked-${component_label}-${version_label}-${release_label}" \
           "${check_payload_version}" \
           --components="${component_label}" \
           --output-format=csv \
-          --output-file="/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
+          --output-file="/tekton/home/report-${component_label}-${version_label}-${release_label}.csv" 2>&1); then
+        local failure_msg="FIPS compliance check failed"
         echo -e "check-payload scan failed for ${related_image}\n"
+        echo "Command output: $check_payload_output"
+        log_failure "$failure_details_file" "$related_image" "$failure_msg - Output: $check_payload_output"
         increment_counter "$failure_counter_file"
         return
       fi
@@ -195,8 +231,31 @@ spec:
     error_counter=$(cat "$error_counter_file")
     failure_counter=$(cat "$failure_counter_file")
 
+    # Display failure summary if there were any failures
+    if [[ "$error_counter" -gt 0 ]] || [[ "$failure_counter" -gt 0 ]]; then
+      echo ""
+      echo "=== FAILURE SUMMARY ==="
+      
+      if [[ "$error_counter" -gt 0 ]] && [[ -f "$error_details_file" ]]; then
+        echo ""
+        echo "SCAN ERRORS ($error_counter):"
+        cat "$error_details_file"
+      fi
+      
+      if [[ "$failure_counter" -gt 0 ]] && [[ -f "$failure_details_file" ]]; then
+        echo ""
+        echo "FIPS COMPLIANCE FAILURES ($failure_counter):"
+        cat "$failure_details_file"
+      fi
+      
+      echo ""
+      echo "======================="
+      echo ""
+    fi
+
     # Clean up temporary files
     rm -f "$success_counter_file" "$warnings_counter_file" "$error_counter_file" "$failure_counter_file"
+    rm -f "$error_details_file" "$failure_details_file"
 
     note="Task $(context.task.name) failed: Some images could not be scanned. For details, check Tekton task log."
     ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
