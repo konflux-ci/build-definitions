@@ -115,7 +115,7 @@ for ITEM in $TEST_ITEMS; do
   if [ -f ${TESTS_DIR}/pre-apply-task-hook.sh ]
   then
     echo "Found pre-apply-task-hook.sh file in dir: $TESTS_DIR. Executing..."
-    ${TESTS_DIR}/pre-apply-task-hook.sh "$TASK_COPY"
+    ${TESTS_DIR}/pre-apply-task-hook.sh "$TASK_COPY" "$TEST_NS"
   fi
 
   # Create the service account appstudio-pipeline (konflux spedific requirement)
