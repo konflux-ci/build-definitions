@@ -39,6 +39,10 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: PLATFORM
+      description: The os/architecture string used to determine which arch to build, if the base image is multiarch
+      type: string
+      default: linux/amd64
     - name: BASE_IMAGE
       description: base image used to build the Modelcar image
       type: string
@@ -59,8 +63,12 @@ spec:
       description: Image reference of the built image
     - name: IMAGE_URL
       description: Repository where the artifact was pushed
+    - name: IMAGES
+      description: List of architecture-specific images
     - name: SBOM_BLOB_URL
       description: Link to the SBOM blob pushed to the registry.
+    - name: BASE_IMAGE_REF
+      description: Image reference to the resolved base image used
   volumes:
     - name: varlibcontainers
       emptyDir: {}
@@ -88,6 +96,8 @@ spec:
         value: $(params.BASE_IMAGE)
       - name: MODEL_IMAGE
         value: $(params.MODEL_IMAGE)
+      - name: PLATFORM
+        value: $(params.PLATFORM)
       - name: TARGET_OCI
         value: "/var/workdir/modelcar-oci"
     volumeMounts:
@@ -128,8 +138,23 @@ spec:
         #!/bin/bash
         set -eu
         set -o pipefail
-        oras copy --to-oci-layout "$BASE_IMAGE" "${TARGET_OCI}:latest"
+
+        BASE_IMAGE="${BASE_IMAGE//:*@/@}"  # Strip tag, only if it is infixed before the digest
+        arch="${PLATFORM//*\//}"
+        os="${PLATFORM//\/*/}"
+
+        base_image_digest=$(get-image-architectures "${BASE_IMAGE}" | jq -r 'select(.platform.architecture == "'"${arch}"'" and .platform.os == "'"${os}"'") | .digest')
+        if [ -z "${base_image_digest}" ]; then
+          echo "Could not find ${PLATFORM} base image digest for ${BASE_IMAGE}" && exit 1
+        fi
+
+        ARCHFUL_BASE_IMAGE="${BASE_IMAGE//@*/}@${base_image_digest}"
+
+        oras copy --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
         chmod -R g+w "$TARGET_OCI"
+
+        echo "Recording base image used:"
+        echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: copy-model-files
       image: registry.access.redhat.com/ubi9/python-311:9.6-1755749751
@@ -191,15 +216,16 @@ spec:
         set -euo pipefail
 
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
+        BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
 
+        echo "manifest_data.json does not exist. $MODELCAR_IMAGE is a single-arch image";
         mobster generate  \
           --output sbom.json \
           modelcar \
           --modelcar-image "$MODELCAR_IMAGE" \
-          --base-image "$BASE_IMAGE" \
+          --base-image "$BASE_IMAGE_REF" \
           --model-image "$MODEL_IMAGE" \
           --sbom-type "$SBOM_TYPE"
-
 
     - name: upload-sbom
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c

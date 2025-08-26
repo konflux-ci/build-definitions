@@ -2,10 +2,10 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: test-modelcar-oci-ta-happy-path
+  name: test-modelcar-oci-ta-alternative-arch
 spec:
   description: |
-    Test the modelcar-oci-ta task with a real base image and model to verify successful build
+    Test the modelcar-oci-ta task with a real base image, using a non-standard arch
   workspaces:
     - name: tests-workspace
   tasks:
@@ -100,7 +100,9 @@ spec:
         - name: SOURCE_ARTIFACT
           value: $(tasks.mock-trusted-artifact.results.SOURCE_ARTIFACT)
         - name: BASE_IMAGE
-          value: "registry.access.redhat.com/ubi9/ubi@sha256:d0ef82ed2d57e186fc1fa10cab62309e8c5ae7d1d7adbbcdefee6ae5e72ecc4e"
+          value: "registry.access.redhat.com/ubi9/ubi:latest@sha256:b68c21b2dd3e72abcf2f8dcfc77580e4030564d1243bfcb7cd64ccc5aa3e0a25"
+        - name: PLATFORM
+          value: linux/s390x
         - name: MODEL_IMAGE
           value: $(tasks.mock-trusted-artifact.results.MODEL_PATH)
         - name: IMAGE
@@ -174,10 +176,10 @@ spec:
                   echo "Image is not single-arch." && exit 1
               fi
 
-              echo "Confirm the image is amd64 - the one matching the single-arch base image we provided"
+              echo "Confirm the image is s390x - the one we asked for"
               mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest/}" | jq -r .Architecture)
-              if [ "$mediaType" != "amd64" ]; then
-                  echo "Image is not amd64." && exit 1
+              if [ "$mediaType" != "s390x" ]; then
+                  echo "Image is not s390x." && exit 1
               fi
 
               echo "Confirm the contents of the filesystem"
