@@ -100,7 +100,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:1b693397e53b8c0ad2511c3a76f97b83caae335056f4c460a027d51edf1ec8a4
+      image: quay.io/konflux-ci/oras:latest@sha256:e52de03c78ea65bf806cebee6892f054e2ae7b554d302e4a83ef28ec5010b2ee
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -128,7 +128,7 @@ spec:
         chmod -R g+w "$TARGET_OCI"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.6-1754318683
+      image: registry.access.redhat.com/ubi9/python-311:9.6-1755749751
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -150,7 +150,7 @@ spec:
         olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:1b693397e53b8c0ad2511c3a76f97b83caae335056f4c460a027d51edf1ec8a4
+      image: quay.io/konflux-ci/oras:latest@sha256:e52de03c78ea65bf806cebee6892f054e2ae7b554d302e4a83ef28ec5010b2ee
       workingDir: /var/workdir
       script: |
         #!/bin/bash
