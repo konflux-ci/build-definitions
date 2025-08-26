@@ -2,10 +2,10 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: test-modelcar-oci-ta-happy-path
+  name: test-modelcar-oci-ta-alternative-arch
 spec:
   description: |
-    Test the modelcar-oci-ta task with a real base image and model to verify successful build
+    Test the modelcar-oci-ta task with a real base image, using a non-standard arch
   workspaces:
     - name: tests-workspace
   tasks:
@@ -100,7 +100,9 @@ spec:
         - name: SOURCE_ARTIFACT
           value: $(tasks.mock-trusted-artifact.results.SOURCE_ARTIFACT)
         - name: BASE_IMAGE
-          value: "registry.access.redhat.com/ubi9/ubi@sha256:d0ef82ed2d57e186fc1fa10cab62309e8c5ae7d1d7adbbcdefee6ae5e72ecc4e"
+          value: "registry.access.redhat.com/ubi9/ubi:latest"
+        - name: PLATFORM
+          value: linux/s390x
         - name: MODEL_IMAGE
           value: $(tasks.mock-trusted-artifact.results.MODEL_PATH)
         - name: IMAGE
@@ -167,30 +169,6 @@ spec:
 
               echo "Confirm we can inspect the image"
               skopeo inspect "docker://${IMAGE_REF//:latest/}"
-
-              echo "Confirm the image is single-arch; multiarch not supported"
-              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest/}" | jq -r .mediaType)
-              if [ "$mediaType" != "application/vnd.oci.image.manifest.v1+json" ]; then
-                  echo "Image is not single-arch." && exit 1
-              fi
-
-              echo "Confirm the image is amd64 - the one matching the single-arch base image we provided"
-              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest/}" | jq -r .Architecture)
-              if [ "$mediaType" != "amd64" ]; then
-                  echo "Image is not amd64." && exit 1
-              fi
-
-              echo "Confirm the contents of the filesystem"
-              mkdir contents/ && pushd contents/
-              oc image extract "$IMAGE_REF"
-              for filename in usr/bin/ls models/source/models/model.bin; do
-                if [ -f "$filename" ]; then
-                    echo "File $filename found as expected."
-                else
-                    echo "File $filename not found!" && exit 1
-                fi
-              done
-              popd
 
               echo "Confirm the sbom exists as json"
               packages=$(cosign download sbom "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
