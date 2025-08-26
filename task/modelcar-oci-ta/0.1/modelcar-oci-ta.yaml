@@ -146,12 +146,13 @@ spec:
         set -eu
         set -o pipefail
 
-        REMOVE_ORIGINALS_ARG=""
+        REMOVE_ORIGINALS_ARG=()
         if [[ "$REMOVE_ORIGINALS" == "true" ]]; then
-          REMOVE_ORIGINALS_ARG="--remove-originals"
+          REMOVE_ORIGINALS_ARG+=("--remove-originals")
         fi
         pip install olot=="${OLOT_VERSION}"
-        olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+
+        olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:1b693397e53b8c0ad2511c3a76f97b83caae335056f4c460a027d51edf1ec8a4
