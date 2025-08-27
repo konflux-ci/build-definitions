@@ -681,12 +681,30 @@ spec:
       touch base_images_labels.json
       if [[ "$INHERIT_BASE_IMAGE_LABELS" == "true" ]] && [[ -n "$BASE_IMAGES" ]]; then
         FINAL_BASE_IMAGE=$(
-          jq -r '.Stages[-1] | if .From.Stage then empty else .BaseName end | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
+          # Get the base image of the final stage
+          # The final stage can refer to a previous `FROM xxx AS yyy` stage, for example 'FROM bar AS foo; ... ; FROM foo; ...'
+          # Define a function that keeps nesting recursively into the parent stages until it finds the original base image
+          # Run the find_root_stage() function on the final stage
+          # If the final stage is scratch or oci-archive, return empty
+          jq -r '.Stages as $all_stages |
+            def find_root_stage($stage):
+              if $stage.From.Stage then
+                find_root_stage($all_stages[$stage.From.Stage.Index])
+              else
+                $stage
+              end;
+
+              find_root_stage(.Stages[-1]) |
+              if .From.Scratch or (.BaseName | test("^oci-archive:")) then
+                empty
+              else
+                .BaseName
+              end' /shared/parsed_dockerfile.json |
             tr -d '"' |
             tr -d "'"
         )
         if [[ -n "$FINAL_BASE_IMAGE" ]]; then
-          buildah pull "$FINAL_BASE_IMAGE" >/dev/null
+          buildah pull "$FINAL_BASE_IMAGE" >/dev/null` `
           buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
         fi
       fi
