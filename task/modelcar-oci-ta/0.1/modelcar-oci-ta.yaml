@@ -93,9 +93,13 @@ spec:
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
+      - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        name: trusted-ca
+        readOnly: true
+        subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7263233979258cf8abd8a5fd968671c0f3c461f30e6041c5efc0bc25d9bc973d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -142,12 +146,13 @@ spec:
         set -eu
         set -o pipefail
 
-        REMOVE_ORIGINALS_ARG=""
+        REMOVE_ORIGINALS_ARG=()
         if [[ "$REMOVE_ORIGINALS" == "true" ]]; then
-          REMOVE_ORIGINALS_ARG="--remove-originals"
+          REMOVE_ORIGINALS_ARG+=("--remove-originals")
         fi
         pip install olot=="${OLOT_VERSION}"
-        olot "$REMOVE_ORIGINALS_ARG" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+
+        olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:1b693397e53b8c0ad2511c3a76f97b83caae335056f4c460a027d51edf1ec8a4
@@ -179,7 +184,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster@sha256:1298794cb6c6bc3aa42a2f1206e8ec1497e9a105675a663648f31236a2dc605d
+      image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
       workingDir: /var/workdir
       script: |
         #!/bin/bash

@@ -41,7 +41,7 @@ spec:
       name: hermetic
       type: string
       default: "false"
-    - description: Build dependencies to be prefetched by Cachi2
+    - description: Build dependencies to be prefetched
       name: prefetch-input
       type: string
       default: ""
@@ -349,13 +349,6 @@ spec:
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
   finally:
-    - name: show-sbom
-      taskRef:
-        name: show-sbom
-        version: "0.1"
-      params:
-      - name: IMAGE_URL
-        value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: show-summary
       taskRef:
         name: summary

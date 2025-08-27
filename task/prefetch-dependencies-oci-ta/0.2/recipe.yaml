@@ -3,11 +3,11 @@ base: ../../prefetch-dependencies/0.2/prefetch-dependencies.yaml
 add:
   - use-source
   - create-source
-  - create-cachi2
+  - create-prefetch
 additionalSteps:
   - at: 0
     name: skip-ta
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1754584681@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350@sha256:2f06ae0e6d3d9c4f610d32c480338eef474867f435d8d28625f2985e8acde6e8
     env:
     - name: INPUT
       value: $(params.input)
@@ -23,10 +23,10 @@ additionalSteps:
         echo -n "" > $(results.CACHI2_ARTIFACT.path)
       fi
 description: |-
-    Task that uses Cachi2 to prefetch build dependencies. The fetched dependencies and the
+    Task that uses Hermeto to prefetch build dependencies. The fetched dependencies and the
     application source code are stored as a trusted artifact in the provided OCI repository.
-    For additional info on Cachi2, see docs at
-    https://github.com/containerbuildsystem/cachi2#basic-usage.
+    For additional info on Hermeto, see docs at
+    https://hermetoproject.github.io/hermeto/#basic-usage
 
     ## Configuration
 
@@ -44,7 +44,7 @@ description: |-
           subprocess_timeout: 3600
     ```
 
-    [available configuration parameters]: https://github.com/containerbuildsystem/cachi2?tab=readme-ov-file#available-configuration-parameters
+    [available configuration parameters]: https://hermetoproject.github.io/hermeto/#available-configuration-parameters
 preferStepTemplate: true
 removeWorkspaces:
   - source

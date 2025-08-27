@@ -17,7 +17,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-container:0.4:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.4:IMAGE ; build-image-index:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.4:CONTEXT ; sast-coverity-check:0.3:CONTEXT ; push-dockerfile:0.1:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched by Cachi2| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-container:0.4:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.4:PRIVILEGED_NESTED|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -164,10 +164,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|config-file-content| Pass configuration to cachi2. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
+|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
-|log-level| Set cachi2 log level (debug, info, warning, error)| info| |
+|log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
@@ -287,13 +287,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### show-sbom:0.1 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|IMAGE_URL| Fully qualified image name to show SBOM for.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|PLATFORM| Specific architecture to display the SBOM for. An example arch would be "linux/amd64". If IMAGE_URL refers to a multi-arch image and this parameter is empty, the task will default to use "linux/amd64".| linux/amd64| |
 ### source-build-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -318,7 +311,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGES| List of all referenced image manifests| |
 |IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.2:image-digest ; sast-snyk-check:0.4:image-digest ; clamav-scan:0.3:image-digest ; sast-coverity-check:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.3:image-digest ; apply-tags:0.2:IMAGE_DIGEST ; push-dockerfile:0.1:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| show-sbom:0.1:IMAGE_URL ; build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.3:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.3:image-url ; apply-tags:0.2:IMAGE_URL ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.2:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.4:image-url ; clamav-scan:0.3:image-url ; sast-coverity-check:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.3:image-url ; apply-tags:0.2:IMAGE_URL ; push-dockerfile:0.1:IMAGE ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-oci-ta:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -424,5 +417,5 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
-|git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any cachi2 commands are run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
-|netrc| Workspace containing a .netrc file. Cachi2 will use the credentials in this file when performing http(s) requests. | True| netrc|
+|git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
+|netrc| Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. | True| netrc|
