@@ -282,6 +282,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |BINARY_IMAGE| Binary image name with tag.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |BINARY_IMAGE_DIGEST| Digest of the binary image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IGNORE_UNSIGNED_IMAGE| When set to "true", source build task won't fail when source image is missing signatures (this can be used for development)| false| |
+|caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 ### summary:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|

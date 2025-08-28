@@ -39,6 +39,15 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
   results:
     - name: BUILD_RESULT
       description: Build result.
@@ -49,6 +58,13 @@ spec:
     - name: SOURCE_IMAGE_URL
       description: The source image url.
   volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
     - name: workdir
       emptyDir: {}
   stepTemplate:
@@ -62,6 +78,10 @@ spec:
       - name: IMAGE_NOT_EXIST_FLAG
         value: /var/workdir/image-not-exist
     volumeMounts:
+      - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        name: trusted-ca
+        readOnly: true
+        subPath: ca-bundle.crt
       - mountPath: /var/workdir
         name: workdir
   steps:
