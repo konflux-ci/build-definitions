@@ -31,6 +31,14 @@ spec:
         development)
       type: string
       default: "false"
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
   results:
     - name: BUILD_RESULT
       description: Build result.
@@ -46,6 +54,13 @@ spec:
   volumes:
     - name: source-build-work-place
       emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
   stepTemplate:
     env:
       - name: BINARY_IMAGE
@@ -59,6 +74,10 @@ spec:
     volumeMounts:
       - name: source-build-work-place
         mountPath: /var/source-build
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
   steps:
     - name: get-base-images
       image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
