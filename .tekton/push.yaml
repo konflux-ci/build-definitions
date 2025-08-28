@@ -14,6 +14,8 @@ spec:
       value: "{{ repo_url }}"
     - name: revision
       value: "{{ revision }}"
+    - name: image-target
+      value: "quay.io/konflux-ci/appstudio-utils:{{ revision }}"
     - name: slack-webhook-notification-team
       value: "integration-slack-alerts"
   pipelineSpec:
@@ -75,7 +77,7 @@ spec:
             - linux/arm64
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+            value: "$(params.image-target)"
           - name: CONTEXT
             value: appstudio-utils
           - name: IMAGE_APPEND_PLATFORM
@@ -91,7 +93,7 @@ spec:
       - name: build-appstudio-utils-index
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+            value: "$(params.image-target)"
           - name: IMAGES
             value:
             - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
@@ -130,7 +132,7 @@ spec:
               type: string
           steps:
             - name: build-bundles-konflux-ci
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
@@ -147,7 +149,7 @@ spec:
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
             - name: build-bundles-redhat-appstudio
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               command: ["./hack/build-and-push.sh"]
               env:
@@ -168,7 +170,7 @@ spec:
                   subPath: .dockerconfigjson
                   name: quay-secret
             - name: update-acceptable-bundles
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               env:
               - name: REVISION
@@ -214,7 +216,7 @@ spec:
         taskSpec:
           steps:
             - name: run-create-bundle-repos
-              image: quay.io/konflux-ci/appstudio-utils:{{revision}}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
