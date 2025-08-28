@@ -586,8 +586,50 @@ spec:
         DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
       fi
 
+      label_pairs=()
+      # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
+      touch base_images_labels.json
+      if [[ "$INHERIT_BASE_IMAGE_LABELS" == "true" ]] && [[ -n "$BASE_IMAGES" ]]; then
+        FINAL_BASE_IMAGE=$(
+          jq -r '.Stages[-1] | if .From.Stage then empty else .BaseName end | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
+            tr -d '"' |
+            tr -d "'"
+        )
+        if [[ -n "$FINAL_BASE_IMAGE" ]]; then
+          buildah pull "$FINAL_BASE_IMAGE" >/dev/null
+          buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
+        fi
+      fi
+
       # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
       LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      # Get all the default and explicit labels so that they can be written into labels.json
+      for label in "${LABELS[@]}"; do
+        if [[ "$label" != "--label" ]]; then
+          label_pairs+=("$label")
+        fi
+      done
+
+      # Labels that we explicitly add to the image
+      [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
+
+      while IFS= read -r label; do
+        label_pairs+=("$label")
+      done < <(jq -r '.Stages[].Commands[] | select(.Name == "LABEL") | .Labels[] | "\(.Key)=\(.Value)"' /shared/parsed_dockerfile.json | sed 's/"//g')
+
+      printf '%s\n' "${label_pairs[@]}" | jq -Rn '
+        [ inputs | select(length>0) ]
+      | map( split("=") | {(.[0]): (.[1] // "")} )
+        | add' >"image_labels.json"
+
+      jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      echo "" >>"$dockerfile_copy"
+      echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
 
       echo "[$(date --utc -Ins)] Register sub-man"
 
