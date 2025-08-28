@@ -20,11 +20,13 @@ spec:
 
     The following environment variables are defined for use in label-templates
 
-    * ACTUAL_DATE - a date time string containing the time this task runs, formatted +'%Y-%m-%dT%H:%M:%SZ'
-    * ACTUAL_DATE_EPOCH - the timestamp at the time this task runs
-    * SOURCE_DATE - a date time string containing the provided source timestamp, formatted +'%Y-%m-%dT%H:%M:%SZ'
-    * SOURCE_DATE_EPOCH - the timestamp provided as a param meant to represent the timestamp at which the source was last modified
+    * `ACTUAL_DATE` - a date time string containing the time this task runs, formatted +'%Y-%m-%dT%H:%M:%SZ'
+    * `ACTUAL_DATE_EPOCH` - the timestamp at the time this task runs
+    * `SOURCE_DATE` - a date time string containing the provided source timestamp, formatted +'%Y-%m-%dT%H:%M:%SZ'
+    * `SOURCE_DATE_EPOCH` - the timestamp provided as a param meant to represent the timestamp at which the source was last modified
 
+    It is possible to change the default date formats for `SOURCE_DATE` and `ACTUAL_DATE` by setting the task parameters
+    `source-date-format` and `actual-date-format` respectively
   params:
   - name: label-templates
     description: An array of templates that should be rendered and exposed as an array of labels
@@ -32,6 +34,12 @@ spec:
   - name: source-date-epoch
     description: A standardised environment variable for build tools to consume in order to produce reproducible output.
     default: ""
+  - name: source-date-format
+    default: '%Y-%m-%dT%H:%M:%SZ'
+    description: the date format to apply to SOURCE_DATE
+  - name: actual-date-format
+    default: '%Y-%m-%dT%H:%M:%SZ'
+    description: the date format to apply to ACTUAL_DATE
   results:
     - name: labels
       description: The rendered labels, rendered from the provided templates.
@@ -48,6 +56,10 @@ spec:
       env:
       - name: SOURCE_DATE_EPOCH
         value: "$(params.source-date-epoch)"
+      - name: SOURCE_DATE_FORMAT
+        value: "$(params.source-date-format)"
+      - name: ACTUAL_DATE_FORMAT
+        value: "$(params.actual-date-format)"
       args:
       - --templates
       - $(params.label-templates[*])
@@ -69,12 +81,12 @@ spec:
           done
 
           ACTUAL_DATE_EPOCH=$(date -u +'%s')
-          ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+          ACTUAL_DATE=$(date -u --date=@"$ACTUAL_DATE_EPOCH" "+$ACTUAL_DATE_FORMAT")
 
           if [ "$SOURCE_DATE_EPOCH" == "" ]; then
             SOURCE_DATE_EPOCH="$ACTUAL_DATE_EPOCH"
           fi
-          SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" +'%Y-%m-%dT%H:%M:%SZ')
+          SOURCE_DATE=$(date -u --date=@"$SOURCE_DATE_EPOCH" "+$SOURCE_DATE_FORMAT")
 
           echo -n "$ACTUAL_DATE" > "$(results.actual-date.path)"
           echo -n "$ACTUAL_DATE_EPOCH" > "$(results.actual-date-epoch.path)"
