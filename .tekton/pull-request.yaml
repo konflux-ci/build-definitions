@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.4/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.2/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.4/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.3/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -15,6 +15,8 @@ spec:
       value: "{{ revision }}"
     - name: e2e_test_namespace
       value: build-templates-e2e
+    - name: image-target
+      value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
   pipelineSpec:
     params:
       - name: repo_url
@@ -45,7 +47,7 @@ spec:
             - linux/arm64
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+            value: "$(params.image-target)"
           - name: CONTEXT
             value: appstudio-utils
           - name: IMAGE_APPEND_PLATFORM
@@ -61,7 +63,7 @@ spec:
       - name: build-appstudio-utils-index
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+            value: "$(params.image-target)"
           - name: IMAGES
             value:
             - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
@@ -89,9 +91,9 @@ spec:
           name: task-switchboard
         params:
           - name: revision
-            value: $(params.revision)
+            value: "$(params.revision)"
           - name: utils_image
-            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+            value: "$(params.image-target)"
           - name: expressions
             value:
               - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
@@ -120,6 +122,8 @@ spec:
         params:
           - name: image-digest
             value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
+          - name: image-url
+            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
         taskRef:
           name: sast-unicode-check
         workspaces:
@@ -135,7 +139,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-structure
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: $(params.image-target)
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -212,7 +216,7 @@ spec:
             description: "custom bundle for fbc-builder pipeline"
           steps:
             - name: build-bundles
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: $(params.image-target)
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
