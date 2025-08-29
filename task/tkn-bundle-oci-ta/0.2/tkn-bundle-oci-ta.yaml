@@ -438,11 +438,12 @@ spec:
             previous_task_bundle="${IMAGE%%:*}@${previous_migration_bundle_digest}"
             if ! has_same_migration_in_previous_task_bundle=$(bundle_has_migration "${previous_task_bundle}" "${task_version}" "${migration_file}") || [[ "${has_same_migration_in_previous_task_bundle}" == "false" ]]; then
               ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
+            else
+              # still ignore the migration script file if the same migration script file has been attached to previous task bundle
+              # especially for repush or PR with .tekton/ files change only
+              echo "the same migration script file exists in previous task bundle ${previous_task_bundle} for pushed event, skipped"
+              has_migration=false
             fi
-            # still ignore the migration script file if the same migration script file has been attached to previous task bundle
-            # especially for repush or PR with .tekton/ files change only
-            echo "the same migration script file exists in previous task bundle ${previous_task_bundle} for pushed event, skipped"
-            has_migration=false
           fi
         fi
 
