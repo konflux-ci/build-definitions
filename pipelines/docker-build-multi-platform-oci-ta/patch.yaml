@@ -54,12 +54,28 @@
   value:
   - build-images
 
+# clamav-scan
+- op: add
+  path: /spec/tasks/10/matrix
+  value:
+    params:
+      - name: image-arch
+        value: ["$(params.build-platforms)"]
+
 # ecosystem-cert-preflight-checks
 - op: add
   path: /spec/tasks/8/matrix
   value:
     params:
       - name: platform
+        value: ["$(params.build-platforms)"]
+
+# clair-scan
+- op: add
+  path: /spec/tasks/7/matrix
+  value:
+    params:
+      - name: image-platform
         value: ["$(params.build-platforms)"]
 
 # Order of pipeline parameters
@@ -93,9 +109,3 @@
     type: array
     default:
       - "linux/x86_64"
-- op: add
-  path: /spec/tasks/10/matrix
-  value:
-    params:
-      - name: image-arch
-        value: ["$(params.build-platforms)"]
