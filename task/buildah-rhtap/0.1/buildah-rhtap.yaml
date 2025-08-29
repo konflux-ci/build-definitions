@@ -65,7 +65,7 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
   steps:
   - name: build
-    image: registry.access.redhat.com/ubi9/buildah@sha256:8ea2b81b32f70b9502d88722a5f69de8c0cf5efa6f30df041873546e9f9438cb
+    image: registry.access.redhat.com/ubi9/buildah@sha256:7af2007b1804a82cc0bc69a260784c6977e631fb5174abdc00e06eaac593381d
     args:
       - $(params.BUILD_ARGS[*])
     script: |
@@ -160,7 +160,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: generate-sboms
-    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:d97ca4eb3a57ced6f94508a1d1efacb5e78a6956201ffc4f82b50193f56c6a06
+    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:15ed82f0b5311a570ccb8ea02135d9776c6d61e545c51b256b3fc5b5db20ba67
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
@@ -174,7 +174,7 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi8/python-311@sha256:6996fdde0fc5bc2e8ef27d465045c2310a1c1521d29fd4c5b179da6b96992342
+    image: registry.access.redhat.com/ubi8/python-311@sha256:e7f60d39ae21976c1f86fcf739a6518f50ba80efed9ca97bd47ddbea60e73055
     env:
       - name: RESULT_PATH
         value: $(results.SBOM_BLOB_URL.path)
