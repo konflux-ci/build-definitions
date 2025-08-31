@@ -15,12 +15,12 @@ jobs:
           - task-generator/trusted-artifacts
     steps:
       - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
-      - uses: actions/setup-go@e75c3e80bcde46e322cd5845ae46582947c9becd
+      - uses: actions/setup-go@1d76b952eb9246b03e20e15a9ef98c6d4af389ef
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@030ca6c9fbdb3112d99584f1992f5216eb38ad86
+        uses: golangci/golangci-lint-action@3c28b2cb75e1933038fca129074454e12a0f45d8
         with:
           working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
       - name: Install Go
-        uses: actions/setup-go@e75c3e80bcde46e322cd5845ae46582947c9becd
+        uses: actions/setup-go@1d76b952eb9246b03e20e15a9ef98c6d4af389ef
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -78,7 +78,7 @@ jobs:
           - task-generator/trusted-artifacts
     steps:
       - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
-      - uses: actions/setup-go@e75c3e80bcde46e322cd5845ae46582947c9becd
+      - uses: actions/setup-go@1d76b952eb9246b03e20e15a9ef98c6d4af389ef
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -89,7 +89,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@5b49155c7f37b5ec074ffd26b428e6b64b1bf412
+        uses: github/codeql-action/upload-sarif@02ab253bd299d261d00cdf8a9bca38fea2697d50
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif
