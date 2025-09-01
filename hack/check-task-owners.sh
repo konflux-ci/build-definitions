@@ -13,7 +13,7 @@ trap 'rm "$temp_gitignore"' EXIT
 codeowners_to_gitignore CODEOWNERS > "$temp_gitignore"
 
 important_dirs=$(
-    for f in task/* stepactions/*; do
+    for f in task/* external-task/* stepactions/*; do
         if [[ -d "$f" ]]; then
             echo "$f"
         fi
