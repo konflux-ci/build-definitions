@@ -10,7 +10,7 @@ metadata:
 spec:
   description: |-
     Task that uses a prefetch CLI tool to prefetch build dependencies.
-    See docs at https://github.com/containerbuildsystem/hermeto#basic-usage.
+    See docs at https://github.com/hermetoproject/hermeto#basic-usage.
 
     ## Configuration
 
@@ -28,7 +28,7 @@ spec:
           subprocess_timeout: 3600
     ```
 
-    [available configuration parameters]: https://github.com/containerbuildsystem/hermeto?tab=readme-ov-file#available-configuration-parameters
+    [available configuration parameters]: https://github.com/hermetoproject/hermeto?tab=readme-ov-file#available-configuration-parameters
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
@@ -78,7 +78,7 @@ spec:
       then
         # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
         # decides what the SBOM impact of this configuration option will be:
-        # https://github.com/containerbuildsystem/hermeto/issues/577
+        # https://github.com/hermetoproject/hermeto/issues/577
         yq 'del(.goproxy_url)' <<< "${CONFIG_FILE_CONTENT}" > /mnt/config/config.yaml
       fi
 

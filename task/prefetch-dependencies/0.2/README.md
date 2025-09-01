@@ -1,7 +1,7 @@
 # prefetch-dependencies task
 
 Task that uses a prefetch CLI tool to prefetch build dependencies.
-See docs at https://github.com/containerbuildsystem/cachi2#basic-usage.
+See docs at https://github.com/hermetoproject/hermeto#basic-usage.
 
 ## Configuration
 
@@ -19,7 +19,7 @@ params:
       subprocess_timeout: 3600
 ```
 
-[available configuration parameters]: https://github.com/containerbuildsystem/cachi2?tab=readme-ov-file#available-configuration-parameters
+[available configuration parameters]: https://github.com/hermetoproject/hermeto?tab=readme-ov-file#available-configuration-parameters
 
 ## Parameters
 |name|description|default value|required|
