@@ -1,18 +1,18 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: ko
+  name: ko-oci-ta
+  annotations:
+    tekton.dev/categories: Image Build
+    tekton.dev/displayName: Build and upload container image using ko oci
+      trusted artifacts
+    tekton.dev/pipelines.minVersion: 0.17.0
+    tekton.dev/platforms: linux/amd64,linux/arm64
+    tekton.dev/tags: image-build
   labels:
     app.kubernetes.io/version: "0.1"
-  annotations:
-    tekton.dev/pipelines.minVersion: "0.17.0"
-    tekton.dev/categories: Image Build
-    tekton.dev/tags: image-build
-    tekton.dev/displayName: "Build and upload container image using ko"
-    tekton.dev/platforms: "linux/amd64,linux/arm64"
 spec:
-  description: >-
-    This Task builds source into a container image using ko.
+  description: This Task builds source into a container image using ko.
   params:
     - name: BUILD_ARGS
       description: additional arguments to ko build
@@ -30,10 +30,10 @@ spec:
       default: ""
     - name: KO_IMAGE
       description: ko image to use for builds
-      default: "quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/ko-builder:127e70d57df2a6b75bf3a2bb233a6223fb6a8cab"
+      default: quay.io/redhat-user-workloads/konflux-build-pipeli-tenant/ko-builder:127e70d57df2a6b75bf3a2bb233a6223fb6a8cab
     - name: MAIN
       description: import path of package main
-      default: "."
+      default: .
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -55,7 +55,8 @@ spec:
     - name: IMAGE_URL
       description: Image repository and tag where the built image was pushed
     - name: SBOM_BLOB_URL
-      description: Reference of SBOM blob digest to enable digest-based verification from provenance
+      description: Reference of SBOM blob digest to enable digest-based verification
+        from provenance
   volumes:
     - name: trusted-ca
       configMap:
@@ -84,25 +85,25 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
       volumeMounts:
-        - name: trusted-ca
-          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
       image: $(params.KO_IMAGE)
       workingDir: /var/workdir/source
-      env:
-        - name: DOCKER_CONFIG
-          value: "/opt/app-root/src/.docker"
-        - name: KO_DEFAULTBASEIMAGE
-          value: "$(params.KO_DEFAULTBASEIMAGE)"
-        - name: GOFLAGS
-          value: "-buildvcs=false"
       volumeMounts:
-        - name: trusted-ca
-          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
           readOnly: true
           subPath: ca-bundle.crt
+      env:
+        - name: DOCKER_CONFIG
+          value: /opt/app-root/src/.docker
+        - name: KO_DEFAULTBASEIMAGE
+          value: $(params.KO_DEFAULTBASEIMAGE)
+        - name: GOFLAGS
+          value: -buildvcs=false
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -126,8 +127,8 @@ spec:
         echo "IMAGE_URL=${url}"
         echo "SBOM_BLOB_URL=${sbom}"
 
-        echo -n "${digest}" > "$(results.IMAGE_DIGEST.path)"
-        echo -n "${url}@${digest}" > "$(results.IMAGE_REF.path)"
-        echo -n "${url}" > "$(results.IMAGE_URL.path)"
-        echo -n "${sbom}" > "$(results.SBOM_BLOB_URL.path)"
+        echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
+        echo -n "${url}@${digest}" >"$(results.IMAGE_REF.path)"
+        echo -n "${url}" >"$(results.IMAGE_URL.path)"
+        echo -n "${sbom}" >"$(results.SBOM_BLOB_URL.path)"
         echo "Completed."
