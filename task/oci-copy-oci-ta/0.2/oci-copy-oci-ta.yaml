@@ -293,7 +293,7 @@ spec:
         done
 
         echo "Pushing complete artifact manifest to ${IMAGE}"
-        if ! retry oras manifest push --no-tty --registry-config auth.json "${IMAGE}" artifact-manifest.json; then
+        if ! retry oras manifest push --registry-config auth.json "${IMAGE}" artifact-manifest.json; then
           echo "Failed to push complete artifact manifest to ${IMAGE}"
           exit 1
         fi
