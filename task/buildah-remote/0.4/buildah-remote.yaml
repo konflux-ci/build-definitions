@@ -335,6 +335,11 @@ spec:
       if ! [[ $IS_LOCALHOST ]]; then
         echo "[$(date --utc -Ins)] Setup VM"
 
+        if [[ "$BUILDAH_HTTP_PROXY" =~ .+\.cluster\.local ]]; then
+          echo "[$(date --utc -Ins)] Ignoring cluster local proxy for remote build"
+          unset BUILDAH_HTTP_PROXY BUILDAH_NO_PROXY
+        fi
+
         chmod 0400 ~/.ssh/id_rsa
         export BUILD_DIR=$(cat /ssh/user-dir)
         export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
