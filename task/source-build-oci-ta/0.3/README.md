@@ -11,6 +11,8 @@ Source image build.
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |IGNORE_UNSIGNED_IMAGE|When set to "true", source build task won't fail when source image is missing signatures (this can be used for development)|false|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 
 ## Results
 |name|description|
