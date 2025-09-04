@@ -29,15 +29,95 @@
 #      9  image-expires-after
 #     10  build-source-image
 #     11  build-image-index
-#     12  build-args
-#     13  build-args-file
-#     14  privileged-nested
-#     15  build-platforms
+#     12  buildah-format
+#     13  build-args
+#     14  build-args-file
+#     15  privileged-nested
+#     16  build-platforms
 - op: remove
-  path: /spec/params/14
+  path: /spec/params/15  # privileged-nested
+- op: remove
+  path: /spec/params/12  # buildah-format - FBC is always OCI
 - op: replace
-  path: /spec/params/7/default
+  path: /spec/params/7/default  # hermetic
   value: "true"
+
+# Remove params
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
+#  0	IMAGE
+#  1	DOCKERFILE
+#  2	CONTEXT
+#  3	HERMETIC
+#  4	PREFETCH_INPUT
+#  5	IMAGE_EXPIRES_AFTER
+#  6	COMMIT_SHA
+#  7	BUILD_ARGS
+#  8	BUILD_ARGS_FILE
+#  9	PRIVILEGED_NESTED
+# 10	SOURCE_URL
+# 11	BUILDAH_FORMAT
+# 12	SOURCE_ARTIFACT
+# 13	CACHI2_ARTIFACT
+# 14	IMAGE_APPEND_PLATFORM
+- op: remove
+  path: /spec/tasks/3/params/11  # BUILDAH_FORMAT - FBC is always OCI
+- op: remove
+  path: /spec/tasks/3/params/9  # PRIVILEGED_NESTED
+# Remove tasks
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.[].name" | nl -v 0 
+#      0	init
+#      1	clone-repository
+#      2	prefetch-dependencies
+#      3	build-images
+#      4	build-image-index
+#      5	build-source-image
+#      6	deprecated-base-image-check
+#      7	clair-scan
+#      8	ecosystem-cert-preflight-checks
+#      9	sast-snyk-check
+#     10	clamav-scan
+#     11	sast-coverity-check
+#     12	coverity-availability-check
+#     13	sast-shell-check
+#     14	sast-unicode-check
+#     15	apply-tags
+#     16	push-dockerfile
+#     17	rpms-signature-scan
+- op: remove
+  path: /spec/tasks/17  # rpms-signature-scan
+- op: remove
+  path: /spec/tasks/16  # push-dockerfile
+- op: remove
+  path: /spec/tasks/14  # sast-unicode-scan
+- op: remove
+  path: /spec/tasks/13  # sast-shell-scan
+- op: remove
+  path: /spec/tasks/12  # coverity-availability-check
+- op: remove
+  path: /spec/tasks/11  # sast-coverity-check
+- op: remove
+  path: /spec/tasks/10  # clamav-scan
+- op: remove
+  path: /spec/tasks/9  # sast-snyk-check
+- op: remove
+  path: /spec/tasks/8  # ecosystem-cert-preflight-checks
+- op: remove
+  path: /spec/tasks/7  # clair-scan
+- op: remove
+  path: /spec/tasks/5  # build-source-image
+# Remove build-image-index task params
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.4.params.[].name" | nl -v 0
+#  0	IMAGE
+#  1	COMMIT_SHA
+#  2	IMAGE_EXPIRES_AFTER
+#  3	ALWAYS_BUILD_INDEX
+#  4	IMAGES
+#  5	BUILDAH_FORMAT
+- op: remove
+  path: /spec/tasks/4/params/5  # BUILDAH_FORMAT - FBC is always OCI
+
+
+# KEEP removal operations before adding operations, otherwise you will die from counting correct index numbers
 - op: add
   path: /spec/tasks/2
   value:
@@ -69,45 +149,6 @@
 - op: replace
   path: /spec/tasks/4/runAfter/0
   value: clone-repository
-# Remove params
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
-#      0	IMAGE
-#      1	DOCKERFILE
-#      2	CONTEXT
-#      3	HERMETIC
-#      4	PREFETCH_INPUT
-#      5	IMAGE_EXPIRES_AFTER
-#      6	COMMIT_SHA
-#      7	BUILD_ARGS
-#      8	BUILD_ARGS_FILE
-#      9	PRIVILEGED_NESTED
-#     10	SOURCE_ARTIFACT
-#     11	CACHI2_ARTIFACT
-#     12	IMAGE_APPEND_PLATFORM
-- op: remove
-  path: /spec/tasks/4/params/9
-- op: remove
-  path: /spec/tasks/18  # rpms-signature-scan
-- op: remove
-  path: /spec/tasks/17  # push-dockerfile
-- op: remove
-  path: /spec/tasks/15  # sast-unicode-scan
-- op: remove
-  path: /spec/tasks/14  # sast-shell-scan
-- op: remove
-  path: /spec/tasks/13  # coverity-availability-check
-- op: remove
-  path: /spec/tasks/12  # sast-coverity-check
-- op: remove
-  path: /spec/tasks/11  # clamav-scan
-- op: remove
-  path: /spec/tasks/10  # sast-snyk-check
-- op: remove
-  path: /spec/tasks/9  # ecosystem-cert-preflight-checks
-- op: remove
-  path: /spec/tasks/8  # clair-scan
-- op: remove
-  path: /spec/tasks/6  # build-source-image
 - op: add
   path: /spec/tasks/-
   value:
