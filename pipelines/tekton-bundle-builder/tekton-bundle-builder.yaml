@@ -75,6 +75,11 @@ spec:
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci or docker (default).
+    name: buildah-format
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -143,6 +148,8 @@ spec:
       value: $(params.git-url)
     - name: REVISION
       value: $(params.revision)
+    - name: BUILDAH_FORMAT
+      value: $(params.buildah-format)
     runAfter:
     - prefetch-dependencies
     taskRef:
