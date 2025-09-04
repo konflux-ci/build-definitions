@@ -130,6 +130,11 @@ spec:
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci or docker.
+    name: buildah-format
+    type: string
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
@@ -238,6 +243,8 @@ spec:
       value: $(params.build-args-file)
     - name: SOURCE_URL
       value: $(tasks.clone-repository.results.url)
+    - name: BUILDAH_FORMAT
+      value: $(params.buildah-format)
     - name: IMAGE_APPEND_PLATFORM
       value: "true"
     runAfter:
@@ -266,6 +273,8 @@ spec:
     - name: IMAGES
       value:
       - $(tasks.build-images.results.IMAGE_REF[*])
+    - name: BUILDAH_FORMAT
+      value: $(params.buildah-format)
     runAfter:
     - build-images
     taskRef:

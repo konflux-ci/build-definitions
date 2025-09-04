@@ -57,6 +57,11 @@ spec:
       description: Add built image into an OCI image index
       type: string
       default: "false"
+    - name: buildah-format
+      description: The format for the resulting image's mediaType. Valid values are
+        oci or docker.
+      type: string
+      default: "docker"
   tasks:
     - name: init
       params:
@@ -140,6 +145,8 @@ spec:
       - name: IMAGES
         value:
         - $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
+      - name: BUILDAH_FORMAT
+        value: "$(params.buildah-format)"
     - name: build-source-image
       when:
         - input: $(tasks.init.results.build)
