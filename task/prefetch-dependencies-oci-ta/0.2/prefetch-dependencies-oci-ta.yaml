@@ -148,7 +148,7 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4daf1dd3b8604031add9a4eef9f7b7d2461f4fc9a97cb484f26d003e880cc629
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:120b168e59efa5aa72eebdb088808cee3398b1d06e040be046939f01182869b4
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.35.0@sha256:228c3ffdd1fcc8d9ec2235baa21e7b490b698805c65c333f0ee72a5865371b39
+      image: quay.io/konflux-ci/hermeto:0.36.0@sha256:83e7016d56457821f95054c604f0b3d6a093d8cd37c4a207334ccb33da8b7a8e
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -447,7 +447,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4daf1dd3b8604031add9a4eef9f7b7d2461f4fc9a97cb484f26d003e880cc629
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:120b168e59efa5aa72eebdb088808cee3398b1d06e040be046939f01182869b4
       args:
         - create
         - --store
