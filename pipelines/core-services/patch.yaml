@@ -81,13 +81,18 @@
 #      9  image-expires-after
 #     10  build-source-image
 #     11  build-image-index
-#     12  build-args
-#     13  build-args-file
-#     14  privileged-nested
+#     12  buildah-format
+#     13  build-args
+#     14  build-args-file
+#     15  privileged-nested
 
 # Remove privilege-nested pipeline param
 - op: remove
-  path: /spec/params/14
+  path: /spec/params/15
+# We want to always build OCI images by default
+- op: replace
+  path: /spec/params/12/default  # buildah-format
+  value: "oci"
 # We want to always build the image index by default
 - op: replace
   path: /spec/params/11/default  # build-image-index

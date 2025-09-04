@@ -32,6 +32,20 @@
 # Order of finally tasks from the base template:
 # kustomize build pipelines/template-build/ | yq ".spec.finally.[].name" | nl -v 0
 #      0  show-summary
+# $ kustomize build pipelines/template-build/ | yq ".spec.params.[].name" | nl -v 0
+#      0  git-url
+#      1  revision
+#      2  output-image
+#      3  path-context
+#      4  dockerfile
+#      5  rebuild
+#      6  skip-checks
+#      7  hermetic
+#      8  prefetch-input
+#      9  image-expires-after
+#     10  build-source-image
+#     11  build-image-index
+#     12  buildah-format
 - op: add
   path: /spec/tasks/3/params
   value:
@@ -43,6 +57,8 @@
     value: $(params.git-url)
   - name: REVISION
     value: $(params.revision)
+  - name: BUILDAH_FORMAT
+    value: $(params.buildah-format)
 # Remove tasks that assume a binary image
 - op: remove
   path: /spec/tasks/17  # rpms-signature-scan
@@ -64,3 +80,7 @@
   path: /spec/tasks/6   # deprecated-base-image-check
 - op: remove
   path: /spec/tasks/5   # build-source-image
+
+- op: replace
+  path: /spec/params/12/default  # buildah-format
+  value: "oci"

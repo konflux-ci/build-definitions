@@ -29,14 +29,15 @@
 #      9  image-expires-after
 #     10  build-source-image
 #     11  build-image-index
-#     12  build-args
-#     13  build-args-file
-#     14  privileged-nested
-#     15  build-platforms
+#     12  buildah-format
+#     13  build-args
+#     14  build-args-file
+#     15  privileged-nested
+#     16  build-platforms
 - op: remove
-  path: /spec/params/14
+  path: /spec/params/15  # privileged-nested
 - op: replace
-  path: /spec/params/7/default
+  path: /spec/params/7/default  # hermetic
   value: "true"
 - op: add
   path: /spec/tasks/2
@@ -69,6 +70,10 @@
 - op: replace
   path: /spec/tasks/4/runAfter/0
   value: clone-repository
+# We want to always build OCI images by default for FBC
+- op: replace
+  path: /spec/params/12/default  # buildah-format
+  value: "oci"
 # Remove params
 # $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
 #      0	IMAGE
