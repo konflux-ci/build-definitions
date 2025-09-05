@@ -40,7 +40,7 @@ spec:
         secretName: konflux-test-infra
   steps:
     - name: e2e-test
-      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:80ae12e6bd6a3446aadb4118436753a9064784d2
+      image: quay.io/susdas/e2e:tag
       command: ["/konflux-e2e/konflux-e2e.test"]
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
@@ -60,7 +60,7 @@ spec:
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
       - name: COMPONENT_REPO_URLS
-        value: "https://github.com/konflux-qe-bd/devfile-sample-python-basic,https://github.com/konflux-qe-bd/devfile-sample-python-basic-clone,https://github.com/konflux-qe-bd/multiarch-sample-repo,https://github.com/konflux-qe-bd/multiarch-sample-repo-clone,https://github.com/konflux-qe-bd/retrodep,https://github.com/konflux-qe-bd/pip-e2e-test,https://github.com/konflux-qe-bd/fbc-sample-repo,https://github.com/konflux-qe-bd/docker-file-from-scratch,https://github.com/konflux-qe-bd/oci-archive-test"
+        value: "https://github.com/konflux-qe-bd/multiarch-sample-repo"
       - name: QUAY_E2E_ORGANIZATION
         value: konflux-ci
       - name: E2E_APPLICATIONS_NAMESPACE
