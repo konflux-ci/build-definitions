@@ -116,7 +116,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:1bca8f015db0612348e4ae3cfb659559ed6305337a49a335596bc5903cb8fe13
+      image: quay.io/konflux-ci/oras:latest@sha256:f06b515f3a2a4b6b41fcdb1d0335f7068162de1ced93d34999a2645ddd42ec67
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -159,7 +159,7 @@ spec:
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.6-1755749751
+      image: registry.access.redhat.com/ubi9/python-311:9.6-1756977307
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -182,7 +182,7 @@ spec:
         olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:1bca8f015db0612348e4ae3cfb659559ed6305337a49a335596bc5903cb8fe13
+      image: quay.io/konflux-ci/oras:latest@sha256:f06b515f3a2a4b6b41fcdb1d0335f7068162de1ced93d34999a2645ddd42ec67
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -247,7 +247,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
+      image: quay.io/konflux-ci/yq:latest@sha256:9b64058d053cd201b94f0f300934e9a05f0e1523fa7fb039a6e8ed35eec936fe
       workingDir: /var/workdir
       script: |
         #!/bin/bash
