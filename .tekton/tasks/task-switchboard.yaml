@@ -41,6 +41,8 @@ spec:
         set -o nounset
         set -o pipefail
 
+        git config --global --add safe.directory /workspace/source/source
+
         rules="$(mktemp -d)"
         trap 'rm -rf "${rules}"' EXIT
         for ((i=1; i<=$#; ++i)); do
