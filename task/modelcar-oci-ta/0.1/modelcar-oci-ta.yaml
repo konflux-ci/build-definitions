@@ -56,6 +56,10 @@ spec:
       description: add --remove-originals param to olot
       type: string
       default: "false"
+    - name: IMAGE_APPEND_PLATFORM
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      type: string
+      default: "false"
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -100,6 +104,8 @@ spec:
         value: $(params.MODEL_IMAGE)
       - name: PLATFORM
         value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
       - name: TARGET_OCI
         value: "/var/workdir/modelcar-oci"
     volumeMounts:
@@ -189,6 +195,11 @@ spec:
         set -eu
         set -o pipefail
 
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+
         select-oci-auth "$IMAGE" >auth.json
 
         echo "Pushing complete artifact manifest to ${IMAGE}"
@@ -251,6 +262,10 @@ spec:
       workingDir: /var/workdir
       script: |
         #!/bin/bash
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
         REPO=${IMAGE%:*}
         echo "Found that ${REPO} is the repository for ${IMAGE}"
         SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')

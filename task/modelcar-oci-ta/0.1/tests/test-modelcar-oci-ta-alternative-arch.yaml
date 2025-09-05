@@ -103,6 +103,8 @@ spec:
           value: "registry.access.redhat.com/ubi9/ubi:latest@sha256:b68c21b2dd3e72abcf2f8dcfc77580e4030564d1243bfcb7cd64ccc5aa3e0a25"
         - name: PLATFORM
           value: linux/s390x
+        - name: IMAGE_APPEND_PLATFORM
+          value: "true"
         - name: MODEL_IMAGE
           value: $(tasks.mock-trusted-artifact.results.MODEL_PATH)
         - name: IMAGE
@@ -167,17 +169,17 @@ spec:
               #!/usr/bin/env bash
               set -eu
 
-              echo "Confirm we can inspect the image"
-              skopeo inspect "docker://${IMAGE_REF//:latest/}"
+              echo "Confirm we can inspect the image with an archful tag"
+              skopeo inspect "docker://${IMAGE_REF//:latest-linux-s390x/}"
 
               echo "Confirm the image is single-arch; multiarch not supported"
-              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest/}" | jq -r .mediaType)
+              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .mediaType)
               if [ "$mediaType" != "application/vnd.oci.image.manifest.v1+json" ]; then
                   echo "Image is not single-arch." && exit 1
               fi
 
               echo "Confirm the image is s390x - the one we asked for"
-              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest/}" | jq -r .Architecture)
+              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .Architecture)
               if [ "$mediaType" != "s390x" ]; then
                   echo "Image is not s390x." && exit 1
               fi
