@@ -153,6 +153,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
+|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Digest of the image to scan.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
