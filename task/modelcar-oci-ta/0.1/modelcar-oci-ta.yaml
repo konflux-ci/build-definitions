@@ -111,12 +111,12 @@ spec:
         subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:120b168e59efa5aa72eebdb088808cee3398b1d06e040be046939f01182869b4
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9c7df11f4403488294cabe594676eef1a3df525a06fd62cbc3ba8601568b34ed
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:f06b515f3a2a4b6b41fcdb1d0335f7068162de1ced93d34999a2645ddd42ec67
+      image: quay.io/konflux-ci/oras:latest@sha256:80d3095eaa01f55ecfc46bb74c1cfc3b85b3075c7c2c142725fea08f1ab6ecc7
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -182,7 +182,7 @@ spec:
         olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:f06b515f3a2a4b6b41fcdb1d0335f7068162de1ced93d34999a2645ddd42ec67
+      image: quay.io/konflux-ci/oras:latest@sha256:80d3095eaa01f55ecfc46bb74c1cfc3b85b3075c7c2c142725fea08f1ab6ecc7
       workingDir: /var/workdir
       script: |
         #!/bin/bash
