@@ -20,6 +20,7 @@ See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information
 |RECORD_EXCLUDED|Write excluded records in file. Useful for auditing (defaults to false).|false|false|
 |SNYK_SECRET|Name of secret which contains Snyk token.|snyk-secret|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|TARGET_DIRS|Target directories in component's source code. Multiple values should be separated with commas.|.|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |image-digest|Digest of the image to scan.||true|
