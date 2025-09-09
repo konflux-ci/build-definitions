@@ -587,7 +587,10 @@ spec:
         "--label" "architecture=$(uname -m)"
         "--label" "vcs-type=git"
       )
-      [ -n "$COMMIT_SHA" ] && DEFAULT_LABELS+=("--label" "vcs-ref=$COMMIT_SHA")
+      if [ -n "$COMMIT_SHA" ]; then
+        DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
+      fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
