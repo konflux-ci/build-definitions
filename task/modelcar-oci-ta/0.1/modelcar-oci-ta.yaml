@@ -122,7 +122,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:80d3095eaa01f55ecfc46bb74c1cfc3b85b3075c7c2c142725fea08f1ab6ecc7
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -188,7 +188,7 @@ spec:
         olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:80d3095eaa01f55ecfc46bb74c1cfc3b85b3075c7c2c142725fea08f1ab6ecc7
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -258,7 +258,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:9b64058d053cd201b94f0f300934e9a05f0e1523fa7fb039a6e8ed35eec936fe
+      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
       workingDir: /var/workdir
       script: |
         #!/bin/bash
