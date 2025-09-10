@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.4"
+    app.kubernetes.io/version: "0.4.1"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -174,6 +174,10 @@ spec:
     description: Defines the single build time for all buildah builds in seconds since UNIX epoch
     type: string
     default: ""
+  - name: SOURCE_URL
+    description: The image is built from this URL.
+    type: string
+    default: ""
 
 
   results:
@@ -260,6 +264,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: SOURCE_URL
+      value: $(params.SOURCE_URL)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
     # Avoid using the HTTP_PROXY and NO_PROXY environment vars since these are recognized by many tools
@@ -577,6 +583,10 @@ spec:
       if [ -n "$COMMIT_SHA" ]; then
         DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
+      fi
+      if [ -n "$SOURCE_URL" ]; then
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
       fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
       BUILD_TIMESTAMP_RFC3339=""
