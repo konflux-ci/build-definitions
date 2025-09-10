@@ -9,7 +9,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
 |prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -161,13 +161,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### summary:0.2 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-oci-artifact.status)'|
-|git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
-|image-url| Image URL| None| '$(params.output-image)'|
-|pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
 
 ## Results
 |name|description|value|
@@ -198,7 +191,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
-|url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
+|url| The precise URL that was fetched by this Task.| |
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -225,7 +218,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| show-summary:0.2:workspace ; clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.3:workspace|
+|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-oci-artifact:0.1:source ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.3:workspace|
 ## Available workspaces from tasks
 ### build-maven-zip:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -259,7 +252,3 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### summary:0.2 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| The workspace where source code is included.| True| workspace|

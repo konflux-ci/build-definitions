@@ -8,23 +8,7 @@ metadata:
     pipelines.openshift.io/used-by: ""
   name: tekton-bundle-builder
 spec:
-  finally:
-  - name: show-summary
-    params:
-    - name: pipelinerun-name
-      value: $(context.pipelineRun.name)
-    - name: git-url
-      value: $(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)
-    - name: image-url
-      value: $(params.output-image)
-    - name: build-task-status
-      value: $(tasks.build-image-index.status)
-    taskRef:
-      name: summary
-      version: "0.2"
-    workspaces:
-    - name: workspace
-      workspace: workspace
+  finally: []
   params:
   - description: Source Repository URL
     name: git-url

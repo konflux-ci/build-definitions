@@ -9,7 +9,7 @@
 |git-url| Source Repository URL| None| clone-repository:0.1:url ; build-container:0.2:URL|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| show-summary:0.2:image-url ; init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.2:IMAGE ; build-image-index:0.1:IMAGE|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-container:0.2:IMAGE ; build-image-index:0.1:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
@@ -108,13 +108,6 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### summary:0.2 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|build-task-status| State of build task in pipelineRun| Succeeded| '$(tasks.build-image-index.status)'|
-|git-url| Git URL| None| '$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)'|
-|image-url| Image URL| None| '$(params.output-image)'|
-|pipelinerun-name| pipeline-run to annotate| None| '$(context.pipelineRun.name)'|
 ### tkn-bundle-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -152,7 +145,7 @@
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
-|url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
+|url| The precise URL that was fetched by this Task.| |
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -193,7 +186,3 @@
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. | True| netrc|
-### summary:0.2 task workspaces
-|name|description|optional|workspace from pipeline
-|---|---|---|---|
-|workspace| The workspace where source code is included.| True| |

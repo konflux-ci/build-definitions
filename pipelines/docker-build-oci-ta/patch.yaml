@@ -203,15 +203,3 @@
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: remove
   path: /spec/tasks/16/workspaces/0
-
-# Order of finally Tasks from the base docker-build Pipeline:
-# $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0
-#  0  show-summary
-
-# show-summary
-# This Task relies on a shared workspace for some of its functionality. Although optional, it raises
-# the question of how valuable this Task actually is. Rather than add Trusted Artifacts support for
-# this Task, we are taking the approach of just removing it altogether. Additional context on this
-# decision can be found in https://issues.redhat.com/browse/EC-643.
-- op: remove
-  path: /spec/finally/0
