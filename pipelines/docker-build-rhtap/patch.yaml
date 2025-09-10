@@ -100,10 +100,6 @@
         - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: "$(params.build-args-file)"
-# Change references from build-image-index to build-container
-- op: replace
-  path: /spec/finally/0/params/3/value  # show-summary.params.build-task-status
-  value: $(tasks.build-container.status)
 - op: replace
   path: /spec/results/0/value  # IMAGE_URL
   value: $(tasks.build-container.results.IMAGE_URL)
@@ -243,6 +239,25 @@
     taskRef:
       kind: Task
       name: update-deployment
+- op: add
+  path: /spec/finally/0
+  value:
+    name: show-summary
+    params:
+    - name: pipelinerun-name
+      value: $(context.pipelineRun.name)
+    - name: git-url
+      value: $(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)
+    - name: image-url
+      value: $(params.output-image)
+    - name: build-task-status
+      value: $(tasks.build-container.status)
+    taskRef:
+      name: summary
+      version: "0.2"
+    workspaces:
+    - name: workspace
+      workspace: workspace
 - op: add
   path: /spec/finally/0
   value:
