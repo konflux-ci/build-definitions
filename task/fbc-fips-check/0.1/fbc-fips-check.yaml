@@ -28,7 +28,7 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.34@sha256:62a7bf68015c711e0eb0698c10d203d0393a8e0efa09306f1fce543dea383f3c
+      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
       computeResources:
         limits:
           memory: 8Gi
@@ -55,6 +55,8 @@ spec:
         unique_related_images=()
         digests_processed=()
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+        rendered_fbc_image_file=/tmp/fbc-fragment-opm-render.json
+        rendered_target_index_file=/tmp/opm-render-target-index.json
 
         image_mirror_map=""
         mirror_set="${SOURCE_CODE_DIR}/source/.tekton/images-mirror-set.yaml"
@@ -83,11 +85,76 @@ spec:
         echo "${target_ocp_version#v}" > "/tekton/home/target_ocp_version.txt"
         echo "Target OCP version: ${target_ocp_version}"
 
+        target_index_url=$(get_target_fbc_catalog_image -i "${image_and_digest}")
+        echo "Target index: ${target_index_url}"
+
+        target_index_repo_reg=$(get_image_registry_and_repository "${target_index_url}")
+
+        # Get package names from fragment
+        echo "Rendering FBC fragment: ${image_and_digest}"
+        render_opm -t "${image_and_digest}" > "${rendered_fbc_image_file}"
+        if [[ ! -f "${rendered_fbc_image_file}" ]]; then
+          note="Task $(context.task.name) failed: Unable to render the FBC fragment image: ${image_and_digest}"
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+        rendered_fbc_image=$(cat "${rendered_fbc_image_file}")
+        echo "Getting package names in FBC fragment"
+        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image}"); then
+          note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+        echo "Packages in FBC fragment: ${fragment_pkg_names}"
+
+        # Get package names from target index
+        echo "Rendering target index: ${target_index_url}"
+        render_opm -t "${target_index_url}" > "${rendered_target_index_file}"
+        if [[ ! -f "${rendered_target_index_file}" ]]; then
+          note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          exit 0
+        fi
+
+        rendered_ti=$(cat "${rendered_target_index_file}")
+        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_ti}"); then
+          note="Task $(context.task.name) failed: Could not get package names from the target index."
+          echo "${note}"
+          TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        declare -i unreleased_pkg_count=0
+        for pkg in ${fragment_pkg_names}; do
+          if ! echo "${ti_pkg_names}" | grep -Fwq "${pkg}"; then
+            unreleased_pkg_count+=1
+            echo "${pkg} was not found in target index."
+          fi
+        done
+
+        # If package names not in the target index use the previous version
+        if [[ "${unreleased_pkg_count}" -gt 0 ]]; then
+          echo "One or more packages in the FBC fragment were not found in the target index."
+
+          # Derive previous minor version from target_ocp_version
+          major_ocp_version=$(echo "${target_ocp_version#v}" | awk -F'.' '{print $1}')
+          minor_ocp_version=$(echo "${target_ocp_version#v}" | awk -F'.' '{print $2}')
+          prev_minor_version=$(("${minor_ocp_version}" - 1))
+          prev_ocp_version="v${major_ocp_version}.${prev_minor_version}"
+          echo "Using the previous catalog OCP version to check for unreleased bundles: ${prev_ocp_version}"
+          target_index_url="${target_index_repo_reg}:${prev_ocp_version}"
+        fi
+
         declare -A seen_related_images
         while read -r _ arch_sha; do
           digests_processed+=("\"$arch_sha\"")
 
-          if ! unreleased_bundles=$(get_unreleased_bundle -i "$image_without_tag@$arch_sha"); then
+          if ! unreleased_bundles=$(get_unreleased_bundle -i "$image_without_tag@$arch_sha" -b "$target_index_url"); then
             note="Task $(context.task.name) failed: Could not get unreleased bundle images from the fragment. Make sure you have ImagePullCredentials for registry.redhat.io"
             echo "${note}"
             TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
