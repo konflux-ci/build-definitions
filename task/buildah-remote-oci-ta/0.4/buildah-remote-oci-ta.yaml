@@ -6,7 +6,7 @@ metadata:
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: "0.4"
+    app.kubernetes.io/version: 0.4.1
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -156,6 +156,10 @@ spec:
   - description: The Trusted Artifact URI pointing to the artifact with the application
       source code.
     name: SOURCE_ARTIFACT
+    type: string
+  - default: ""
+    description: The image is built from this URL.
+    name: SOURCE_URL
     type: string
   - default: "false"
     description: Squash all new and previous layers added as a part of this build,
@@ -318,6 +322,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: SOURCE_URL
+      value: $(params.SOURCE_URL)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
     - name: BUILDAH_HTTP_PROXY
@@ -704,6 +710,10 @@ spec:
         DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
       fi
+      if [ -n "$SOURCE_URL" ]; then
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
+      fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
@@ -971,6 +981,7 @@ spec:
           -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
           -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
+          -e SOURCE_URL="${SOURCE_URL@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
           -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \
           -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \

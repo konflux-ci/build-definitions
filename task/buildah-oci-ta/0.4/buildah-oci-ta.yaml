@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.4"
+    app.kubernetes.io/version: 0.4.1
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -161,6 +161,10 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: SOURCE_URL
+      description: The image is built from this URL.
+      type: string
+      default: ""
     - name: SQUASH
       description: Squash all new and previous layers added as a part of this
         build, as per --squash
@@ -354,6 +358,8 @@ spec:
       env:
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
+        - name: SOURCE_URL
+          value: $(params.SOURCE_URL)
         - name: DOCKERFILE
           value: $(params.DOCKERFILE)
         - name: BUILDAH_HTTP_PROXY
@@ -669,6 +675,10 @@ spec:
         if [ -n "$COMMIT_SHA" ]; then
           DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
           ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
+        fi
+        if [ -n "$SOURCE_URL" ]; then
+          DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
+          ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
         fi
         [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
         BUILD_TIMESTAMP_RFC3339=""

@@ -6,7 +6,7 @@ metadata:
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: "0.4"
+    app.kubernetes.io/version: 0.4.1
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -192,6 +192,10 @@ spec:
       UNIX epoch
     name: BUILD_TIMESTAMP
     type: string
+  - default: ""
+    description: The image is built from this URL.
+    name: SOURCE_URL
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -295,6 +299,8 @@ spec:
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
+    - name: SOURCE_URL
+      value: $(params.SOURCE_URL)
     - name: DOCKERFILE
       value: $(params.DOCKERFILE)
     - name: BUILDAH_HTTP_PROXY
@@ -673,6 +679,10 @@ spec:
         DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
       fi
+      if [ -n "$SOURCE_URL" ]; then
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
+      fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
@@ -941,6 +951,7 @@ spec:
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
+          -e SOURCE_URL="${SOURCE_URL@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
           -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \
           -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \
