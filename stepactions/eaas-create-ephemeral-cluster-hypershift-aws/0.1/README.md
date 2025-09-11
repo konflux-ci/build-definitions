@@ -11,6 +11,7 @@ This StepAction provisions an ephemeral cluster using Hypershift with 3 worker n
 |insecureSkipTLSVerify|Skip TLS verification when accessing the EaaS hub cluster. This should not be set to "true" in a production environment.|false|false|
 |timeout|How long to wait for cluster provisioning to complete.|30m|false|
 |imageContentSources|Alternate registry information containing a list of sources and their mirrors in yaml format. See: https://hypershift-docs.netlify.app/how-to/disconnected/image-content-sources|""|false|
+|imageContentSourcesFile|Absolute or workspace path to a file containing a list of sources and their mirrors in yaml format. If set, this takes precedence over the inline imageContentSources string.|""|false|
 |fips| Flag for hypershift cluster creation command to enable/disable FIPS for the cluster.| false| false
 
 ## Results
