@@ -53,40 +53,6 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    - name: replace-related-images-pullspec-in-file
-      image: quay.io/konflux-ci/konflux-test:v1.4.33@sha256:f1e256d52ec62f8927106659d65fc842e330d3cfed791775c1ef4fedf270dbc8
-      workingDir: /var/workdir/source
-      securityContext:
-        runAsUser: 0
-      env:
-        - name: IDMS_PATH_PARAM
-          value: $(params.IDMS_PATH)
-        - name: FILE_TO_UPDATE_PULLSPEC_PATH
-          value: $(params.FILE_TO_UPDATE_PULLSPEC)
-      when:
-        - input: "$(params.FILE_TO_UPDATE_PULLSPEC)"
-          operator: notin
-          values: [""]
-        - input: "$(params.IDMS_PATH)"
-          operator: notin
-          values: [""]
-      script: |
-          #!/bin/bash
-          set -euo pipefail
-
-          # shellcheck source=/dev/null
-          source /utils.sh
-          if [[ ! -f "${IDMS_PATH_PARAM}" ]]; then
-              echo "Warning: IDMS file '${IDMS_PATH_PARAM}' not found. Skipping replacement."
-              exit 0
-          fi
-          if [[ ! -f "${FILE_TO_UPDATE_PULLSPEC_PATH}" ]]; then
-              echo "Warning: File to update '${FILE_TO_UPDATE_PULLSPEC_PATH}' not found. Skipping replacement."
-              exit 0
-          fi
-
-          echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
-          replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: run-opm-with-user-args
       image: quay.io/konflux-ci/operator-sdk-builder:latest@sha256:e08de236089a3756535b5be1abacc3f465b1f5771efd8a40c7a2dae4febd67d7
       workingDir: /var/workdir/source
@@ -142,6 +108,40 @@ spec:
           echo -n "false" > "$(step.results.skip_create_trusted_artifact.path)"
         - "bash"
         - $(params.OPM_ARGS[*])
+    - name: replace-related-images-pullspec-in-file
+      image: quay.io/konflux-ci/konflux-test:v1.4.33@sha256:f1e256d52ec62f8927106659d65fc842e330d3cfed791775c1ef4fedf270dbc8
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: IDMS_PATH_PARAM
+          value: $(params.IDMS_PATH)
+        - name: FILE_TO_UPDATE_PULLSPEC_PATH
+          value: $(params.FILE_TO_UPDATE_PULLSPEC)
+      when:
+        - input: "$(params.FILE_TO_UPDATE_PULLSPEC)"
+          operator: notin
+          values: [""]
+        - input: "$(params.IDMS_PATH)"
+          operator: notin
+          values: [""]
+      script: |
+          #!/bin/bash
+          set -euo pipefail
+
+          # shellcheck source=/dev/null
+          source /utils.sh
+          if [[ ! -f "${IDMS_PATH_PARAM}" ]]; then
+              echo "Warning: IDMS file '${IDMS_PATH_PARAM}' not found. Skipping replacement."
+              exit 0
+          fi
+          if [[ ! -f "${FILE_TO_UPDATE_PULLSPEC_PATH}" ]]; then
+              echo "Warning: File to update '${FILE_TO_UPDATE_PULLSPEC_PATH}' not found. Skipping replacement."
+              exit 0
+          fi
+
+          echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
+          replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: create-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
       when:
