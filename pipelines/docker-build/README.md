@@ -75,6 +75,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
+|SOURCE_URL| The image is built from this URL.| | '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
 |TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
@@ -355,7 +356,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
-|url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url|
+|url| The precise URL that was fetched by this Task.| show-summary:0.2:git-url ; build-container:0.4:SOURCE_URL|
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|

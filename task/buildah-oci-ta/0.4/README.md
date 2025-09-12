@@ -38,6 +38,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |SKIP_SBOM_GENERATION|Skip SBOM-related operations. This will likely cause EC policies to fail if enabled|false|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|SOURCE_URL|The image is built from this URL.|""|false|
 |SQUASH|Squash all new and previous layers added as a part of this build, as per --squash|false|false|
 |STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
