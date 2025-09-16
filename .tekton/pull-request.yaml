@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.4/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.3/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.5/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.3/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
