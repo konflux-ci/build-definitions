@@ -204,6 +204,57 @@ spec:
         echo "Task is not Kustomized - continue"
       fi
 
+      # Push migration to registry if there is
+      migration_image_digest=
+      migration_file_path="${task_dir}/migrations/${actual_task_version}.sh"
+      if [[ -f "$migration_file_path" ]]; then
+        sha256_checksum=$(sha256sum "$migration_file_path" | cut -d' ' -f1)
+        # Migration image tag is in form: migration-<actual task version>-<sha256sum>-<timestamp>
+        image_repo=${IMAGE%:*}  # remove tag
+        image_repo=${image_repo#*/}  # remove registry
+        tag_prefix="migration-${actual_task_version}"
+        query_params="onlyActiveTags=true&limit=5&filter_tag_name=like:${tag_prefix}-%"
+        url="https://quay.io/api/v1/repository/${image_repo}/tag/?${query_params}"
+        tags=$(curl --no-progress-meter -L "$url" | jq -r '.tags[] | .name + " " + .manifest_digest')
+        while read -r tag_name manifest_digest; do
+          if [[ -z "$tag_name" ]]; then
+            continue
+          fi
+          if grep -s "^${tag_prefix}-${sha256_checksum}-[0-9]\+$" <<<"$tag_name"; then
+            # In case migration file is pushed more than once occasionally, only pick
+            # the last (newest) one
+            if [[ -z "$migration_image_digest" ]]; then
+              migration_image_digest="$manifest_digest"
+            fi
+          elif grep -s "^${tag_prefix}-[0-9a-f]\{64\}-[0-9]\+$" <<<"$tag_name"; then
+            printf "Modifying an existing migration is not allowed. Migration %s was pushed as image %s" \
+              "${migration_file_path##*/}" "$tag_name" >&2
+            exit 1
+          fi
+        done <<<"$tags"
+        # There is no migration image yet, push it.
+        if [[ -z "$migration_image_digest" ]]; then
+          printf "Migration file %s is not found from image repository %s. Push it.\n" \
+            "${migration_file_path##*/}" "${IMAGE%:*}" >&2
+          auth_file=$(mktemp --suffix="-auth.json")
+          trap 'rm -f $auth_file' EXIT ERR
+          pushd "${migration_file_path%/*}"
+          select-oci-auth "$IMAGE" > "$auth_file"
+          tag="${tag_prefix}-${sha256_checksum}-$(date --utc +%s)"
+          migration_image="${IMAGE%:*}:${tag}"
+          manifest_file=$(mktemp --suffix="-migration-image-manifest.json")
+          trap 'rm -f $manifest_file' EXIT ERR
+          retry oras push \
+            --registry-config "$auth_file" \
+            --export-manifest "$manifest_file" \
+            --annotation "dev.konflux-ci.task.is-migration=true" \
+            "$migration_image" "${migration_file_path##*/}"
+          read -r migration_image_digest _ < <(sha256sum "$manifest_file")
+          printf "Pushed migration image %s, digest %s\n" "$migration_image" "$migration_image_digest" >&2
+          popd
+        fi
+      fi
+
       ANNOTATIONS=()
       ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
       ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
@@ -223,6 +274,10 @@ spec:
       fi
       description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
       ANNOTATIONS+=("org.opencontainers.image.description=${description}")
+
+      if [[ -n "$migration_image_digest" ]]; then
+        ANNOTATIONS+=("dev.konflux-ci.task.migration=${migration_image_digest}")
+      fi
 
       echo "Added annotations:"
       ANNOTATION_FLAGS=()
