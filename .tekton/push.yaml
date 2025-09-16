@@ -134,7 +134,6 @@ spec:
             - name: build-bundles-konflux-ci
               image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: konflux-ci/tekton-catalog
@@ -148,10 +147,14 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-konflux-ci
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
             - name: build-bundles-redhat-appstudio
               image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: redhat-appstudio-tekton-catalog
@@ -165,6 +168,11 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-appstudio
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-appstudio
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
               volumeMounts:
                 - mountPath: /tekton/home/.docker/config.json
                   subPath: .dockerconfigjson
