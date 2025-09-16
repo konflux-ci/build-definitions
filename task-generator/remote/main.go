@@ -197,25 +197,25 @@ if ! [[ $IS_LOCALHOST ]]; then
 
 		// Before the build we sync the contents of the workspace to the remote host
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\n  rsync -ra $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
+			ret += "\n  rsync -razW $(workspaces." + workspace.Name + ".path)/ \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\""
 			podmanArgs += "    -v \"${BUILD_DIR@Q}/workspaces/" + workspace.Name + ":$(workspaces." + workspace.Name + ".path):Z\" \\\n"
 		}
 		// Also sync the volume mounts from the template
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+			ret += "\n  rsync -razW " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
 			podmanArgs += "    -v \"${BUILD_DIR@Q}/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 		}
 		for _, volume := range step.VolumeMounts {
 			if syncVolumes[volume.Name] {
-				ret += "\n  rsync -ra " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
+				ret += "\n  rsync -razW " + volume.MountPath + "/ \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\""
 				podmanArgs += "    -v \"${BUILD_DIR@Q}/volumes/" + volume.Name + ":" + volume.MountPath + ":Z\" \\\n"
 			}
 		}
-		ret += "\n  rsync -ra \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
+		ret += "\n  rsync -razW  \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/.docker/:/root/.docker:Z\" \\\n"
-		ret += "\n  rsync -ra --mkpath \"/usr/bin/retry\" \"$SSH_HOST:$BUILD_DIR/usr/bin/retry\""
+		ret += "\n  rsync -razW  --mkpath \"/usr/bin/retry\" \"$SSH_HOST:$BUILD_DIR/usr/bin/retry\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z\" \\\n"
-		ret += "\n  rsync -ra \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
+		ret += "\n  rsync -razW  \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/results/:/tekton/results:Z\" \\\n"
 		ret += "\nfi\n"
 
@@ -283,14 +283,14 @@ if ! [[ $IS_LOCALHOST ]]; then
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""
 		for _, workspace := range task.Spec.Workspaces {
-			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
+			ret += "\n  rsync -razW --stats \"$SSH_HOST:$BUILD_DIR/workspaces/" + workspace.Name + "/\" \"$(workspaces." + workspace.Name + ".path)/\""
 		}
 
 		for _, volume := range task.Spec.StepTemplate.VolumeMounts {
-			ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
+			ret += "\n  rsync -razW --stats \"$SSH_HOST:$BUILD_DIR/volumes/" + volume.Name + "/\" " + volume.MountPath + "/"
 		}
 		//sync back results
-		ret += "\n  rsync -ra \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
+		ret += "\n  rsync -razW --stats \"$SSH_HOST:$BUILD_DIR/results/\" \"/tekton/results/\""
 
 		ret += `
   echo "[$(date --utc -Ins)] Buildah pull"

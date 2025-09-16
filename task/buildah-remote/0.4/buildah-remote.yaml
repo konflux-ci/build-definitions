@@ -363,16 +363,16 @@ spec:
 
         echo "[$(date --utc -Ins)] Rsync data"
 
-        rsync -ra $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
-        rsync -ra /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
-        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
-        rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
-        rsync -ra /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
-        rsync -ra /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
-        rsync -ra /mnt/proxy-ca-bundle/ "$SSH_HOST:$BUILD_DIR/volumes/proxy-ca-bundle/"
-        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -ra --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
-        rsync -ra "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
+        rsync -razW $(workspaces.source.path)/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+        rsync -razW /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
+        rsync -razW /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
+        rsync -razW /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
+        rsync -razW /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
+        rsync -razW /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
+        rsync -razW /mnt/proxy-ca-bundle/ "$SSH_HOST:$BUILD_DIR/volumes/proxy-ca-bundle/"
+        rsync -razW  "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        rsync -razW  --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
+        rsync -razW  "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
       fi
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
@@ -971,9 +971,9 @@ spec:
           "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
           --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
-        rsync -ra "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
-        rsync -ra "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
-        rsync -ra "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
+        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
+        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
         echo "[$(date --utc -Ins)] Buildah pull"
         buildah pull "oci:konflux-final-image:$IMAGE"
       else
