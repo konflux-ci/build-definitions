@@ -78,7 +78,7 @@ do
     fi
 
     locate_in_all_namespaces task "$task_name"
-done < <(find task/*/*/ -maxdepth 0 -type d -print0)
+done < <(find task -mindepth 2 -maxdepth 2 -type d -print0)
 
 echo
 echo "Checking existence of pipeline bundle repositories..."
