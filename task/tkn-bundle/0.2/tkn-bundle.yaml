@@ -177,7 +177,7 @@ spec:
       # Get task version from task definition rather than the version in the directory path.
       # Arguments: task_file
       # The version is output to stdout.
-      get_concrete_task_version() {
+      get_actual_task_version() {
         local -r task_file=$1
         # Ensure an empty string is output rather than string "null" if the version label is not present
         yq '.metadata.labels."app.kubernetes.io/version"' "$task_file" | sed '/null/d' | tr -d '[:space:]'
@@ -186,7 +186,7 @@ spec:
       # task_dir is where the task definition reside
       # this task run for only one task file, so extracting it from the first element is enough
       task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
-      task_version=$(get_concrete_task_version "${FILES[0]}")
+      actual_task_version=$(get_actual_task_version "${FILES[0]}")
 
       # If task is kustomized, generate it and replace the FILES value with the value of the generated task
       # All other files will be ignored.
@@ -201,7 +201,7 @@ spec:
       ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
       ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
       ANNOTATIONS+=("org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}")
-      ANNOTATIONS+=("org.opencontainers.image.version=${task_version}")
+      ANNOTATIONS+=("org.opencontainers.image.version=${actual_task_version}")
 
       if [ -f "${task_dir}/README.md" ]; then
         ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
