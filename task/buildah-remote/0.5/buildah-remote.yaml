@@ -757,6 +757,23 @@ spec:
       echo "" >>"$dockerfile_copy"
       echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
 
+      # Make sure our labels.json file isn't filtered out
+      containerignore=""
+      if [ -f "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore" ]; then
+        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+      elif [ -f "$SOURCE_CODE_DIR/$CONTEXT/.containerignore" ]; then
+        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.containerignore"
+      fi
+
+      if [ -n "$containerignore" ]; then
+        ignorefile_copy=$(mktemp --tmpdir "$(basename "$containerignore").XXXXXX")
+        cp "$containerignore" "$ignorefile_copy"
+
+        echo "" >> "$ignorefile_copy"
+        echo "!/labels.json" >> "$ignorefile_copy"
+        BUILDAH_ARGS+=(--ignorefile "$ignorefile_copy")
+      fi
+
       echo "[$(date --utc -Ins)] Register sub-man"
 
       ACTIVATION_KEY_PATH="/activation-key"
