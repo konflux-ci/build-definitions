@@ -320,7 +320,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9c7df11f4403488294cabe594676eef1a3df525a06fd62cbc3ba8601568b34ed
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:8feb051d6a0da88a5e3e2dc9358103513f7728d026763276b50c3da4f2c90655
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -331,7 +331,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:1e686fc8fe41f985d9871d80f22bef4b58e6b2df3237385ee43113907231b458
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -922,7 +922,7 @@ spec:
           add:
             - SETFCAP
     - name: push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:1e686fc8fe41f985d9871d80f22bef4b58e6b2df3237385ee43113907231b458
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
