@@ -541,15 +541,15 @@ spec:
 
       echo "[$(date --utc -Ins)] Setup prefetched"
 
-      if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
+      if [ -f "$(workspaces.source.path)/cachi2/prefetch.env" ]; then
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
-        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
+        # for each RUN ... line insert the prefetch.env command *after* any options like --mount
         sed -E -i \
             -e 'H;1h;$!d;x' \
-            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/prefetch.env \&\& \\\n    @igM' \
             "$dockerfile_copy"
         echo "Prefetched content will be made available"
 

@@ -215,7 +215,7 @@ spec:
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS="--volume /tmp/cachi2:/cachi2"
-        sed -i 's|^\s*run |RUN . /cachi2/cachi2.env \&\& \\\n    |i' "$dockerfile_path"
+        sed -i 's|^\s*run |RUN . /cachi2/prefetch.env \&\& \\\n    |i' "$dockerfile_path"
         echo "Prefetched content will be made available"
 
         prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
