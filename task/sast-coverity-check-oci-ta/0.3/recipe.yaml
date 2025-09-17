@@ -1,0 +1,14 @@
+---
+base: ../../sast-coverity-check/0.3/sast-coverity-check.yaml
+removeParams:
+  - BUILDER_IMAGE
+add:
+  - use-source
+  - use-prefetch
+removeWorkspaces:
+  - source
+replacements:
+  workspaces.source.path: /var/workdir
+regexReplacements:
+  "/workspace(/.*)": /var/workdir$1
+useTAVolumeMount: true

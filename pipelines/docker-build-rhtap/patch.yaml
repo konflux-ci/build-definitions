@@ -102,10 +102,7 @@
       value: "$(params.build-args-file)"
 # Change references from build-image-index to build-container
 - op: replace
-  path: /spec/finally/0/params/0/value  # show-sbom.params.IMAGE_URL
-  value: $(tasks.build-container.results.IMAGE_URL)
-- op: replace
-  path: /spec/finally/1/params/3/value  # show-summary.params.build-task-status
+  path: /spec/finally/0/params/3/value  # show-summary.params.build-task-status
   value: $(tasks.build-container.status)
 - op: replace
   path: /spec/results/0/value  # IMAGE_URL
@@ -127,18 +124,30 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  apply-tags
-#     12  push-dockerfile
-#     13  rpms-signature-scan
+#     11  sast-coverity-check
+#     12  coverity-availability-check
+#     13  sast-shell-check
+#     14  sast-unicode-check
+#     15  apply-tags
+#     16  push-dockerfile
+#     17  rpms-signature-scan
 - op: replace
-  path: /spec/tasks/3/runAfter/0
+  path: /spec/tasks/3/runAfter/0  # build-container
   value: clone-repository
 - op: remove
-  path: /spec/tasks/13  # rpms-signature-scan
+  path: /spec/tasks/17  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/12  # push-dockerfile
+  path: /spec/tasks/16  # push-dockerfile
 - op: remove
-  path: /spec/tasks/11  # apply-tags
+  path: /spec/tasks/15  # apply-tags
+- op: remove
+  path: /spec/tasks/14  # sast-unicode-check
+- op: remove
+  path: /spec/tasks/13  # sast-shell-check
+- op: remove
+  path: /spec/tasks/12  # coverity-availability-check
+- op: remove
+  path: /spec/tasks/11  # sast-coverity-check
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
@@ -234,8 +243,13 @@
     taskRef:
       kind: Task
       name: update-deployment
-- op: replace
-  path: /spec/finally/0/taskRef
+- op: add
+  path: /spec/finally/0
   value:
-    name: show-sbom-rhdh
-    version: "0.1"
+    name: show-sbom
+    taskRef:
+      name: show-sbom-rhdh
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-container.results.IMAGE_URL)

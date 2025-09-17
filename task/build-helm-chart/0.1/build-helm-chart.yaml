@@ -1,0 +1,144 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-helm-chart
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-07-28T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'This task is deprecated, please remove
+      it from your pipeline. You can use build-helm-chart-oci-ta task instead.'
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |-
+    The task packages and pushes a Helm chart to an OCI repository.
+    As Helm charts require to have a semver-compatible version to be packaged, the
+    task relies on git tags in order to determine the chart version during runtime.
+
+    The task computes the version based on the git commit SHA distance from the latest
+    tag prefixed with the value of TAG_PREFIX. The value of that tag will be used as
+    the version's X.Y values, and the Z value will be computed by the commit's distance
+    from the tag, followed by an abbreviated SHA as build metadata.
+  params:
+  - name: REPO
+    description: Designated registry for the chart to be pushed to
+  - name: COMMIT_SHA
+    description: Git commit sha to build chart for
+  - name: SOURCE_CODE_DIR
+    description: Path relative to the workingDir where the code was pulled into
+    default: source
+  - name: CHART_CONTEXT
+    description: Path relative to SOURCE_CODE_DIR where the chart is located
+    default: dist/chart/
+  - name: VERSION_SUFFIX
+    description: A suffix to be added to the version string
+    default: ""
+  - name: TAG_PREFIX
+    description: An identifying prefix on which the version tag is to be matched
+    default: "helm-"
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  results:
+  - description: Digest of the OCI-Artifact just built
+    name: IMAGE_DIGEST
+  - description: OCI-Artifact repository and tag where the built OCI-Artifact was pushed
+    name: IMAGE_URL
+  steps:
+  - name: package-and-push
+    image: quay.io/konflux-ci/tools@sha256:6ff31427db82ada0fabbdc301010d63453e2268a648304cba197edfc7bda5f71
+    env:
+    - name: REPO
+      value: "$(params.REPO)"
+    - name: COMMIT_SHA
+      value: "$(params.COMMIT_SHA)"
+    - name: SOURCE_CODE_DIR
+      value: "$(params.SOURCE_CODE_DIR)"
+    - name: CHART_CONTEXT
+      value: "$(params.CHART_CONTEXT)"
+    - name: VERSION_SUFFIX
+      value: "$(params.VERSION_SUFFIX)"
+    - name: TAG_PREFIX
+      value: "$(params.TAG_PREFIX)"
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+    script: |
+      #!/bin/bash
+      set -ex
+
+      cd "$SOURCE_CODE_DIR"/"$CHART_CONTEXT"
+
+      # Rename the chart according to the output registry
+      export chart_name="${REPO##*/}"
+      yq -i '.name = strenv(chart_name)' Chart.yaml
+
+      # We need git tags and history to be able to compute the chart version
+      git fetch --unshallow --tags origin "$COMMIT_SHA"
+
+      # Create a semver compliant chart version:
+      # We assume the existence of a git tag of the format "${TAG_PREFIX}X.Y"
+      # Suppose that TAG_PREFIX=helm- and the tag is helm-1.2,
+      # `git describe --tags` will return helm-1.2-z-W (if the tag is not on the
+      # current commit) where z is the number of commits since the appearance of
+      # the matching tag and W is an abbreviated SHA.
+      # The command below will convert that output to be semver-compatible: 1.2.z+W
+      chart_version=$( \
+        git describe --tags --match="${TAG_PREFIX}*" \
+        | sed -e "s/^${TAG_PREFIX}//" \
+        | sed -e "0,/-/s//\./" \
+        | sed -e "0,/-/s//+/" \
+      )
+
+      # If the tag is on the current commit, the command will just return the
+      # tagged version (e.g. 1.2). In that case, we'll set z to be 0: 1.2.0+<abbrev sha>
+      if [[ "$chart_version" =~ ^[^.]*\.[^.]*$ ]]; then
+        chart_version=$chart_version.0+$(git rev-parse --short HEAD)
+      fi
+
+      # If such tag does not exist, 0.1 will be used and z will be the commits count
+      # on the current branch since the dawn of time: 0.1.z+<abbrev sha>
+      if [ -z "${chart_version}" ]; then
+        chart_version=0.1.$(git rev-list HEAD --count)+$(git rev-parse --short HEAD)
+      fi
+
+      chart_version="$chart_version$VERSION_SUFFIX"
+      helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
+
+      # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
+      # need to provide it with just one option
+      jq --arg registry "$REPO" '.auths[$registry]' ~/.docker/config.json \
+        | jq -n --arg registry "$REPO" '{auths:{($registry):inputs}}' \
+        > scoped_authfile.json
+
+      dest="oci://${REPO%/*}"
+
+      echo "Pushing image to registry"
+      if ! output="$(retry helm push "$chart_name"-"$chart_version".tgz "$dest" \
+        --registry-config ./scoped_authfile.json 2>&1)"
+      then
+        echo "Failed to push image to registry"
+        exit 1
+      fi
+
+      pushed=$(echo "$output" | grep "Pushed" | awk '{print $2}')
+      digest=$(echo "$output" | grep "Digest" | awk '{print $2}')
+
+      echo -n "$pushed" | tee "$(results.IMAGE_URL.path)"
+      echo -n "$digest" | tee "$(results.IMAGE_DIGEST.path)"
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true
+  workspaces:
+  - name: source
+    description: Workspace containing the source code to build.

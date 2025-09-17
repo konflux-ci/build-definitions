@@ -65,12 +65,42 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
   steps:
   - name: build
-    image: registry.access.redhat.com/ubi9/buildah@sha256:164cb956f431472d2c76cb6d1ba0c5a3f20ebb41e99a2aeb2bf151c6558243bc
+    image: registry.access.redhat.com/ubi9/buildah@sha256:18453ab0a62154283aaf4c45efd7543d1c8ecca1aebae46dedc7ddc0f410b232
     args:
       - $(params.BUILD_ARGS[*])
     script: |
-      # Check if the Dockerfile exists
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
       SOURCE_CODE_DIR=source
+
+      echo "[$(date --utc -Ins)] Validate context path"
+
+      if [ -z "$CONTEXT" ]; then
+        echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
+        CONTEXT="."
+      fi
+
+      source_dir_path=$(realpath "$SOURCE_CODE_DIR")
+      context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
+
+      case "$context_dir_path" in
+        "$source_dir_path" | "$source_dir_path/"*)
+          # path is valid, do nothing
+          ;;
+        *)
+          echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
+          echo "Source path: $source_dir_path" >&2
+          echo "Resolved path: $context_dir_path" >&2
+          exit 1
+          ;;
+      esac
+
+      # Check if the Dockerfile exists
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
@@ -130,13 +160,13 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: generate-sboms
-    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.0.1@sha256:27c268d678103a27b6964c2cd5169040941b7304d0078f9727789ffb8ffba370
+    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:dc0da6b4448428e625271b542cc029ab03de92f75ea50d6d63b1d088d20bbd28
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
     script: |
       syft dir:$(workspaces.source.path)/source --output cyclonedx-json@1.5=/tmp/files/sbom-source.json
-      syft oci-dir:/tmp/files/image --output cyclonedx-json@1.5=/tmp/files/sbom-image.json
+      syft oci-dir:/tmp/files/image --output cyclonedx-json@1.5=/tmp/files/sbom-image.json --source-name "${IMAGE}"
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -144,7 +174,7 @@ spec:
       name: tmpfiles
 
   - name: merge-sboms
-    image: registry.access.redhat.com/ubi8/python-311@sha256:e61de96a78dc883686a8b6f5ce27e00342801947cad48207ea7cf9cf06da1f1e
+    image: registry.access.redhat.com/ubi8/python-311@sha256:2ce41f4421f11f49f108e904375f176efad8877b54c4fa1429e85dd2a70368bf
     env:
       - name: RESULT_PATH
         value: $(results.SBOM_BLOB_URL.path)

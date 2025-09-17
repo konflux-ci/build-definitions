@@ -1,0 +1,254 @@
+# WARNING: This is an auto generated file, do not modify this file directly
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: docker
+  name: build-image-manifest
+spec:
+  description: This takes existing Image Manifests and combines them in an Image Index.
+  params:
+  - description: The target image and tag where the image will be pushed to.
+    name: IMAGE
+    type: string
+  - default: "true"
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS
+      registry)
+    name: TLSVERIFY
+    type: string
+  - default: ""
+    description: The commit the image is built from.
+    name: COMMIT_SHA
+    type: string
+  - description: List of Image Manifests to be referenced by the Image Index
+    name: IMAGES
+    type: array
+  - default: ""
+    description: Delete image tag after specified time resulting in garbage collection
+      of the digest. Empty means to keep the image tag. Time values could be something
+      like 1h, 2d, 3w for hours, days, and weeks, respectively.
+    name: IMAGE_EXPIRES_AFTER
+    type: string
+  - default: "true"
+    description: Build an image index even if IMAGES is of length 1. Default true.
+      If the image index generation is skipped, the task will forward values for params.IMAGES[0]
+      to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest
+      format for the IMAGES parameter.
+    name: ALWAYS_BUILD_INDEX
+    type: string
+  - default: vfs
+    description: Storage driver to configure for buildah
+    name: STORAGE_DRIVER
+    type: string
+  - default: oci
+    description: The format for the resulting image's mediaType. Valid values are
+      oci (default) or docker.
+    name: BUILDAH_FORMAT
+    type: string
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository and tag where the built image was pushed
+    name: IMAGE_URL
+  - description: List of all referenced image manifests
+    name: IMAGES
+  - description: Image reference of the built image containing both the repository
+      and the digest
+    name: IMAGE_REF
+  - description: Reference of SBOM blob digest to enable digest-based verification
+      from provenance
+    name: SBOM_BLOB_URL
+    type: string
+  stepTemplate:
+    env:
+    - name: BUILDAH_FORMAT
+      value: $(params.BUILDAH_FORMAT)
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: ALWAYS_BUILD_INDEX
+      value: $(params.ALWAYS_BUILD_INDEX)
+    - name: STORAGE_DRIVER
+      value: $(params.STORAGE_DRIVER)
+    volumeMounts:
+    - mountPath: /index-build-data
+      name: shared-dir
+  steps:
+  - args:
+    - $(params.IMAGES[*])
+    computeResources:
+      limits:
+        memory: 4Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
+    name: build
+    script: |
+      #!/bin/bash
+      # Fixing group permission on /var/lib/containers
+      set -eu
+      set -o pipefail
+      chown root:root /var/lib/containers
+
+      sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+
+      if [[ $# -ne 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
+        echo "Skipping image index generation while supplying multiple image inputs is unsupported."
+        exit 2
+      fi
+
+      buildah manifest create "$IMAGE"
+      for i in $@
+      do
+        TOADD="$i"
+        TOADD_URL="$(echo "$i" | cut -d@ -f1)"
+        TOADD_DIGEST="$(echo "$i" | cut -d@ -f2)"
+        if [[ $(echo "$i" | tr -cd ":" | wc -c) == 2 ]]; then
+          #format is repository:tag@sha256:digest
+          #we need to remove the tag, and just reference the digest
+          #as tag + digest is not supported
+          TOADD_REPOSITORY="$(echo "$i" | cut -d: -f1)"
+          TOADD="${TOADD_REPOSITORY}@${TOADD_DIGEST}"
+        fi
+        if [[ "$ALWAYS_BUILD_INDEX" != "true" ]]; then
+          echo "Skipping image index generation. Returning results for $TOADD."
+          echo -n "${TOADD_URL}" > "$(results.IMAGE_URL.path)"
+          echo -n "${TOADD_DIGEST}" > "$(results.IMAGE_DIGEST.path)"
+          echo -n "${TOADD}" > "$(results.IMAGES.path)"
+          exit 0
+        fi
+        echo "Adding $TOADD"
+        buildah manifest add $IMAGE "docker://$TOADD" --all
+      done
+
+      # While the BUILDAH_FORMAT environment variable can define the push
+      # format, lets be explicit about the format that we want when we push.
+      push_format=oci
+      if [ "${BUILDAH_FORMAT}" == "docker" ]; then
+        push_format=docker
+      fi
+
+      buildah_retries=3
+
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://$IMAGE"
+      then
+          echo "Failed to push image ${IMAGE} to registry"
+          exit 1
+      fi
+
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)"
+      then
+          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry"
+          exit 1
+      fi
+
+      INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
+      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
+      image_manifests=""
+      for i in $MANIFEST_DIGESTS
+      do
+        image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
+      done
+
+      cat image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+      {
+        echo -n "${IMAGE}@"
+        cat "image-digest"
+      } > "$(results.IMAGE_REF.path)"
+      echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
+
+      # buildah manifest inspect will always give precedence to the local image.
+      # Since we built this image in the same place as we are inspecting it, we can
+      # just inspect it instead of finding the digest and inspecting the remote image.
+      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+  - computeResources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+    name: create-sbom
+    script: |
+      #!/bin/bash
+      set -e
+
+      MANIFEST_DATA_FILE="/index-build-data/manifest_data.json"
+      if [ ! -f "$MANIFEST_DATA_FILE" ]; then
+        echo "The manifest_data.json file does not exist. Skipping the SBOM creation..."
+        exit 0
+      fi
+
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+      echo "Creating SBOM result file..."
+      mobster generate \
+        --output /index-build-data/index.spdx.json \
+        oci-index \
+        --index-image-pullspec "$IMAGE_URL" \
+        --index-image-digest "$IMAGE_DIGEST" \
+        --index-manifest-path "$MANIFEST_DATA_FILE" \
+  - computeResources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    name: upload-sbom
+    script: |
+      #!/bin/bash
+      set -e
+
+      SBOM_RESULT_FILE="/index-build-data/index.spdx.json"
+      if [ ! -f "$SBOM_RESULT_FILE" ]; then
+        echo "The index.spdx.json file does not exists. Skipping the SBOM upload..."
+        exit 0
+      fi
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum "$SBOM_RESULT_FILE" | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+  volumes:
+  - emptyDir: {}
+    name: shared-dir

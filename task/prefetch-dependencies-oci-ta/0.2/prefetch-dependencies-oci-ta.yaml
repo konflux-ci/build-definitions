@@ -1,0 +1,465 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: prefetch-dependencies-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+spec:
+  description: |-
+    Task that uses Hermeto to prefetch build dependencies. The fetched dependencies and the
+    application source code are stored as a trusted artifact in the provided OCI repository.
+    For additional info on Hermeto, see docs at
+    https://hermetoproject.github.io/hermeto/#basic-usage
+
+    ## Configuration
+
+    Config file must be passed as a YAML string. For all available config options please check
+    [available configuration parameters] page.
+
+    Example of setting timeouts:
+
+    ```yaml
+    params:
+      - name: config-file-content
+        value: |
+          ---
+          requests_timeout: 300
+          subprocess_timeout: 3600
+    ```
+
+    [available configuration parameters]: https://hermetoproject.github.io/hermeto/#available-configuration-parameters
+  params:
+    - name: ACTIVATION_KEY
+      description: Name of secret which contains subscription activation key
+      type: string
+      default: activation-key
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+    - name: config-file-content
+      description: |
+        Pass configuration to the prefetch tool.
+        Note this needs to be passed as a YAML-formatted config dump, not as a file path!
+      default: ""
+    - name: dev-package-managers
+      description: |
+        Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk.
+      default: "false"
+    - name: input
+      description: Configures project packages that will have their dependencies
+        prefetched.
+    - name: log-level
+      description: Set prefetch tool log level (debug, info, warning, error)
+      default: info
+    - name: ociArtifactExpiresAfter
+      description: Expiration date for the trusted artifacts created in the
+        OCI repository. An empty string means the artifacts do not expire.
+      type: string
+      default: ""
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+    - name: sbom-type
+      description: 'Select the SBOM format to generate. Valid values: spdx,
+        cyclonedx.'
+      default: spdx
+  results:
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+  volumes:
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
+    - name: config
+      emptyDir: {}
+    - name: etc-pki-entitlement
+      emptyDir: {}
+    - name: shared
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  workspaces:
+    - name: git-basic-auth
+      description: |
+        A Workspace containing a .gitconfig and .git-credentials file or username and password.
+        These will be copied to the user's home before prefetch is run. Any
+        other files in this Workspace are ignored. It is strongly recommended
+        to bind a Secret to this Workspace over other volume types.
+      optional: true
+    - name: netrc
+      description: |
+        Workspace containing a .netrc file. Prefetch will use the credentials in this file when
+        performing http(s) requests.
+      optional: true
+  stepTemplate:
+    env:
+      - name: CONFIG_FILE_CONTENT
+        value: $(params.config-file-content)
+    volumeMounts:
+      - mountPath: /mnt/config
+        name: config
+      - mountPath: /shared
+        name: shared
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: skip-ta
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350@sha256:2f06ae0e6d3d9c4f610d32c480338eef474867f435d8d28625f2985e8acde6e8
+      env:
+        - name: INPUT
+          value: $(params.input)
+        - name: SOURCE_ARTIFACT
+          value: $(params.SOURCE_ARTIFACT)
+      script: |
+        if [ -z "${INPUT}" ]; then
+          mkdir -p /var/workdir/source
+          mkdir -p /var/workdir/cachi2
+          echo "true" >/var/workdir/source/.skip-trusted-artifacts
+          echo "true" >/var/workdir/cachi2/.skip-trusted-artifacts
+          echo -n "${SOURCE_ARTIFACT}" >$(results.SOURCE_ARTIFACT.path)
+          echo -n "" >$(results.CACHI2_ARTIFACT.path)
+        fi
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: sanitize-config-file-with-yq
+      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
+      script: |
+        if [ -n "${CONFIG_FILE_CONTENT}" ]; then
+          # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
+          # decides what the SBOM impact of this configuration option will be:
+          # https://github.com/hermetoproject/hermeto/issues/577
+          yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
+        fi
+    - name: prefetch-dependencies
+      image: quay.io/konflux-ci/hermeto:0.38.0@sha256:bd7d43d80dde2fdd82fb9c9952aba9f830b052bcb1e5f3b54d613555b3a2eda7
+      volumeMounts:
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+        - mountPath: /activation-key
+          name: activation-key
+      env:
+        - name: INPUT
+          value: $(params.input)
+        - name: DEV_PACKAGE_MANAGERS
+          value: $(params.dev-package-managers)
+        - name: LOG_LEVEL
+          value: $(params.log-level)
+        - name: SBOM_TYPE
+          value: $(params.sbom-type)
+        - name: WORKSPACE_GIT_AUTH_BOUND
+          value: $(workspaces.git-basic-auth.bound)
+        - name: WORKSPACE_GIT_AUTH_PATH
+          value: $(workspaces.git-basic-auth.path)
+        - name: WORKSPACE_NETRC_BOUND
+          value: $(workspaces.netrc.bound)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        RHSM_ORG=""
+        RHSM_ACT_KEY=""
+        ENTITLEMENT_CERT_PATH=""
+        ENTITLEMENT_CERT_KEY_PATH=""
+
+        function rhsm_unregister {
+          # best effort:
+          #   - if the system was already successfully unregistered, the command returns 1
+          #   - if unregistering failed/fails, there's not much we can do about it anyway
+          subscription-manager unregister || true
+        }
+
+        function is_json {
+          jq . 2>/dev/null 1>&2 <<<"$1"
+        }
+
+        # The input JSON can be in one of these forms:
+        # 1) '[{"type": "gomod"}, {"type": "bundler"}]'
+        # 2) '{"packages": [{"type": "gomod"}, {"type": "bundler"}]}'
+        # 3) '{"type": "gomod"}'
+        function input_json_has_rpm {
+          jq '
+            if (type == "array" or type == "object") | not then
+              false
+            elif type == "array" then
+              any(.[]; .type == "rpm")
+            elif has("packages") | not then
+              .type == "rpm"
+            elif (.packages | type == "array") then
+              any(.packages[]; .type == "rpm")
+            else
+              false
+            end' <<<"$1"
+        }
+
+        function inject_ssl_opts {
+          input="$1"
+          ssl_options="$2"
+
+          # Check if input is plain string or JSON and if the request specifies RPMs
+          if [ "$input" == "rpm" ]; then
+            input="$(
+              jq -n --argjson ssl "$ssl_options" '
+                      {
+                        type: "rpm",
+                        options: {
+                          ssl: $ssl
+                        }
+                      }'
+            )"
+          elif is_json "$input" && [[ $(input_json_has_rpm "$input") == true ]]; then
+            # The output JSON may need the SSL options updated for the RPM backend
+            input="$(
+              jq \
+                --argjson ssl "$ssl_options" '
+                        if type == "array" then
+                          map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                        elif has("packages") then
+                          .packages |= map(if .type == "rpm" then .options.ssl += $ssl else . end)
+                        else
+                          .options.ssl += $ssl
+                        end' \
+                <<<"$input"
+            )"
+          fi
+          echo "$input"
+        }
+
+        function inject_rpm_summary_flag {
+          input="$1"
+
+          if [ "$input" == "rpm" ]; then
+            input="$(jq -n '{type: "rpm", include_summary_in_sbom: true}')"
+
+          elif is_json "$input" && [[ $(input_json_has_rpm "$input") == true ]]; then
+            input="$(jq '
+                        if type == "array" then
+                          map(
+                            if .type == "rpm" and (has("include_summary_in_sbom") | not) then
+                              .include_summary_in_sbom = true
+                            else
+                              .
+                            end)
+
+                        elif has("packages") then
+                          .packages |= map(
+                            if .type == "rpm" and (has("include_summary_in_sbom") | not) then
+                              .include_summary_in_sbom = true
+                            else
+                              .
+                            end)
+
+                        else
+                          if has("include_summary_in_sbom") | not then
+                            .include_summary_in_sbom = true
+                          else
+                            .
+                          end
+
+                        end' <<<"$input")"
+          fi
+          echo "$input"
+        }
+
+        function retry() {
+          local status
+          local interval=1
+          local retry=0
+          local -r factor=${RETRY_FACTOR:-2}
+          local -r max_tries=${RETRY_MAX_TRIES:-10}
+          while true; do
+            echo "Executing:" "${@}" >&2
+            "$@" 2>/tmp/errors.txt && break
+            status=$?
+            cat /tmp/errors.txt >&2
+            ((retry += 1))
+            if [ $retry -ge "$max_tries" ]; then
+              echo "error: Command failed after ${max_tries} tries with status ${status}" >&2
+              return $status
+            fi
+
+            echo "warning: Command failed and will retry, ${retry} try" >&2
+
+            unauthorized_error=$(grep -ci "unauthorized" /tmp/errors.txt)
+            if [ "$unauthorized_error" -ne 0 ]; then
+              echo "error: Unauthorized error, wrong registry credentials provided, won't retry" >&2
+              return 1
+            fi
+
+            ((interval = interval * factor))
+            sleep "$interval"
+          done
+        }
+
+        if [ -z "${INPUT}" ]; then
+          # Confirm input was provided
+          echo "No prefetch will be performed because no input was provided"
+          exit 0
+        fi
+
+        if [ -f /mnt/config/config.yaml ]; then
+          config_flag=--config-file=/mnt/config/config.yaml
+        else
+          config_flag=""
+        fi
+
+        if [ "$DEV_PACKAGE_MANAGERS" = "true" ]; then
+          dev_pacman_flag=--dev-package-managers
+        else
+          dev_pacman_flag=""
+        fi
+
+        # Copied from https://github.com/konflux-ci/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
+        if [ "${WORKSPACE_GIT_AUTH_BOUND}" = "true" ]; then
+          if [ -f "${WORKSPACE_GIT_AUTH_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_GIT_AUTH_PATH}/.gitconfig" ]; then
+            cp "${WORKSPACE_GIT_AUTH_PATH}/.git-credentials" "${HOME}/.git-credentials"
+            cp "${WORKSPACE_GIT_AUTH_PATH}/.gitconfig" "${HOME}/.gitconfig"
+          # Compatibility with kubernetes.io/basic-auth secrets
+          elif [ -f "${WORKSPACE_GIT_AUTH_PATH}/username" ] && [ -f "${WORKSPACE_GIT_AUTH_PATH}/password" ]; then
+            HOSTNAME=$(cd "/var/workdir/source" && git remote get-url origin | awk -F/ '{print $3}')
+            echo "https://$(cat ${WORKSPACE_GIT_AUTH_PATH}/username):$(cat ${WORKSPACE_GIT_AUTH_PATH}/password)@$HOSTNAME" >"${HOME}/.git-credentials"
+            echo -e "[credential \"https://$HOSTNAME\"]\n  helper = store" >"${HOME}/.gitconfig"
+          else
+            echo "Unknown git-basic-auth workspace format"
+            exit 1
+          fi
+          chmod 400 "${HOME}/.git-credentials"
+          chmod 400 "${HOME}/.gitconfig"
+        fi
+
+        if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
+        fi
+
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        # RHSM HANDLING: REGISTER RHSM & PREFETCH CLI CONFIGURATION
+        if [ -e /activation-key/org ]; then
+          RHSM_ORG=$(cat /activation-key/org)
+          RHSM_ACT_KEY=$(cat /activation-key/activationkey)
+
+          echo "Registering with Red Hat subscription manager."
+          export RETRY_MAX_TRIES=6
+          if ! retry subscription-manager register --org "${RHSM_ORG}" --activationkey "${RHSM_ACT_KEY}"; then
+            echo "Subscription-manager register failed"
+            exit 1
+          fi
+          unset RETRY_MAX_TRIES
+
+          trap rhsm_unregister EXIT
+
+          entitlement_files="$(ls -1 /etc/pki/entitlement/*.pem)"
+          ENTITLEMENT_CERT_KEY_PATH="$(grep -e '-key.pem$' <<<"$entitlement_files")"
+          ENTITLEMENT_CERT_PATH="$(grep -v -e '-key.pem$' <<<"$entitlement_files")"
+          CA_BUNDLE_PATH="/etc/rhsm/ca/redhat-uep.pem"
+
+          PREFETCH_SSL_OPTS="$(
+            jq -n \
+              --arg key "$ENTITLEMENT_CERT_KEY_PATH" \
+              --arg cert "$ENTITLEMENT_CERT_PATH" \
+              --arg ca_bundle "$CA_BUNDLE_PATH" \
+              '{client_key: $key, client_cert: $cert, ca_bundle: $ca_bundle}'
+          )"
+
+          # We need to modify the CLI params in place if we're processing RPMs
+          INPUT=$(inject_ssl_opts "$INPUT" "$PREFETCH_SSL_OPTS")
+        fi
+
+        INPUT=$(inject_rpm_summary_flag "$INPUT")
+
+        # Some repos with go submodules would fail during prefetch dependencies task
+        # Forcing fetching tags serves as a workaround
+        export RETRY_MAX_TRIES=2
+        WORKSPACE_SOURCE="/var/workdir/source"
+        if ! (cd "$WORKSPACE_SOURCE" && retry git fetch --tags); then
+          exit 1
+        fi
+        unset RETRY_MAX_TRIES
+
+        hermeto --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+          $dev_pacman_flag \
+          --source="/var/workdir/source" \
+          --output="/var/workdir/cachi2/output" \
+          --sbom-output-type="$SBOM_TYPE" \
+          "${INPUT}"
+
+        hermeto --log-level="$LOG_LEVEL" generate-env "/var/workdir/cachi2/output" \
+          --format env \
+          --for-output-dir=/cachi2/output \
+          --output "/var/workdir/cachi2/cachi2.env"
+
+        hermeto --log-level="$LOG_LEVEL" inject-files "/var/workdir/cachi2/output" \
+          --for-output-dir=/cachi2/output
+
+        # NOTE: Compatibility hack, hermeto will create a hermeto.repo when processing RPMs (1 for
+        # each architecture) which may break users expecting cachi2.repo
+        find "/var/workdir/cachi2/output" \
+          -type f \
+          -name hermeto.repo \
+          -execdir mv {} cachi2.repo \;
+
+        # hack: the OCI generator would delete the function since it doesn't consider trap a "usage"
+        if false; then
+          rhsm_unregister
+        fi
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+        - $(results.CACHI2_ARTIFACT.path)=/var/workdir/cachi2
+      env:
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi

@@ -35,15 +35,48 @@ The pipelines can be found in the `pipelines` directory.
 ### Tasks
 
 The tasks can be found in the `tasks` directories. Tasks are bundled and used by bundled pipelines. Tasks are not stored in the cluster.
-For quick local inner-loop-style task development, you may install new Tasks in your local namespace manually and create your pipelines, as well as the base task image, to test new functionality. Tasks can be installed into the local namespace using `oc apply -k tasks/appstudio-utils/util-tasks`.
 
-There is a container used to support multiple sets of tasks called
-`quay.io/konflux-ci/appstudio-utils:GIT_SHA`. This is a single container used by
-multiple tasks. Tasks may also be in their own containers as well. However, many
-simple tasks are utilities and will be packaged for Konflux in a single
-container. Tasks can rely on other tasks in the system, which are co-packed in a
-container, allowing combined tasks (build-only vs. build-deploy) that use the
-same core implementations.
+#### Pushing task bundles for inner loop development
+
+A convenient way to try out Task changes is to simply replace the task bundle reference
+in a Konflux pipeline with your own task bundle.
+
+Prerequisites:
+
+- A repository onboarded to Konflux
+- The [`tkn`](https://tekton.dev/docs/cli/) CLI
+- An account in [quay.io](https://quay.io) (or other container registry)
+- Any container CLI tool that has a `login` command, e.g. `podman`
+
+How-to (example for pushing the `git-clone-oci-ta` task to quay.io):
+
+1. Build the task bundle and push it to quay.io
+
+    ```bash
+    podman login quay.io
+
+    tkn bundle push \
+      -f task/git-clone-oci-ta/0.1/git-clone-oci-ta.yaml \
+      quay.io/<USERNAME>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+    ```
+
+2. Go to <https://quay.io/USERNAME/tekton-catalog/task-git-clone-oci-ta>
+   and make the repository public (in the settings)
+
+3. Use the task bundle in a Konflux Pipeline
+
+    ```diff
+           - name: name
+             value: git-clone-oci-ta
+           - name: bundle
+    -        value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:aab5f0f4906ba2c2a64a67b591c7ecf57018d066f1206ebc56158476e29f2cf3
+    +        value: quay.io/<username>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+           - name: kind
+             value: task
+           resolver: bundles
+    ```
+
+4. Run the pipeline with your task bundle by opening a PR in your repo
 
 #### Trusted Artifact Task variants
 
@@ -68,6 +101,30 @@ make sure to run the `hack/generate-ta-tasks.sh` script to update the
 `${task_name}-oci-ta` Task definition. Not doing so will fail the
 [`.github/workflows/check-ta.yaml`](.github/workflows/check-ta.yaml) workflow.
 
+### External tasks
+
+External tasks are tasks that were built outside of build definitions.
+The option to add them to our pipelines is now available by adding them to the 
+external-task folder in the structure of a catalog including the name and version
+of the task, for example:
+
+```
+external-task/
+└── rpms-signature-scan
+    └── 0.2
+        └── rpms-signature-scan.yaml
+```
+
+The task definition yaml only includes the reference to the task bundle in the repository:
+```yaml
+task_bundle: quay.io/konflux-ci/konflux-vanguard/task-rpms-signature-scan:0.2@sha256:ea256cb37e60e49bc03b9639054e696a3ddffb97a24b3c3dda64b40986fd6d01
+```
+
+A renovate rule should be added in order to update the reference of the task's bundle, [example](https://github.com/konflux-ci/build-definitions/blob/79a84deef2d95c51520dba233228517a5864926f/renovate.json#L249-L259)
+
+Once the build-definitions CI will run and build all the tasks and pipelines it will first iterate over the external-task folder and will add these tasks to the pipelines, then, it will iterate over the internal tasks.
+To avoid duplications, the external task will get prioritize over the internal one. So if a task is found both in external-task and in task, the external-task will be in use.
+
 ### StepActions
 
 Take a look at the [Tekton documentation](https://tekton.dev/docs/pipelines/stepactions/) for more information about StepActions.
@@ -76,20 +133,49 @@ The StepActions can be found in the `stepactions` directory. StepActions are not
 
 ### Versioning
 
-When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created. The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created.
+We restructure the task definitions so that each version is maintained in its own directory. Instead of a single flat task file, the task is now versioned by placing its YAML into a version-specific folder.
+Within the newly versioned YAMLs a label should be added to the tasks metadata for identifying the specific version of the task.
+The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
+Since tasks are now organized by version, any pipelines that reference these tasks must be updated to point to the newly versioned path.
+
+If the task update affects the results which are checked by [e2e tests](https://github.com/konflux-ci/e2e-tests/tree/main), 
+then the corresponding e2e test code needs to be updated as well.
+The main place to check for task results which are being checked by e2e is the 
+[task_results.go](https://github.com/konflux-ci/e2e-tests/blob/main/pkg/utils/build/task_results.go), 
+though it's good practice to check all tests in that repository.
+In case the PRs handling this change get blocked by each other, consult [the guide for PR pairing](https://github.com/konflux-ci/e2e-tests/blob/main/docs/Installation.md#konflux-in-openshift-ci-and-branch-pairing) in e2e tests.
 
 Adding a new parameter with a default value does not require a task version increase.
 
 ## Local development
-Tasks can have a TA (Trusted Artifact) version.
-The recommended workflow is to only edit the base version and let the other versions get generated automatically.
+
+Build-definitions uses various mechanisms for automatically generating Tasks, Pipelines
+and other files. For example:
+
+- Tasks can have a TA (Trusted Artifact) version.
+  The TA variants can be identified by the `-oci-ta` suffix in the name.
+- We also use [Kustomize](https://kustomize.io/) to generate some Tasks and Pipelines.
+  Kustomize-generated resources can be identified by the existence of a `kustomization.yaml`
+  file next to the Task/Pipeline yaml file.
+  - Unless the kustomization file references only the Task/Pipeline yaml itself.
+    Such a kustomization file is there for the sole purpose of allowing other
+    Tasks/Pipelines to reference this one as a base.
+
+The generation mechanisms each have their own script under the `hack/` directory,
+but we recommend running them all at once via [hack/generate-everything.sh](hack/generate-everything.sh).
+
+```bash
+./hack/generate-everything.sh
 ```
-./hack/generate-ta-tasks.sh
-```
-Buildah also has a remote version, which can be generated with:
-```
-./hack/generate-buildah-remote.sh
-```
+
+## Making changes to tasks and pipelines
+
+If your tasks or pipelines contains `kustomization.yaml`, after making changes to the tasks or pipelines, run `hack/build-manifests.sh` and
+commit the generated manifests as well to the same directory (in addition to your changes).
+It will help us to make sure the kustomize build of your changes is successful and nothing broken while review the changes.
+
+In CI, `hack/verify-manifests.sh` script will verify that you have submitted the built manifests as well while sending the PR. 
 
 ## Testing
 
@@ -204,7 +290,7 @@ It will then run only the specified test pipeline.
 
 ### Compliance
 
-Task definitions must comply with the [Enterprise Contract](https://enterprisecontract.dev/) policies.
+Task definitions must comply with the [Conforma](https://conforma.dev/) policies.
 Currently, there are three policy configurations.
 
 - The [all-tasks](./policies/all-tasks.yaml) policy configuration applies to all Task definitions.
@@ -215,3 +301,179 @@ Currently, there are three policy configurations.
 
 A build Task, e.g. one that produces a container image, must abide by both `all-tasks` and
 `build-tasks` policy configurations.
+
+## Task Migration
+
+Task migrations allow task maintainers to introduce changes to Konflux standard
+pipelines according to the task updates. By creating migrations, task
+maintainers are able to add/remove/update task parameters, change task
+execution order, add/remove mandatory task to/from pipelines, etc.
+
+Historically, task maintainers write `MIGRATION.md` to notify users what changes
+have to be made to the pipeline. This mechanism is not deprecated. Besides
+writing the document, it is also recommended to write a migration script so that the
+updates can be applied to user pipelines automatically, that is done by the
+[pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
+
+Task migrations are Bash scripts defined in version-specific task
+directories. In general, a migration consists of a series of `yq` commands that
+modify pipeline in order to work with the new version of task. Developers can
+do more with task migrations on the pipelines, e.g. add/review a task,
+add/remove/update task parameters, change execution order of a task, etc.
+
+### Create a migration
+
+The following is the steps to write a migration:
+
+- Bump task version. Modify label `app.kubernetes.io/version` in the task YAML file.
+- Ensure `migrations/` directory exists in the version-specific task directory.
+- Create a migration file under the `migrations/` directory. Its name is in
+  form `<new task version>.sh`. Note that the version must match the bumped
+  version.
+
+The migration file is a normal Bash script file:
+
+- It accepts a single argument. The pipeline file path is provided via this
+  argument. The script must work with a Tekton Pipeline by modifying the
+  pipeline definition under the `.spec` field. In practice, regardless of whether
+  the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
+  extracted into a separate YAML file, the migration tool ensures that the
+  passed-in pipeline file contains the correct pipeline definition.
+- All modifications to the pipeline must be done in-place, i.e. using `yq
+  -i` to operate the pipeline YAML.
+- It should be simple and small as much as possible.
+- It should be idempotent as much as possible to ensure that the changes are
+  not duplicated to the pipeline when run the migration multiple times.
+- Pass the `shellcheck` without customizing the default rules.
+- Check whether the migration is for all kinds of Konflux pipelines or not. If
+  no, skip the pipeline properly in the script, e.g. skip FBC pipeline due
+  to [many tasks are removed](https://github.com/konflux-ci/build-definitions/blob/main/pipelines/fbc-builder/patch.yaml)
+  from template-build.yaml.
+- The pipeline file path and name can be arbitrary. Please do not use the input
+  value to check pipeline type or do test in `if-then-else` statement for
+  conditional operations.
+
+Here are example steps to create a migration for a task `task-a`:
+
+```bash
+yq -i "(.metadata.labels.\"app.kubernetes.io/version\") |= \"0.2.2\"" task/task-a/0.2/task-a.yaml
+mkdir -p task/task-a/0.2/migrations || :
+cat >task/task-a/0.2/migrations/0.2.2.sh <<EOF
+#!/usr/bin/env bash
+set -e
+pipeline_file=\$1
+
+# Ensure parameter is added only once whatever how many times to run this script.
+if ! yq -e '.spec.tasks[] | select(.name == "task-a") | .params[] | select(.name == "pipelinerun-name")' >/dev/null
+then
+  yq -i -e '
+    (.spec.tasks[] | select(.name == "task-a") | .params) +=
+    {"name": "pipelinerun-name", "value": "\$(context.pipelineRun.name)"}
+  ' "\$pipeline_file"
+fi
+EOF
+```
+
+To add a new task to the user pipelines, a migration can be created with a
+fictional task update. That is to select a task, e.g. `init`, bump its version
+and create a migration under `init` version-specific directory.
+
+### Create a startup migration by the helper script
+
+`./hack/create-task-migration.sh` is a convenient tool to help developers
+create a task migration. The script handles most of the details of migration
+creation. It generates a startup migration template file, then developers are
+responsible for writing concrete script, which usually consists of a series of
+`yq` commands, to implement the migration.
+
+Here are a few examples:
+
+To create a migration for the latest major.minor version of task `push-dockerfile`:
+
+```bash
+./hack/create-task-migration.sh -t push-dockerfile
+```
+
+To get a complete usage: `./hack/create-task-migration.sh -h`
+
+### Add tasks to Konflux pipelines
+
+Fictional task updates is a way to add tasks to Konflux pipelines. Following
+is the workflow:
+
+- Add the new task to build-definitions. Going through the whole process until
+  task bundle is pushed to the registry. If the task to be added exists
+  already, skip this step.
+
+- Create a migration for the task:
+
+  - Choose an existing task to act as a fictional update, e.g. `init`.
+  - Create a migration for it:
+
+    ```bash
+    ./hack/create-task-migration.sh -t init
+    ```
+
+  - Edit the generated migration file, write script to add the task. Here is an
+    example using `yq`:
+
+    ```bash
+    #!/usr/bin/env bash
+    pipeline=$1
+    name="<task name>"
+    if ! yq -e ".spec.tasks[] | select(.name == \"${name}\")" "$pipeline" >/dev/null 2>&1
+    then
+      task_def="{
+        \"name\": \"${name}\",
+        \"taskRef\": {
+          \"params\": [
+            {\"name\": \"name\", \"value\": \"${name}\"},
+            {\"name\": \"bundle\", \"value\": \"<bundle reference>\"},
+            {\"name\": \"kind\", \"value\": \"task\"}
+          ]
+        },
+        \"runAfter\": [\"<task name>\"]
+      }"
+      yq -i ".spec.tasks += ${task_def}" "$pipeline"
+    fi
+    ```
+
+    Add necessary additional code to make the migration work well.
+
+- Commit the updated task YAML file and the migration file and go through the
+  review process.
+
+The migration will be applied during next Renovate run scheduled by MintMaker.
+
+## Task Deprecation
+
+Often times when a new version of a task is introduced, the old version of the task may not need to
+be actively maintained anymore and can be deprecated. The whole deprecation process is driven
+primarily by the task maintainers who need to follow the steps outlined below to make sure Conforma
+will notify Konflux users of the fact that a particular task has been deprecated and they should
+migrate onto a newer version.
+
+If you are a task maintainer here's what you need to do when deprecating a particular version of a
+task:
+
+1. Set the `build.appstudio.redhat.com/expires-on` label on the old task version.
+2. Depending on whether you're adding a new version of a task or deprecating it completely set the
+   `build.appstudio.redhat.com/expiry-message` on the old version. There's a default expiration
+   message emitted by [Conforma](https://conforma.dev/docs/policy/tasks.html#_setting_task_expiry)
+   which may be handy if you're just adding a new version.
+3. Release a fresh build of the old task version with these labels (by merging the PR that sets the
+   labels).
+4. Move the old task to the `archived-tasks` top-level directory.
+
+    ```bash
+    $ mkdir archived-tasks/<task_name> 2>/dev/null
+    $ git mv task/<task_name>/<old_version> archived-tasks/<task_name>
+    ```
+5. Symlink the old task from the main task location for easy historical version tracking.
+
+    ```bash
+    $ ln -s archived-tasks/<task_name>/<old_version> task/<task_name>/<old_version>
+    ```
+6. Optionally, introduce a new version of the task. Make sure **NOT** to reference the old
+   version of the task in `kustomization.yaml` in such case as that would break CI.
+7. Once the old task is past its expiration date, it can be removed from the repository completely.

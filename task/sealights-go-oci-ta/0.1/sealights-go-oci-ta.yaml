@@ -1,0 +1,209 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sealights-go-oci-ta
+  labels:
+    konflux-ci/sealights: "true"
+    konflux-ci/sealights-language: "go"
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+spec:
+  description: >-
+    This Tekton task automates the process of instrumenting Go code with Sealights for quality analytics and testing.
+    It retrieves the source code from a trusted artifact, instruments the code with Sealights, and then creates
+    a new trusted artifact with the instrumented code. The task can be triggered by either Pull Request or other events.
+  results:
+    - name: sealights-bsid
+      type: string
+      description: "A unique identifier generated for the current sealights build session."
+    - name: sealights-build-name
+      type: string
+      description: "A unique build name generated using the commit SHA and current date to prevent conflicts during test reruns."
+    - name: sealights-agent-version
+      type: string
+      description: "A version of the Sealights Go Agent"
+    - name: sealights-cli-version
+      type: string
+      description: "A version of the Sealights Go CLI"
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: TEST_OUTPUT
+      type: string
+      description: "Stores the sealights results in json format to warn users in case of any Sealights glitches."
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: component
+      type: string
+      description: "The name of the Konflux component associated with the integration tests."
+    - name: scm-provider
+      type: string
+      default: "github"
+      description: "The source control management (SCM) provider used for the project, such as 'github', 'gitlab'."
+    - name: packages-excluded
+      type: array
+      default: []
+      description: "A list of Go packages to exclude from Sealights instrumentation during the code scan. Specify package paths to prevent them from being analyzed (e.g., 'pkg1', 'github.com/modern-go/concurrent')."
+    - name: repository-url
+      type: string
+      description: "The name or URL of the source code repository (e.g., 'github.com/org/repo')."
+      default: ""
+    - name: branch
+      type: string
+      description: "The name of the Git branch to use for the operation (e.g., 'main' or 'feature-branch')."
+      default: "main"
+    - name: revision
+      type: string
+      description: "The Git revision (commit SHA) from which the test pipeline is originating."
+    - name: pull-request-number
+      type: string
+      description: "The identifier number of the pull request/merge request."
+      default: ""
+    - name: target-branch
+      type: string
+      description: "The name of the target branch for the pull request, typically the branch into which the changes will be merged (e.g., 'main', 'develop')."
+      default: "main"
+    - name: oci-storage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+    - name: debug
+      default: "false"
+      description: Enable debug for Sealights scanning.
+      type: string
+    - name: disable-token-save
+      default: "false"
+      description: "Skip saving the Sealights token to the trusted artifact and container image (it will require providing the token during deployment)"
+      type: string
+    - name: workspace-path
+      default: "./"
+      description: "Contains the path to the code directory to scan"
+      type: string
+  volumes:
+    - name: sealights-credentials
+      secret:
+        secretName: sealights-credentials
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+      - name: sealights-credentials
+        mountPath: /usr/local/sealights-credentials
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: sealights-go-instrumentation
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-go:latest@sha256:fc7c8d67154edb55d6d063b49fac84ee34b4117edc9e229cda017053c0ce457a
+      computeResources:
+        limits:
+          memory: 6Gi
+          cpu: "2"
+        requests:
+          cpu: "1"
+          memory: 1Gi
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: COMPONENT
+          value: $(params.component)
+        - name: SCM_PROVIDER
+          value: $(params.scm-provider)
+        - name: REPOSITORY_URL
+          value: $(params.repository-url)
+        - name: BRANCH
+          value: $(params.branch)
+        - name: REVISION
+          value: $(params.revision)
+        - name: PULL_REQUEST_NUMBER
+          value: $(params.pull-request-number)
+        - name: TARGET_BRANCH
+          value: $(params.target-branch)
+        - name: DISABLE_TOKEN_SAVE
+          value: $(params.disable-token-save)
+        - name: DEBUG
+          value: $(params.debug)
+        - name: TEST_EVENT
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['pipelinesascode.tekton.dev/event-type']
+        - name: WORKSPACE_PATH
+          value: $(params.workspace-path)
+      args: ["$(params.packages-excluded[*])"]
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo -n "${AGENT_VERSION}" > "$(results.sealights-agent-version.path)"
+        echo -n "${CLI_VERSION}" > "$(results.sealights-cli-version.path)"
+
+        export SEALIGHTS_TOKEN BUILD_NAME BSID PACKAGES_EXCLUDED_ENUM
+
+        SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
+        BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
+        PACKAGES_EXCLUDED_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
+
+        handle_error() {
+          local error_message=$1
+
+          echo -e "[ERROR]: Sealights scanning failed due reason: ${error_message}"
+          TEST_OUTPUT="{\"result\": \"ERROR\"}"
+          echo "${TEST_OUTPUT}" > "$(results.TEST_OUTPUT.path)"
+
+          # We should not to let fail sealights scans. If for some reason is down Konflux CI should not fail.
+          exit 0
+        }
+
+        # In case is coming from /retest event then it's a pull_request
+        # if event type is not push and pull_request_number is not empty then is a pull_request
+        echo "[INFO] Tekton Event Type received: ${TEST_EVENT}"
+        if [ "$TEST_EVENT" != "push" ] && [ -n "$PULL_REQUEST_NUMBER" ]; then
+          TEST_EVENT="pull_request"
+        fi
+
+        if ! slcli config init --lang go --token "${SEALIGHTS_TOKEN}"; then
+          echo -e "[ERROR] Failed to initialize Sealights configuration."
+        fi
+
+        if [ -n "${TEST_EVENT}" ] && [ "${TEST_EVENT}" = "pull_request" ]; then
+          echo "[INFO] Creating build session id from a ${TEST_EVENT} event source code: [ component: ${COMPONENT}, target-branch: ${TARGET_BRANCH}, pull-request-number ${PULL_REQUEST_NUMBER}, latest-commit: ${REVISION} ]"
+          if ! slcli config create-pr-bsid --fail-build --app "${COMPONENT}" --target-branch "${TARGET_BRANCH}" \
+            --pull-request-number "${PULL_REQUEST_NUMBER}"  --latest-commit "${REVISION}" --repository-url "${REPOSITORY_URL}"; then
+            handle_error "[ERROR] Failed to create PR-based build session ID."
+          fi
+        else
+          echo "[INFO] Creating build session ID (BSID) ${TEST_EVENT} event source code [ component: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME} ]"
+          if ! slcli config create-bsid --fail-build --app "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}"; then
+            handle_error "[ERROR] Failed to create build session ID."
+          fi
+        fi
+
+        if ! slcli scan --packages-excluded "${PACKAGES_EXCLUDED_ENUM}" --bsid buildSessionId.txt --path-to-scanner /usr/local/bin/slgoagent \
+          --workspacepath "${WORKSPACE_PATH}" --scm git --scmProvider "${SCM_PROVIDER}" --scmVersion "0" --scmBaseUrl "${REPOSITORY_URL}" --fail-build --debug="${DEBUG}" --disable-token-save="${DISABLE_TOKEN_SAVE}"; then
+          handle_error "Sealights scan failed. Please check any network connection with sealights, scan failures in your project or if the token is valid one."
+        fi
+
+        echo "{\"result\": \"SUCCESS\"}" > "$(results.TEST_OUTPUT.path)"
+
+        echo -n "$(cat buildSessionId.txt)" > "$(results.sealights-bsid.path)"
+        echo -n "$BUILD_NAME" > "$(results.sealights-build-name.path)"
+
+        # Temporary solution. Remove tokens to not build them
+        rm -rf build.json slcmd_config.json
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      args:
+        - create
+        - --store
+        - $(params.oci-storage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source

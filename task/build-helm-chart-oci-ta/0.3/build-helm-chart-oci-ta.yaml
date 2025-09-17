@@ -1,0 +1,321 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-helm-chart-oci-ta
+  labels:
+    app.kubernetes.io/version: "0.3"
+spec:
+  description: |-
+    The task packages and pushes a Helm chart to an OCI repository.
+    As Helm charts require to have a semver-compatible version to be packaged, the
+    task relies on git tags in order to determine the chart version during runtime.
+
+    The task computes the version based on the git commit SHA distance from the latest
+    tag prefixed with the value of TAG_PREFIX. The value of that tag will be used as
+    the version's X.Y values, and the Z value will be computed by the commit's distance
+    from the tag, followed by an abbreviated SHA as build metadata.
+
+    The task also supports image substitution in the chart templates. Use the IMAGE_MAPPINGS
+    parameter to specify source images to be replaced with target images and tags.
+
+    Version 0.2 includes improved digest extraction from skopeo copy operations.
+  params:
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: CA_TRUST_CONFIG_MAP_NAME
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+    - name: CHART_CONTEXT
+      description: Path relative to SOURCE_CODE_DIR where the chart is located
+      default: dist/chart/
+    - name: COMMIT_SHA
+      description: Git commit sha to build chart for
+    - name: IMAGE_MAPPINGS
+      description: |-
+        JSON array of image mappings to substitute in chart templates.
+        Format: [{"source": "localhost/my/repo", "target": "quay.io/myorg/myapp"}]
+        Source images will be replaced with target images in all YAML files in templates/.
+        The task automatically appends the tag format: VERSION_SUFFIX-COMMIT_SHA (or just COMMIT_SHA if VERSION_SUFFIX is empty).
+      default: "[]"
+    - name: IMAGE
+      description: Full image reference with tag (e.g., quay.io/redhat-user-workloads/konflux-vanguard-tenant/caching/squid:on-pr-{{revision}})
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: SOURCE_CODE_DIR
+      description: Path relative to the workingDir where the code was pulled
+        into
+      default: source
+    - name: TAG_PREFIX
+      description: An identifying prefix on which the version tag is to be
+        matched
+      default: helm-
+    - name: VALUES_FILES
+      description: Array of values file names to process for image substitution
+        (e.g., ["values.yaml", "values-prod.yaml", "values-dev.yaml"])
+      type: array
+      default:
+        - values.yaml
+    - name: VERSION_SUFFIX
+      description: A suffix to be added to the version string
+      default: ""
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the OCI-Artifact just built
+    - name: IMAGE_URL
+      description: OCI-Artifact repository and tag where the built OCI-Artifact
+        was pushed
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+            path: ca-bundle.crt
+        name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+    - name: package-and-push
+      image: quay.io/konflux-ci/tools@sha256:6ff31427db82ada0fabbdc301010d63453e2268a648304cba197edfc7bda5f71
+      workingDir: /var/workdir
+      env:
+        - name: IMAGE
+          value: $(params.IMAGE)
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+        - name: SOURCE_CODE_DIR
+          value: $(params.SOURCE_CODE_DIR)
+        - name: CHART_CONTEXT
+          value: $(params.CHART_CONTEXT)
+        - name: VERSION_SUFFIX
+          value: $(params.VERSION_SUFFIX)
+        - name: TAG_PREFIX
+          value: $(params.TAG_PREFIX)
+        - name: IMAGE_MAPPINGS
+          value: $(params.IMAGE_MAPPINGS)
+      args:
+        - "$(params.VALUES_FILES[*])"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        # The values files are passed as arguments
+        VALUES_FILES_ARGS="$*"
+
+        cd "$SOURCE_CODE_DIR"/"$CHART_CONTEXT"
+
+        # Extract repo from IMAGE (remove tag part)
+        REPO="${IMAGE%:*}"
+
+        # Rename the chart according to the output registry
+        export chart_name="${REPO##*/}"
+        yq -i '.name = strenv(chart_name)' Chart.yaml
+
+        # Process image mappings if provided
+        if [ "$IMAGE_MAPPINGS" != "[]" ]; then
+          echo "Processing image mappings..."
+
+          # Parse the JSON array and perform substitutions
+          # Sort by source image length (longest first) to avoid partial matches
+          # Use bash string length and sort to process longer images first
+          echo "$IMAGE_MAPPINGS" | jq -c '.[]' | while read -r mapping; do
+            source_image=$(echo "$mapping" | jq -r '.source')
+            echo "${#source_image}:$mapping"
+          done | sort -t: -k1,1nr | cut -d: -f2- | while read -r mapping; do
+            source_image=$(echo "$mapping" | jq -r '.source')
+            target_image=$(echo "$mapping" | jq -r '.target')
+
+            echo "Replacing '$source_image' with '$target_image' in templates and values files..."
+
+            # Find all YAML files in templates directory and substitute images
+            if [ -d "templates" ]; then
+              find templates -name "*.yaml" -o -name "*.yml" | while read -r template_file; do
+                sed -i -re "s|image: *[\"']?${source_image}[\"']?|image: \"${target_image}\"|g" "$template_file"
+              done
+            fi
+
+            # Process the specified values files if they exist
+            # Use arguments passed to the script
+            for values_file in $VALUES_FILES_ARGS; do
+
+              if [ -f "$values_file" ]; then
+                echo "Processing $values_file..."
+
+                # Extract repository and tag from target_image using bash syntax
+                if [[ "$target_image" == *:* ]]; then
+                  # Image has a tag
+                  target_repo="${target_image%:*}"
+                  target_tag="${target_image#*:}"
+                else
+                  # Image has no tag, default to latest
+                  target_repo="$target_image"
+                  target_tag="latest"
+                fi
+
+                # Extract repository and tag from source_image for comparison
+                if [[ "$source_image" == *:* ]]; then
+                  # Image has a tag
+                  source_repo="${source_image%:*}"
+                  source_tag="${source_image#*:}"
+                else
+                  # Image has no tag, default to latest
+                  source_repo="$source_image"
+                  source_tag="latest"
+                fi
+
+                # Use yq to replace simple image fields (not repository/tag pairs)
+                # Find all image fields that match the source_image exactly and replace with target_image
+                # Handle nested image fields at any level in the YAML structure, including arrays
+                yq -i "
+                  with(.. | select(type == \"!!map\" and has(\"image\") and .image == \"$source_image\");
+                    .image = \"$target_image\"
+                  )
+                " "$values_file"
+
+                # Use yq to properly handle YAML structure with repository/tag pairs
+                # Find all image objects that have repository/tag fields matching source_image
+                # Handle nested image structures at any level in the YAML, including arrays
+                yq -i "
+                  with(.. | select(type == \"!!map\" and has(\"image\") and .image.repository? == \"$source_repo\" and (.image.tag? // \"latest\") == \"$source_tag\");
+                    .image.repository = \"$target_repo\" |
+                    .image.tag = \"$target_tag\"
+                  )
+                " "$values_file"
+              else
+                echo "Warning: Values file '$values_file' not found, skipping..."
+              fi
+            done
+          done
+
+          echo "Image substitution completed."
+        fi
+
+        # We need git tags and history to be able to compute the chart version
+        git fetch --unshallow --tags origin "$COMMIT_SHA"
+
+        # Create a semver compliant chart version:
+        # We assume the existence of a git tag of the format "${TAG_PREFIX}X.Y"
+        # Suppose that TAG_PREFIX=helm- and the tag is helm-1.2,
+        # `git describe --tags` will return helm-1.2-z-W (if the tag is not on the
+        # current commit) where z is the number of commits since the appearance of
+        # the matching tag and W is an abbreviated SHA.
+        # The command below will convert that output to be semver-compatible: 1.2.z+W
+        chart_version=$(
+          git describe --tags --match="${TAG_PREFIX}*" |
+            sed -e "s/^${TAG_PREFIX}//" |
+            sed -e "0,/-/s//\./" |
+            sed -e "0,/-/s//+/"
+        )
+
+        # If the tag is on the current commit, the command will just return the
+        # tagged version (e.g. 1.2). In that case, we'll set z to be 0: 1.2.0+<abbrev sha>
+        if [[ "$chart_version" =~ ^[^.]*\.[^.]*$ ]]; then
+          chart_version=$chart_version.0+$(git rev-parse --short HEAD)
+        fi
+
+        # If such tag does not exist, 0.1 will be used and z will be the commits count
+        # on the current branch since the dawn of time: 0.1.z+<abbrev sha>
+        if [ -z "${chart_version}" ]; then
+          chart_version=0.1.$(git rev-list HEAD --count)+$(git rev-parse --short HEAD)
+        fi
+
+        chart_version="$chart_version$VERSION_SUFFIX"
+
+        # Build Helm dependencies if Chart.yaml has dependencies
+        if [ -f "Chart.yaml" ] && yq -e '.dependencies' Chart.yaml >/dev/null 2>&1; then
+          echo "Building Helm dependencies from Chart.lock..."
+
+          # Add required repositories from Chart.yaml dependencies
+          yq -r '.dependencies[].repository' Chart.yaml | sort -u | while read -r repo_url; do
+            if [ -n "$repo_url" ]; then
+              repo_name=$(echo "$repo_url" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*$||' | sed 's|\.|_|g')
+              echo "Adding repository: $repo_name ($repo_url)"
+              helm repo add "$repo_name" "$repo_url" || true
+            fi
+          done
+
+          # Update repository index
+          helm repo update
+
+          # Build dependencies
+          helm dependency build .
+        fi
+
+        helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
+
+        # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
+        # need to provide it with just one option
+        jq --arg registry "$REPO" '.auths[$registry]' ~/.docker/config.json |
+          jq -n --arg registry "$REPO" '{auths:{($registry):inputs}}' \
+            >scoped_authfile.json
+
+        dest="oci://${REPO%/*}"
+
+        echo "Pushing image to registry"
+        echo "Pushing file: $chart_name-$chart_version.tgz"
+        echo "Destination: $dest"
+        if ! output="$(retry helm push "$chart_name"-"$chart_version".tgz "$dest" \
+          --registry-config ./scoped_authfile.json 2>&1)"; then
+          echo "Failed to push image to registry"
+          echo "Output: $output"
+          exit 1
+        fi
+        echo "Push command completed successfully"
+        echo "Push output: $output"
+
+        # Construct the pushed URL and digest from known values
+        # Since we know exactly what was pushed, we can construct the URL
+        # Helm automatically replaces + with _ when pushing to OCI registries
+        docker_tag="${chart_version//+/_}"
+        pushed="${REPO}:${docker_tag}"
+        echo "Constructed pushed URL: $pushed"
+
+        # Tag the pushed chart with the full IMAGE reference using Skopeo
+        echo "Tagging chart with additional tag: $IMAGE"
+        if ! skopeo_output="$(skopeo copy --src-tls-verify=false --dest-tls-verify=false \
+          "docker://$pushed" "docker://$IMAGE" 2>&1)"; then
+          echo "Failed to tag chart with $IMAGE"
+          echo "Source: docker://$pushed"
+          echo "Destination: docker://$IMAGE"
+          echo "Skopeo output: $skopeo_output"
+          exit 1
+        fi
+
+        # Get the manifest digest of the pushed chart
+        # The manifest digest is the SHA256 of the entire manifest JSON
+        if ! manifest_digest=$(skopeo inspect --raw "docker://$pushed" | sha256sum | awk '{print "sha256:" $1}' 2>/dev/null); then
+          echo "Could not retrieve manifest digest from pushed image"
+          echo "This does not affect the main functionality"
+          digest=""
+        else
+          echo "Successfully retrieved manifest digest: $manifest_digest"
+          digest="$manifest_digest"
+        fi
+
+        # Set IMAGE_URL result to the URL with sanitized semver tag (what was actually pushed)
+        semver_url="${REPO}:${docker_tag}"
+        echo -n "$semver_url" | tee "$(results.IMAGE_URL.path)"
+        echo -n "$digest" | tee "$(results.IMAGE_DIGEST.path)"
+      securityContext:
+        runAsUser: 0

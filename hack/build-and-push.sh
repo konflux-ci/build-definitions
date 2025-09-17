@@ -4,11 +4,9 @@
 #
 # - Normal tasks, which are written as Tekton Task resource.
 #
-# - kustomized tasks, which are customized by kustomization based on normal
-#   tasks. kustomized tasks can be customized either based on another normal
-#   task, e.g. task buildah-24gb is based on task buildah. This type of
-#   kustomized task inherits the interface without change. Or based on itself,
-#   e.g. task inspect-image.
+# - kustomized tasks. A kustomized task is based on another task by
+#   kustomization, e.g. task pnc-prebuild-git-clone-oci-ta is based on task 
+#   git-clone-oci-ta.
 #
 # Task are built and pushed to the registry as Tekton task bundles. There are
 # two kinds of tags in a single task bundle repository.
@@ -38,8 +36,12 @@ VCS_URL=https://github.com/konflux-ci/build-definitions
 VCS_REF=$(git rev-parse HEAD)
 
 declare -r ARTIFACT_TYPE_TEXT_XSHELLSCRIPT="text/x-shellscript"
-declare -r ANNOTATION_TASK_MIGRATION="dev.konflux-ci.task.migration"
 declare -r TEST_TASKS=${TEST_TASKS:-""}
+
+declare -r ANNOTATION_HAS_MIGRATION="dev.konflux-ci.task.has-migration"
+declare -r ANNOTATION_IS_MIGRATION="dev.konflux-ci.task.is-migration"
+# The annotation value points to the task bundle which has a migration that's most recent to the task with the annotation
+declare -r ANNOTATION_PREVIOUS_MIGRATION_BUNDLE="dev.konflux-ci.task.previous-migration-bundle"
 
 AUTH_JSON=
 if [ -e "$XDG_RUNTIME_DIR/containers/auth.json" ]; then
@@ -50,6 +52,12 @@ else
     echo "warning: cannot find registry authentication file." 1>&2
 fi
 declare -r AUTH_JSON
+
+# ES stands for exit status
+declare -r ES_SUCCESS=0
+declare -r SKOPEO_ES_GENERIC_ERR=1
+declare -r SKOPEO_ES_IMAGE_NOT_FOUND=2
+
 
 function is_official_repo() {
     # match e.g.
@@ -78,21 +86,39 @@ function should_skip_repo() {
     [ "$http_code" != "200" ]
 }
 
+: "${HERE:=}"
+
 # local dev build script
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$SCRIPTDIR/.." || exit 1
+
+if [ -z "$HERE" ]; then
+    SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+    cd "$SCRIPTDIR/.." || exit 1
+else
+    cd "$HERE" || exit 1
+fi
 
 WORKDIR=$(mktemp -d --suffix "-$(basename "${BASH_SOURCE[0]}" .sh)")
 declare -r WORKDIR
 
+# retry given command for 5 times.
+# retry stops once the expected exit status is encountered.
+# Expected exit status is given in the first positional argument.
 retry() {
     local status
     local retry=0
     local -r interval=${RETRY_INTERVAL:-5}
     local -r max_retries=5
+    local expected_status
+    if grep -q "^[[:digit:]]\+$" <<<"$1"; then
+        expected_status=$1
+        shift
+    fi
     while true; do
         "$@" && break
         status=$?
+        if [[ -v expected_status ]] && [[ $status -eq $expected_status ]]; then
+            return $status
+        fi
         ((retry+=1))
         if [ $retry -gt $max_retries ]; then
             return $status
@@ -168,14 +194,14 @@ rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
 if [ "$SKIP_BUILD" == "" ]; then
     echo "Using $QUAY_NAMESPACE to push results "
     docker build -t "$APPSTUDIO_UTILS_IMG" "appstudio-utils/"
-    docker push "$APPSTUDIO_UTILS_IMG"
+    retry docker push "$APPSTUDIO_UTILS_IMG"
 
     # This isn't needed during PR testing
     if [[ "$BUILD_TAG" != "latest" && -z "$TEST_REPO_NAME" ]]; then
         # tag with latest
         IMAGE_NAME="${APPSTUDIO_UTILS_IMG%:*}:latest"
         docker tag "$APPSTUDIO_UTILS_IMG" "$IMAGE_NAME"
-        docker push "$IMAGE_NAME"
+        retry docker push "$IMAGE_NAME"
     fi
 
 fi
@@ -202,14 +228,26 @@ inject_bundle_ref_to_pipelines() {
             {\"name\": \"kind\", \"value\": \"task\"}
         ]
     }"
+    echo "Bundle ref: ${bundle_ref}"
     local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
     find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
         while read -r pipeline_file; do
+            echo "Processing file: ${pipeline_file}"
             yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
             yq e "(.spec.finally[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
         done
 }
 
+inject_external_bundle_ref_to_pipelines() {
+    local -r external_task_dir=$1
+    local -r external_task_name=$2
+    local -r external_task_version=$3
+
+    external_task_file="$(find "$external_task_dir" -maxdepth 1 -type f \( -iname "*.yaml" -o -iname "*.yml" \))"
+    # fetch the task_budle from the external-task definition
+    external_task_bundle_with_digest=$(yq -e '.task_bundle' "$external_task_file")
+    inject_bundle_ref_to_pipelines "$external_task_name" "$external_task_version" "$external_task_bundle_with_digest"
+}
 # Get task version from task definition rather than the version in the directory path.
 # Arguments: task_file
 # The version is output to stdout.
@@ -227,6 +265,8 @@ build_push_task() {
     local -r prepared_task_file=$2
     local -r task_bundle=$3
     local -r task_file_sha=$4
+    local -r has_migration=$5
+    local -r prev_bundle_digest=$6
 
     local -r task_description=$(yq e '.spec.description' "$prepared_task_file" | head -n 1)
 
@@ -248,6 +288,11 @@ build_push_task() {
     if [ -f "${task_dir}/USAGE.md" ]; then
         ANNOTATIONS+=("dev.tekton.docs.usage=${VCS_URL}/tree/${VCS_REF}/${task_dir}/USAGE.md")
     fi
+    if [ "$has_migration" == "true" ]; then
+        ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
+    fi
+
+    ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${prev_bundle_digest}")
 
     local -a ANNOTATION_FLAGS=()
     for annotation in "${ANNOTATIONS[@]}"; do
@@ -259,7 +304,7 @@ build_push_task() {
 
     # copy task to new tag pointing to commit where the file was changed lastly, so that image persists
     # even when original tag is updated
-    skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
+    retry skopeo copy "docker://${task_bundle}" "docker://${task_bundle}-${task_file_sha}"
 }
 
 # Determine if a task is a normal task. 0 returns if it is, otherwise 1 is returned.
@@ -348,14 +393,19 @@ cache_set() {
 # Fetch image digest.
 # Arguments: image
 # The digest is output to stdout.
+# Return 0 if digest is fetched from the registry, otherwise the exit status of
+# skopeo will be returned.
 fetch_image_digest() {
     local -r image=$1
     local digest=
     digest=$(cache_get "$image")
     if [ -z "$digest" ]; then
-        digest=$(skopeo inspect --no-tags --format='{{.Digest}}' "docker://${image}" 2>/dev/null)
-        if [ -n "$digest" ]; then
-            cache_set "$image" "$digest"
+        if digest=$(retry $SKOPEO_ES_IMAGE_NOT_FOUND skopeo inspect --no-tags --format='{{.Digest}}' "docker://${image}"); then
+            if [ -n "$digest" ]; then
+                cache_set "$image" "$digest"
+            fi
+        else
+            return $?
         fi
     fi
     echo "$digest"
@@ -367,12 +417,7 @@ attach_migration_file() {
     local -r task_dir=$1
     local -r concrete_task_version=$2
     local -r task_bundle=$3
-
-    local -r migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
-
-    if [ ! -e "$migration_file" ]; then
-        return 0
-    fi
+    local -r migration_file=$4
 
     # Check if task bundle has an attached migration file.
     local filename
@@ -387,7 +432,7 @@ attach_migration_file() {
         retry oras discover "$task_bundle" --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" --format json | \
         jq -r "
             .manifests[]
-            | select(.annotations.\"${ANNOTATION_TASK_MIGRATION}\" == \"true\")
+            | select(.annotations.\"${ANNOTATION_IS_MIGRATION}\" == \"true\")
             | .reference"
     )
     while read -r artifact_ref; do
@@ -422,13 +467,57 @@ attach_migration_file() {
         retry oras attach \
             --registry-config "$AUTH_JSON" \
             --artifact-type "$ARTIFACT_TYPE_TEXT_XSHELLSCRIPT" \
-            --annotation "$ANNOTATION_TASK_MIGRATION=true" \
+            --annotation "${ANNOTATION_IS_MIGRATION}=true" \
             "$task_bundle" "${migration_file##*/}"
     )
 
     echo
     echo "Attached migration file ${migration_file} to ${task_bundle}"
 
+    return 0
+}
+
+# Find previous bundle that has a migration and output its digest.
+find_previous_migration_bundle_digest() {
+    local -r task_name=${1:?Missing task name}
+    local -r task_version=${2:?Missing task version}
+
+    local bundle_ref
+    bundle_ref=$(generate_tagged_task_bundle "$task_name" "$task_version")
+    local ns_repo=${bundle_ref%:*}  # remove tag
+    ns_repo=${ns_repo#*/}  # remove registry
+    # Retain the tag used for matching tag names
+    local -r name_pattern="${bundle_ref##*:}-"
+    unset bundle_ref
+
+    local -r params="onlyActiveTags=true&filter_tag_name=like:${name_pattern}&limit=1"
+    local -r url_list_tags="https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}"
+
+    local manifest_digest
+    manifest_digest=$(curl --fail -sL "$url_list_tags" | jq -r '.tags[].manifest_digest')
+    if [ -z "$manifest_digest" ]; then
+        # There is no tag yet. That would mean this is the first time to build the task bundle.
+        return 0
+    fi
+    curl --fail -sL -o /tmp/manifest.json "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
+
+    local has_migration
+    has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" </tmp/manifest.json)
+    if [ "$has_migration" == "true" ]; then
+        echo "$manifest_digest"
+        return 0
+    fi
+
+    local prev_bundle_digest
+    prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" </tmp/manifest.json)
+    if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
+        # This bundle points to a previous bundle that has migration.
+        echo "$prev_bundle_digest"
+        return 0
+    fi
+
+    # Otherwise, output empty to indicate not point any bundle.
+    echo
     return 0
 }
 
@@ -440,10 +529,40 @@ build_push_tasks() {
     local task_file_sha
     local task_bundle
     local output
+    local has_migration
+    local previous_migration_bundle_digest
+    local build_new_bundle
+    local regex
+    
 
-    find task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+
+    declare -A external_map
+
+    # Loop over external-task folder, inject the bundles in it
+    # and store a map with a task-name/task-version key to later compare to task folder
+    if [ -d external-task ]; then
+        external_task_paths=$(find external-task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | sort)
+        while read -r ext_task_dir ext_task_name ext_task_version; do
+            echo "Handling external task $ext_task_dir - $ext_task_name - $ext_task_version"
+            inject_external_bundle_ref_to_pipelines "$ext_task_dir" "$ext_task_name" "$ext_task_version"
+            key="$ext_task_name/$ext_task_version"
+            external_map["$key"]="$ext_task_dir"
+        done <<< "$external_task_paths"
+    fi
+
+    find -L task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
+
     while read -r task_dir task_name task_version
     do
+        key="$task_name/$task_version"
+        # Compare task with external-task
+        # Skip if we have the same task and version in task and in external-task - external-task was used
+        if [[ -n "${external_map[$key]}" ]]; then
+            echo "Duplicate found: $key - skipping"
+            continue
+        fi
+
+        echo "Handling task $task_dir - $task_name - $task_version"
         if [ -n "$TEST_TASKS" ] && echo "$TEST_TASKS" | grep -qv "$task_name" 2>/dev/null; then
             continue
         fi
@@ -465,33 +584,78 @@ build_push_tasks() {
         fi
 
         read -r prepared_task_file task_file_sha task_bundle <<<"$build_data"
-        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}")
 
-        if [ -n "$digest" ]; then
+        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
+        migration_file="${task_dir}/migrations/${concrete_task_version}.sh"
+
+        has_migration=false
+        if [ -f "$migration_file" ] && git show "$task_file_sha" --oneline --name-only | grep -q "$migration_file"; then
+            # There is a migration file matching the task concrete version and
+            # is included in the same commit with the task.
+            has_migration=true
+        fi
+
+        digest=$(fetch_image_digest "${task_bundle}-${task_file_sha}" 2>/tmp/build_and_push_stderr.log)
+        skopeo_status=$?
+
+        build_new_bundle=false
+
+        if [[ $skopeo_status -eq $ES_SUCCESS ]]; then
             task_bundle_with_digest=${task_bundle}@${digest}
             echo "info: use existing $task_bundle_with_digest" 1>&2
+        elif [[ $skopeo_status -eq $SKOPEO_ES_GENERIC_ERR ]]; then
+            regex="unknown: Tag ${task_bundle##*:}-${task_file_sha} was deleted or has expired"
+            if grep -q "$regex" /tmp/build_and_push_stderr.log; then
+                build_new_bundle=true
+            else
+                echo "error: The registry seems not working well. Failed to fetch digest of image ${image}. skopeo exit status: $skopeo_status" >&2
+                return $skopeo_status
+            fi
+        elif [[ $skopeo_status -eq $SKOPEO_ES_IMAGE_NOT_FOUND ]]; then
+            build_new_bundle=true
         else
+            echo "error: unknown skopeo exit status $skopeo_status" >&2
+            return 1
+        fi
+
+        if [[ $build_new_bundle == true ]]; then
+            echo "info: finding the previous task bundle that has a migration" 1>&2
+            previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
+
             echo "info: push new bundle $task_bundle" 1>&2
 
-            output=$(build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha")
+            output=$(
+                build_push_task "$task_dir" "$prepared_task_file" "$task_bundle" "$task_file_sha" \
+                    "$has_migration" "$previous_migration_bundle_digest"
+            )
+            echo "$output" >&2
+            echo
 
-            task_bundle_with_digest=$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null)
-            task_bundle_with_digest=${task_bundle_with_digest##* }
+            # Grab just the digest of the bundle from the ouput. The tag is NOT included in the ouput.
+            digest="$(grep -m 1 "^Pushed Tekton Bundle to" <<<"$output" 2>/dev/null | grep -o -m 1 'sha256:[0-9a-f]*')"
+            task_bundle_with_digest="${task_bundle}@${digest}"
             cache_set "${task_bundle}-${task_file_sha}" "${task_bundle_with_digest#*@}"
         fi
 
-        concrete_task_version=$(get_concrete_task_version "$prepared_task_file")
-        attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest"
+        if [ "$has_migration" == "true" ]; then
+            attach_migration_file "$task_dir" "$concrete_task_version" "$task_bundle_with_digest" "$migration_file"
+        fi
 
         # version placeholder is removed naturally by the substitution.
-        echo "info: inject task bundle to pielines $task_bundle_with_digest" 1>&2
+        echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
         real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
         inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
     done
 }
 
-build_push_tasks
 
+if build_push_tasks; then
+    echo "tasks are built and pushed successfully."
+else
+    status=$?
+    echo "error: failed to build tasks. exit status: $status" >&2
+    exit $status
+fi
 
 # Used for build-definitions pull request CI only
 if [ -n "$ENABLE_SOURCE_BUILD" ]; then

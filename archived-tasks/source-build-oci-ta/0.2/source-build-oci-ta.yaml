@@ -1,0 +1,207 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: source-build-oci-ta
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-08-12T00:00:00Z"
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+spec:
+  description: Source image build.
+  params:
+    - name: BASE_IMAGES
+      description: By default, the task inspects the SBOM of the binary image
+        to find the base image. With this parameter, you can override that
+        behavior and pass the base image directly. The value should be a newline-separated
+        list of images, in the same order as the FROM instructions specified
+        in a multistage Dockerfile.
+      type: string
+      default: ""
+    - name: BINARY_IMAGE
+      description: Binary image name from which to generate the source image
+        name.
+      type: string
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
+    - name: IGNORE_UNSIGNED_IMAGE
+      description: When set to "true", source build task won't fail when source
+        image is missing signatures (this can be used for development)
+      type: string
+      default: "false"
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+  results:
+    - name: BUILD_RESULT
+      description: Build result.
+    - name: IMAGE_REF
+      description: Image reference of the built image.
+    - name: SOURCE_IMAGE_DIGEST
+      description: The source image digest.
+    - name: SOURCE_IMAGE_URL
+      description: The source image url.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    env:
+      - name: BASE_IMAGES_FILE
+        value: /var/workdir/base-images.txt
+      - name: BINARY_IMAGE
+        value: $(params.BINARY_IMAGE)
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f7138b497698ab9d7ee11101dcfe431a13c9bd74bf0e22c844f1b8c31fae16ad
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+    - name: get-base-images
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      env:
+        - name: BASE_IMAGES
+          value: $(params.BASE_IMAGES)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if [[ -n "$BASE_IMAGES" ]]; then
+          echo "BASE_IMAGES param received:"
+          printf "%s" "$BASE_IMAGES" | tee "$BASE_IMAGES_FILE"
+          exit
+        fi
+
+        echo "BASE_IMAGES param is empty, inspecting the SBOM instead"
+
+        skopeo_retries=3
+        if ! raw_inspect=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://$BINARY_IMAGE"); then
+          echo "Failed to inspect ${BINARY_IMAGE}"
+          exit 1
+        fi
+        if manifest_digest=$(jq -e -r '.manifests[0].digest' <<<"$raw_inspect"); then
+          # The BINARY_IMAGE is an image index, each manifest in the list has its own SBOM.
+          # We're gonna assume the base images are the same or similar enough in all the SBOMs.
+          echo "BINARY_IMAGE ($BINARY_IMAGE) is a manifest list, picking an arbitrary image from the list"
+          image_without_digest=${BINARY_IMAGE%@*}
+          image_without_tag=${image_without_digest%:*}
+          image=${image_without_tag}@${manifest_digest}
+        else
+          # The image is a single manifest
+          image=$BINARY_IMAGE
+        fi
+
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "$image" >/tmp/auth/config.json
+
+        for i in {1..5}; do
+          echo "Downloading SBOM for $image (attempt $i)"
+          sbom=$(DOCKER_CONFIG=/tmp/auth cosign download sbom "$image") && break
+          [[ "$i" -lt 5 ]] && sleep 1
+        done
+
+        if [[ -z "$sbom" ]]; then
+          echo "Failed to download SBOM after 5 attempts. Proceeding anyway."
+          echo "WARNING: the source image will not include sources for the base image."
+          exit 0
+        fi
+
+        echo -n "Looking for base image in SBOM"
+
+        # Note: the SBOM should contain at most one image with the is_base_image property - the
+        # base image for the last FROM instruction. That is the only base image we care about.
+        if jq -e '.bomFormat == "CycloneDX"' <<<"$sbom" >/dev/null; then
+          echo " (.formulation[].components[] with 'konflux:container:is_base_image' property)"
+          jq -r '
+                .formulation[]?
+                | .components[]?
+                | select(any(.properties[]?; .name == "konflux:container:is_base_image"))
+                | (.purl | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
+                | .name + "@" + $matched.digest
+            ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
+        else
+          echo ' (a package with a {"name": "konflux:container:is_base_image"} JSON-encoded annotation)'
+          jq -r '
+                .packages[]
+                | select(any(.annotations[]?.comment; (fromjson?).name? == "konflux:container:is_base_image"))
+                | [.externalRefs[]? | select(.referenceType == "purl").referenceLocator] as $purls
+                | ($purls | first | capture("^pkg:oci/.*?@(?<digest>.*?:[a-f0-9]*)")) as $matched
+                | .name + "@" + $matched.digest
+            ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
+        fi
+    - name: build
+      image: quay.io/konflux-ci/source-container-build:latest@sha256:5520e36bf2c31e9b4020af9110588014dde8597ae696ca15cae4e19832c8b5e5
+      workingDir: /var/workdir
+      env:
+        - name: SOURCE_DIR
+          value: /var/workdir/source
+        - name: RESULT_FILE
+          value: $(results.BUILD_RESULT.path)
+        - name: CACHI2_ARTIFACTS_DIR
+          value: /var/workdir/cachi2
+        - name: RESULT_SOURCE_IMAGE_URL
+          value: $(results.SOURCE_IMAGE_URL.path)
+        - name: RESULT_SOURCE_IMAGE_DIGEST
+          value: $(results.SOURCE_IMAGE_DIGEST.path)
+        - name: WS_BUILD_RESULT_FILE
+          value: /var/workdir/source_build_result.json
+        - name: IGNORE_UNSIGNED_IMAGE
+          value: $(params.IGNORE_UNSIGNED_IMAGE)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        app_dir=/opt/source_build
+        registry_allowlist="
+        registry.access.redhat.com
+        registry.redhat.io
+        "
+
+        ## This is needed for the builds performed by the rpm-ostree task
+        ## otherwise, we can see this error:
+        ## "fatal: detected dubious ownership in repository at '/var/workdir/source'"
+        ##
+        git config --global --add safe.directory $SOURCE_DIR
+
+        base_images=$(if [[ -f "$BASE_IMAGES_FILE" ]]; then cat "$BASE_IMAGES_FILE"; fi)
+
+        args=(
+          --output-binary-image "$BINARY_IMAGE"
+          --workspace /var/workdir
+          --source-dir "$SOURCE_DIR"
+          --base-images "$base_images"
+          --write-result-to "$RESULT_FILE"
+          --cachi2-artifacts-dir "$CACHI2_ARTIFACTS_DIR"
+          --registry-allowlist="$registry_allowlist"
+        )
+        if [ "$IGNORE_UNSIGNED_IMAGE" == "true" ]; then
+          args+=(--ignore-unsigned-image)
+        fi
+
+        ${app_dir}/appenv/bin/python3 ${app_dir}/source_build.py "${args[@]}"
+
+        cat "$RESULT_FILE" | jq -j ".image_url" >"$RESULT_SOURCE_IMAGE_URL"
+        cat "$RESULT_FILE" | jq -j ".image_digest" >"$RESULT_SOURCE_IMAGE_DIGEST"
+        jq -j '"\(.image_url)@\(.image_digest)"' "${RESULT_FILE}" >"$(results.IMAGE_REF.path)"
+
+        cp "$RESULT_FILE" "$WS_BUILD_RESULT_FILE"
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 250m
+          memory: 512Mi
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+        runAsUser: 0

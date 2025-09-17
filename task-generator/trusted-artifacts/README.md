@@ -26,8 +26,8 @@ to a Trusted Artifacts Tekton Task definition.
 
 Basic recipe consists of providing a base path to the non-Trusted Artifacts Task
 and declaring that the Task will either create or use Trusted Artifacts by
-setting the add to `create-source`, `create-cachi2`, `use-source` and/or
-`use-cachi2`.
+setting the add to `create-source`, `create-prefetch`, `use-source` and/or
+`use-prefetch`.
 
 For example:
 
@@ -48,17 +48,19 @@ The following is the list of supported options:
 
 | Option               | Type                                             | Description |
 |----------------------|--------------------------------------------------|-------------|
-| `add`                | sequence of strings                              | Task Steps to add, can be one or more of `create-source`, `create-cachi2`, `use-source` or `use-cachi2` |
+| `add`                | sequence of strings                              | Task Steps to add, can be one or more of `create-source`, `create-prefetch`, `use-source` or `use-prefetch` |
 | `addEnvironment`     | sequence of [EnvVar]                             | Additional environment variables to add to all existing Task Steps in the non-Trusted Artifact Task |
 | `additionalSteps`    | sequence of [AdditionalSteps](#additional-steps) | Additional Tekton Steps to add |
 | `addParams`          | sequence of Tekton [ParamSpec]s                  | Additional Tekton Task parameters to add to the Task |
 | `addResult`          | sequence of Tekton [TaskResult]s                 | Additional Tekton Task results to add to the Task |
 | `addVolume`          | sequence of [Volume]s                            | Additional Volumes to add to the Task |
 | `addVolumeMount`     | sequence of [VolumeMount]s                       | Additional VolumeMount to add to the Task |
+| `addTAVolumeMount`   | sequence of [VolumeMount]s                       | Additional VolumeMount to add to the `use-trusted-artifact` and `create-trusted-artifact` steps in the Trusted Artifact Task |
 | `base`               | string                                           | Relative path from `recipe.yaml` to the Task definition of the non-Trusted Artifacts Task |
 | `description`        | string                                           | Description of the Trusted Artifacts Task |
 | `displaySuffix`      | string                                           | Additional text to place to the value of `tekton.dev/displayName` annotation from the non-Trusted Artifacts Task to the Trusted Artifacts Task (default: `" oci trusted artifacts"`) |
 | `preferStepTemplate` | boolean                                          | When `true` preference is set to configure common configuration on the `Task.spec.stepTemplate` rather than on each Task Step |
+| `useTAVolumeMount`   | boolean                                          | When `true` VolumeMounts are added to the `use-trusted-artifact` and `create-trusted-artifact` steps. If `addTAVolumeMount` is provided then those VolumeMounts are added. Otherwise, default VolumeMounts are added |
 | `regexReplacements`  | map of strings keys and string values            | Perform regular expression-based replacement with keys being the regular expression and the values being the replacement, see [Replacements](#replacements) |
 | `removeParams`       | sequence of strings                              | Names of Task parameters to remove |
 | `removeVolumes`      | sequence of strings                              | Names of Task Volumes to remove |

@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.1/apply-tags.yaml, task/sast-snyk-check/0.1/sast-snyk-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.5/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.2/apply-tags.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -14,6 +14,8 @@ spec:
       value: "{{ repo_url }}"
     - name: revision
       value: "{{ revision }}"
+    - name: image-target
+      value: "quay.io/konflux-ci/appstudio-utils:{{ revision }}"
     - name: slack-webhook-notification-team
       value: "integration-slack-alerts"
   pipelineSpec:
@@ -46,8 +48,12 @@ spec:
         params:
           - name: ARGS
             value: --report --project-name=konflux-ci/build-definitions
+          - name: image-url
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
+          - name: image-digest
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
         runAfter:
-          - clone-repository
+          - build-appstudio-utils-index
         taskRef:
           name: sast-snyk-check
         workspaces:
@@ -63,27 +69,49 @@ spec:
           - name: source
             workspace: workspace
       - name: build-appstudio-utils
+        matrix:
+          params:
+          - name: PLATFORM
+            value:
+            - linux/x86_64
+            - linux/arm64
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+            value: "$(params.image-target)"
           - name: CONTEXT
             value: appstudio-utils
+          - name: IMAGE_APPEND_PLATFORM
+            value: "true"
         runAfter:
           - clone-repository
         taskRef:
-          name: buildah
+          name: buildah-remote
         workspaces:
           - name: source
             workspace: workspace
 
-      - name: apply-additional-image-tags
+      - name: build-appstudio-utils-index
         params:
           - name: IMAGE
-            value: $(tasks.build-appstudio-utils.results.IMAGE_URL)
+            value: "$(params.image-target)"
+          - name: IMAGES
+            value:
+            - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
+        runAfter:
+          - build-appstudio-utils
+        taskRef:
+          name: build-image-index
+
+      - name: apply-additional-image-tags
+        params:
+          - name: IMAGE_URL
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
+          - name: IMAGE_DIGEST
+            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
           - name: ADDITIONAL_TAGS
             value: ["latest"]
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
         taskRef:
           name: apply-tags
 
@@ -92,8 +120,9 @@ spec:
           - name: revision
             value: "$(params.revision)"
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
           - ec-task-checks
+          - create-repositories-if-missing
         workspaces:
           - name: source
             workspace: workspace
@@ -103,9 +132,8 @@ spec:
               type: string
           steps:
             - name: build-bundles-konflux-ci
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: konflux-ci/tekton-catalog
@@ -119,10 +147,14 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-konflux-ci
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
             - name: build-bundles-redhat-appstudio
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: redhat-appstudio-tekton-catalog
@@ -136,12 +168,17 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-appstudio
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-appstudio
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
               volumeMounts:
-                - mountPath: /root/.docker/config.json
+                - mountPath: /tekton/home/.docker/config.json
                   subPath: .dockerconfigjson
                   name: quay-secret
             - name: update-acceptable-bundles
-              image: quay.io/konflux-ci/appstudio-utils:{{ revision }}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               env:
               - name: REVISION
@@ -156,6 +193,7 @@ spec:
               script: |
                 #!/bin/bash
                 set -euo pipefail
+                git config --global --add safe.directory /workspace/source/source
 
                 DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
                 DATA_BUNDLE_TAG=$(date '+%s')
@@ -183,11 +221,11 @@ spec:
 
       - name: create-repositories-if-missing
         runAfter:
-          - build-bundles
+          - build-appstudio-utils-index
         taskSpec:
           steps:
             - name: run-create-bundle-repos
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -203,20 +241,6 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-
-      - name: update-infra-repo
-        runAfter:
-          - build-bundles
-        params:
-          - name: ORIGIN_REPO
-            value: $(params.git-url)
-          - name: REVISION
-            value: $(params.revision)
-          - name: SCRIPT
-            value: |
-              sed -i -E 's/[0-9a-f]{40}/$(params.revision)/g' components/build-service/base/build-pipeline-config/build-pipeline-config.yaml
-        taskRef:
-          name: update-infra-deployments
 
     workspaces:
       - name: workspace
@@ -245,4 +269,4 @@ spec:
             - ReadWriteOnce
           resources:
             requests:
-              storage: 1Gi
+              storage: 5Gi

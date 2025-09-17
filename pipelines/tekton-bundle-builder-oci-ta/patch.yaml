@@ -1,0 +1,95 @@
+---
+- op: replace
+  path: /metadata/name
+  value: tekton-bundle-builder-oci-ta
+- op: remove
+  path: /spec/workspaces/0
+
+# clone-repository Task
+- op: replace
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).git
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/1/workspaces/0
+
+# prefetch-dependencies
+- op: replace
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).prefetch
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/2/workspaces/0
+
+# build-container
+- op: replace
+  path: /spec/tasks/3/taskRef/name
+  value: tkn-bundle-oci-ta
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: remove
+  path: /spec/tasks/3/workspaces/0
+
+# sast-shell-check
+- op: replace
+  path: /spec/tasks/5/taskRef/name
+  value: sast-shell-check-oci-ta
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/5/workspaces/0
+
+# sast-unicode-check
+- op: replace
+  path: /spec/tasks/6/taskRef/name
+  value: sast-unicode-check-oci-ta
+- op: add
+  path: /spec/tasks/6/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/6/params/-
+  value:
+    name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+- op: remove
+  path: /spec/tasks/6/workspaces/0
+
+# summary
+- op: remove
+  path: /spec/finally/0/workspaces/0

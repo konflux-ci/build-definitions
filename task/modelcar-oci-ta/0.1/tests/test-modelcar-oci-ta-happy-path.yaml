@@ -1,0 +1,205 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-modelcar-oci-ta-happy-path
+spec:
+  description: |
+    Test the modelcar-oci-ta task with a real base image and model to verify successful build
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: mock-trusted-artifact
+      params:
+        - name: ociStorage
+          value: registry-service.kind-registry/oci-ta:latest
+        - name: modelPath
+          value: registry-service.kind-registry/test-model:latest
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        results:
+        - name: MODEL_PATH
+          type: string
+        - name: SOURCE_ARTIFACT
+          type: string
+        workspaces:
+          - name: tests-workspace
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        params:
+          - name: ociStorage
+          - name: modelPath
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: mock-source
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Create a simple source directory with a modelcard.yaml file
+              mkdir -p "$(workspaces.tests-workspace.path)/source"
+              cat > "$(workspaces.tests-workspace.path)/source/modelcard.yaml" << 'EOF'
+              name: test-model
+              version: 1.0.0
+              description: Test model for modelcar task
+              framework: test
+              EOF
+
+              # Create some additional test files
+              echo "test content" > "$(workspaces.tests-workspace.path)/source/test.txt"
+              mkdir -p "$(workspaces.tests-workspace.path)/source/models"
+              echo "model data" > "$(workspaces.tests-workspace.path)/source/models/model.bin"
+
+              echo "Created source directory with test files:"
+              ls -la "$(workspaces.tests-workspace.path)/source"
+              find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
+          - name: mock-model
+            image: quay.io/konflux-ci/oras:latest@sha256:30e6f592c68ed433e0950123df4e185cdb1ada25f41b30ca1cb4e5b3ca929b1b
+            workingDir: $(workspaces.tests-workspace.path)
+            args:
+              - push
+              - --no-tty
+              - $(params.modelPath)
+              - source/
+          - name: record-model-digest
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              echo "Find digest of the mocked model"
+              digest=$(oras resolve "$(params.modelPath)")
+
+              echo "Share location of the mocked model"
+              echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
+          - name: create-trusted-artifact
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7263233979258cf8abd8a5fd968671c0f3c461f30e6041c5efc0bc25d9bc973d
+            args:
+              - create
+              - --store
+              - $(params.ociStorage)
+              - $(results.SOURCE_ARTIFACT.path)=$(workspaces.tests-workspace.path)/source
+    - name: run-modelcar-task
+      taskRef:
+        name: modelcar-oci-ta
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.mock-trusted-artifact.results.SOURCE_ARTIFACT)
+        - name: BASE_IMAGE
+          value: "registry.access.redhat.com/ubi9/ubi@sha256:d0ef82ed2d57e186fc1fa10cab62309e8c5ae7d1d7adbbcdefee6ae5e72ecc4e"
+        - name: MODEL_IMAGE
+          value: $(tasks.mock-trusted-artifact.results.MODEL_PATH)
+        - name: IMAGE
+          value: registry-service.kind-registry/test-modelcar:latest
+        - name: SBOM_TYPE
+          value: "spdx"
+        - name: MODELCARD_PATH
+          value: "/var/workdir/source/modelcard.yaml"
+        - name: REMOVE_ORIGINALS
+          value: "true"
+        - name: MODEL_IMAGE_AUTH
+          value: "dummy-secret"
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      runAfter:
+        - mock-trusted-artifact
+    - name: verify-modelcar-result
+      params:
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-modelcar-task.results.IMAGE_DIGEST)
+        - name: IMAGE_REF
+          value: $(tasks.run-modelcar-task.results.IMAGE_REF)
+        - name: IMAGE_URL
+          value: $(tasks.run-modelcar-task.results.IMAGE_URL)
+        - name: SBOM_BLOB_URL
+          value: $(tasks.run-modelcar-task.results.SBOM_BLOB_URL)
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        params:
+          - name: IMAGE_REF
+          - name: IMAGE_URL
+          - name: SBOM_BLOB_URL
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: check-modelcar-built
+            env:
+              - name: IMAGE_REF
+                value: $(params.IMAGE_REF)
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+              - name: SBOM_BLOB_URL
+                value: $(params.SBOM_BLOB_URL)
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+
+              echo "Confirm we can inspect the image"
+              skopeo inspect "docker://${IMAGE_REF//:latest/}"
+
+              echo "Confirm the image is single-arch; multiarch not supported"
+              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest/}" | jq -r .mediaType)
+              if [ "$mediaType" != "application/vnd.oci.image.manifest.v1+json" ]; then
+                  echo "Image is not single-arch." && exit 1
+              fi
+
+              echo "Confirm the image is amd64 - the one matching the single-arch base image we provided"
+              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest/}" | jq -r .Architecture)
+              if [ "$mediaType" != "amd64" ]; then
+                  echo "Image is not amd64." && exit 1
+              fi
+
+              echo "Confirm the contents of the filesystem"
+              mkdir contents/ && pushd contents/
+              oc image extract "$IMAGE_REF"
+              for filename in usr/bin/ls models/source/models/model.bin; do
+                if [ -f "$filename" ]; then
+                    echo "File $filename found as expected."
+                else
+                    echo "File $filename not found!" && exit 1
+                fi
+              done
+              popd
+
+              echo "Confirm the sbom exists as json"
+              packages=$(cosign download sbom "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
+              for purl in pkg:oci/test-modelcar pkg:oci/ubi pkg:oci/test-model; do
+                if [[ "$packages" == *"${purl}@sha256"* ]]; then
+                  echo "$purl found as expected."
+                else
+                  echo "$purl not found in $packages" && exit 1
+                fi
+              done
+      runAfter:
+        - run-modelcar-task

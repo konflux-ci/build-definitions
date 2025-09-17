@@ -4,7 +4,7 @@
   value: |
     This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
 
-    _Uses `buildah` to create a container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
+    _Uses `buildah` to create a container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
     This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-oci-ta?tab=tags)_
 - op: replace
   path: /metadata/name
@@ -30,8 +30,8 @@
 #   8  ecosystem-cert-preflight-checks
 #   9  sast-snyk-check
 #  10  clamav-scan
-#  11  coverity-availability-check
-#  12  sast-coverity-check
+#  11  sast-coverity-check
+#  12  coverity-availability-check
 #  13  sast-shell-check
 #  14  sast-unicode-check
 #  15  apply-tags
@@ -75,8 +75,6 @@
     value: $(params.image-expires-after)
 - op: remove
   path: /spec/tasks/2/workspaces/0
-- op: remove
-  path: /spec/tasks/2/when
 
 # build-container
 - op: replace
@@ -113,6 +111,9 @@
   path: /spec/tasks/5/workspaces/0
 
 # sast-snyk-check
+- op: test
+  path: /spec/tasks/9/taskRef/name
+  value: sast-snyk-check
 - op: replace
   path: /spec/tasks/9/taskRef/name
   value: sast-snyk-check-oci-ta
@@ -132,6 +133,9 @@
   path: /spec/tasks/9/workspaces/0
 
 # sast-coverity-check
+- op: test
+  path: /spec/tasks/11/taskRef/name
+  value: sast-coverity-check
 - op: replace
   path: /spec/tasks/11/taskRef/name
   value: sast-coverity-check-oci-ta
@@ -148,24 +152,10 @@
 - op: remove
   path: /spec/tasks/11/workspaces/0
 
-# coverity-availability-check
-- op: replace
-  path: /spec/tasks/12/taskRef/name
-  value: coverity-availability-check-oci-ta
-- op: add
-  path: /spec/tasks/12/params/-
-  value:
-    name: SOURCE_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-- op: add
-  path: /spec/tasks/12/params/-
-  value:
-    name: CACHI2_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-- op: remove
-  path: /spec/tasks/12/workspaces/0
-
 # sast-shell-check
+- op: test
+  path: /spec/tasks/13/taskRef/name
+  value: sast-shell-check
 - op: replace
   path: /spec/tasks/13/taskRef/name
   value: sast-shell-check-oci-ta
@@ -183,9 +173,12 @@
   path: /spec/tasks/13/workspaces/0
 
 # sast-unicode-check
+- op: test
+  path: /spec/tasks/14/taskRef/name
+  value: sast-unicode-check
 - op: replace
   path: /spec/tasks/14/taskRef/name
-  value: sast-shell-check-oci-ta
+  value: sast-unicode-check-oci-ta
 - op: add
   path: /spec/tasks/14/params/-
   value:
@@ -213,8 +206,7 @@
 
 # Order of finally Tasks from the base docker-build Pipeline:
 # $ kustomize build pipelines/docker-build | yq .spec.finally.[].name | nl -v 0
-#  0  show-sbom
-#  1  show-summary
+#  0  show-summary
 
 # show-summary
 # This Task relies on a shared workspace for some of its functionality. Although optional, it raises
@@ -222,4 +214,4 @@
 # this Task, we are taking the approach of just removing it altogether. Additional context on this
 # decision can be found in https://issues.redhat.com/browse/EC-643.
 - op: remove
-  path: /spec/finally/1
+  path: /spec/finally/0

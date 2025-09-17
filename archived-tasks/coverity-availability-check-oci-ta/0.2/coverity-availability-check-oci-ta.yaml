@@ -1,0 +1,100 @@
+# WARNING: This is an auto generated file, do not modify this file directly
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-03-31T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: Starting with version 0.2, the coverity-availability-check-oci-ta
+      task is deprecated.  Please use coverity-availability-check instead.
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+  name: coverity-availability-check-oci-ta
+spec:
+  description: This task performs needed checks in order to use Coverity image in
+    the pipeline. It will check for a Coverity license secret and an authentication
+    secret for pulling the image.
+  params:
+  - default: cov-license
+    description: Name of secret which contains the Coverity license
+    name: COV_LICENSE
+  - default: auth-token-coverity-image
+    description: Name of secret which contains the authentication token for pulling
+      the Coverity image.
+    name: AUTH_TOKEN_COVERITY_IMAGE
+  results:
+  - description: Tekton task result output.
+    name: TEST_OUTPUT
+  - description: Tekton task simple status to be later checked
+    name: STATUS
+  steps:
+  - computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: COV_LICENSE
+      value: $(params.COV_LICENSE)
+    - name: AUTH_TOKEN_COVERITY_IMAGE
+      value: $(params.AUTH_TOKEN_COVERITY_IMAGE)
+    image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+    name: coverity-availability-check
+    script: |
+      #!/usr/bin/env bash
+      set -eo pipefail
+      # shellcheck source=/dev/null
+      . /utils.sh
+      trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+      # Checking Coverity license
+      COV_LICENSE_PATH=/etc/secrets/cov/cov-license
+      if [ -f "${COV_LICENSE_PATH}" ] && [ -s "${COV_LICENSE_PATH}" ]; then
+        echo "Coverity license detected!"
+      else
+        echo 'No license file for Coverity was detected. Coverity scan will not be executed...'
+        echo 'Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license'
+        note="Task $(context.task.name) failed: No license file for Coverity was detected. Please, create a secret called 'cov-license' with a key called 'cov-license' and the value containing the Coverity license"
+        TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
+        echo -n "failed" | tee "$(results.STATUS.path)"
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      # Checking authentication token for downloading coverity image
+      AUTH_TOKEN_COVERITY_IMAGE_PATH=/etc/secrets/auth/config.json
+      if [ -f "${AUTH_TOKEN_COVERITY_IMAGE_PATH}" ] && [ -s "${AUTH_TOKEN_COVERITY_IMAGE_PATH}" ]; then
+        echo "Authentication token detected!"
+      else
+        echo 'No authentication token for downloading Coverity image detected. Coverity scan will not be executed...'
+        echo 'Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image'
+        note="Task $(context.task.name) failed: No authentication token for downloading Coverity image detected. Please, create an imagePullSecret named 'auth-token-coverity-image' with the authentication token for pulling the Coverity image"
+        TEST_OUTPUT=$(make_result_json -r FAILURE -t "$note" -f 1)
+        echo -n "failed" | tee "$(results.STATUS.path)"
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        exit 0
+      fi
+
+      note="Task $(context.task.name) completed: Coverity availability checks finished succesfully."
+      # shellcheck disable=SC2034
+      TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
+      echo -n "success" | tee "$(results.STATUS.path)"
+      echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+    volumeMounts:
+    - mountPath: /etc/secrets/cov
+      name: cov-license
+      readOnly: true
+    - mountPath: /etc/secrets/auth/config.json
+      name: auth-token-coverity-image
+      subPath: .dockerconfigjson
+  volumes:
+  - name: cov-license
+    secret:
+      optional: true
+      secretName: $(params.COV_LICENSE)
+  - name: auth-token-coverity-image
+    secret:
+      optional: true
+      secretName: $(params.AUTH_TOKEN_COVERITY_IMAGE)

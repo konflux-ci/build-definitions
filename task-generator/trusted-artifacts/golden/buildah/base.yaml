@@ -260,9 +260,9 @@ spec:
       buildah mount $container | tee /workspace/container_path
       echo $container > /workspace/container_name
 
-      # Save the SBOM produced by Cachi2 so it can be merged into the final SBOM later
+      # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
       if [ -d "$(workspaces.source.path)/cachi2" ]; then
-        cp /tmp/cachi2/output/bom.json ./sbom-cachi2.json
+        cp /tmp/cachi2/output/bom.json ./sbom-prefetch.json
       fi
 
       # Expose base image digests
@@ -350,15 +350,15 @@ spec:
     securityContext:
       runAsUser: 0
 
-  - name: merge-cachi2-sbom
-    image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
+  - name: merge-prefetch-sbom
+    image: quay.io/konflux-ci/hermeto:0.29.0@sha256:f577e0399953471df7a9826c1550aef83d28e8b35f76dd65a193441822b629ee
     script: |
       if [ -d "$(workspaces.source.path)/cachi2" ]; then
-        echo "Merging contents of sbom-cachi2.json into sbom-cyclonedx.json"
-        /src/utils/merge_syft_sbom.py sbom-cachi2.json sbom-cyclonedx.json > sbom-temp.json
+        echo "Merging contents of sbom-prefetch.json into sbom-cyclonedx.json"
+        /src/utils/merge_syft_sbom.py sbom-prefetch.json sbom-cyclonedx.json > sbom-temp.json
         mv sbom-temp.json sbom-cyclonedx.json
       else
-        echo "Skipping step since no Cachi2 SBOM was produced"
+        echo "Skipping step since no source SBOM was produced"
       fi
     workingDir: $(workspaces.source.path)
     securityContext:

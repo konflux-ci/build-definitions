@@ -4,8 +4,8 @@ kind: PipelineRun
 metadata:
   name: build-definitions-pull-request
   annotations:
-    pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/"))
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/buildah.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.2/sast-snyk-check.yaml, task/sast-unicode-check/0.1/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.5/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.3/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -15,6 +15,8 @@ spec:
       value: "{{ revision }}"
     - name: e2e_test_namespace
       value: build-templates-e2e
+    - name: image-target
+      value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
   pipelineSpec:
     params:
       - name: repo_url
@@ -23,7 +25,7 @@ spec:
     workspaces:
       - name: workspace
     tasks:
-      - name: fetch-repository
+      - name: clone-repository
         taskRef:
           name: git-clone
         workspaces:
@@ -37,21 +39,48 @@ spec:
           - name: depth
             value: "0"
       - name: build-appstudio-utils
-        runAfter:
-          - fetch-repository
+        matrix:
+          params:
+          - name: PLATFORM
+            value:
+            - linux/x86_64
+            - linux/arm64
         params:
           - name: IMAGE
-            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+            value: "$(params.image-target)"
           - name: CONTEXT
             value: appstudio-utils
+          - name: IMAGE_APPEND_PLATFORM
+            value: "true"
+        runAfter:
+          - clone-repository
         taskRef:
-          name: buildah
+          name: buildah-remote
         workspaces:
           - name: source
             workspace: workspace
+
+      - name: build-appstudio-utils-index
+        params:
+          - name: IMAGE
+            value: "$(params.image-target)"
+          - name: IMAGES
+            value:
+            - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
+        runAfter:
+          - build-appstudio-utils
+        taskRef:
+          name: build-image-index
+
       - name: sast-snyk-check
         runAfter:
-          - fetch-repository
+          - clone-repository
+          - build-appstudio-utils-index
+        params:
+          - name: image-url
+            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
+          - name: image-digest
+            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
         taskRef:
           name: sast-snyk-check
         workspaces:
@@ -62,22 +91,19 @@ spec:
           name: task-switchboard
         params:
           - name: revision
-            value: $(params.revision)
+            value: "$(params.revision)"
           - name: utils_image
-            value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+            value: "$(params.image-target)"
           - name: expressions
             value:
               - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
               - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
-              - |
-                e2e_tests if {
-                  some file in input
-                  strings.any_prefix_match(file, ["task/", "pipelines/", "hack/", ".tekton/"])
-                  not endswith(file, "/OWNERS")
-                }
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
+        workspaces:
+          - name: source
+            workspace: workspace
       - name: task-lint-check
         when:
           - input: "tasks"
@@ -92,7 +118,12 @@ spec:
             workspace: workspace
       - name: sast-unicode-check
         runAfter:
-          - build-appstudio-utils
+          - build-appstudio-utils-index
+        params:
+          - name: image-digest
+            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
+          - name: image-url
+            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
         taskRef:
           name: sast-unicode-check
         workspaces:
@@ -108,7 +139,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-structure
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: $(params.image-target)
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -116,7 +147,7 @@ spec:
                 echo $? > partner-tasks-code.out
                 cat partner-tasks.out
             - name: create-comment
-              image: quay.io/redhat-appstudio/github-app-token@sha256:b4f2af12e9beea68055995ccdbdb86cfe1be97688c618117e5da2243dc1da18e
+              image: registry.access.redhat.com/ubi9/python-39:9.6-1755762245@sha256:9cea5d0cbe82176d5f21781f440ddf077f03beff304f051aa698640731404db7
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
@@ -185,11 +216,12 @@ spec:
             description: "custom bundle for fbc-builder pipeline"
           steps:
             - name: build-bundles
-              image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+              image: $(params.image-target)
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
                 set -e
+                git config --global --add safe.directory /workspace/source/source
 
                 QUAY_NAMESPACE=konflux-ci \
                 TEST_REPO_NAME=pull-request-builds \
@@ -208,9 +240,9 @@ spec:
             - name: source
       - name: e2e-tests
         when:
-          - input: "e2e_tests"
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
             operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+            values: ["execute_e2e"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
@@ -228,6 +260,12 @@ spec:
             value: "$(tasks.build-bundles.results.custom-docker-build-multi-platform-oci-ta-bundle)"
           - name: fbc-builder-bundle
             value: "$(tasks.build-bundles.results.custom-fbc-builder-bundle)"
+          - name: artifact_dir
+            value: /workspace/artifact-dir
+          - name: pipelinerun_name
+            value: $(context.pipelineRun.name)
+          - name: revision
+            value: "{{revision}}"
         runAfter:
           - build-bundles
         taskRef:
@@ -256,7 +294,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-migration-md
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:9deda623e4768ecbaa6f1c6204077d9a151d55f9569bfe414e793fcb36cc391e
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:7c7dc047ecc3e664bd734fd508fdd4aeb4a1139781ba2ef5540f8617185969e0
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -280,9 +318,9 @@ spec:
     finally:
       - name: e2e-cleanup
         when:
-          - input: "e2e_tests"
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
             operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
+            values: ["execute_e2e"]
         params:
           - name: e2e_test_namespace
             value: $(params.e2e_test_namespace)
@@ -292,12 +330,51 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:0d21299d2adfa3cb74562c4dffbedd3b107fffac3a2a537f14770088abd4671f
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:776906eabd29faf45e08d98e833a57dc244b90415106f528b7a86e194b4d83f3
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service
                 oc delete --ignore-not-found deployment --all -n $(params.e2e_test_namespace)
                 oc delete --ignore-not-found eventlisteners --all -n $(params.e2e_test_namespace)
+      - name: pull-request-status-message
+        when:
+          - input: "$(tasks.task-switchboard.results.run-e2e)"
+            operator: "in"
+            values: ["execute_e2e"]
+        taskRef:
+          resolver: git
+          params:
+            - name: url
+              value: https://github.com/konflux-ci/tekton-integration-catalog.git
+            - name: revision
+              value: main
+            - name: pathInRepo
+              value: common/tasks/pull-request-comment/0.1/pull-request-comment.yaml
+        params:
+          - name: test-name
+            value: "$(context.pipelineRun.name)"
+          - name: oci-container
+            value: "quay.io/konflux-test-storage/konflux-team/build-definitions:{{ revision }}"
+          - name: pipeline-aggregate-status
+            value: "$(tasks.status)"
+          - name: pull-request-author
+            value: "{{sender}}"
+          - name: pull-request-number
+            value: "{{pull_request_number}}"
+          - name: git-repo
+            value: "{{repo_name}}"
+          - name: git-org
+            value: "{{repo_owner}}"
+          - name: git-revision
+            value: "{{revision}}"
+          - name: junit-report-name
+            value: e2e-report.xml
+          - name: e2e-log-name
+            value: e2e-tests.log
+          - name: cluster-provision-log-name
+            value: cluster-provision.log
+          - name: enable-test-results-analysis
+            value: "true"
   # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
   # If this timeout increases, the age of stale resources should be increased too.
   # https://github.com/redhat-appstudio/infra-deployments/blob/main/components/tekton-ci/production/cleanup-cronjob.yaml
@@ -311,4 +388,4 @@ spec:
             - ReadWriteOnce
           resources:
             requests:
-              storage: 1Gi
+              storage: 5Gi

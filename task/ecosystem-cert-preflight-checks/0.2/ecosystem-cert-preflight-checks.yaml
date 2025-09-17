@@ -1,0 +1,421 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ecosystem-cert-preflight-checks
+  labels:
+    app.kubernetes.io/version: "0.2.1"
+spec:
+  description: >-
+    Scans container images for certification readiness. Note that running this
+    against an operatorbundle will result in a skip, as bundle validation is not
+    executed through this task.
+  params:
+    - name: image-url
+      description: Image url to scan.
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+    - name: artifact-type
+      type: string
+      description: The type of artifact. Select from application, operatorbundle, or introspect.
+      default: "introspect"
+    - name: platform
+      type: string
+      description: The platform the image is built on.
+      default: ""
+
+  results:
+    - name: TEST_OUTPUT
+      description: Ecosystem checks pass or fail outcome.
+      value: $(steps.final-outcome.results.test-output)
+    - name: ARTIFACT_TYPE
+      description: The artifact type, either introspected or set.
+      value: $(steps.introspect.results.artifact-type)
+    - name: ARTIFACT_TYPE_SET_BY
+      description: How the artifact type was set.
+      value: $(steps.introspect.results.artifact-type-set-by)
+    - name: IMAGES_PROCESSED
+      description: Collected image digests
+      value: $(steps.app-set-outcome.results.images-processed)
+  steps:
+    - name: introspect
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 512Mi
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      results:
+        - name: artifact-type
+          description: The type of artifact this task is considering.
+        - name: artifact-type-set-by
+          description: |
+            The process that sets the artifact type. Informational.
+            Values from: introspection, parameter.
+      env:
+      - name: PARAM_ARTIFACT_TYPE
+        value: $(params.artifact-type)
+      - name: PARAM_IMAGE_URL
+        value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        _SET_BY=parameter
+        # If the parameter is invalid, we'll introspect
+        if [[ "${PARAM_ARTIFACT_TYPE}" != "application" ]] && [[ "${PARAM_ARTIFACT_TYPE}" != "operatorbundle" ]]; then
+          echo "Artifact type will be determined by introspection."
+          _SET_BY=introspection
+        fi
+        printf "%s" "${_SET_BY}" > "$(step.results.artifact-type-set-by.path)"
+
+        if [[ "${_SET_BY}" == "parameter" ]]; then
+          # short circuit if the artifact type was set via parameter.
+          echo "Skipping introspection because the artifact-type parameter is explicitly set to \"${PARAM_ARTIFACT_TYPE}\"."
+          printf "%s" "${PARAM_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
+          exit 0
+        fi
+
+        # If the image URL points to a manifest list (a multi-arch image), check the labels on any of the child
+        # images (don't fail in the case where the list does not include an image for the arch of the system
+        # where this pipeline is running).
+
+        declare -a _SKOPEO_INSPECT_ARGS
+
+        skopeo_retries=3
+
+        echo "Checking the media type of the OCI artifact..."
+        if ! _RAW_IMAGE_MANIFEST=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}")
+        then
+          echo "Failed to inspect ${PARAM_IMAGE_URL}"
+          exit 1
+        fi
+        _IMAGE_MEDIA_TYPE=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.mediaType')
+        echo "The media type of the OCI artifact is ${_IMAGE_MEDIA_TYPE}."
+
+        if [[ "${_IMAGE_MEDIA_TYPE}" == "application/vnd.docker.distribution.manifest.list.v2+json" || "${_IMAGE_MEDIA_TYPE}" == "application/vnd.oci.image.index.v1+json" ]]; then
+          _CURRENT_ARCH=$(uname -m)
+          _CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+          # The archs returned by uname are not always the same as the archs used by OCI manifests, so we need
+          # to map them.
+          case ${_CURRENT_ARCH} in
+            "aarch64")
+              _CURRENT_ARCH="arm64"
+              ;;
+            "x86_64")
+              _CURRENT_ARCH="amd64"
+              ;;
+            *)
+              ;;
+          esac
+
+          # If the manifest list contains an image for the current OS and architecture, prefer to test that.
+          _MATCHING_IMAGE_COUNT=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r "[.manifests[] | select(.platform.os == \"${_CURRENT_OS}\" and .platform.architecture == \"${_CURRENT_ARCH}\")] | length")
+          if [[ "${_MATCHING_IMAGE_COUNT}" -gt 0 ]]; then
+            echo "Found an image in the manifests for the current OS and architecture (${_CURRENT_OS}/${_CURRENT_ARCH})."
+          else
+            # If there is no image for the current OS and architecture, just use the first one in the list.
+            _INSPECT_OVERRIDE_IMAGE_OS=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.manifests[0].platform.os')
+            _INSPECT_OVERRIDE_IMAGE_ARCH=$(printf "%s" "${_RAW_IMAGE_MANIFEST}" | jq -r '.manifests[0].platform.architecture')
+            _SKOPEO_INSPECT_ARGS+=("--override-os=${_INSPECT_OVERRIDE_IMAGE_OS}")
+            _SKOPEO_INSPECT_ARGS+=("--override-arch=${_INSPECT_OVERRIDE_IMAGE_ARCH}")
+
+            echo "Could not find an image in the manifests for the current OS and architecture (${_CURRENT_OS}/${_CURRENT_ARCH}), inspecting the image for ${_INSPECT_OVERRIDE_IMAGE_OS}/${_INSPECT_OVERRIDE_IMAGE_ARCH} instead."
+          fi
+        fi
+
+        # Introspect based on minimum count of operator-framework related bundle labels.
+        echo "Looking for image labels that indicate this might be an operator bundle..."
+
+        # We purposely do not quote the array elements here, so that they are expanded by the shell as separate args.
+        # shellcheck disable=SC2068
+        if ! retry skopeo inspect --retry-times "$skopeo_retries" ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}" \
+          | jq '.Labels | keys | .[]' -r \
+          | { grep operators.operatorframework.io.bundle || true ;} \
+          | tee /tmp/ecosystem-image-labels
+        then
+          echo "Failed to inspect ${PARAM_IMAGE_URL}"
+          exit 1
+        fi
+
+        _OPFW_LABEL_COUNT=$(grep -c operators.operatorframework.io.bundle /tmp/ecosystem-image-labels || true)
+        _MIN_LABELS=3
+
+        echo "Found ${_OPFW_LABEL_COUNT} matching labels."
+        echo "Expecting ${_MIN_LABELS} or more to identify this image as an operator bundle."
+
+        # If the image has several labels, assume it is an operator
+        _ARTIFACT_TYPE=application
+        (( _OPFW_LABEL_COUNT >= _MIN_LABELS )) && _ARTIFACT_TYPE=operatorbundle
+
+        printf "%s" "${_ARTIFACT_TYPE}" > "$(step.results.artifact-type.path)"
+        echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
+
+    - name: generate-container-auth
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+      env:
+      - name: PARAM_IMAGE_URL
+        value: $(params.image-url)
+      results:
+        - name: auth-json-path
+          description: Path to auth.json
+      script: |
+        _AUTH_JSON_PATH="/auth/auth.json"
+        echo "Selecting auth for $PARAM_IMAGE_URL"
+        # `select-oci-auth` here assumes the input credentials are at path ~/.docker/config.json
+        select-oci-auth "$PARAM_IMAGE_URL" > "${_AUTH_JSON_PATH}"
+
+        printf "%s" "${_AUTH_JSON_PATH}" > "$(step.results.auth-json-path.path)"
+        echo "Auth json written to \"${_AUTH_JSON_PATH}\"."
+      volumeMounts:
+        - name: auth
+          mountPath: /auth
+
+    - name: set-skip-for-bundles
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: quay.io/redhat-appstudio/konflux-test:v1.4.31@sha256:a7cae9e96663e277a3904d0c78630508ddb6cc8eebaa912a840bd20f68dcaad1
+      results:
+      - name: test-output
+        description: A skipped tekton result for bundles.
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["operatorbundle"]
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        NOTE="This ecosystem check is not executed for operatorbundles."
+
+        # shellcheck source=/dev/null
+        . /utils.sh # gives us the make_result_json helper used below.
+
+        # Generate TEST_OUTPUT
+        # We're skipping the test, but don't use status "SKIPPED" because
+        # it produces unwanted Conforma violations
+        TEST_OUTPUT=$(make_result_json -r "SUCCESS" -t "${NOTE}")
+
+        printf "%s" "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /bundle/konflux.results.json
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /bundle
+
+    - name: app-check
+      image: quay.io/opdev/preflight:stable@sha256:57f74e3d1ad72bfd11cf888eae99f8cad4d75c25515413a7c30ad9963aed2741
+      resources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: '1'
+          memory: 4Gi
+      env:
+        - name: PFLT_DOCKERCONFIG
+          value: "$(steps.generate-container-auth.results.auth-json-path)"
+        - name: PFLT_KONFLUX
+          value: "true"
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
+        - name: PARAM_PLATFORM
+          value: $(params.platform)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        image_url="${PARAM_IMAGE_URL}"
+        platform="${PARAM_PLATFORM}"
+
+        if [ -n "$platform" ]; then
+          # Extract part after slash if present
+          arch="${platform#*/}"
+          if [ "$arch" = "x86_64" ] || [ "$arch" = "local" ] || [ "$arch" = "localhost" ]; then
+            arch="amd64"
+          fi
+
+          # Validate against supported arch list. If it's not a known arch, return an error result
+          case "$arch" in
+            amd64|ppc64le|arm64|s390x)
+              ;;
+            *)
+              echo "Error: Unsupported or malformed architecture: '$arch' (parsed from platform: '$platform')"
+              exit 0
+              ;;
+          esac
+
+          /usr/local/bin/preflight check container "$image_url" --platform "$arch"
+        else
+          /usr/local/bin/preflight check container "$image_url"
+        fi
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
+        - name: auth
+          mountPath: /auth
+          readOnly: true
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["application"]
+
+    - name: app-set-outcome
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      results:
+      - name: test-output
+        description: The overall outcome of this task.
+      - name: images-processed
+        description: Processed image digests.
+      when:
+      - input: "$(steps.introspect.results.artifact-type)"
+        operator: in
+        values: ["application"]
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+      env:
+        - name: PARAM_IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        # Declare Supported architectures
+        declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
+
+        # Initialize result vars
+        PFLT_PASS_COUNT=0
+        PFLT_FAIL_COUNT=0
+        PFLT_ERROR_COUNT=0
+        PFLT_RESULT="SUCCESS"
+
+        # Loop over SUPPORTED_ARCHES and process results
+        for ARCH in "${SUPPORTED_ARCHES[@]}"
+        do
+            # Check if results directory exits
+            RESULT_JSON_PATH=artifacts/${ARCH}/results.json
+            if ! [ -f "${RESULT_JSON_PATH}" ]; then
+                continue
+            fi
+            # Process results
+            if jq -e '.passed == false' "${RESULT_JSON_PATH}" > /dev/null; then PFLT_RESULT="FAILURE"; fi
+            PFLT_PASS_COUNT=$((PFLT_PASS_COUNT+$(jq -r '.results.passed | length' "${RESULT_JSON_PATH}")))
+            PFLT_FAIL_COUNT=$((PFLT_FAIL_COUNT+$(jq -r '.results.failed | length' "${RESULT_JSON_PATH}")))
+            PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
+        done
+
+        # Mark as ERROR if no results were recorded, which can occur when an unsupported or malformed
+        # architecture is parsed from the `platform` parameter.
+        if [[ $PFLT_FAIL_COUNT -eq 0 ]] && [[ $PFLT_PASS_COUNT -eq 0 ]] ; then PFLT_RESULT="ERROR" ; fi
+
+        if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
+        PFLT_NOTE="Task preflight is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
+
+        # Generate TEST_OUTPUT
+        TEST_OUTPUT=$(jq -rce \
+        --arg date "$(date +%s)" \
+        --arg note "${PFLT_NOTE}" \
+        --arg result "${PFLT_RESULT}" \
+        --arg successes "${PFLT_PASS_COUNT}" \
+        --arg failures "${PFLT_FAIL_COUNT}" \
+        --arg warnings "0" \
+        --null-input \
+        '{  result: $result,
+            timestamp: $date,
+            note: $note,
+            successes: $successes|tonumber,
+            failures: $failures|tonumber,
+            warnings: $warnings|tonumber
+        }')
+        echo -n "${TEST_OUTPUT}" | tee "$(step.results.test-output.path)" /artifacts/konflux.results.json
+
+        # Generate IMAGES_PROCESSED
+        images_processed_template='{"image": {"pullspec": "'"$PARAM_IMAGE_URL"'", "digests": [%s]}}'
+        declare -a digests_processed=()
+
+        # Extract processed image digests from "/artifacts/$arch/cert-image.json"
+        while read -r cert_image_file; do
+          docker_image_digest=$(jq -r '.docker_image_digest' "$cert_image_file")
+          if [[ -n "$docker_image_digest" && ! " ${digests_processed[*]} " == *" \"$docker_image_digest\" "* ]]; then
+            digests_processed+=("\"$docker_image_digest\"")
+          fi
+        done < <(find /artifacts -type f -name "cert-image.json")
+
+        image_digest=$(skopeo inspect "docker://${PARAM_IMAGE_URL}" | jq -r '.Digest')
+        if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
+          digests_processed+=("\"$image_digest\"")
+        fi
+
+        digests_processed_string=$(IFS=,; echo "${digests_processed[*]}")
+        final_output="${images_processed_template/\[%s]/[$digests_processed_string]}"
+        echo -n "${final_output}" > "$(step.results.images-processed.path)"
+    - name: final-outcome
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      results:
+        - name: test-output
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /mount
+      script: |
+        #!/usr/bin/env bash
+
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+        set -o xtrace
+
+        if [[ ! -f /mount/konflux.results.json ]]; then
+          printf "Unable to populate the right test log output because the artifact's type is not recorded correctly. Please file a bug." | tee "$(step.results.test-output.path)"
+          exit 91
+        fi
+
+        tee "$(step.results.test-output.path)" < /mount/konflux.results.json
+  volumes:
+    - name: pfltoutputdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
+    - name: auth
+      emptyDir: {}

@@ -54,8 +54,6 @@
     value: $(params.image-expires-after)
 - op: remove
   path: /spec/tasks/2/workspaces/0
-- op: remove
-  path: /spec/tasks/2/when
 
 # build-oci-artifact
 - op: replace
@@ -90,21 +88,6 @@
 - op: remove
   path: /spec/tasks/4/workspaces/0
 
-# coverity-availability-check
-- op: replace
-  path: /spec/tasks/6/taskRef/name
-  value: coverity-availability-check-oci-ta
-- op: add
-  path: /spec/tasks/6/params/-
-  value:
-    name: SOURCE_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-- op: add
-  path: /spec/tasks/6/params/-
-  value:
-    name: CACHI2_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-
 # sast-coverity-check
 - op: replace
   path: /spec/tasks/5/taskRef/name
@@ -121,8 +104,6 @@
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
   path: /spec/tasks/5/workspaces/0
-- op: remove
-  path: /spec/tasks/6/workspaces/0
 
 # sast-shell-check
 - op: replace
@@ -144,7 +125,7 @@
 # sast-unicode-check
 - op: replace
   path: /spec/tasks/8/taskRef/name
-  value: sast-shell-check-oci-ta
+  value: sast-unicode-check-oci-ta
 - op: add
   path: /spec/tasks/8/params/-
   value:
@@ -164,4 +145,4 @@
 # this Task, we are taking the approach of just removing it altogether. Additional context on this
 # decision can be found in https://issues.redhat.com/browse/EC-643.
 - op: remove
-  path: /spec/finally/1
+  path: /spec/finally/0

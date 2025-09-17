@@ -1,0 +1,342 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sast-snyk-check-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.3"
+spec:
+  description: |-
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
+
+    Follow the steps given [here](https://konflux-ci.dev/docs/testing/build/snyk/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+
+    The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
+
+    See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information about the snyk tool.
+  params:
+    - name: ARGS
+      description: Append arguments.
+      type: string
+      default: ""
+    - name: CACHI2_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the prefetched dependencies.
+      type: string
+      default: ""
+    - name: IGNORE_FILE_PATHS
+      description: Directories or files to be excluded from Snyk scan (Comma-separated).
+        Useful to split the directories of a git repo across multiple components.
+      type: string
+      default: ""
+    - name: IMP_FINDINGS_ONLY
+      description: Report only important findings. Default is true. To report
+        all findings, specify "false"
+      type: string
+      default: "true"
+    - name: KFP_GIT_URL
+      description: Known False Positives (KFP) git URL (optionally taking
+        a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
+        the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+        for internal Konflux instance and empty string for external Konflux
+        instance. If set to an empty string, the KFP filtering is disabled.
+      type: string
+      default: SITE_DEFAULT
+    - name: PROJECT_NAME
+      description: Name of the scanned project, used to find path exclusions.
+        By default, the Konflux component name will be used.
+      type: string
+      default: ""
+    - name: RECORD_EXCLUDED
+      description: Write excluded records in file. Useful for auditing (defaults
+        to false).
+      type: string
+      default: "false"
+    - name: SNYK_SECRET
+      description: Name of secret which contains Snyk token.
+      default: snyk-secret
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+    - name: image-url
+      description: Image URL.
+      type: string
+      default: ""
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: snyk-secret
+      secret:
+        optional: true
+        secretName: $(params.SNYK_SECRET)
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+        - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+    - name: sast-snyk-check
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/secrets
+          name: snyk-secret
+          readOnly: true
+        - mountPath: /mnt/trusted-ca
+          name: trusted-ca
+          readOnly: true
+      env:
+        - name: SNYK_SECRET
+          value: $(params.SNYK_SECRET)
+        - name: ARGS
+          value: $(params.ARGS)
+        - name: IGNORE_FILE_PATHS
+          value: $(params.IGNORE_FILE_PATHS)
+        - name: IMP_FINDINGS_ONLY
+          value: $(params.IMP_FINDINGS_ONLY)
+        - name: KFP_GIT_URL
+          value: $(params.KFP_GIT_URL)
+        - name: PROJECT_NAME
+          value: $(params.PROJECT_NAME)
+        - name: RECORD_EXCLUDED
+          value: $(params.RECORD_EXCLUDED)
+        - name: COMPONENT_LABEL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['appstudio.openshift.io/component']
+        - name: BUILD_PLR_LOG_URL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
+      script: |
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        if [[ -z "${PROJECT_NAME}" ]]; then
+          PROJECT_NAME=${COMPONENT_LABEL}
+        fi
+
+        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+
+        # Installation of Red Hat certificates for cloning Red Hat internal repositories
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        SNYK_TOKEN_PATH="/etc/secrets/snyk_token"
+        if [ -f "${SNYK_TOKEN_PATH}" ] && [ -s "${SNYK_TOKEN_PATH}" ]; then
+          # SNYK token is provided
+          SNYK_TOKEN="$(cat ${SNYK_TOKEN_PATH})"
+          export SNYK_TOKEN
+        else
+          # According to shellcheck documentation, the following error can be ignored as it is ignored through indirection: https://www.shellcheck.net/wiki/SC2034
+          # shellcheck disable=SC2034
+          to_enable_snyk='[here](https://konflux-ci.dev/docs/testing/build/snyk/)'
+          note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key 'snyk_token' containing the Snyk token by following the steps given ${to_enable_snyk}"
+          TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        SNYK_EXIT_CODE=0
+        SOURCE_CODE_DIR=/var/workdir
+        SEVERITY_THRESHOLD="high"
+        if [ "${IMP_FINDINGS_ONLY}" == "false" ]; then
+          SEVERITY_THRESHOLD="low"
+        fi
+
+        # We ignore files using snyk ignore if the user set up the IGNORE_FILE_PATHS variable.
+        (cd "${SOURCE_CODE_DIR}" && IFS="," && for path in $IGNORE_FILE_PATHS; do
+          snyk ignore --file-path="source/${path}"
+        done)
+
+        set +e
+        # We do want to expand ARGS (it can be multiple CLI flags, not just one)
+        # shellcheck disable=SC2086
+        snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$SOURCE_CODE_DIR" --max-depth=1 --sarif-file-output="${SOURCE_CODE_DIR}"/sast_snyk_check_out.json 1>&2 >>stdout.txt
+        SNYK_EXIT_CODE=$?
+        set -e
+        test_not_skipped=0
+        SKIP_MSG="We found 0 supported files"
+        grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
+
+        if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
+          # In order to generate csdiff/v1, we need to add the whole path of the source code as Snyk only provides an URI to embed the context
+          (cd "${SOURCE_CODE_DIR}" && csgrep --mode=json --embed-context=3 "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json) |
+            csgrep --mode=json --strip-path-prefix="source/" \
+              >sast_snyk_check_out_all_findings.json
+
+          echo "Results:"
+          (set -x && csgrep --mode=evtstat sast_snyk_check_out_all_findings.json)
+
+          if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+            # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
+            PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
+            echo -n "Probing ${PROBE_URL}... "
+            if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+              echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+              KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+            else
+              echo "Setting KFP_GIT_URL to empty string"
+              KFP_GIT_URL=
+            fi
+          fi
+
+          # We check if the KFP_GIT_URL variable is set to apply the filters or not
+          if [[ -z "${KFP_GIT_URL}" ]]; then
+            echo "KFP_GIT_URL variable not defined. False positives won't be filtered"
+            mv sast_snyk_check_out_all_findings.json filtered_sast_snyk_check_out.json
+          else
+            echo "Filtering false positives in results files using csfilter-kfp..."
+
+            CMD=(
+              csfilter-kfp
+              --verbose
+              --kfp-git-url="${KFP_GIT_URL}"
+              --project-nvr="${PROJECT_NAME}"
+            )
+
+            if [ "${RECORD_EXCLUDED}" == "true" ]; then
+              CMD+=(--record-excluded="excluded-findings.json")
+            fi
+
+            set +e
+            "${CMD[@]}" sast_snyk_check_out_all_findings.json >filtered_sast_snyk_check_out.json
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "Error: failed to filter known false positives" >&2
+              return 1
+            else
+              echo "Message: Succeed to filter known false positives" >&2
+            fi
+            echo "Results after filtering:"
+            (set -x && csgrep --mode=evtstat filtered_sast_snyk_check_out.json)
+          fi
+
+          # Generation of scan stats
+
+          total_files=$(jq '[.runs[0].properties.coverage[].files] | add' "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json)
+          supported_files=$(jq '[.runs[0].properties.coverage[] | select(.type == "SUPPORTED") | .files] | add' "${SOURCE_CODE_DIR}"/sast_snyk_check_out.json)
+
+          # We make sure the values are 0 if no supported/total files are found
+          if [ "$total_files" = "null" ] || [ -z "$total_files" ]; then
+            total_files=0
+          fi
+
+          if [ "$supported_files" = "null" ] || [ -z "$supported_files" ]; then
+            supported_files=0
+          fi
+
+          coverage_ratio=0
+          if ((total_files > 0)); then
+            coverage_ratio=$((supported_files * 100 / total_files))
+          fi
+
+          # embed stats in results file and convert to SARIF
+          csgrep --mode=sarif --set-scan-prop snyk-scanned-files-coverage:"${coverage_ratio}" \
+            --set-scan-prop snyk-scanned-files-success:"${supported_files}" \
+            --set-scan-prop snyk-scanned-files-total:"${total_files}" \
+            filtered_sast_snyk_check_out.json >sast_snyk_check_out.sarif
+
+          TEST_OUTPUT=
+          parse_test_output "$(context.task.name)" sarif sast_snyk_check_out.sarif || true
+
+        # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
+        elif [[ "$test_not_skipped" -eq 0 ]]; then
+          note="Task $(context.task.name) success: Snyk code test found zero supported files."
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        else
+          echo "sast-snyk-check test failed because of the following issues:"
+          cat stdout.txt
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        fi
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
+      computeResources:
+        limits:
+          memory: 6Gi
+        requests:
+          cpu: "1"
+          memory: 6Gi
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+      script: |
+        #!/usr/bin/env bash
+
+        if [ -z "${IMAGE_URL}" ]; then
+          echo 'No image-url provided. Skipping upload.'
+          exit 0
+        fi
+
+        UPLOAD_FILES="sast_snyk_check_out.sarif excluded-findings.json"
+        for UPLOAD_FILE in ${UPLOAD_FILES}; do
+          if [ ! -f "${UPLOAD_FILE}" ]; then
+            echo "No ${UPLOAD_FILE} exists. Skipping upload."
+            continue
+          fi
+          if [ "${UPLOAD_FILES}" == "excluded-findings.json" ]; then
+            MEDIA_TYPE=application/json
+          else
+            MEDIA_TYPE=application/sarif+json
+          fi
+          echo "Selecting auth"
+          select-oci-auth "${IMAGE_URL}" >"${HOME}/auth.json"
+          echo "Attaching to ${IMAGE_URL}"
+          retry oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        done
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi

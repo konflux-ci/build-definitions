@@ -25,11 +25,13 @@ spec:
       type: string
       default: ""
     - name: KFP_GIT_URL
-      description: git repository to download known false positives files from
       type: string
-      # FIXME: Red Hat internal projects will default to https://gitlab.cee.redhat.com/osh/known-false-positives.git
-      # when KONFLUX-4530 is resolved
-      default: ""
+      description: Known False Positives (KFP) git URL (optionally taking
+        a revision delimited by \#). Defaults to "SITE_DEFAULT", which means
+        the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux
+        instance and empty string for external Konflux instance.
+        If set to an empty string, the KFP filtering is disabled.
+      default: "SITE_DEFAULT"
     - name: PROJECT_NAME
       description: Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.
       type: string
@@ -44,6 +46,10 @@ spec:
       type: string
       description: Whether to include important findings only
       default: "true"
+    - name: TARGET_DIRS
+      type: string
+      description: Target directories in component's source code. Multiple values should be separated with commas.
+      default: "."
     - name: caTrustConfigMapName
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
@@ -62,10 +68,21 @@ spec:
         optional: true
   steps:
     - name: sast-shell-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:58d19a7da752be21b4db74dc1a203a55914c5aff68b785460a0b9c340092f7e3
+      image: quay.io/konflux-ci/konflux-test:v1.4.32@sha256:7e04a34cc9adb5fa0bfe5070d1a60321205f5e6f0cd3fb2e8a33a5ec8508fd29
+      computeResources:
+        limits:
+          memory: 4Gi
+          cpu: "8"
+        requests:
+          memory: 4Gi
+          cpu: "1"
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      volumeMounts:
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
       env:
         - name: KFP_GIT_URL
           value: $(params.KFP_GIT_URL)
@@ -75,10 +92,16 @@ spec:
           value: $(params.RECORD_EXCLUDED)
         - name: IMP_FINDINGS_ONLY
           value: $(params.IMP_FINDINGS_ONLY)
+        - name: TARGET_DIRS
+          value: $(params.TARGET_DIRS)
         - name: COMPONENT_LABEL
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['appstudio.openshift.io/component']
+        - name: BUILD_PLR_LOG_URL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
       script: |
         #!/usr/bin/env bash
         set -x
@@ -104,8 +127,35 @@ spec:
         OUTPUT_FILE="shellcheck-results.json"
         SOURCE_CODE_DIR=$(workspaces.workspace.path)/source
 
+        # generate full path for each dirname separated by comma
+        declare -a ALL_TARGETS
+        IFS="," read -ra TARGET_ARRAY <<< "$TARGET_DIRS"
+        for d in "${TARGET_ARRAY[@]}"; do
+          potential_path="${SOURCE_CODE_DIR}/${d}"
+
+          resolved_path=$(realpath -m "$potential_path")
+
+          # ensure resolved path is still within SOURCE_CODE_DIR
+          if [[ "$resolved_path" == "$SOURCE_CODE_DIR"* ]]; then
+            ALL_TARGETS+=("$resolved_path")
+          else
+            echo "Error: path traversal attempt, '$potential_path' is outside '$SOURCE_CODE_DIR'"
+            exit 1
+          fi
+        done
+
+        # determine number of available CPU cores for shellcheck based on container cgroup v2 CPU limits
+        # this calculates the ceiling, so if the cpu limit is 0.5, the number of jobs will be 1.
+        if [ -z "$SC_JOBS" ] && [ -r "/sys/fs/cgroup/cpu.max" ]; then
+            read -r quota period < /sys/fs/cgroup/cpu.max
+            if [ "$quota" != "max" ] && [ -n "$period" ] && [ "$period" -gt 0 ]; then
+                export SC_JOBS=$(((quota + period - 1) / period))
+                echo "INFO: Setting SC_JOBS=${SC_JOBS} based on cgroups v2 max for run-shellcheck.sh"
+            fi
+        fi
+
         # generate all shellcheck result JSON files to $SC_RESULTS_DIR, which defaults to ./shellcheck-results/
-        /usr/share/csmock/scripts/run-shellcheck.sh "$SOURCE_CODE_DIR"
+        /usr/share/csmock/scripts/run-shellcheck.sh "${ALL_TARGETS[@]}"
 
         CSGREP_OPTS=(
             --mode=json
@@ -134,6 +184,19 @@ spec:
             ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
             echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
             exit 1
+        fi
+
+        if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
+          # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
+          PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
+          echo -n "Probing ${PROBE_URL}... "
+          if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+            echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+            KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+          else
+            echo "Setting KFP_GIT_URL to empty string"
+            KFP_GIT_URL=
+          fi
         fi
 
         # Filter known false positives if KFP_GIT_URL is set
@@ -177,8 +240,19 @@ spec:
         TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
     - name: upload
-      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
       workingDir: $(workspaces.workspace.path)/hacbs/$(context.task.name)
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -211,7 +285,11 @@ spec:
             echo "Selecting auth"
             select-oci-auth "$IMAGE_URL" > "$HOME/auth.json"
             echo "Attaching to ${IMAGE_URL}"
-            oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+            if ! retry oras attach --no-tty --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}@${IMAGE_DIGEST}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+            then
+              echo "Failed to attach ${UPLOAD_FILE} to ${IMAGE_URL}"
+              exit 1
+            fi
         done
   workspaces:
   - name: workspace

@@ -44,12 +44,11 @@ spec:
         readOnly: true
   steps:
     - name: get-image-manifests
-      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
       # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
       computeResources:
         limits:
           memory: 512Mi
-          cpu: 200m
         requests:
           memory: 256Mi
           cpu: 100m
@@ -65,6 +64,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+        # shellcheck source=/dev/null
         . /utils.sh
 
         imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
@@ -73,20 +73,25 @@ spec:
         echo "Inspecting raw image manifest $imageanddigest."
 
         # Get the arch and image manifests by inspecting the image. This is mainly for identifying image indexes
-        image_manifests=$(get_image_manifests -i ${imageanddigest})
+        image_manifests=$(get_image_manifests -i "${imageanddigest}")
         if [ -n "$image_manifests" ]; then
           echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r arch arch_sha; do
             echo "$arch_sha" > /tekton/home/image-manifest-$arch.sha
           done
+        else
+          echo "Failed to get image manifests from image \"$imageanddigest\""
+          note="Task $(context.task.name) failed: Failed to get image manifests from image \"$imageanddigest\". For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
         fi
     - name: get-vulnerabilities
-      image: quay.io/redhat-appstudio/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
+      image: quay.io/konflux-ci/clair-in-ci:v1  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
       computeResources:
         limits:
-          memory: 4Gi
-          cpu: '2'
+          memory: 6Gi
         requests:
-          memory: 1Gi
+          memory: 2Gi
           cpu: 500m
       imagePullPolicy: Always
       env:
@@ -101,6 +106,8 @@ spec:
         set -o errexit
         set -o nounset
         set -o pipefail
+        # shellcheck source=/utils.sh
+        . /utils.sh
 
         imagewithouttag=$(echo -n $IMAGE_URL | sed "s/\(.*\):.*/\1/")
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
@@ -111,8 +118,8 @@ spec:
         # we require in the policy rules, so we resort to running clair-action
         # twice to produce both quay and clair formatted output
         clair_report() {
-          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=quay | tee "clair-result-$2.json"; } && \
-          { clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair > "clair-report-$2.json"; }
+          { retry clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=quay | tee "clair-result-$2.json"; } && \
+          { retry clair-action report --image-ref="$1" --db-path=/tmp/matcher.db --format=clair > "clair-report-$2.json"; }
         }
 
         for sha_file in image-manifest-*.sha; do
@@ -138,7 +145,7 @@ spec:
         images_processed=$(echo "${images_processed_template/\[%s]/[$digests_processed_string]}")
         echo "$images_processed" > images-processed.json
     - name: oci-attach-report
-      image: quay.io/konflux-ci/oras:latest@sha256:c68c23fe7bb1ba9fc335192761ea94fc2c9beb701f3c205890581ff62fd38d80
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
       workingDir: /tekton/home
       env:
         - name: IMAGE_URL
@@ -173,19 +180,23 @@ spec:
           digest=$(cat "image-manifest-$(arch "$f").sha")
           image_ref="${repository}@${digest}"
           echo "Attaching $f to ${image_ref}"
-          report_digest="$(oras attach --no-tty --format go-template='{{.digest}}' --registry-config "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          if ! report_digest="$(retry oras attach --no-tty --format go-template='{{.digest}}' --registry-config \
+            "$HOME/auth.json" --artifact-type "${MEDIA_TYPE}" "${image_ref}" "$f:${MEDIA_TYPE}")"
+          then
+            echo "Failed to attach ${f} to ${image_ref}"
+            exit 1
+          fi
           # shellcheck disable=SC2016
           reports_json="$(yq --output-format json --indent=0 eval-all '. as $i ireduce ({}; . * $i)' <(echo "${reports_json}") <(echo "${digest}: ${report_digest}"))"
         done
         echo "${reports_json}" > reports.json
     - name: conftest-vulnerabilities
-      image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       computeResources:
         limits:
           memory: 2Gi
-          cpu: 500m
         requests:
           memory: 256Mi
           cpu: 100m

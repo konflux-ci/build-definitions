@@ -4,7 +4,7 @@
   value: |
     This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
 
-    _Uses `buildah` to create a multi-platform container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. This pipeline requires that the [multi platform controller](https://github.com/konflux-ci/multi-platform-controller) is deployed and configured on your Konflux instance. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://enterprisecontract.dev/docs/ec-policies/release_policy.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
+    _Uses `buildah` to create a multi-platform container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. This pipeline requires that the [multi platform controller](https://github.com/konflux-ci/multi-platform-controller) is deployed and configured on your Konflux instance. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
     This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-multi-platform-oci-ta?tab=tags)_
 - op: replace
   path: /metadata/name
@@ -53,6 +53,30 @@
   path: /spec/tasks/4/runAfter
   value:
   - build-images
+
+# clamav-scan
+- op: add
+  path: /spec/tasks/10/matrix
+  value:
+    params:
+      - name: image-arch
+        value: ["$(params.build-platforms)"]
+
+# ecosystem-cert-preflight-checks
+- op: add
+  path: /spec/tasks/8/matrix
+  value:
+    params:
+      - name: platform
+        value: ["$(params.build-platforms)"]
+
+# clair-scan
+- op: add
+  path: /spec/tasks/7/matrix
+  value:
+    params:
+      - name: image-platform
+        value: ["$(params.build-platforms)"]
 
 # Order of pipeline parameters
 # $ kustomize build pipelines/docker-build-oci-ta | yq ".spec.params.[].name" | nl -v 0

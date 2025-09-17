@@ -14,6 +14,10 @@ spec:
     - description: The platform to build on
       name: PLATFORM
       type: string
+    - default: "false"
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      name: IMAGE_APPEND_PLATFORM
+      type: string
     - name: OUTPUT_IMAGE
       type: string
       description: The output manifest list that points to the OCI artifact of the zipped image
@@ -43,6 +47,8 @@ spec:
       name: IMAGE_DIGEST
     - description: Image repository where the built manifest list was pushed
       name: IMAGE_URL
+    - description: Image reference (IMAGE_URL + IMAGE_DIGEST)
+      name: IMAGE_REFERENCE
   stepTemplate:
     env:
       - name: OUTPUT_IMAGE
@@ -57,7 +63,12 @@ spec:
         value: $(params.ENTITLEMENT_SECRET)
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
-
+      - name: BUILDAH_IMAGE
+        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1756966939'
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -65,12 +76,12 @@ spec:
         name: varlibcontainers
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:52f1391e6f1c472fd10bb838f64fae2ed3320c636f536014978a5ddbdfc6b3af
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/konflux-ci/yq:latest@sha256:343c2ca0a347ae87fe43750ee0873e1fe813f77eff56e9722c840bb75d97fef2
+      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
       script: |-
         #!/bin/bash
         set -o verbose
@@ -113,7 +124,7 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
       computeResources:
         limits:
           memory: 512Mi
@@ -173,6 +184,14 @@ spec:
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
 
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export OUTPUT_IMAGE
+        fi
+
+        ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
+        echo "ARCH: '${ARCH}'"
+
         # form the --type arguments
         IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
 
@@ -192,17 +211,33 @@ spec:
         export TAGGED_AS="$TAGGED_AS"
         export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
         export STORAGE_DRIVER="$STORAGE_DRIVER"
+        export BUILDAH_IMAGE="$BUILDAH_IMAGE"
 
         REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
 
         mkdir output
+        buildah_retries=3
+
         echo "PULLING BUILDER IMAGE"
-        time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry 10 $BOOTC_BUILDER_IMAGE
+        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
+        then
+            echo "Failed to pull image ${BOOTC_BUILDER_IMAGE} from registry"
+            exit 1
+        fi
         echo "PULLING IMAGE"
-        time sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry 10 $SOURCE_IMAGE
+        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $SOURCE_IMAGE
+        then
+            echo "Failed to pull image ${SOURCE_IMAGE} from registry"
+            exit 1
+        fi
         echo "TAGGING IMAGE"
         time sudo podman tag $SOURCE_IMAGE $TAGGED_AS
         echo "RUNNING BUILD"
@@ -214,13 +249,12 @@ spec:
           -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
 
-        # This script is currently using fedora image because buildah in UBI9 does not have the OCI support (no --artifact* switches)
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/.docker:/.docker -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/scripts/script-push.sh:/script-push.sh \
           -v $BUILD_DIR/tekton-results:/tekton-results \
-          registry.fedoraproject.org/fedora \
+          "$BUILDAH_IMAGE" \
           /script-push.sh
 
         REMOTESSHEOF
@@ -234,6 +268,11 @@ spec:
         export OUTPUT_IMAGE="$OUTPUT_IMAGE"
 
         REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
@@ -266,7 +305,14 @@ spec:
           # already compressed.
           buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
         fi
-        buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry 10 --all $OUTPUT_IMAGE
+
+        buildah_retries=3
+        echo "Pushing image $OUTPUT_IMAGE to registry"
+        if ! retry buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry "$buildah_retries" --all $OUTPUT_IMAGE
+        then
+            echo "Failed to push image ${OUTPUT_IMAGE} to registry"
+            exit 1
+        fi
 
         # At this point, we have pushed an image index of length 1 to the registry.
         # Next, extract a reference to the image manifest and expose that, throwing away the image index.
@@ -275,11 +321,23 @@ spec:
         MANIFEST_DIGEST=$(buildah manifest inspect --authfile /.docker/config.json $REPO@$IMAGE_INDEX_DIGEST | jq -r '.manifests[0].digest')
 
         # Overwrite the image index pullspec tag with the image manifest one
-        skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        echo "Overwriting image $OUTPUT_IMAGE in registry"
+        if ! retry skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        then
+            echo "Failed to overwrite image ${OUTPUT_IMAGE} in registry"
+            exit 1
+        fi
 
         # Finally, record all that in our results
         echo -n "$OUTPUT_IMAGE" | tee /tekton-results/IMAGE_URL
         echo $MANIFEST_DIGEST | tee /tekton-results/IMAGE_DIGEST
+        # Saving also these two output in one unique variable. This task is using a matrix reference.
+        # Unfortunately it seems that in Tekton, when using a matrix, each task run is executed in isolation,
+        # and result values can't be dynamically constructed or reused across matrix combinations.
+        # In order to prevent that, we are preparing in the task itself what we'll call as `IMAGE_REFERENCE`
+        # so that we can reference that safely in the pipeline.
+        IMAGE_URL_CLEANED=$(echo -n "$OUTPUT_IMAGE" | tr -d '\n')
+        echo -n "${IMAGE_URL_CLEANED}@${MANIFEST_DIGEST}" | tee /tekton-results/IMAGE_REFERENCE
         REMOTESSHEOF
 
 

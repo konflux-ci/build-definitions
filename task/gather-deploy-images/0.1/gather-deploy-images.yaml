@@ -2,6 +2,8 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: gather-deploy-images
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   description: Extract images from deployment YAML to pass to EC for validation
   workspaces:
@@ -28,7 +30,7 @@ spec:
         When there are no images to verify, this is an empty string.
   steps:
   - name: get-images-per-env
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
     workingDir: $(workspaces.source.path)/source
     env:
       - name: TARGET_BRANCH

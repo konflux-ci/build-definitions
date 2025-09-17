@@ -26,34 +26,36 @@ locate_in_all_namespaces() {
     for quay_namespace in "${CATALOG_NAMESPACES[@]}"; do
         found=$(locate_bundle_repo "$quay_namespace" "$type" "$object")
 
+        quay_repo=${type}-${object}
+
         # konflux-ci/tekton-catalog
         if [[ $quay_namespace = */* ]]; then
-            # tekton-catalog/
-            quay_repo_prefix="${quay_namespace#*/}/"
+            # tekton-catalog/...
+            quay_repo="${quay_namespace#*/}/$quay_repo"
             # konflux-ci
             quay_namespace=${quay_namespace%%/*}
-        else
-            quay_repo_prefix=""
         fi
 
-        echo "Checking ${quay_namespace}/${quay_repo_prefix}${object}, http code: ${found}"
+        echo "Checking ${quay_namespace}/${quay_repo}, http code: ${found}"
         if [ "$found" != "200" ]; then
-            echo "Missing $type bundle repo: ${quay_repo_prefix}${object} in ${quay_namespace}, creating..."
+            echo "Missing $type bundle repo: ${quay_repo} in ${quay_namespace}, creating..."
             payload=$(
               jq -n \
                 --arg namespace "$quay_namespace" \
-                --arg repository "$quay_repo_prefix$object" \
+                --arg repository "$quay_repo" \
                 --arg visibility "public" \
                 --arg description "" \
                 '$ARGS.named'
             )
-            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --data-binary "$payload" -H "Content-Type: application/json" -H "Accept: application/json" | jq '.error_message // empty');
+            if ! err_msg=$(curl --oauth2-bearer "${QUAY_TOKEN}" "https://quay.io/api/v1/repository" --data-binary "$payload" -H "Content-Type: application/json" -H "Accept: application/json" | jq -r '.error_message // empty');
             then
               echo "curl returned an error when creating the repository. See the error above."
               exit 1
             fi
 
-            if [ -n "$err_msg" ]; then
+            if [[ "$err_msg" == "Repository already exists" ]]; then
+                echo "WARNING: repository creation failed, but the error message was '$err_msg'. Assuming that's fine."
+            elif [[ -n "$err_msg" ]]; then
                 echo "Quay returned an error when creating the repository: ${err_msg}"
                 exit 1
             fi
@@ -76,7 +78,7 @@ do
     fi
 
     locate_in_all_namespaces task "$task_name"
-done < <(find task/*/*/ -maxdepth 0 -type d -print0)
+done < <(find task -mindepth 2 -maxdepth 2 -type d -print0)
 
 echo
 echo "Checking existence of pipeline bundle repositories..."

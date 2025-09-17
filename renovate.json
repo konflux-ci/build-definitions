@@ -4,7 +4,7 @@
     "config:base"
   ],
   "dependencyDashboard": false,
-  "prConcurrentLimit": 20,
+  "prConcurrentLimit": 40,
   "tekton": {
     "fileMatch": [
       "\\.yaml$",
@@ -18,6 +18,12 @@
     ]
   },
   "packageRules": [
+    {
+      "groupName": "tekton-ci",
+      "matchFileNames": [
+        ".tekton/**"
+      ]
+    },
     {
       "matchPackageNames": [
         "quay.io/konflux-ci/appstudio-utils"
@@ -35,11 +41,6 @@
         "task/apply-tags/**",
         "task/build-image-index/**",
         "task/build-image-manifest/**",
-        "task/buildah-10gb/**",
-        "task/buildah-20gb/**",
-        "task/buildah-24gb/**",
-        "task/buildah-6gb/**",
-        "task/buildah-8gb/**",
         "task/buildah-min/**",
         "task/buildah-oci-ta/**",
         "task/buildah-remote-oci-ta/**",
@@ -52,12 +53,12 @@
         "task/git-clone-oci-ta/**",
         "task/git-clone/**",
         "task/init/**",
-        "task/prefetch-dependencies-oci-ta/**",
-        "task/prefetch-dependencies/**",
+        "task/pnc-prebuild-git-clone-oci-ta/**",
         "task/push-dockerfile-oci-ta/**",
         "task/push-dockerfile/**",
         "task/show-sbom-rhdh/**",
         "task/show-sbom/**",
+        "task/slack-webhook-notification-oci-ta/**",
         "task/slack-webhook-notification/**",
         "task/source-build-oci-ta/**",
         "task/source-build/**",
@@ -65,6 +66,13 @@
         "task/update-deployment/**",
         "task/update-infra-deployments/**",
         "task/upload-sbom-to-trustification/**"
+      ]
+    },
+    {
+      "groupName": "build-prefetch",
+      "matchFileNames": [
+        "task/prefetch-dependencies-oci-ta/**",
+        "task/prefetch-dependencies/**"
       ]
     },
     {
@@ -80,19 +88,20 @@
     {
       "groupName": "integration",
       "matchFileNames": [
+        "external-task/clair-scan/**",
+        "external-task/clamav-scan/**",
+        "external-task/deprecated-image-check/**",
         "stepactions/fips-operator-check-step-action/**",
         "task/clair-scan/**",
         "task/clamav-scan/**",
-        "task/coverity-availability-check-oci-ta/**",
         "task/coverity-availability-check/**",
         "task/deprecated-image-check/**",
         "task/fbc-fips-check-oci-ta/**",
         "task/fbc-fips-check/**",
-        "task/fbc-related-image-check/**",
-        "task/fbc-validation/**",
+        "task/fbc-target-index-pruning-check/**",
         "task/fips-operator-bundle-check-oci-ta/**",
         "task/fips-operator-bundle-check/**",
-        "task/inspect-image/**",
+        "task/run-opm-command-oci-ta/**",
         "task/sast-coverity-check-oci-ta/**",
         "task/sast-coverity-check/**",
         "task/sast-shell-check-oci-ta/**",
@@ -107,18 +116,39 @@
     },
     {
       "groupName": "preflight",
+      "description": "contains the group of current active preflight tasks",
       "matchFileNames": [
         "task/ecosystem-cert-preflight-checks/**"
-      ]
+      ],
+      "enabled": true
+    },
+    {
+      "groupName": "preflight-deprecated",
+      "description": "contains the group of preflight tasks that no longer work in the konflux ecosystem with the latest preflight container image",
+      "matchFileNames": [
+        "task/ecosystem-cert-preflight-checks/0.1/**"
+      ],
+      "enabled": false
     },
     {
       "groupName": "github-actions",
-      "matchFileNames": [
-        ".github/**"
+      "matchManagers": [
+        "github-actions"
       ],
       "schedule": [
         "on sunday"
-      ]
+      ],
+      "automerge": true
+    },
+    {
+      "groupName": "go-modules",
+      "matchManagers": [
+        "gomod"
+      ],
+      "schedule": [
+        "on sunday"
+      ],
+      "automerge": true
     },
     {
       "matchPackageNames": [
@@ -159,6 +189,12 @@
       ]
     },
     {
+      "groupName": "modelcar-oci",
+      "matchFileNames": [
+        "task/modelcar-oci-ta/**"
+      ]
+    },
+    {
       "groupName": "opm",
       "matchFileNames": [
         "task/operator-sdk-generate-bundle/**",
@@ -167,20 +203,10 @@
       ]
     },
     {
-      "groupName": "rpm-ostree",
-      "matchFileNames": [
-        "task/rpm-ostree-oci-ta/**",
-        "task/rpm-ostree/**"
-      ]
-    },
-    {
       "groupName": "tekton-tools-tasks",
       "description": "Updated and verified in tekton-tools so should be ignored here",
       "matchFileNames": [
-        "task/generate-odcs-compose/**",
-        "task/rpms-signature-scan/**",
-        "task/verify-signed-rpms/**",
-        "task/provision-env-with-ephemeral-namespace/**"
+        "task/rpms-signature-scan/**"
       ],
       "enabled": false
     },
@@ -188,6 +214,42 @@
       "groupName": "buildpack",
       "matchFileNames": [
         "task/build-paketo-builder-oci-ta/**"
+      ]
+    },
+    {
+      "groupName": "sealights",
+      "matchFileNames": [
+        "task/sealights-go-oci-ta/**",
+        "task/sealights-nodejs-oci-ta/**",
+        "task/sealights-python-oci-ta/**"
+      ]
+    },
+    {
+      "groupName": "vanguard",
+      "matchFileNames": [
+        "external-task/rpms-signature-scan/**",
+        "pipelines/tekton-bundle-builder-oci-ta/**",
+        "pipelines/tekton-bundle-builder/**",
+        "task/build-helm-chart-oci-ta/**",
+        "task/build-helm-chart/**"
+      ]
+    },
+    {
+      "groupName": "oci-run-script",
+      "matchFileNames": [
+        "task/run-script-oci-ta/**"
+      ]
+    },
+    {
+      "groupName": "mobster",
+      "matchFileNames": [
+        "task/**"
+      ],
+      "matchManagers": [
+        "regex"
+      ],
+      "matchPackageNames": [
+        "quay.io/konflux-ci/mobster"
       ]
     }
   ],
@@ -209,6 +271,17 @@
     {
       "customType": "regex",
       "fileMatch": [
+        "^external-task/.*/.*/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "task_bundle: (?<depName>quay\\.io/konflux-ci/konflux-vanguard/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
         ".github/workflows/run-task-tests.yaml"
       ],
       "matchStrings": [
@@ -222,12 +295,46 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "^task/.*/recipe\\.yaml$"
+        "^task/.*/recipe\\.yaml$",
+        "^task/.+/patch\\.yaml$"
       ],
       "matchStrings": [
-        "image: (?:['\"])?(?<depName>.*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
+        "(?:image: |tooling-image=)(?:['\"])?(?<depName>[0-9a-z./-]+)(?::(?<currentValue>[0-9a-z.-]+))?@(?<currentDigest>sha256:[a-f0-9]{64})(?:['\"])?"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^task/build-vm-image/.*/build-vm-image.yaml"
+      ],
+      "matchStrings": [
+        "BUILDAH_IMAGE\\s*\\n\\s*value:\\s*['\"]?(?<depName>[^'\":]+):(?<currentValue>[^'\":\\s]+)['\"]?"
+      ],
+      "depNameTemplate": "registry.access.redhat.com/ubi9/buildah",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "redhat"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^task/[\\w-]+/[0-9.]+/[\\w-]+\\.yaml$"
+      ],
+      "matchStrings": [
+        "image: (?<depName>quay\\.io/konflux-ci/mobster[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^external-task/.*/.*/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "task_bundle: (?<depName>quay\\.io/konflux-ci/tekton-catalog/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
     }
   ]

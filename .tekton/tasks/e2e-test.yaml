@@ -28,14 +28,25 @@ spec:
       type: string
     - name: fbc-builder-bundle
       type: string
+    - name: artifact_dir
+      type: string
+    - name: pipelinerun_name
+      type: string
+    - name: revision
+      type: string
+  volumes:
+    - name: konflux-test-infra-volume
+      secret:
+        secretName: konflux-test-infra
   steps:
     - name: e2e-test
-      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:20c1bfce4c79ae2fa14265923df95e120679f6ec
+      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:80ae12e6bd6a3446aadb4118436753a9064784d2
       command: ["/konflux-e2e/konflux-e2e.test"]
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
       args: [
         "--ginkgo.label-filter=build-templates-e2e",
+        "--ginkgo.junit-report=$(params.artifact_dir)/e2e-report.xml",
         "--ginkgo.no-color",
         "--ginkgo.v",
         "--ginkgo.timeout=2h"
@@ -44,11 +55,12 @@ spec:
         capabilities:
           add:
           - SETFCAP
+      onError: continue
       env:
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
       - name: COMPONENT_REPO_URLS
-        value: "https://github.com/konflux-qe-bd/devfile-sample-python-basic,https://github.com/konflux-qe-bd/retrodep,https://github.com/konflux-qe-bd/pip-e2e-test,https://github.com/konflux-qe-bd/fbc-sample-repo,https://github.com/konflux-qe-bd/docker-file-from-scratch"
+        value: "https://github.com/konflux-qe-bd/devfile-sample-python-basic,https://github.com/konflux-qe-bd/devfile-sample-python-basic-clone,https://github.com/konflux-qe-bd/multiarch-sample-repo,https://github.com/konflux-qe-bd/multiarch-sample-repo-clone,https://github.com/konflux-qe-bd/retrodep,https://github.com/konflux-qe-bd/pip-e2e-test,https://github.com/konflux-qe-bd/fbc-sample-repo,https://github.com/konflux-qe-bd/docker-file-from-scratch,https://github.com/konflux-qe-bd/oci-archive-test"
       - name: QUAY_E2E_ORGANIZATION
         value: konflux-ci
       - name: E2E_APPLICATIONS_NAMESPACE
@@ -77,3 +89,38 @@ spec:
         value: "$(params.docker-build-multi-platform-oci-ta-bundle)"
       - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
         value: "$(params.fbc-builder-bundle)"
+    - name: capture-log
+      image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-$(params.revision)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "Storing e2e-tests pod log..."
+        artifact_dir=$(params.artifact_dir)
+        oc logs "$(params.pipelinerun_name)-e2e-tests-pod" --all-containers > "${artifact_dir}"/e2e-tests.log
+    - name: secure-push-oci
+      ref:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: stepactions/secure-push-oci/0.1/secure-push-oci.yaml
+      params:
+        - name: workdir-path
+          value: /workspace/artifact-dir
+        - name: oci-ref
+          value: quay.io/konflux-test-storage/konflux-team/build-definitions:$(params.revision)
+        - name: credentials-volume-name
+          value: konflux-test-infra-volume
+    - name: fail-if-any-step-failed
+      ref:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: stepactions/fail-if-any-step-failed/0.1/fail-if-any-step-failed.yaml

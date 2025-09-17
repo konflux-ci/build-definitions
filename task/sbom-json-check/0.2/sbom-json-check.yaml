@@ -5,6 +5,8 @@ metadata:
   name: sbom-json-check
   annotations:
     build.appstudio.redhat.com/expires-on: 2025-09-30T00:00:00Z
+  labels:
+    app.kubernetes.io/version: "0.2"
 spec:
   description: >-
     Verifies the integrity and security of the Software Bill of Materials (SBOM) file in JSON format using CyloneDX tool.
@@ -30,7 +32,7 @@ spec:
       name: IMAGES_PROCESSED
   steps:
   - name: sbom-json-check
-    image: quay.io/konflux-ci/konflux-test:v1.4.11@sha256:540f795828852c90ec8f7d1b7b5e66e88700dc3dfe45d9cad7e2b8f64217bea8
+    image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     securityContext:
@@ -64,7 +66,7 @@ spec:
       image_with_digest=$(echo $imagewithouttag@$IMAGE_DIGEST)
       digests_processed=()
 
-      image_manifests=$(get_image_manifests -i ${image_with_digest})
+      image_manifests=$(get_image_manifests -i "${image_with_digest}")
       echo "$image_manifests"
       if [ -n "$image_manifests" ]; then
         while read -r arch arch_sha; do
@@ -74,11 +76,12 @@ spec:
           echo "arch sha is $arch_sha"
 
           echo "Running \"oc image extract\" on image of arch $arch"
-          oc image extract --registry-config ~/.docker/config.json $arch_imageanddigest --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
-          if [ $? -ne 0 ]; then
+          if ! retry oc image extract --registry-config ~/.docker/config.json "$arch_imageanddigest" --path="/root/buildinfo/content_manifests/*:/manifests/${destination}" --filter-by-os="linux/${arch}"
+          then
             echo "Failed to extract manifests from image $arch_imageanddigest of arch $arch."
             note="Task $(context.task.name) failed: Failed to extract manifests from image ${arch_imageanddigest} with oc extract. For details, check Tekton task log."
             ERROR_OUTPUT=$(make_result_json -r "ERROR" -t "$note")
+            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           fi
           digests_processed+=("\"$arch_sha\"")
         done < <(echo "$image_manifests" | jq -r 'to_entries[] | "\(.key) \(.value)"')

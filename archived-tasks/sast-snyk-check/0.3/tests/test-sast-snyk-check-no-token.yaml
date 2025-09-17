@@ -1,0 +1,44 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-sast-snyk-check-no-token
+spec:
+  description: |
+    Test the sast-snyk-check task is skipped when no token is available
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: scan-with-snyk
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      taskRef:
+        name: sast-snyk-check
+    - name: check-result
+      runAfter:
+        - scan-with-snyk
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      params:
+        - name: results
+          value: $(tasks.scan-with-snyk.results.TEST_OUTPUT)
+      taskSpec:
+        params:
+          - name: results
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            env:
+            - name: RESULTS
+              value: $(params.results)
+            script: |
+              #!/bin/bash
+
+              set -e
+
+              echo "$RESULTS"
+              # snyk check should skip because snyk_token is unavailable in ephemeral clusters
+              echo -n "Expected result: "
+              echo "$RESULTS" | jq -e '.result == "SKIPPED" and (.note | contains("snyk_token")) and .successes == 0 and .failures == 0 and .warnings == 0'

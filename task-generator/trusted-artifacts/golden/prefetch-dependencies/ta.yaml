@@ -10,10 +10,10 @@ metadata:
   name: prefetch-dependencies-oci-ta
 spec:
   description: |-
-    Task that uses Cachi2 to prefetch build dependencies. The fetched dependencies and the
+    Task that uses Hermeto to prefetch build dependencies. The fetched dependencies and the
     application source code are stored as a trusted artifact in the provided OCI repository.
-    For additional info on Cachi2, see docs at
-    https://github.com/containerbuildsystem/cachi2#basic-usage.
+    For additional info on Hermeto, see docs at
+    https://hermetoproject.github.io/hermeto/#basic-usage
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
@@ -34,7 +34,7 @@ spec:
       notice. Use at your own risk.
     name: dev-package-managers
     default: "false"
-  - description: Set cachi2 log level (debug, info, warning, error)
+  - description: Set prefetch tool log level (debug, info, warning, error)
     name: log-level
     default: "info"
   - name: caTrustConfigMapName
@@ -73,12 +73,12 @@ spec:
         echo -n "${SOURCE_ARTIFACT}" > $(results.SOURCE_ARTIFACT.path)
         echo -n "" > $(results.CACHI2_ARTIFACT.path)
       fi
-  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved
+  - image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
     name: use-trusted-artifact
     args:
       - use
       - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-  - image: quay.io/redhat-appstudio/cachi2:0.7.0@sha256:1fc772aa3636fd0b43d62120d832e5913843e028e8cac42814b487c3a0a32bd8
+  - image: quay.io/konflux-ci/hermeto:0.29.0@sha256:f577e0399953471df7a9826c1550aef83d28e8b35f76dd65a193441822b629ee
     name: prefetch-dependencies
     env:
     - name: INPUT
@@ -99,7 +99,7 @@ spec:
       if [ -z "${INPUT}" ]
       then
         # Confirm input was provided though it's likely the whole task would be skipped if it wasn't
-        echo "No prefetch will be performed because no input was provided for cachi2 fetch-deps"
+        echo "No prefetch will be performed because no input was provided for hermeto fetch-deps"
         exit 0
       fi
 
@@ -134,27 +134,34 @@ spec:
         update-ca-trust
       fi
 
-      cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" fetch-deps \
       $dev_pacman_flag \
       --source=/var/workdir/source \
       --output=/var/workdir/cachi2/output \
       "${INPUT}"
 
-      cachi2 --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" generate-env /var/workdir/cachi2/output \
       --format env \
       --for-output-dir=/cachi2/output \
       --output /var/workdir/cachi2/cachi2.env
 
-      cachi2 --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
+      hermeto --log-level="$LOG_LEVEL" inject-files /var/workdir/cachi2/output \
       --for-output-dir=/cachi2/output
-  - image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved
+
+      # NOTE: Compatibility hack, hermeto will create a hermeto.repo when processing RPMs (1 for
+      # each architecture) which may break users expecting cachi2.repo
+      find /var/workdir/cachi2/output \
+        -type f \
+        -name hermeto.repo \
+        -execdir mv {} cachi2.repo \;
+
+  - image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
     name: create-trusted-artifact
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
     computeResources:
       limits:
-        cpu: "1"
         memory: 3Gi
       requests:
         cpu: "1"
@@ -169,7 +176,7 @@ spec:
   - name: git-basic-auth
     description: |
       A Workspace containing a .gitconfig and .git-credentials file or username and password.
-      These will be copied to the user's home before any cachi2 commands are run. Any
+      These will be copied to the user's home before prefetch is run. Any
       other files in this Workspace are ignored. It is strongly recommended
       to bind a Secret to this Workspace over other volume types.
     optional: true

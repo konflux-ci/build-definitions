@@ -3,7 +3,11 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: rpms-signature-scan
+  labels:
+    app.kubernetes.io/version: "0.2"
 spec:
+  description: |-
+    Scans RPMs in an image and provide information about RPMs signatures.
   params:
     - name: image-url
       type: string
@@ -44,7 +48,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/redhat-appstudio/tools@sha256:ca3b24bb2f2935aa31426941687ed0c105bde89e25595c25e5543e87e1b51701
+      image: quay.io/konflux-ci/tools@sha256:fcde7e55644e60de225690b50875ec8aaded0d27d0749135dbb3e1d4d97e7f07
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -69,7 +73,7 @@ spec:
           --image-digest "${IMAGE_DIGEST}" \
           --workdir "${WORKDIR}" \
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.10@sha256:a9c8deb7582ac15ce0f0df0c7c7f017c33d8f12113c7efa3ed6811fd65e4706f
+      image: quay.io/konflux-ci/konflux-test:v1.4.36@sha256:ed63df1970e2339eb5d170228616829ed56e292a5cff198fd0126b5d1f84045b
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"

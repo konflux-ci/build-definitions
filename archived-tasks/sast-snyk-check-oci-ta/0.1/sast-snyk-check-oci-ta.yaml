@@ -1,0 +1,156 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sast-snyk-check-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |-
+    Scans source code for security vulnerabilities, including common issues such as SQL injection, cross-site scripting (XSS), and code injection attacks using Snyk Code, a Static Application Security Testing (SAST) tool.
+
+    Follow the steps given [here](https://redhat-appstudio.github.io/docs.appstudio.io/Documentation/main/how-to-guides/testing_applications/enable_snyk_check_for_a_product/) to obtain a snyk-token and to enable the snyk task in a Pipeline.
+
+    The snyk binary used in this Task comes from a container image defined in https://github.com/konflux-ci/konflux-test
+
+    See https://snyk.io/product/snyk-code/ and https://snyk.io/ for more information about the snyk tool.
+  params:
+    - name: ARGS
+      description: Append arguments.
+      type: string
+      default: --all-projects --exclude=test*,vendor,deps
+    - name: SNYK_SECRET
+      description: Name of secret which contains Snyk token.
+      default: snyk-secret
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: image-digest
+      description: Image digest to report findings for.
+      type: string
+      default: ""
+    - name: image-url
+      description: Image URL.
+      type: string
+      default: ""
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: snyk-secret
+      secret:
+        optional: true
+        secretName: $(params.SNYK_SECRET)
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: sast-snyk-check
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/secrets
+          name: snyk-secret
+          readOnly: true
+      env:
+        - name: SNYK_SECRET
+          value: $(params.SNYK_SECRET)
+        - name: ARGS
+          value: $(params.ARGS)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        SNYK_TOKEN_PATH="/etc/secrets/snyk_token"
+
+        if [ -f "${SNYK_TOKEN_PATH}" ] && [ -s "${SNYK_TOKEN_PATH}" ]; then
+          # SNYK token is provided
+          SNYK_TOKEN="$(cat ${SNYK_TOKEN_PATH})"
+          export SNYK_TOKEN
+        else
+          to_enable_snyk='[here](https://konflux-ci.dev/docs/how-tos/testing/build/snyk/)'
+          note="Task $(context.task.name) skipped: If you wish to use the Snyk code SAST task, please create a secret name snyk-secret with the key "snyk_token" containing the Snyk token by following the steps given ${to_enable_snyk}"
+          TEST_OUTPUT=$(make_result_json -r SKIPPED -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        SNYK_EXIT_CODE=0
+        SOURCE_CODE_DIR=/var/workdir/source
+        snyk code test $ARGS $SOURCE_CODE_DIR --sarif-file-output=sast_snyk_check_out.json 1>&2 >>stdout.txt || SNYK_EXIT_CODE=$?
+        test_not_skipped=0
+        SKIP_MSG="We found 0 supported files"
+        grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?
+
+        if [[ "$SNYK_EXIT_CODE" -eq 0 ]] || [[ "$SNYK_EXIT_CODE" -eq 1 ]]; then
+          cat sast_snyk_check_out.json
+          TEST_OUTPUT=
+          parse_test_output $(context.task.name) sarif sast_snyk_check_out.json || true
+
+        # When the test is skipped, the "SNYK_EXIT_CODE" is 3 and it can also be 3 in some other situation
+        elif [[ "$test_not_skipped" -eq 0 ]]; then
+          note="Task $(context.task.name) success: Snyk code test found zero supported files."
+          ERROR_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+        else
+          echo "sast-snyk-check test failed because of the following issues:"
+          cat stdout.txt
+          note="Task $(context.task.name) failed: For details, check Tekton task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+        fi
+        echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee $(results.TEST_OUTPUT.path)
+      computeResources:
+        limits:
+          memory: 6Gi
+        requests:
+          cpu: "1"
+          memory: 6Gi
+    - name: upload
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      workingDir: /var/workdir/source
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+      script: |
+        #!/usr/bin/env bash
+
+        UPLOAD_FILE=sast_snyk_check_out.json
+        MEDIA_TYPE=application/sarif+json
+
+        if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}" ]; then
+          echo 'No image-url or image-digest param provided. Skipping upload.'
+          exit 0
+        fi
+
+        if [ ! -f "${UPLOAD_FILE}" ]; then
+          echo "No ${UPLOAD_FILE} exists. Skipping upload."
+          exit 0
+        fi
+
+        echo "Selecting auth"
+        select-oci-auth $IMAGE_URL >$HOME/auth.json
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers API"
+        retry oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-api --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+        echo "Attaching to ${IMAGE_URL} via the OCI 1.1 Referrers Tag"
+        retry oras attach --no-tty --registry-config "$HOME/auth.json" --distribution-spec v1.1-referrers-tag --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
+      computeResources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi

@@ -34,12 +34,26 @@ spec:
     description: Artifact type of the Dockerfile image.
     type: string
     default: application/vnd.konflux.dockerfile
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
   results:
   - name: IMAGE_REF
     description: Digest-pinned image reference to the Dockerfile image.
+  stepTemplate:
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      subPath: ca-bundle.crt
+      readOnly: true
   steps:
   - name: push
-    image: quay.io/konflux-ci/oras:latest@sha256:d164490b5cbd38dcd819898cd3f5b73b64d2e3334cb2ddc728f49945207e2706
+    image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
     workingDir: $(workspaces.workspace.path)
     env:
     - name: IMAGE
@@ -56,12 +70,41 @@ spec:
       value: $(params.ARTIFACT_TYPE)
     - name: IMAGE_REF_RESULT
       value: $(results.IMAGE_REF.path)
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
     script: |
       set -eu
       set -o pipefail
 
-      # Same discovery logic used in buildah task
       SOURCE_CODE_DIR=source
+
+      echo "[$(date --utc -Ins)] Validate context path"
+
+      if [ -z "$CONTEXT" ]; then
+        echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
+        CONTEXT="."
+      fi
+
+      source_dir_path=$(realpath "$SOURCE_CODE_DIR")
+      context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
+
+      case "$context_dir_path" in
+        "$source_dir_path" | "$source_dir_path/"*)
+          # path is valid, do nothing
+          ;;
+        *)
+          echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
+          echo "Source path: $source_dir_path" >&2
+          echo "Resolved path: $context_dir_path" >&2
+          exit 1
+          ;;
+      esac
+
+      # Same discovery logic used in buildah task
       if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
@@ -88,13 +131,26 @@ spec:
       dockerfile_for_upload_path=/tmp/Dockerfile
       cp "$dockerfile_path" "$dockerfile_for_upload_path"
       cd "$(dirname $dockerfile_for_upload_path)"
-      retry oras push --no-tty \
+      echo "Pushing Dockerfile to registry"
+      if ! retry oras push --no-tty \
         --format json \
         --registry-config "$auth_json" \
         --artifact-type "$ARTIFACT_TYPE" \
         "$dockerfile_image" "$(basename $dockerfile_for_upload_path)" \
         | yq '.reference' | tr -d '\r\n' >"$IMAGE_REF_RESULT"
+      then
+        echo "Failed to push Dockerfile to registry"
+        exit 1
+      fi
 
   workspaces:
   - name: workspace
     description: Workspace containing the source code from where the Dockerfile is discovered.
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+      - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+        path: ca-bundle.crt
+      optional: true

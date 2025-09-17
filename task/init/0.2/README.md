@@ -13,3 +13,6 @@ Initialize Pipeline Task, include flags for rebuild and auth. Generates image re
 |name|description|
 |---|---|
 |build|Defines if the image in param image-url should be built|
+
+
+## Additional info

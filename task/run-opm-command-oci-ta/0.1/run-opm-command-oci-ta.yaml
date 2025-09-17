@@ -1,0 +1,158 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-opm-command-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: This task runs an OPM command with user-specified arguments, passed as an array.
+    It can optionally replace pullspecs in a catalog-template file before running the command.
+  params:
+    - name: SOURCE_ARTIFACT
+      type: string
+      description: The Trusted Artifact URI pointing to the artifact with the application source code.
+    - name: ociStorage
+      type: string
+      description: The OCI repository where the Trusted Artifacts are stored.
+    - name: ociArtifactExpiresAfter
+      type: string
+      description: Expiration date for the trusted artifacts. Empty string means no expiration.
+    - name: FILE_TO_UPDATE_PULLSPEC
+      type: string
+      description: Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.
+      default: ""
+    - name: OPM_ARGS
+      type: array
+      description: The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).
+      default: []
+    - name: OPM_OUTPUT_PATH
+      type: string
+      description: Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json').
+        Relative to the root directory of given source code (Git repository).
+    - name: IDMS_PATH
+      type: string
+      description: Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'
+      default: ".tekton/images-mirror-set.yaml"
+  results:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with the application source code with generated
+        file-based catalog from catalog-template.yml.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:635a890e9f0211b4eb5b8c811d6f06b3ed9ff7da952ebad236fbfe52ba36dbf7
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: run-opm-with-user-args
+      image: quay.io/konflux-ci/operator-sdk-builder:latest@sha256:e08de236089a3756535b5be1abacc3f465b1f5771efd8a40c7a2dae4febd67d7
+      workingDir: /var/workdir/source
+      results:
+        - name: skip_create_trusted_artifact
+          description: Set to 'true' if the create-trusted-artifact step should be skipped.
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+        - name: SOURCE_ARTIFACT_PARAM
+          value: $(params.SOURCE_ARTIFACT)
+      securityContext:
+        runAsUser: 0
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          set -euo pipefail
+
+          echo "Running OPM command in working directory: $(pwd)"
+          printf "OPM Argument received: '%s'\n" "$@"
+
+          # Ensure OPM_OUTPUT_PATH_PARAM is provided
+          if [[ $# -eq 0 || -z "${OPM_OUTPUT_PATH_PARAM}" ]]; then
+            echo "Parameter 'OPM_ARGS' or 'OPM_OUTPUT_PATH' is empty. Skipping OPM execution."
+
+            echo "Returning SOURCE_ARTIFACT from previous task."
+            echo -n "${SOURCE_ARTIFACT_PARAM}" | tee "$(results.SOURCE_ARTIFACT.path)"
+
+            echo -n "true" > "$(step.results.skip_create_trusted_artifact.path)"
+            exit 0
+          fi
+
+          # Validate that the path is not absolute
+          if [[ "${OPM_OUTPUT_PATH_PARAM}" == /* ]]; then
+            echo "Error: OPM_OUTPUT_PATH must be a relative path, but got '${OPM_OUTPUT_PATH_PARAM}'."
+            exit 2
+          fi
+
+          # Get the directory part of the path
+          OUTPUT_DIR=$(dirname "${OPM_OUTPUT_PATH_PARAM}")
+
+          # Create the directory if it's not the current directory '.'
+          if [[ "${OUTPUT_DIR}" != "." ]]; then
+            echo "Ensuring directory '${OUTPUT_DIR}' exists."
+            mkdir -p "${OUTPUT_DIR}"
+          fi
+
+          echo "Running opm $* > ${OPM_OUTPUT_PATH_PARAM}"
+          opm "$@" > "${OPM_OUTPUT_PATH_PARAM}"
+          echo "OPM command finished."
+
+          echo -n "false" > "$(step.results.skip_create_trusted_artifact.path)"
+        - "bash"
+        - $(params.OPM_ARGS[*])
+    - name: replace-related-images-pullspec-in-file
+      image: quay.io/konflux-ci/konflux-test:v1.4.33@sha256:f1e256d52ec62f8927106659d65fc842e330d3cfed791775c1ef4fedf270dbc8
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: IDMS_PATH_PARAM
+          value: $(params.IDMS_PATH)
+        - name: FILE_TO_UPDATE_PULLSPEC_PATH
+          value: $(params.FILE_TO_UPDATE_PULLSPEC)
+      when:
+        - input: "$(params.FILE_TO_UPDATE_PULLSPEC)"
+          operator: notin
+          values: [""]
+        - input: "$(params.IDMS_PATH)"
+          operator: notin
+          values: [""]
+      script: |
+          #!/bin/bash
+          set -euo pipefail
+
+          # shellcheck source=/dev/null
+          source /utils.sh
+          if [[ ! -f "${IDMS_PATH_PARAM}" ]]; then
+              echo "Warning: IDMS file '${IDMS_PATH_PARAM}' not found. Skipping replacement."
+              exit 0
+          fi
+          if [[ ! -f "${FILE_TO_UPDATE_PULLSPEC_PATH}" ]]; then
+              echo "Warning: File to update '${FILE_TO_UPDATE_PULLSPEC_PATH}' not found. Skipping replacement."
+              exit 0
+          fi
+
+          echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
+          replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      when:
+        - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
+          operator: in
+          values: ["false"]
+      env:
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.ociArtifactExpiresAfter)
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source

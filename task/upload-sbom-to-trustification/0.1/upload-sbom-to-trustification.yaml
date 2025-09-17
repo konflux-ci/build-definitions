@@ -4,6 +4,8 @@ metadata:
   annotations:
     tekton.dev/tags: "sbom, trustification"
   name: upload-sbom-to-trustification
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   description: |-
     Upload an SBOM file to [Trustification] using the [BOMbastic] API.
@@ -58,6 +60,10 @@ spec:
     secret:
       secretName: $(params.TRUSTIFICATION_SECRET_NAME)
       optional: true
+  - name: shared-folder
+    emptyDir:
+      medium: Memory
+      sizeLimit: 50Mi
   stepTemplate:
     env:
     - name: SBOMS_DIR
@@ -77,7 +83,7 @@ spec:
       mountPath: /run/secrets/trustification
   steps:
   - name: gather-sboms
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
@@ -137,7 +143,7 @@ spec:
 
   # Needs syft, which is in a different image => has to be a separate step
   - name: convert-sboms-if-needed
-    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.0.1@sha256:27c268d678103a27b6964c2cd5169040941b7304d0078f9727789ffb8ffba370
+    image: registry.redhat.io/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:dc0da6b4448428e625271b542cc029ab03de92f75ea50d6d63b1d088d20bbd28
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
@@ -162,10 +168,20 @@ spec:
       done
 
   - name: upload-sboms
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    volumeMounts:
+      - name: shared-folder
+        mountPath: /steps-shared-folder
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
+
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       shopt -s nullglob
       sboms_to_upload=("$WORKDIR"/*.json)
@@ -232,6 +248,14 @@ spec:
         sbom_id="$(basename -s .json "$sbom_path")"
         supported_version_of_sbom="${sbom_path}.supported_version"
 
+        # Generate URL to the SBOM in TPA and write it to a JSON file to use for eyecatcher
+        tpa_url=${bombastic_api_url//sbom/console}
+        tpa_sbom_id="${sbom_id//sha256:/sha256%3A}"
+        jq -n \
+          --arg url "$tpa_url/sbom/content/$tpa_sbom_id" \
+          '{"TPA_SBOM_URL": $url}' \
+            > /steps-shared-folder/tpa-sbom-url.json
+
         echo "Uploading SBOM to $bombastic_api_url (with id=$sbom_id)"
         # https://docs.trustification.dev/trustification/user/bombastic.html#publishing-an-sbom-doc
         curl "${curl_opts[@]}" \
@@ -240,5 +264,15 @@ spec:
           -H "transfer-encoding: chunked" \
           -H "content-type: application/json" \
           --data "@$supported_version_of_sbom" \
-          "$bombastic_api_url/api/v1/sbom?id=$sbom_id"
+          "$bombastic_api_url/api/v2/sbom?id=$sbom_id"
       done
+
+  - name: report
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    volumeMounts:
+      - name: shared-folder
+        mountPath: /steps-shared-folder
+    script: |
+      echo "TPA_SBOM_URL_EYECATCHER_BEGIN"
+      cat /steps-shared-folder/tpa-sbom-url.json
+      echo "TPA_SBOM_URL_EYECATCHER_END"

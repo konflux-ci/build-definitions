@@ -1,0 +1,162 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sealights-nodejs-oci-ta
+  labels:
+    konflux-ci/sealights: "true"
+    konflux-ci/sealights-language: "nodejs"
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+spec:
+  description: >-
+    This Tekton task automates the process of configuring your Node.js application with Sealights for quality analytics and testing.
+    It retrieves the source code from a trusted artifact, installs Node.js Sealights agent, configures the app for Sealights using
+    vars from your PipelineRun, scans all .js files, reports scan to Sealights, and stores results to be used later on in testing.
+    The task can be triggered by either Pull Request or other events.
+  results:
+    - name: sealights-bsid
+      type: string
+      description: "A unique identifier generated for the current Sealights build session."
+    - name: sealights-build-name
+      type: string
+      description: "A unique build name generated using the commit SHA and current date to prevent conflicts during test reruns."
+    - name: sealights-agent-version
+      type: string
+      description: "A version of the Sealights Node.js Agent"
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with the application source code.
+      type: string
+    - name: component
+      type: string
+      description: "The name of the Konflux component associated with the integration tests."
+    - name: is-frontend
+      type: string
+      default: "false"
+      description: "In case of frontend application the scanning part is skipped (it needs to be performed during deployment)"
+    - name: scm
+      type: string
+      default: "git"
+      description: "Source control used. Current options are: 'git', 'none'"
+    - name: scm-provider
+      type: string
+      default: "Github"
+      description: "The provider name of your Source Control Management (SCM) tool. Supported values are 'Github', 'Bitbucket' and 'Gitlab'."
+    - name: exclude
+      type: array
+      default: []
+      description: "A list of paths to exclude from Sealights instrumentation during the code scan. Specify paths to prevent them from being analyzed (e.g., 'tests/*','examples/*')."
+    - name: repository-url
+      type: string
+      description: "The name or URL of the source code repository (e.g., 'github.com/org/repo')."
+      default: ""
+    - name: branch
+      type: string
+      description: "The name of the Git branch to use for the operation (e.g., 'main' or 'feature-branch')."
+      default: "main"
+    - name: revision
+      type: string
+      description: "The Git revision (commit SHA) from which the test pipeline is originating."
+    - name: pull-request-number
+      type: string
+      description: "The identifier number of the pull request/merge request."
+      default: ""
+    - name: target-branch
+      type: string
+      description: "The name of the target branch for the pull request, typically the branch into which the changes will be merged (e.g., 'main', 'develop')."
+      default: "main"
+    - name: workspace-path
+      type: string
+      description: "Path to the directory that should be scanned"
+      default: "."
+  volumes:
+    - name: sealights-credentials
+      secret:
+        secretName: sealights-credentials
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /opt/app-root/src/app
+        name: workdir
+      - name: sealights-credentials
+        mountPath: /usr/local/sealights-credentials
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/opt/app-root/src/app
+    - name: sealights-nodejs-instrumentation
+      computeResources:
+        limits:
+          memory: 512Mi
+          cpu: 500m
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: quay.io/konflux-ci/tekton-integration-catalog/sealights-nodejs:latest@sha256:0701be7d6acba541e7e6acd678772186b099b03d3692552160c2b497a0f97829
+      workingDir: /opt/app-root/src/app
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: COMPONENT
+          value: $(params.component)
+        - name: IS_FRONTEND
+          value: $(params.is-frontend)
+        - name: SCM
+          value: $(params.scm)
+        - name: SCM_PROVIDER
+          value: $(params.scm-provider)
+        - name: REPOSITORY_URL
+          value: $(params.repository-url)
+        - name: BRANCH
+          value: $(params.branch)
+        - name: REVISION
+          value: $(params.revision)
+        - name: PULL_REQUEST_NUMBER
+          value: $(params.pull-request-number)
+        - name: TARGET_BRANCH
+          value: $(params.target-branch)
+        - name: TEST_EVENT
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['pipelinesascode.tekton.dev/event-type']
+        - name: WORKSPACE_PATH
+          value: $(params.workspace-path)
+      args: ["$(params.exclude[*])"]
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo -n "${AGENT_VERSION}" > "$(results.sealights-agent-version.path)"
+
+        export SEALIGHTS_TOKEN BUILD_NAME PATHS_EXCLUDED_ENUM
+        SEALIGHTS_TOKEN="$(cat /usr/local/sealights-credentials/token)"
+        BUILD_NAME="${REVISION}_$(date +'%y%m%d.%H%M')"
+        PATHS_EXCLUDED_ENUM="$(IFS=,; printf "%s," "$@" | sed 's/,$//')"
+
+        # In case build is coming from a /retest event then it's a pull_request
+        # if event type is not push and pull_request_number is not empty then is a pull_request
+        if [ "$TEST_EVENT" != "push" ] && [ -n "$PULL_REQUEST_NUMBER" ]; then
+          TEST_EVENT="pull_request"
+        fi
+        # Configures the app for Sealights using vars from your pipeline run.
+        if [[ -n "${TEST_EVENT}" && "${TEST_EVENT}" == "pull_request" ]]; then
+          echo "[INFO] Generate build session id from a Pull Request source code"
+          slnodejs prConfig --appname "${COMPONENT}" --targetBranch "${TARGET_BRANCH}" \
+            --pullRequestNumber "${PULL_REQUEST_NUMBER}" --latestCommit "${REVISION}" --repositoryUrl "${REPOSITORY_URL}" --token "${SEALIGHTS_TOKEN}"
+        else
+          echo "[INFO] Creating build session ID (BSID) for app: ${COMPONENT}, branch: ${BRANCH}, build: ${BUILD_NAME}..."
+          slnodejs config --appname "${COMPONENT}" --branch "${BRANCH}" --build "${BUILD_NAME}" --token "${SEALIGHTS_TOKEN}"
+        fi
+        # Skip scanning frontend applications
+        if [ "$IS_FRONTEND" != "true" ]; then
+          # Scans all .js files that are not in the --excludedpaths step above and reports scan to sealights.
+          slnodejs scan --buildsessionidfile buildSessionId --scm "${SCM}" --scmProvider "${SCM_PROVIDER}" --excludedpaths "${PATHS_EXCLUDED_ENUM}" --build "${BUILD_NAME}" --es6Modules --workspacepath "${WORKSPACE_PATH}" --projectroot "${WORKSPACE_PATH}" --token "${SEALIGHTS_TOKEN}"
+        fi
+        # Stores results to be used in future tasks for testing.
+        echo -n "$(cat buildSessionId)" > "$(results.sealights-bsid.path)"
+        echo -n "$BUILD_NAME" > "$(results.sealights-build-name.path)"

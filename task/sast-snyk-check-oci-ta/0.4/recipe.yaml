@@ -1,0 +1,13 @@
+---
+base: ../../sast-snyk-check/0.4/sast-snyk-check.yaml
+add:
+  - use-source
+  - use-prefetch
+preferStepTemplate: true
+removeWorkspaces:
+  - workspace
+replacements:
+  workspaces.workspace.path: /var/workdir
+regexReplacements:
+  hacbs/\$\(context.task.name\): source
+useTAVolumeMount: true

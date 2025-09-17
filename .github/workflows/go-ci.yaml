@@ -2,6 +2,8 @@ name: Validate PR - golang CI
 "on":
   pull_request:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
 jobs:
   lint:
     name: Lint
@@ -12,13 +14,13 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@58eda26a511c265ee35b3ee4b101fb8adfd76480
+        uses: golangci/golangci-lint-action@7574dab08b6e7a561d21c7f5c153fe1107cc0b2f
         with:
           working-directory: ${{matrix.path}}
           args: "--timeout=10m --build-tags='normal periodic'"
@@ -31,9 +33,9 @@ jobs:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
       - name: Install Go
-        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -66,14 +68,17 @@ jobs:
   security_scan:
     name: Security scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       matrix:
         path:
           - task-generator/remote
           - task-generator/trusted-artifacts
     steps:
-      - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
           go-version-file: './${{matrix.path}}/go.mod'
           cache-dependency-path: ./${{matrix.path}}/go.sum
@@ -84,7 +89,7 @@ jobs:
           # we let the report trigger content trigger a failure using the GitHub Security features.
           args: '-tags normal,periodic -no-fail -fmt sarif -out results.sarif ${{matrix.path}}/...'
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@3407610120cd5656b6fc71991415cb50748b9489
+        uses: github/codeql-action/upload-sarif@d7a501da0195366a45a932783bb4b1817372bf20
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: results.sarif

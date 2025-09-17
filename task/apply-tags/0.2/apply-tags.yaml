@@ -1,0 +1,119 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.2.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: apply-tags
+spec:
+  description: >-
+    Applies additional tags to the built image.
+  params:
+  - name: IMAGE_URL
+    description: Image repository and tag reference of the the built image.
+    type: string
+  - name: IMAGE_DIGEST
+    description: Image digest of the built image.
+    type: string
+  - name: ADDITIONAL_TAGS
+    description: Additional tags that will be applied to the image in the registry.
+    type: array
+    default: []
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+    - name: apply-additional-tags-from-parameter
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      args:
+        - $(params.ADDITIONAL_TAGS[*])
+      env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
+      script: |
+        #!/bin/bash
+
+        if [ "$#" -ne 0 ]; then
+          IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
+          for tag in "$@"; do
+            echo "Applying tag $tag"
+            skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
+          done
+        else
+          echo "No additional tags parameter specified"
+        fi
+
+    - name: apply-additional-tags-from-image-label
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          memory: 256Mi
+          cpu: 100m
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(params.IMAGE_DIGEST)
+      script: |
+        #!/bin/bash
+
+        skopeo_retries=3
+        IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
+
+        if ! raw_inspect=$(skopeo inspect --retry-times "$skopeo_retries" --raw "docker://${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"); then
+          echo "skopeo failed to inspect image: ${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
+          exit 1
+        fi
+
+        if manifest_digest=$(jq -e -r '.manifests[0].digest' <<< "$raw_inspect"); then
+            # use first image digest from index
+            CHECK_IMAGE="$IMAGE_WITHOUT_TAG@$manifest_digest"
+        else
+            # image is single manifest
+            CHECK_IMAGE="${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
+        fi
+
+        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --retry-times "$skopeo_retries" --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://${CHECK_IMAGE}")
+
+        if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
+          IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
+
+          for tag in "${tags_array[@]}"
+          do
+              echo "Applying tag $tag"
+              skopeo copy --retry-times "$skopeo_retries" --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
+          done
+        else
+          echo "No additional tags specified in the image labels"
+        fi
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true

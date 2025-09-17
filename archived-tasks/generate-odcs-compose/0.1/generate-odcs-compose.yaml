@@ -1,0 +1,58 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: generate-odcs-compose
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-03-15T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'This task is deprecated.
+      Please remove it from your pipeline.'
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  params:
+    - name: COMPOSE_INPUTS
+      description: relative path from workdir workspace to the compose inputs file
+      default: compose_inputs.yaml
+    - name: COMPOSE_OUTPUTS
+      description: relative path from workdir workspace to store compose output files
+      default: repos
+  workspaces:
+    - name: workdir
+      description: |
+        Working directory that will be used for reading configuration files
+        and writing the output
+  results:
+    - name: repodir_path
+      description: Directory to write the result .repo files.
+  steps:
+    - name: generate-odcs-compose
+      image: quay.io/redhat-appstudio/tools@sha256:89258fa69543312e80180a2308bcb84ef86bb0bcab8f8caa704327fc7d4dd9c9
+      env:
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: odcs-service-account
+              key: client-id
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: odcs-service-account
+              key: client-secret
+        - name: COMPOSE_INPUTS
+          value: "$(params.COMPOSE_INPUTS)"
+        - name: COMPOSE_OUTPUTS
+          value: "$(params.COMPOSE_OUTPUTS)"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        repodir_path="$(workspaces.workdir.path)/${COMPOSE_OUTPUTS}"
+
+        cd "$(workspaces.workdir.path)"
+
+        odcs_compose_generator \
+          --compose-input-yaml-path "${COMPOSE_INPUTS}" \
+          --compose-dir-path "${repodir_path}"
+
+        echo "$repodir_path" > $(results.repodir_path.path)

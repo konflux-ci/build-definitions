@@ -41,12 +41,13 @@ spec:
       name: hermetic
       type: string
       default: "false"
-    - description: Build dependencies to be prefetched by Cachi2
+    - description: Build dependencies to be prefetched
       name: prefetch-input
       type: string
       default: ""
     - description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
+      type: string
       default: ""
     - name: build-source-image
       description: Build a source image.
@@ -90,10 +91,6 @@ spec:
         - name: basic-auth
           workspace: git-auth
     - name: prefetch-dependencies
-      when:
-      - input: $(params.prefetch-input)
-        operator: notin
-        values: [""]
       params:
         - name: input
           value: $(params.prefetch-input)
@@ -101,7 +98,7 @@ spec:
         - clone-repository
       taskRef:
         name: prefetch-dependencies
-        version: "0.1"
+        version: "0.2"
       workspaces:
         - name: source
           workspace: workspace
@@ -155,10 +152,12 @@ spec:
         - build-image-index
       taskRef:
         name: source-build
-        version: "0.1"
+        version: "0.3"
       params:
         - name: BINARY_IMAGE
-          value: "$(params.output-image)"
+          value: "$(tasks.build-image-index.results.IMAGE_URL)"
+        - name: BINARY_IMAGE_DIGEST
+          value: "$(tasks.build-image-index.results.IMAGE_DIGEST)"
       workspaces:
         - name: workspace
           workspace: workspace
@@ -169,7 +168,7 @@ spec:
         values: ["false"]
       taskRef:
         name: deprecated-image-check
-        version: "0.4"
+        version: "0.5"
       params:
       - name: IMAGE_URL
         value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -186,7 +185,7 @@ spec:
         - build-image-index
       taskRef:
         name: clair-scan
-        version: "0.2"
+        version: "0.3"
       params:
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -201,7 +200,7 @@ spec:
         - build-image-index
       taskRef:
         name: ecosystem-cert-preflight-checks
-        version: "0.1"
+        version: "0.2"
       params:
       - name: image-url
         value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -214,7 +213,7 @@ spec:
         - build-image-index
       taskRef:
         name: sast-snyk-check
-        version: "0.3"
+        version: "0.4"
       workspaces:
       - name: workspace
         workspace: workspace
@@ -232,7 +231,7 @@ spec:
         - build-image-index
       taskRef:
         name: clamav-scan
-        version: "0.2"
+        version: "0.3"
       params:
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -250,14 +249,14 @@ spec:
         - coverity-availability-check
       taskRef:
         name: sast-coverity-check
-        version: "0.1"
+        version: "0.3"
       params:
         - name: image-digest
           value: $(tasks.build-image-index.results.IMAGE_DIGEST)
         - name: image-url
           value: $(tasks.build-image-index.results.IMAGE_URL)
       workspaces:
-        - name: workspace
+        - name: source
           workspace: workspace
     - name: coverity-availability-check
       when:
@@ -268,15 +267,7 @@ spec:
         - build-image-index
       taskRef:
         name: coverity-availability-check
-        version: "0.1"
-      params:
-        - name: image-digest
-          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-        - name: image-url
-          value: $(tasks.build-image-index.results.IMAGE_URL)
-      workspaces:
-        - name: workspace
-          workspace: workspace
+        version: "0.2"
     - name: sast-shell-check
       when:
         - input: $(params.skip-checks)
@@ -304,11 +295,13 @@ spec:
         - build-image-index
       taskRef:
         name: sast-unicode-check
-        version: "0.1"
+        version: "0.3"
       workspaces:
         - name: workspace
           workspace: workspace
       params:
+        - name: image-digest
+          value: $(tasks.build-image-index.results.IMAGE_DIGEST)
         - name: image-url
           value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: apply-tags
@@ -316,10 +309,12 @@ spec:
         - build-image-index
       taskRef:
         name: apply-tags
-        version: "0.1"
+        version: "0.2"
       params:
-      - name: IMAGE
+      - name: IMAGE_URL
         value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: push-dockerfile
       runAfter:
       - build-image-index
@@ -354,13 +349,6 @@ spec:
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
   finally:
-    - name: show-sbom
-      taskRef:
-        name: show-sbom
-        version: "0.1"
-      params:
-      - name: IMAGE_URL
-        value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: show-summary
       taskRef:
         name: summary

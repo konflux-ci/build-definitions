@@ -44,6 +44,93 @@ spec:
       emptyDir: {}
 
   steps:
+    # Safeguard to prevent a race condition that can occur with successive PRs being merged
+    # e.g., when a PR 'A' is merged and it takes a long time to build the container, then PR 'B' is merged and
+    # finishes before 'A'. Then 'A' finishes and modifies the update PR to an outdated version
+    - name: race-condition-update-check
+      image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:4f2e216ad46aa75f84e27aa2e6303327b99a4331c7ed8ef65850102898f3a9b0
+      env:
+        - name: TASKRUN_NAME
+          value: $(context.taskRun.name)
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Check possible race condition"
+
+        NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+        COORDINATION_LABEL="pipelinesascode.tekton.dev/original-prname"
+        SELF_PR_LABEL_JSONPATH='tekton\.dev/pipelineRun'
+
+        MY_PR_NAME=$(oc get taskrun -n "${NAMESPACE}" "${TASKRUN_NAME}" -o=jsonpath="{.metadata.labels['${SELF_PR_LABEL_JSONPATH}']}")
+        if [[ -z "${MY_PR_NAME}" ]]; then
+          echo "[ERROR] Could not find parent PipelineRun name on TaskRun '${TASKRUN_NAME}'." >&2
+          exit 1
+        fi
+
+        COORDINATION_LABEL_JSONPATH='pipelinesascode\.tekton\.dev/original-prname'
+        MY_DETAILS=$(oc get pipelinerun -n "${NAMESPACE}" "${MY_PR_NAME}" -o=jsonpath="{.metadata.labels['${COORDINATION_LABEL_JSONPATH}']}{' '}{.metadata.creationTimestamp}")
+        read -r COORDINATION_VALUE MY_TIMESTAMP <<< "${MY_DETAILS}"
+
+        if [[ -z "${COORDINATION_VALUE}" || -z "${MY_TIMESTAMP}" ]]; then
+          echo "[ERROR] Could not get coordination value or timestamp from PipelineRun '${MY_PR_NAME}'." >&2
+          exit 1
+        fi
+
+        echo "Getting other running PipelineRuns..."
+        OLDER_RUNNING_PRS=""
+        ALL_PRS_OUTPUT=$(oc get pipelinerun -n "${NAMESPACE}" \
+          -l "${COORDINATION_LABEL}=${COORDINATION_VALUE}" \
+          -o='custom-columns=NAME:.metadata.name,TIMESTAMP:.metadata.creationTimestamp,SUCCEEDED:.status.conditions[?(@.type=="Succeeded")].status' --no-headers)
+
+        echo "Processing competing PipelineRuns list..."
+        while read -r pr_name pr_timestamp pr_status; do
+          if [[ -z "${pr_name}" ]]; then
+              echo "  - Skipping empty line..."
+              continue
+          fi
+
+          echo "--------------------------------"
+          echo "  Inspecting PR: '${pr_name}'"
+
+          if [[ "${pr_name}" == "${MY_PR_NAME}" ]]; then
+            echo "  - This is the current PipelineRun, skipping..."
+            continue
+          fi
+
+          if [[ "${pr_timestamp}" < "${MY_TIMESTAMP}" ]]; then
+            echo "  - Timestamp check: [${pr_timestamp}] is OLDER than my time [${MY_TIMESTAMP}]. [PASS]"
+            if [[ "${pr_status}" != "True" ]] && [[ "${pr_status}" != "False" ]]; then
+              echo "  - PR ('${pr_name}') is still running, adding '${pr_name}' to the wait list..."
+              OLDER_RUNNING_PRS+="${pr_name} "
+            else
+              echo "  - PR ('${pr_name}') already finished, skipping..."
+            fi
+          else
+            echo "  - PR ('${pr_name}') is NEWER than 'self' PR, skipping..."
+          fi
+
+        done <<< "${ALL_PRS_OUTPUT}"
+        echo "===================================================="
+
+        if [[ -z "${OLDER_RUNNING_PRS}" ]]; then
+          echo "No older running PipelineRuns found, proceeding immediately..."
+          exit 0
+        fi
+
+        echo "Waiting for older PipelineRuns to complete: ${OLDER_RUNNING_PRS}"
+        for pr_to_wait_for in ${OLDER_RUNNING_PRS}; do
+          echo "  - Waiting for '${pr_to_wait_for}'..."
+
+          if ! oc wait --for=condition=Succeeded -n "${NAMESPACE}" "pipelinerun/${pr_to_wait_for}" --timeout=2h; then
+            echo "[ERROR]: Failed while waiting for PipelineRun '${pr_to_wait_for}' to complete, it may have timed out, failed, or been cancelled..." >&2
+            exit 1
+          fi
+
+          echo "  - '${pr_to_wait_for}' has completed."
+        done
+
+        echo "--- All older PipelineRuns have finished. Proceeding... ---"
     - name: git-clone-infra-deployments
       image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:v1.8.2-8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8
       volumeMounts:
@@ -109,7 +196,7 @@ spec:
 
       # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
-      image: registry.access.redhat.com/ubi9/python-39:9.5-1734610342@sha256:dde5068ba8fd81eef41a9128ddad2b99e2e02e5869ffe925c605b609a0ad7bbb
+      image: registry.access.redhat.com/ubi9/python-39:9.6-1756977309@sha256:cc46d2979862d93e9da4d021e9100c7feb542dac3157acb2715b8baf54730c2b
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       volumeMounts:
@@ -153,6 +240,7 @@ spec:
 
         ORIGIN_REPO = os.environ["ORIGIN_REPO"]
         TARGET_GH_REPO = os.environ["TARGET_GH_REPO"]
+        REVISION = os.environ["REVISION"]
 
 
         class Response:
@@ -227,6 +315,13 @@ spec:
                 except urllib.error.HTTPError as e:
                     return Response(e.read(), e.code)
 
+            def _get_branch_ref_sha(self, repo, branch):
+                req = self._request("GET", f"/repos/{repo}/git/refs/heads/{branch}")
+
+                if req.status == 200:
+                    return req.json()["object"]["sha"], 200
+                return "", req.status
+
             def create_mr(self):
                 repo_name = ORIGIN_REPO.split('/')[-1]
                 logger.info("Create update pull request, head: %s, base: main", repo_name)
@@ -249,22 +344,35 @@ spec:
 
             def create_reset_branch(self):
                 branch = ORIGIN_REPO.split('/')[-1]
-                target_branch = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}").json()
-                main_branch_sha = self._request("GET", f"/repos/{TARGET_GH_REPO}/git/refs/heads/main").json()['object']['sha']
-                if "ref" in target_branch:
+                _, target_status_code = self._get_branch_ref_sha(TARGET_GH_REPO, branch)
+                main_branch_sha, main_status_code = self._get_branch_ref_sha(TARGET_GH_REPO, "main")
+
+                if main_status_code != 200:
+                    logger.error(f"Could not retrieve SHA for 'main' branch in target repo '{TARGET_GH_REPO}', status: {main_status_code}")
+                    raise RuntimeError(f"Failed to get required 'main' branch SHA from repository {TARGET_GH_REPO}")
+
+                response = Response(content="", status=-1)
+                if target_status_code == 200:
                     logger.info("Update branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "PATCH",
                         f"/repos/{TARGET_GH_REPO}/git/refs/heads/{branch}",
                         data={"sha": main_branch_sha, "force": True}
                     )
-                else:
+                elif target_status_code == 404:
                     logger.info("Create branch %s", branch)
-                    self._request(
+                    response = self._request(
                         "POST",
                         f"/repos/{TARGET_GH_REPO}/git/refs",
                         data={"sha": main_branch_sha, "ref": f"refs/heads/{branch}"}
                     )
+                else:
+                    logger.error(f"Could not determine status of branch '{branch}' in target repo '{TARGET_GH_REPO}', received unexpected status: {target_status_code}")
+                    raise RuntimeError(f"Unexpected error while checking for branch '{branch}' in {TARGET_GH_REPO}")
+
+                if response.status not in (200, 201):  # either updated or created
+                    logger.error(f"Failed to create/update reset branch. GitHub API responded with status code: {response.status}")
+                    raise RuntimeError(f"Failed to create/update reset branch. Response status code: {response.status}")
 
             def upload_content(self):
                 branch = ORIGIN_REPO.split('/')[-1]
@@ -346,7 +454,7 @@ spec:
             description = infra_pr["body"]
             if description == None:
                 description = "Included PRs:"
-            new_pr_link = github_app.get_pr_url_from_sha(os.environ["REVISION"])
+            new_pr_link = github_app.get_pr_url_from_sha(REVISION)
             new_description = f"{description}\r\n- {new_pr_link}"
             logger.info("Update description of pull request %s:\n%s", infra_pr["url"], new_description)
             github_app.update_mr_description(infra_pr["url"], new_description)

@@ -1,0 +1,113 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: ecosystem-cert-preflight-checks
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: >-
+    Scans container images for certification readiness
+  params:
+    - name: image-url
+      description: Image url to scan.
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  results:
+    - name: TEST_OUTPUT
+      description: Preflight pass or fail outcome.
+  steps:
+    - name: check-container
+      image: quay.io/opdev/preflight:stable@sha256:3f5b988200a3fd490e0a102a4851e0a81f2f41e724e7482a726b79b9d5ccd3b6
+      args: ["check", "container", "$(params.image-url)"]
+      resources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: 100m
+          memory: 4Gi
+      env:
+        - name: PFLT_DOCKERCONFIG
+          value: /root/.docker/config.json
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
+    - name: gather-pflt-results
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      volumeMounts:
+        - name: pfltoutputdir
+          mountPath: /artifacts
+      script: |
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        # Declare Supported architectures
+        declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
+
+        # Initialize result vars
+        PFLT_PASS_COUNT=0
+        PFLT_FAIL_COUNT=0
+        PFLT_ERROR_COUNT=0
+        PFLT_RESULT="SUCCESS"
+
+        # Loop over SUPPORTED_ARCHES and process results
+        for ARCH in "${SUPPORTED_ARCHES[@]}"
+        do
+            # Check if results directory exits
+            RESULT_JSON_PATH=artifacts/${ARCH}/results.json
+            if ! [ -f "${RESULT_JSON_PATH}" ]; then
+                continue
+            fi
+            # Process results
+            if jq -e '.passed == false' "${RESULT_JSON_PATH}" > /dev/null; then PFLT_RESULT="FAILURE"; fi
+            PFLT_PASS_COUNT=$((PFLT_PASS_COUNT+$(jq -r '.results.passed | length' "${RESULT_JSON_PATH}")))
+            PFLT_FAIL_COUNT=$((PFLT_FAIL_COUNT+$(jq -r '.results.failed | length' "${RESULT_JSON_PATH}")))
+            PFLT_ERROR_COUNT=$((PFLT_ERROR_COUNT+$(jq -r '.results.errors | length' "${RESULT_JSON_PATH}")))
+        done
+
+        if [[ $PFLT_ERROR_COUNT -gt 0 ]]; then PFLT_RESULT="ERROR" ; fi
+        PFLT_NOTE="Task preflight is a ${PFLT_RESULT}: Refer to Tekton task logs for more information"
+
+        # Generate TEST_OUTPUT
+        TEST_OUTPUT=$(jq -rce \
+        --arg date "$(date +%s)" \
+        --arg note "${PFLT_NOTE}" \
+        --arg result "${PFLT_RESULT}" \
+        --arg successes "${PFLT_PASS_COUNT}" \
+        --arg failures "${PFLT_FAIL_COUNT}" \
+        --arg warnings "0" \
+        --null-input \
+        '{  result: $result,
+            timestamp: $date,
+            note: $note,
+            successes: $successes|tonumber,
+            failures: $failures|tonumber,
+            warnings: $warnings|tonumber
+        }')
+        echo -n "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)
+  volumes:
+    - name: pfltoutputdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true

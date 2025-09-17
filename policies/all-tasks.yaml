@@ -29,3 +29,14 @@ sources:
         - step_image_registries
         - step_images
         - trusted_artifacts
+      exclude:
+        # https://issues.redhat.com/browse/EC-1038
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202412.7
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202503.0
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202503.1
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202503.2
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity:202503.3
+        - step_images.step_images_accessible:registry.access.redhat.com/ubi8/nodejs-$(params.nodejs-version):latest
+        - step_images.step_images_accessible:registry.access.redhat.com/ubi8/python-$(params.python-version):latest
+        - step_images.step_images_accessible:registry.access.redhat.com/ubi8/go-toolset:$(params.go-version)
+        - step_images.step_images_accessible:quay.io/redhat-services-prod/sast/coverity@sha256:74acd719f15b15e41a6d0440c0cff47d4303bf38feefcbb06efb4ae05699bed8

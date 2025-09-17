@@ -1,0 +1,44 @@
+name: Check task migrations
+"on":
+  pull_request:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: kind
+      - uses: tektoncd/actions/setup-tektoncd@main
+        id: setup-tektoncd
+        with:
+          pipeline_version: latest
+        continue-on-error: true
+      - name: Describe setup-tektoncd failure
+        if: steps.setup-tektoncd.outcome != 'success'
+        run: |
+          curl -s https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq
+          echo "The previous action setup-tektoncd seems to have failed due to a known issue caused by hitting the rate-limit"
+          echo "For more information, follow the following issue: https://github.com/tektoncd/actions/issues/9"
+          echo "The only known workaround at the moment is to re-run this workflow."
+          exit 1
+      - name: Run check
+        run: |
+          DEBIAN_FRONTEND=noninteractive \
+          sudo apt-get install -y --no-install-recommends \
+              tzdata python3-ruamel.yaml
+
+          kubectl get all -n tekton-pipelines
+          # Require name main
+          git branch main origin/main
+          # Make `git branch --show-current` works.
+          git checkout -b pr-verify
+          export IN_CLUSTER=1
+          bash ./hack/validate-migration.sh

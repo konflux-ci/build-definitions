@@ -50,6 +50,11 @@ spec:
       description: HTTPS proxy server for SSL requests.
       type: string
       default: ""
+    - name: mergeTargetBranch
+      description: Set to "true" to merge the targetBranch into the checked-out
+        revision.
+      type: string
+      default: "false"
     - name: noProxy
       description: Opt out of proxying HTTP/HTTPS requests.
       type: string
@@ -89,6 +94,11 @@ spec:
       description: Initialize and fetch git submodules.
       type: string
       default: "true"
+    - name: targetBranch
+      description: The target branch to merge into the revision (if mergeTargetBranch
+        is true).
+      type: string
+      default: main
     - name: url
       description: Repository URL to clone from.
       type: string
@@ -117,6 +127,9 @@ spec:
       description: The precise commit SHA that was fetched by this Task.
     - name: commit-timestamp
       description: The commit timestamp of the checkout
+    - name: merged_sha
+      description: The SHA of the commit after merging the target branch (if
+        the param mergeTargetBranch is true).
     - name: short-commit
       description: The commit SHA that was fetched by this Task limited to
         params.shortCommitLength number of characters
@@ -150,7 +163,7 @@ spec:
       optional: true
   steps:
     - name: clone
-      image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
+      image: quay.io/konflux-ci/git-clone@sha256:0e92b8a655d7b2eeba6442bbe008c92ad7f21ea23d8ad76cd95d45353338c1e0
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -190,6 +203,10 @@ spec:
           value: $(params.fetchTags)
         - name: PARAM_FETCH_SUBMODULE_TAGS
           value: $(params.fetchSubmoduleTags)
+        - name: PARAM_MERGE_TARGET_BRANCH
+          value: $(params.mergeTargetBranch)
+        - name: PARAM_TARGET_BRANCH
+          value: $(params.targetBranch)
         - name: WORKSPACE_SSH_DIRECTORY_BOUND
           value: $(workspaces.ssh-directory.bound)
         - name: WORKSPACE_SSH_DIRECTORY_PATH
@@ -258,6 +275,46 @@ spec:
         if [ "${EXIT_CODE}" != 0 ]; then
           exit "${EXIT_CODE}"
         fi
+        if [ "${PARAM_MERGE_TARGET_BRANCH}" = "true" ]; then
+          echo "Merge option enabled. Attempting to merge target branch '${PARAM_TARGET_BRANCH}' into HEAD (${RESULT_SHA})."
+          echo "Fetching target branch '${PARAM_TARGET_BRANCH}'..."
+          git fetch origin "${PARAM_TARGET_BRANCH}"
+          FETCH_EXIT_CODE="$?"
+          if [ "${FETCH_EXIT_CODE}" != "0" ]; then
+            echo "ERROR: Failed to fetch target branch '${PARAM_TARGET_BRANCH}'." >&2
+            exit "${FETCH_EXIT_CODE}"
+          fi
+          echo "Merging origin/${PARAM_TARGET_BRANCH} into current HEAD..."
+          git config --global user.email "tekton-git-clone@tekton.dev"
+          git config --global user.name "Tekton Git Clone Task"
+          git merge "origin/${PARAM_TARGET_BRANCH}" --no-commit --no-ff --allow-unrelated-histories
+          MERGE_CHECK_EXIT_CODE="$?"
+          if [ "${MERGE_CHECK_EXIT_CODE}" != "0" ]; then
+            echo "ERROR: Merge conflict detected or merge failed before commit." >&2
+            echo "--- Git Status ---"
+            git status
+            echo "------------------"
+            exit "${MERGE_CHECK_EXIT_CODE}"
+          else
+            # Check if there are changes that need to be merged, and if so, create a merge commit.
+            if git diff --staged --quiet; then
+              echo "No diff was found, skipping merge..." >&2
+            else
+              echo "Merge successful (no conflicts found), committing..."
+              git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' into ${RESULT_SHA}"
+              COMMIT_EXIT_CODE="$?"
+              if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
+                echo "ERROR: Failed to commit merge." >&2
+                exit "${COMMIT_EXIT_CODE}"
+              fi
+              MERGED_SHA=$(git rev-parse HEAD)
+              echo "New HEAD after merge: ${MERGED_SHA}"
+              echo "${MERGED_SHA}" >"$(results.merged_sha.path)"
+            fi
+          fi
+        else
+          echo "Merge option disabled. Using checked-out revision ${RESULT_SHA} directly."
+        fi
         printf "%s" "${RESULT_SHA}" >"$(results.commit.path)"
         printf "%s" "${RESULT_SHA}" >"$(results.CHAINS-GIT_COMMIT.path)"
         printf "%s" "${RESULT_SHA_SHORT}" >"$(results.short-commit.path)"
@@ -267,7 +324,10 @@ spec:
 
         if [ "${PARAM_FETCH_TAGS}" = "true" ]; then
           echo "Fetching tags"
-          git fetch --tags
+          if ! git fetch --tags; then
+            echo "Retrying fetch command..."
+            git fetch --tags
+          fi
         fi
         if [ "${PARAM_FETCH_SUBMODULE_TAGS}" = "true" ]; then
           echo "Fetching tags of submodules"
@@ -276,7 +336,7 @@ spec:
       securityContext:
         runAsUser: 0
     - name: symlink-check
-      image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
+      image: quay.io/konflux-ci/git-clone@sha256:0e92b8a655d7b2eeba6442bbe008c92ad7f21ea23d8ad76cd95d45353338c1e0
       volumeMounts:
         - mountPath: /var/workdir
           name: workdir
@@ -291,7 +351,7 @@ spec:
 
         check_symlinks() {
           FOUND_SYMLINK_POINTING_OUTSIDE_OF_REPO=false
-          while read symlink; do
+          while read -r symlink; do
             target=$(readlink -m "$symlink")
             if ! [[ "$target" =~ ^$CHECKOUT_DIR ]]; then
               echo "The cloned repository contains symlink pointing outside of the cloned repository: $symlink"
@@ -308,7 +368,7 @@ spec:
           check_symlinks
         fi
     - name: create-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:ff35e09ff5c89e54538b50abae241a765b2b7868f05d62c4835bebf0978f3659
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9c7df11f4403488294cabe594676eef1a3df525a06fd62cbc3ba8601568b34ed
       args:
         - create
         - --store
@@ -317,12 +377,15 @@ spec:
       volumeMounts:
         - mountPath: /var/workdir
           name: workdir
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
         - name: IMAGE_EXPIRES_AFTER
           value: $(params.ociArtifactExpiresAfter)
       computeResources:
         limits:
-          cpu: "1"
           memory: 3Gi
         requests:
           cpu: "1"

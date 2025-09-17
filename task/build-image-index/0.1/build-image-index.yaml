@@ -38,6 +38,10 @@ spec:
     description: Storage driver to configure for buildah
     type: string
     default: vfs
+  - name: BUILDAH_FORMAT
+    description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
+    type: string
+    default: oci
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -57,7 +61,7 @@ spec:
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
-      value: oci
+      value: $(params.BUILDAH_FORMAT)
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: IMAGE
@@ -72,7 +76,7 @@ spec:
       - name: shared-dir
         mountPath: /index-build-data
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:b2d6c32d1e05e91920cd4475b2761d58bb7ee11ad5dff3ecb59831c7572b4d0c
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: build
@@ -121,20 +125,38 @@ spec:
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
 
-      status=-1
-      max_run=5
-      sleep_sec=10
-      for run in $(seq 1 $max_run); do
-        status=0
-        [ "$run" -gt 1 ] && sleep $sleep_sec
-        echo "Pushing image to registry"
-        buildah manifest push \
-          --tls-verify=$TLSVERIFY \
-          --digestfile image-digest $IMAGE \
-          docker://$IMAGE && break || status=$?
-      done
-      if [ "$status" -ne 0 ]; then
-          echo "Failed to push image to registry after ${max_run} tries"
+      # While the BUILDAH_FORMAT environment variable can define the push
+      # format, lets be explicit about the format that we want when we push.
+      push_format=oci
+      if [ "${BUILDAH_FORMAT}" == "docker" ]; then
+        push_format=docker
+      fi
+
+      buildah_retries=3
+
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://$IMAGE"
+      then
+          echo "Failed to push image ${IMAGE} to registry"
+          exit 1
+      fi
+
+      echo "Pushing image to registry"
+      if ! retry buildah manifest push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile image-digest \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:$(context.taskRun.name)"
+      then
+          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry"
           exit 1
       fi
 
@@ -154,21 +176,20 @@ spec:
       } > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
 
-      IMAGE_DIGEST=$(cat image-digest)
-
-      INDEX_IMAGE_PULLSPEC="${IMAGE}@${IMAGE_DIGEST}"
-      buildah manifest inspect "$INDEX_IMAGE_PULLSPEC" > /index-build-data/manifest_data.json
+      # buildah manifest inspect will always give precedence to the local image.
+      # Since we built this image in the same place as we are inspecting it, we can
+      # just inspect it instead of finding the digest and inspecting the remote image.
+      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
           - SETFCAP
 
-  - image: quay.io/redhat-appstudio/sbom-utility-scripts-image@sha256:9f1fd11d9c3c517ecc112d192ad361d16ecf6ce00b83b109c93cf3d1c644a357
+  - image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
     name: create-sbom
     computeResources:
       limits:
         memory: 512Mi
-        cpu: 200m
       requests:
         memory: 256Mi
         cpu: 100m
@@ -185,25 +206,35 @@ spec:
       IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
       IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
       echo "Creating SBOM result file..."
-      python3 index_image_sbom_script.py \
-        --image-index-url "$IMAGE_URL" \
-        --image-index-digest "$IMAGE_DIGEST" \
-        --inspect-input-file "$MANIFEST_DATA_FILE" \
-        --output-path /index-build-data/sbom-results.json
+      mobster generate \
+        --output /index-build-data/index.spdx.json \
+        oci-index \
+        --index-image-pullspec "$IMAGE_URL" \
+        --index-image-digest "$IMAGE_DIGEST" \
+        --index-manifest-path "$MANIFEST_DATA_FILE" \
 
   - name: upload-sbom
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
     script: |
       #!/bin/bash
       set -e
 
-      SBOM_RESULT_FILE="/index-build-data/sbom-results.json"
+      SBOM_RESULT_FILE="/index-build-data/index.spdx.json"
       if [ ! -f "$SBOM_RESULT_FILE" ]; then
-        echo "The sbom_results.json file does not exists. Skipping the SBOM upload..."
+        echo "The index.spdx.json file does not exists. Skipping the SBOM upload..."
         exit 0
       fi
 
-      cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom "$SBOM_RESULT_FILE" --type spdx "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
@@ -213,7 +244,6 @@ spec:
     computeResources:
       limits:
         memory: 512Mi
-        cpu: 200m
       requests:
         memory: 256Mi
         cpu: 100m

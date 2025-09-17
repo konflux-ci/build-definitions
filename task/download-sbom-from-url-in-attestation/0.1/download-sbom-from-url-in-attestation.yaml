@@ -4,6 +4,8 @@ metadata:
   annotations:
     tekton.dev/tags: "sbom, attestation, cosign"
   name: download-sbom-from-url-in-attestation
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   description: |-
     Get the SBOM for an image by downloading the OCI blob referenced in the image attestation.
@@ -95,10 +97,17 @@ spec:
       value: /tekton/home
   steps:
   - name: download-attestations
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
+
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       if [[ -z "$PUBLIC_KEY" ]]; then
         echo "No public key set, cannot verify attestation." >&2
@@ -130,10 +139,17 @@ spec:
       done
 
   - name: download-sboms
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
     script: |
       #!/usr/bin/env bash
       set -o errexit -o nounset -o pipefail
+
+      ca_bundle=/tekton-custom-certs/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       get_from_www_auth_header() {
           local www_authenticate=$1

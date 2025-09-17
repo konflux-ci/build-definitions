@@ -2,7 +2,7 @@
 - op: add
   path: /spec/description
   value: |
-    This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/advanced-how-tos/building-olm.adoc#building-the-file-based-catalog).
+    This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/end-to-end/building-olm/#building-the-file-based-catalog).
 
     _Uses `buildah` to create a container image. Its build-time tests are limited to verifying the included catalog and do not scan the image.
     This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-fbc-builder?tab=tags)_
@@ -31,55 +31,83 @@
 #     11  build-image-index
 #     12  build-args
 #     13  build-args-file
-#     14  build-platforms
+#     14  privileged-nested
+#     15  build-platforms
+- op: remove
+  path: /spec/params/14
 - op: replace
   path: /spec/params/7/default
   value: "true"
-# Remove tasks
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.[].name" | nl -v 0
-#      0  init
-#      1  clone-repository
-#      2  prefetch-dependencies
-#      3  build-images
-#      4  build-image-index
-#      5  build-source-image
-#      6  deprecated-base-image-check
-#      7  clair-scan
-#      8  ecosystem-cert-preflight-checks
-#      9  sast-snyk-check
-#     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
+- op: add
+  path: /spec/tasks/2
+  value:
+    name: run-opm-command
+    runAfter:
+      - clone-repository
+    taskRef:
+      name: run-opm-command-oci-ta
+      version: "0.1"
+    params:
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).opm
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      - name: OPM_ARGS
+        value: []
+      - name: OPM_OUTPUT_PATH
+        value: ""
+      - name: IDMS_PATH
+        value: ""
 - op: replace
   path: /spec/tasks/3/runAfter/0
+  value: run-opm-command
+- op: replace
+  path: /spec/tasks/3/params/1/value
+  value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
+- op: replace
+  path: /spec/tasks/4/runAfter/0
   value: clone-repository
+# Remove params
+# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
+#      0	IMAGE
+#      1	DOCKERFILE
+#      2	CONTEXT
+#      3	HERMETIC
+#      4	PREFETCH_INPUT
+#      5	IMAGE_EXPIRES_AFTER
+#      6	COMMIT_SHA
+#      7	BUILD_ARGS
+#      8	BUILD_ARGS_FILE
+#      9	PRIVILEGED_NESTED
+#     10	SOURCE_ARTIFACT
+#     11	CACHI2_ARTIFACT
+#     12	IMAGE_APPEND_PLATFORM
 - op: remove
-  path: /spec/tasks/17  # rpms-signature-scan
+  path: /spec/tasks/4/params/9
 - op: remove
-  path: /spec/tasks/16  # push-dockerfile
+  path: /spec/tasks/18  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/14  # sast-unicode-scan
+  path: /spec/tasks/17  # push-dockerfile
 - op: remove
-  path: /spec/tasks/13  # sast-shell-scan
+  path: /spec/tasks/15  # sast-unicode-scan
 - op: remove
-  path: /spec/tasks/12  # coverity-availability-check
+  path: /spec/tasks/14  # sast-shell-scan
 - op: remove
-  path: /spec/tasks/11  # sast-coverity-check
+  path: /spec/tasks/13  # coverity-availability-check
 - op: remove
-  path: /spec/tasks/10  # clamav-scan
+  path: /spec/tasks/12  # sast-coverity-check
 - op: remove
-  path: /spec/tasks/9  # sast-snyk-check
+  path: /spec/tasks/11  # clamav-scan
 - op: remove
-  path: /spec/tasks/8  # ecosystem-cert-preflight-checks
+  path: /spec/tasks/10  # sast-snyk-check
 - op: remove
-  path: /spec/tasks/7  # clair-scan
+  path: /spec/tasks/9  # ecosystem-cert-preflight-checks
 - op: remove
-  path: /spec/tasks/5  # build-source-image
+  path: /spec/tasks/8  # clair-scan
+- op: remove
+  path: /spec/tasks/6  # build-source-image
 - op: add
   path: /spec/tasks/-
   value:
@@ -98,3 +126,45 @@
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: IMAGE_DIGEST
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-target-index-pruning-check
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - validate-fbc
+    taskRef:
+      name: fbc-target-index-pruning-check
+      version: "0.1"
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: TARGET_INDEX
+      value: registry.redhat.io/redhat/redhat-operator-index
+    - name: RENDERED_CATALOG_DIGEST
+      value: $(tasks.validate-fbc.results.RENDERED_CATALOG_DIGEST)
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: fbc-fips-check-oci-ta
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values: ["false"]
+    runAfter:
+      - build-image-index
+    taskRef:
+      name: fbc-fips-check-oci-ta
+      version: "0.1"
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)

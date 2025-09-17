@@ -7,6 +7,8 @@ metadata:
     task.results.type: roxctl-image-check
     task.results.container: step-report
     task.output.location: logs
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   description: Policy check an image with StackRox/RHACS This tasks allows you to
     check an image against build-time policies and apply enforcement to fail builds.
@@ -53,7 +55,7 @@ spec:
         oc annotate taskrun $(context.taskRun.name) task.output.location=logs
 
     - name: rox-image-check
-      image: registry.access.redhat.com/ubi8-minimal@sha256:cf095e5668919ba1b4ace3888107684ad9d587b1830d3eb56973e6a54f456e67
+      image: registry.access.redhat.com/ubi8-minimal@sha256:43dde01be4e94afd22d8d95ee8abcc9f610b4e50aff5bcc141b558c74d4c68b5
       volumeMounts:
         - name: rox-secret
           mountPath: /rox-secret
@@ -66,11 +68,12 @@ spec:
           value: $(params.image)
         - name: PARAM_IMAGE_DIGEST
           value: $(params.image-digest)
+      onError: continue
       script: |
         #!/usr/bin/env bash
         set +x
 
-        # Check if rox API enpoint is configured
+        # Check if rox API endpoint is configured
         if test -f /rox-secret/rox-api-endpoint ; then
           export ROX_CENTRAL_ENDPOINT=$(</rox-secret/rox-api-endpoint)
         else
@@ -104,7 +107,7 @@ spec:
         fi
         received_filesize=$(stat -c%s ./roxctl)
         if (( $received_filesize < 10000 )); then
-          # Responce from ACS server is not a binary but error message
+          # Response from ACS server is not a binary but error message
           cat ./roxctl
           echo 'Failed to download roxctl'
           exit 2
@@ -118,13 +121,70 @@ spec:
           echo -n "--insecure-skip-tls-verify") \
           -e "${ROX_CENTRAL_ENDPOINT}" --image "$IMAGE" --output json --force \
           > roxctl_image_check_output.json
+
+        ROXCTL_CHECK_STATUS=$?
+
         cp roxctl_image_check_output.json /steps-shared-folder/acs-image-check.json
 
+        # Exit code 3 means the error occurred during roxctl image check, but setup was successful
+        if [ "$ROXCTL_CHECK_STATUS" -ne 0 ]; then
+          exit 3
+        fi
+
     - name: report
-      image: registry.access.redhat.com/ubi8-minimal@sha256:cf095e5668919ba1b4ace3888107684ad9d587b1830d3eb56973e6a54f456e67
+      image: registry.access.redhat.com/ubi8-minimal@sha256:43dde01be4e94afd22d8d95ee8abcc9f610b4e50aff5bcc141b558c74d4c68b5
       volumeMounts:
         - name: shared-folder
           mountPath: /steps-shared-folder
       script: |
         #!/usr/bin/env bash
+        set -euo pipefail
+
         cat /steps-shared-folder/acs-image-check.json
+
+    - name: fail-if-check-failed
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      volumeMounts:
+        - name: shared-folder
+          mountPath: /steps-shared-folder
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        ROX_IMAGE_CHECK_EXIT_CODE_PATH=$(steps.step-rox-image-check.exitCode.path)
+        ROX_IMAGE_CHECK_STATUS=$(cat "$ROX_IMAGE_CHECK_EXIT_CODE_PATH")
+
+        if [ "$ROX_IMAGE_CHECK_STATUS" -eq 0 ]
+        then
+          echo "No errors occurred"
+          exit
+        fi
+
+        # Fail on non-zero rox-image-check step exit code
+        # Except if the error is due to policy violations (exit code 3 && at least one severe violation)
+        if [ "$ROX_IMAGE_CHECK_STATUS" -ne 3 ]
+        then
+          echo "Error occurred during setup of roxctl"
+          exit "$ROX_IMAGE_CHECK_STATUS"
+        fi
+
+        # Number of policy violations with Critical and High severity parsed from the report
+        severe_violations=$(
+          jq '.summary |
+            with_entries(
+              select(.key | IN("CRITICAL", "HIGH"))
+            ) |
+            add' \
+            /steps-shared-folder/acs-image-check.json
+        )
+
+        # If roxctl image check exited with non-zero code and it is not because of policy violations, report error
+        if [[ "$severe_violations" -eq 0 ]]
+        then
+          echo "Error occurred during roxctl image check, please check the logs of rox-image-check step."
+          exit "$ROX_IMAGE_CHECK_STATUS"
+        else
+          echo "Note: Violations are reported for informational purposes only and do not cause the task to fail."
+        fi
+
+        echo "No errors occurred"

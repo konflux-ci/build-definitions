@@ -23,3 +23,5 @@ Note that this task needs the output of prefetch-dependencies task. If it is not
 |IMAGE_URL|OCI-Artifact repository and tag where the built OCI-Artifact was pushed|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 
+
+## Additional info

@@ -1,0 +1,203 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: slack-webhook-notification-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: Sends message to slack using incoming webhook
+  params:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: files
+      description: List of file to dump. The content will be added to the
+        message.
+      type: array
+      default: []
+    - name: key-name
+      description: Key in the key in secret which contains webhook URL for
+        slack.
+    - name: message
+      description: Message to be sent
+    - name: secret-name
+      description: |
+        Secret with at least one key where value is webhook URL for slack.
+        eg. oc create secret generic my-secret --from-literal team1=https://hooks.slack.com/services/XXX/XXXXXX --from-literal team2=https://hooks.slack.com/services/YYY/YYYYYY
+      default: slack-webhook-notification-secret
+    - name: submodules
+      description: List of submodules name to dump. Git log since previous
+        submodule commit will be added to the message. The previous submodule
+        commit is found by looking at the previous commit in the repository
+        that declares the submodules.
+      type: array
+      default: []
+  volumes:
+    - name: webhook-secret
+      secret:
+        optional: true
+        secretName: $(params.secret-name)
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9c7df11f4403488294cabe594676eef1a3df525a06fd62cbc3ba8601568b34ed
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: send-message
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      args:
+        - --files
+        - $(params.files[*])
+        - --submodules
+        - $(params.submodules[*])
+      workingDir: /var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/secrets
+          name: webhook-secret
+          readOnly: true
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: KEY_NAME
+          value: $(params.key-name)
+        - name: MESSAGE
+          value: $(params.message)
+      script: |
+        #!/usr/bin/env bash
+
+        # ---------
+        #  HELPERS
+        # ---------
+
+        function concat {
+          cat <<EOM
+        $1
+        $2
+        EOM
+        }
+
+        # ---------
+        #  DUMPERS
+        # ---------
+
+        function dumpSeparator {
+          echo "-----------------------------------------"
+        }
+
+        function dumpFile {
+          filePath=$1
+
+          cat <<EOM
+        *${filePath}:*
+        \`\`\`
+        $(cat "${filePath}")
+        \`\`\`
+        EOM
+        }
+
+        # dumpSubmodule will dump the git log history as follow
+        # $commitShortSHA $authorName $subject
+        # with some padding to align the lines (author name is truncated after 27 char).
+        # A link to the previous commits is available (tested on github & gitlab).
+        function dumpSubmodule {
+          name=$1
+
+          path=$(git config -f .gitmodules --get submodule."${name}".path)
+          url=$(git config -f .gitmodules --get submodule."${name}".url)
+
+          current_commit=$(git -C "${path}" rev-parse HEAD)
+          previous_commit=$(git diff HEAD~1 "${path}" | grep commit | head -n 1 | awk '{print $3;}')
+          if [ "${previous_commit}" = "" ]; then
+            previous_commit=${current_commit}
+          fi
+
+          commits=None
+          if [ "${previous_commit}" != "${current_commit}" ]; then
+            commits=$(git -C "${path}" log --pretty=format:'%h %<(27,trunc)%an %s' --abbrev-commit "${previous_commit}".."${current_commit}")
+          fi
+
+          cat <<EOM
+        *Submodule ${name} (<${url}/commits/${current_commit}|commits>):*
+        \`\`\`
+        ${commits}
+        \`\`\`
+        EOM
+        }
+
+        # --------------
+        #  ARGS PARSING
+        # --------------
+
+        echo "Parsing $*"
+
+        FILES=()
+        SUBMODULES=()
+
+        while [[ $# -gt 0 ]]; do
+          case $1 in
+          --files)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              FILES+=("$1")
+              shift
+            done
+            ;;
+          --submodules)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              SUBMODULES+=("$1")
+              shift
+            done
+            ;;
+          esac
+        done
+
+        # -------------------
+        #  PARAMS VALIDATION
+        # -------------------
+
+        if [ -f "/etc/secrets/$KEY_NAME" ]; then
+          WEBHOOK_URL=$(cat "/etc/secrets/$KEY_NAME")
+        else
+          echo "Secret not defined properly"
+          exit 1
+        fi
+
+        # ------
+        #  DUMP
+        # ------
+
+        slack_message=${MESSAGE}
+
+        if [ ${#FILES[@]} -ne 0 ]; then
+          slack_message=$(concat "${slack_message}" "$(dumpSeparator)")
+        fi
+
+        for file in "${FILES[@]}"; do
+          content=$(dumpFile "${file}")
+          slack_message=$(concat "${slack_message}" "${content}")
+        done
+
+        if [ ${#SUBMODULES[@]} -ne 0 ]; then
+          slack_message=$(concat "${slack_message}" "$(dumpSeparator)")
+        fi
+
+        for submodule in "${SUBMODULES[@]}"; do
+          content=$(dumpSubmodule "${submodule}")
+          slack_message=$(concat "${slack_message}" "${content}")
+        done
+
+        data=$(jq --compact-output --null-input --arg message "$slack_message" '{text: $message}')
+
+        curl -X POST -H 'Content-type: application/json' --data "${data}" "$WEBHOOK_URL"

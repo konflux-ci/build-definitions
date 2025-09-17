@@ -6,7 +6,7 @@ spec:
   description: >-
     This StepAction provisions an ephemeral cluster using Hypershift with 3 worker nodes in AWS.
     It does so by creating a ClusterTemplateInstance in a space on an EaaS cluster.
-  image: quay.io/konflux-ci/appstudio-utils:5d8df82bdad43c3a71c9eb1a525a25e946777dc4@sha256:0901c58b85d6a05f75782bd8dd64b849a5b7d44f9f36c78a6ee33161278c96a4
+  image: quay.io/konflux-ci/appstudio-utils@sha256:ae8cf015eee19adef1ae5b7a6b346fb1a74acd59bfff55e57744527f283cf1f0
   params:
     - name: eaasSpaceSecretRef
       type: string
@@ -38,6 +38,16 @@ spec:
       description: >-
         Alternate registry information containing a list of sources and their mirrors in yaml format.
         See: https://hypershift-docs.netlify.app/how-to/disconnected/image-content-sources
+    - name: imageContentSourcesFile
+      type: string
+      default: ""
+      description: >-
+        Absolute or workspace path to a file containing a list of sources and their mirrors in yaml format.
+        If set, this takes precedence over the inline imageContentSources string.
+    - name: fips
+      type: string
+      default: "false"
+      description: Enable FIPS mode for the cluster.
   results:
     - name: clusterName
       description: The name of the generated ClusterTemplateInstance resource.
@@ -59,9 +69,32 @@ spec:
       value: "$(params.timeout)"
     - name: IMAGE_CONTENT_SOURCES
       value: "$(params.imageContentSources)"
+    - name: IMAGE_CONTENT_SOURCES_FILE
+      value: "$(params.imageContentSourcesFile)"
+    - name: TENANT
+      value: "$(context.taskRun.namespace)"
+    - name: FIPS
+      value: "$(params.fips)"
   script: |
     #!/bin/bash
     set -eo pipefail
+
+    # Resolve imageContentSources from file (if provided) or fallback to inline string
+    ICS_VALUE=""
+    if [[ -n "$IMAGE_CONTENT_SOURCES_FILE" ]]; then
+      if [[ -f "$IMAGE_CONTENT_SOURCES_FILE" ]]; then
+        ICS_VALUE="$(cat "$IMAGE_CONTENT_SOURCES_FILE")"
+        echo "Using imageContentSources from file: $IMAGE_CONTENT_SOURCES_FILE"
+      else
+        echo "ERROR: imageContentSourcesFile was provided but file not found: $IMAGE_CONTENT_SOURCES_FILE" >&2
+        exit 1
+      fi
+    elif [[ -n "$IMAGE_CONTENT_SOURCES" ]]; then
+      ICS_VALUE="$IMAGE_CONTENT_SOURCES"
+      echo "Using inline imageContentSources param"
+    fi
+
+    export ICS_VALUE
 
     cat <<EOF > cti.yaml
     ---
@@ -69,6 +102,8 @@ spec:
     kind: ClusterTemplateInstance
     metadata:
       generateName: cluster-
+      labels:
+        eaas.konflux-ci.dev/tenant: $TENANT
     spec:
       clusterTemplateRef: hypershift-aws-cluster
       parameters: []
@@ -77,7 +112,8 @@ spec:
     yq -i '.spec.parameters += {"name": "instanceType", "value": strenv(INSTANCE_TYPE)}' cti.yaml
     yq -i '.spec.parameters += {"name": "version", "value": strenv(VERSION)}' cti.yaml
     yq -i '.spec.parameters += {"name": "timeout", "value": strenv(TIMEOUT)}' cti.yaml
-    yq -i '.spec.parameters += {"name": "imageContentSources", "value": strenv(IMAGE_CONTENT_SOURCES)}' cti.yaml
+    yq -i '.spec.parameters += {"name": "imageContentSources", "value": strenv(ICS_VALUE)}' cti.yaml
+    yq -i '.spec.parameters += {"name": "fips", "value": strenv(FIPS)}' cti.yaml
 
     echo "Creating the following resource:"
     cat cti.yaml

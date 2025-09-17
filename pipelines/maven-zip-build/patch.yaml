@@ -124,13 +124,12 @@
 - op: replace
   path: /spec/tasks/5/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
+- op: add
+  path: /spec/tasks/5/params/-
+  value:
+    name: IMAGE
+    value: $(params.output-image)
 # Replace the params set and runAfter of coverity-availability-check
-- op: replace
-  path: /spec/tasks/6/params/0/value
-  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
-- op: replace
-  path: /spec/tasks/6/params/1/value
-  value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
 - op: replace
   path: /spec/tasks/6/runAfter
   value:
@@ -149,6 +148,9 @@
 # Replace the params set and runAfter of sast-unicode-check
 - op: replace
   path: /spec/tasks/8/params/0/value
+  value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
+- op: replace
+  path: /spec/tasks/8/params/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
 - op: replace
   path: /spec/tasks/8/runAfter
@@ -163,8 +165,5 @@
   value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
 # change finally show result
 - op: replace
-  path: /spec/finally/0/params/0/value
-  value: "$(tasks.build-oci-artifact.results.IMAGE_URL)"
-- op: replace
-  path: /spec/finally/1/params/3/value
+  path: /spec/finally/0/params/3/value
   value: "$(tasks.build-oci-artifact.status)"

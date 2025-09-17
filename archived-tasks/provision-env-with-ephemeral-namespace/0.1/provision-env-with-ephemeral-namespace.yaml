@@ -1,0 +1,63 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: provision-env-with-ephemeral-namespace
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-01-17T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'This task is deprecated, please remove
+      it from your pipeline and replace it with the eaas-provision-space task.'
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  params:
+  - name: KONFLUXNAMESPACE
+    type: string
+  - name: PIPELINERUN_NAME
+    type: string
+  - name: PIPELINERUN_UID
+    type: string
+  results:
+    - name: secretRef
+      description:
+        SecretRef is the name of the secret with a SA token that has admin-like
+        (or whatever we set in the tier template) permissions in the namespace
+      type: string
+  steps:
+    - name: request-ephemeral-namespace
+      image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
+      env:
+        - name: KONFLUXNAMESPACE
+          value: $(params.KONFLUXNAMESPACE)
+        - name: PIPELINERUN_NAME
+          value: $(params.PIPELINERUN_NAME)
+        - name: PIPELINERUN_UID
+          value: $(params.PIPELINERUN_UID)
+      script: |
+        #!/bin/bash
+        set -ex
+        set -o pipefail
+
+        cat <<EOF > space_request.yaml
+        apiVersion: toolchain.dev.openshift.com/v1alpha1
+        kind: SpaceRequest
+        metadata:
+          generateName: task-spacerequest-
+          namespace: $KONFLUXNAMESPACE
+          ownerReferences:
+          - apiVersion: tekton.dev/v1
+            kind: PipelineRun
+            name: $PIPELINERUN_NAME
+            uid: $PIPELINERUN_UID
+        spec:
+          tierName: appstudio-env
+        EOF
+
+        SPACEREQUEST_NAME=$(oc create -f space_request.yaml -o=jsonpath='{.metadata.name}')
+
+        if oc wait spacerequests $SPACEREQUEST_NAME --for=condition=Ready --timeout=5m -n $KONFLUXNAMESPACE; then
+          secretRef=$(oc get spacerequests $SPACEREQUEST_NAME -o=jsonpath='{.status.namespaceAccess[0].secretRef}')
+          echo -n $secretRef | tee $(results.secretRef.path)
+        else
+          exit 1
+        fi

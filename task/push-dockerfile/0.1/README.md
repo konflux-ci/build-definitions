@@ -11,6 +11,8 @@ Discover Dockerfile from source code and push it to registry as an OCI artifact.
 |CONTEXT|Path to the directory to use as context.|.|false|
 |TAG_SUFFIX|Suffix of the Dockerfile image tag.|.dockerfile|false|
 |ARTIFACT_TYPE|Artifact type of the Dockerfile image.|application/vnd.konflux.dockerfile|false|
+|CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
+|CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 
 ## Results
 |name|description|
@@ -21,3 +23,5 @@ Discover Dockerfile from source code and push it to registry as an OCI artifact.
 |name|description|optional|
 |---|---|---|
 |workspace|Workspace containing the source code from where the Dockerfile is discovered.|false|
+
+## Additional info

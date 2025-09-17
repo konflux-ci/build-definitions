@@ -44,6 +44,10 @@ spec:
       type: string
       description: Append arguments.
       default: "--all-projects --exclude=test*,vendor,deps"
+    - name: TARGET_DIRS
+      description: Target directories in component's source code. Multiple values should be separated with commas.
+      type: string
+      default: "."
   volumes:
     - name: snyk-secret
       secret:
@@ -57,7 +61,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:resolved
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -74,6 +78,8 @@ spec:
           value: $(params.SNYK_SECRET)
         - name: ARGS
           value: $(params.ARGS)
+        - name: TARGET_DIRS
+          value: $(params.TARGET_DIRS)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -96,7 +102,32 @@ spec:
 
         SNYK_EXIT_CODE=0
         SOURCE_CODE_DIR=/var/workdir/source
-        snyk code test $ARGS "$SOURCE_CODE_DIR" --max-depth=1 --sarif-file-output=sast_snyk_check_out.json 1>&2>> stdout.txt || SNYK_EXIT_CODE=$?
+        # Generate full paths for each directory in TARGET_DIRS
+        IFS="," read -ra TARGETS_ARRAY <<< "$TARGET_DIRS"
+        for d in "${TARGETS_ARRAY[@]}"; do
+          potential_path="${SOURCE_CODE_DIR}/${d}"
+          resolved_path=$(realpath -m "$potential_path")
+
+          # Ensure resolved path is still within SOURCE_CODE_DIR
+          if [[ ! "$resolved_path" == "$SOURCE_CODE_DIR"* ]]; then
+            echo "Error: path traversal attempt, '$potential_path' is outside '$SOURCE_CODE_DIR'"
+            exit 1
+          fi
+
+          # Ensure directory exists
+          if [ ! -d "$resolved_path" ]; then
+            echo "Warning: Directory $resolved_path does not exist, skipping"
+            continue
+          fi
+
+          echo "INFO: Scanning directory: $resolved_path"
+          snyk code test $ARGS "$resolved_path" --max-depth=1 --sarif-file-output="${resolved_path}/sast_snyk_check_out_${d//\//_}.json" 1>&2>> stdout.txt || true
+        done
+
+        # Merge all SARIF outputs
+        find "$SOURCE_CODE_DIR" -name "sast_snyk_check_out_*.json" -exec cat {} + > sast_snyk_check_out.json
+        SNYK_EXIT_CODE=$?
+        set -e
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
         grep -q "$SKIP_MSG" stdout.txt || test_not_skipped=$?

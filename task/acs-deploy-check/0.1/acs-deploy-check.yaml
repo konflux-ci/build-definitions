@@ -7,6 +7,8 @@ metadata:
     task.results.type: roxctl-deployment-check
     task.results.container: step-report
     task.output.location: logs
+  labels:
+    app.kubernetes.io/version: "0.1"
 spec:
   description: >-
     Policy check a deployment with StackRox/RHACS This tasks allows you to check
@@ -57,7 +59,7 @@ spec:
         oc annotate taskrun $(context.taskRun.name) task.output.location=logs
 
     - name: rox-deploy-check
-      image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
       volumeMounts:
         - name: repository
           mountPath: /workspace/repository
@@ -154,7 +156,7 @@ spec:
         fi
 
     - name: report
-      image: registry.access.redhat.com/ubi8-minimal@sha256:cf095e5668919ba1b4ace3888107684ad9d587b1830d3eb56973e6a54f456e67
+      image: registry.access.redhat.com/ubi8-minimal@sha256:43dde01be4e94afd22d8d95ee8abcc9f610b4e50aff5bcc141b558c74d4c68b5
       volumeMounts:
         - name: repository
           mountPath: /workspace/repository

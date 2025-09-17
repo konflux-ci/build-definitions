@@ -1,0 +1,78 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-signed-rpms
+  annotations:
+    build.appstudio.redhat.com/expires-on: "2025-03-15T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: 'Instead of using this task, switch
+      to task rpms-signature-scan
+      (https://quay.io/repository/konflux-ci/tekton-catalog/task-rpms-signature-scan)'
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  params:
+    - name: INPUT
+      type: string
+      description: "AppStudio snapshot or a reference to a container image"
+    - name: FAIL_UNSIGNED
+      type: string
+      description: "[true | false] If true fail if unsigned RPMs were found"
+      default: ""
+    - name: WORKDIR
+      type: string
+      default: /tmp
+      description: |
+        Directory that will be used for storing temporary
+        files produced by this task.
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  steps:
+    - name: verify-signed-rpms
+      image: quay.io/redhat-appstudio/tools:39497ad4e7761c90fdde580cbb5bce9cb9491427
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.WORKDIR)"
+      env:
+        - name: INPUT
+          value: "$(params.INPUT)"
+        - name: FAIL_UNSIGNED
+          value: "$(params.FAIL_UNSIGNED)"
+        - name: WORKDIR
+          value: "$(params.WORKDIR)"
+      script: |
+        #!/bin/bash
+        set -ex
+        set -o pipefail
+
+        rpm_verifier \
+          --input "${INPUT}" \
+          --fail-unsigned "${FAIL_UNSIGNED}" \
+          --workdir "${WORKDIR}" \
+          --status-path "${WORKDIR}"/status
+    - name: output-results
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      volumeMounts:
+        - name: workdir
+          mountPath: "$(params.WORKDIR)"
+      env:
+        - name: WORKDIR
+          value: "$(params.WORKDIR)"
+      script: |
+        #!/bin/bash
+        set -ex
+
+        source /utils.sh
+        status=`cat "${WORKDIR}"/status`
+        if [ "$status" == "ERROR" ]; then
+          note="Task $(context.task.name) completed: Not all RPMs were confirmed to be signed. Refer to Tekton task output for details"
+        else
+          note="Task $(context.task.name) completed: No unsigned RPMs"
+        fi
+
+        TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
+        echo "${TEST_OUTPUT}" | tee $(results.TEST_OUTPUT.path)

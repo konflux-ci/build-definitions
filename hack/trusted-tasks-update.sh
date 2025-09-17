@@ -18,6 +18,8 @@
 #                   to `$INPUT_IMAGE`
 # QUAY_NAMESPACES - Quay namespaces to query for Task bundles (defaults to
 #                   `redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog`)
+# TASK_MATCH      - If set, only update tasks that match the specified task name.
+#                   Use this to save time if you know a particular task is missing.
 
 set -o errexit
 set -o nounset
@@ -25,12 +27,13 @@ set -o pipefail
 
 mapfile -td ' ' COLLECT < <(echo -n "${COLLECT:-git oci}")
 mapfile -td ' ' QUAY_NAMESPACES < <(
-    echo -n "${QUAY_NAMESPACES:-'redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog'}"
+    echo -n "${QUAY_NAMESPACES:-"redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog"}"
 )
 
 INPUT_IMAGE=${INPUT_IMAGE:-quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest}
 OUTPUT_IMAGE=${OUTPUT_IMAGE:-$INPUT_IMAGE}
 GIT_REPOSITORY=git+https://github.com/konflux-ci/build-definitions.git
+TASK_MATCH="${TASK_MATCH:-""}"
 
 function list_tasks() {
     local full_namespace=$1
@@ -38,10 +41,10 @@ function list_tasks() {
     local toplevel_namespace=${full_namespace%%/*}
 
     curl -sSL "https://quay.io/api/v1/repository?namespace=${toplevel_namespace}&public=true" -H 'Accept: application/json' |
-        jq --arg full_namespace "$full_namespace" -r '
+      jq --arg full_namespace "$full_namespace" --arg task_match "${TASK_MATCH}" -r '
             .repositories[]
             | "\(.namespace)/\(.name)"
-            | select(test("^\($full_namespace)/task-[^/]*$"))
+            | select(test("^\($full_namespace)/task-\($task_match)[^/]*$"))
             | "quay.io/\(.)"
         '
 }
@@ -60,7 +63,7 @@ for c in "${COLLECT[@]}"; do
   case "${c}" in
     git)
       echo -n Resolving git Tasks
-      for task_dir in "${HACK_DIR}"/../task/*/*; do
+      for task_dir in "${HACK_DIR}"/../task/${TASK_MATCH}*/*; do
         [ ! -d "${task_dir}" ] && continue
         [ -f "${task_dir}/kustomization.yaml" ] && continue
         mapfile -td '/' dirparts < <(echo "${task_dir}")
@@ -98,7 +101,9 @@ PS4=''
 set -x
 ec track bundle \
   --freshen \
+  --in-effect-days 60 \
   --input "oci:${INPUT_IMAGE}" \
   --output "oci:${OUTPUT_IMAGE}" \
   "${git_params[@]}" \
-  "${oci_params[@]}"
+  "${oci_params[@]}" \
+  --timeout 0
