@@ -9,18 +9,41 @@ spec:
   workspaces:
     - name: tests-workspace
   tasks:
+    - name: clone-package-repository
+      params:
+      - name: url
+        value: https://github.com/package-operator/package-operator.git
+      - name: revision
+        value: dbcfde1e37c6773ec51ff3620f1a9d2c3d07a99d
+      - name: subdirectory
+        value: source
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/git-clone/0.1/git-clone.yaml
+      workspaces:
+        - name: output
+          workspace: tests-workspace
     - name: run-package-operator-package
       taskRef:
         name: package-operator-package
-      params:
-        - name: SRC_REPO_URL
-          value: https://github.com/package-operator/package-operator.git
-        - name: SRC_REF
-          value: dbcfde1e37c6773ec51ff3620f1a9d2c3d07a99d
-        - name: SRC_PATH
-          value: config/packages/test-stub
+      params:    
+        - name: PACKAGE_PATH
+          value: "source/config/packages/test-stub"
         - name: DST_URL
           value: registry-service.kind-registry/test-stub:latest
+        - name: SBOM_SRC
+          value: testsource
+      workspaces:
+        - name: package
+          workspace: tests-workspace
+      runAfter:
+        - clone-package-repository
     - name: verify-package-operator-package-result
       params:
         - name: DST_URL
@@ -43,16 +66,13 @@ spec:
               readOnly: true
         steps:
           - name: run-package-operator-package-test
-            env:
-              - name: DST_URL
-                value: $(params.DST_URL)
             image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
             script: |
               #!/usr/bin/env bash
               set -eu
               mkdir image
               cd image
-              oc image extract $DST_URL
+              oc image extract "$(params.DST_URL)"
               [ -f package/manifest.yaml ]
               echo "pass"
       runAfter:
