@@ -198,8 +198,8 @@ spec:
         memory: 1Gi
         cpu: '1'
     volumeMounts:
-      - mountPath: /shared
-        name: shared
+    - mountPath: /shared
+      name: shared
     env:
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
@@ -251,7 +251,7 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: BUILD_TIMESTAMP
       value: $(params.BUILD_TIMESTAMP)
-
+    imagePullPolicy: IfNotPresent
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:1e686fc8fe41f985d9871d80f22bef4b58e6b2df3237385ee43113907231b458
     name: build
@@ -277,12 +277,12 @@ spec:
     - name: ICM_KEEP_COMPAT_LOCATION
       value: $(params.ICM_KEEP_COMPAT_LOCATION)
     args:
-      - --build-args
-      - $(params.BUILD_ARGS[*])
-      - --labels
-      - $(params.LABELS[*])
-      - --annotations
-      - $(params.ANNOTATIONS[*])
+    - --build-args
+    - $(params.BUILD_ARGS[*])
+    - --labels
+    - $(params.LABELS[*])
+    - --annotations
+    - $(params.ANNOTATIONS[*])
 
     script: |
       #!/bin/bash
@@ -824,7 +824,7 @@ spec:
     securityContext:
       capabilities:
         add:
-          - SETFCAP
+        - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -917,7 +917,7 @@ spec:
       runAsUser: 0
       capabilities:
         add:
-          - SETFCAP
+        - SETFCAP
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -975,8 +975,8 @@ spec:
         memory: 256Mi
         cpu: 100m
     args:
-      - --additional-base-images
-      - $(params.ADDITIONAL_BASE_IMAGES[*])
+    - --additional-base-images
+    - $(params.ADDITIONAL_BASE_IMAGES[*])
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -1111,15 +1111,15 @@ spec:
     configMap:
       name: $(params.caTrustConfigMapName)
       items:
-        - key: $(params.caTrustConfigMapKey)
-          path: ca-bundle.crt
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
       optional: true
   - name: proxy-ca-bundle
     configMap:
       name: $(params.PROXY_CA_TRUST_CONFIG_MAP_NAME)
       items:
-        - key: $(params.PROXY_CA_TRUST_CONFIG_MAP_KEY)
-          path: ca-bundle.crt
+      - key: $(params.PROXY_CA_TRUST_CONFIG_MAP_KEY)
+        path: ca-bundle.crt
       optional: true
   workspaces:
   - name: source
