@@ -12,28 +12,31 @@ metadata:
 spec:
   description: |-
     Given a git repository, a reference (as in, tag or commit) and a path within the
-    repository this task will create a package-operator package.
-
-    The process of how a pko package is defined and packaged is documented
+    repository this task will create a package-operator package.    The process of how a pko package is defined and packaged is documented
     [here](https://package-operator.run/docs/guides/packaging-an-application/).
     This task expects the package definition, will build it using `kubectl-package`
     and push the created package to the given OCI registry destination.
   params:
-    - name: SRC_REPO_URL
-      description: URL of the git repo containing the package definition.
+    - name: PACKAGE_PATH
+      description: File path the package manifest is in.
       type: string
-    - name: SRC_REF
-      description: Git ref (branch, tag, commit) to use on the given src repo.
-      type: string
-    - name: SRC_PATH
-      description: Path within the check out src repo containing the package definition.
+    - name: SBOM_SRC
+      description: Source that is being specified in the SBOM pushed alongside the package.
       type: string
     - name: DST_URL
       description: URL where to push the generated pko package to.
       type: string
+  results:
+    - name: PACKAGE_DIGEST
+      description: Digest of the package just built
+    - name: PACKAGE_URL
+      description: Image repository and tag where the built package was pushed
+    - name: PACKAGE_REF
+      description: Image reference of the built package
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification from provenance
+      type: string
   volumes:
-    - name: workdir
-      emptyDir: {}
     - name: trusted-ca
       configMap:
         items:
@@ -41,85 +44,55 @@ spec:
             path: ca-bundle.crt
         name: trusted-ca
   stepTemplate:
-    env:
-      - name: SRC_REPO_URL
-        value: $(params.SRC_REPO_URL)
-      - name: SRC_REF
-        value: $(params.SRC_REF)
-      - name: SRC_PATH
-        value: $(params.SRC_PATH)
-      - name: DST_URL
-        value: $(params.DST_URL)
     volumeMounts:
-      - mountPath: /var/workdir
-        name: workdir
       - name: trusted-ca
         mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
         subPath: ca-bundle.crt
         readOnly: true
   steps:
-  - name: git-clone
-    image: quay.io/konflux-ci/git-clone@sha256:4e53ebd9242f05ca55bfc8d58b3363d8b9d9bc3ab439d9ab76cdbdf5b1fd42d9
-    workingDir: /var/workdir
-    script: |
-      #!/bin/bash
-      set -eu -o pipefail
-      git clone "$SRC_REPO_URL" repo
-      cd repo
-      git config advice.detachedHead false
-      git checkout "$SRC_REF"
   - name: build-pkg
-    image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794@sha256:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794
-    workingDir: /var/workdir
+    image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:a003501@sha256:2acd8331cf101ba16a2905e38ac6767275988f64851374ddbe33f037450c9e90
     script: |
       #!/bin/bash
       set -eu -o pipefail
-      kubectl-package build --tag "$DST_URL" --push "repo/$SRC_PATH"
-  - name: sbom
-    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
-    workingDir: /var/workdir
+
+      digest=$(kubectl-package build --tag "$(params.DST_URL)" --push "$(workspaces.package.path)/$(params.PACKAGE_PATH)" --output-format digest)
+      echo "$digest" > "$(results.PACKAGE_DIGEST.path)"
+      echo "$(params.DST_URL)" > "$(results.PACKAGE_URL.path)"
+      echo "$(params.DST_URL)@$digest" > "$(results.PACKAGE_REF.path)"
+  - name: build-sbom
+    workingDir: $(workspaces.package.path)
+    image: quay.io/konflux-ci/mobster:1.0.0-1761030771@sha256:f751b8fb47409eeef7c3235f201a5a9c137a5014cf7f1474340298101c7b1a0f
     script: |
       #!/bin/bash
       set -eu -o pipefail
-      echo '{
-        "spdxVersion": "SPDX-2.3",
-        "dataLicense": "CC0-1.0",
-        "documentNamespace": "https://package-operator.run",
-        "SPDXID": "SPDXRef-DOCUMENT",
-        "creationInfo": {
-          "creators": ["Tool: kubectl-package"]
-        },
-        "name": "package-operator-package",
-        "packages": [
-          {
-            "SPDXID": "SPDXRef-package-operator-package",
-            "name": "package-operator-package",
-            "downloadLocation": "NOASSERTION",
-            "licenseConcluded": "NOASSERTION",
-            "supplier": "NOASSERTION",
-            "externalRefs": [
-              {
-                "referenceType": "purl",
-                "referenceCategory": "PACKAGE-MANAGER"
-              }
-            ]
-          }
-        ],
-        "relationships": [
-          {
-            "spdxElementId": "SPDXRef-DOCUMENT",
-            "relationshipType": "DESCRIBES",
-            "relatedSpdxElement": "SPDXRef-package-operator-package"
-          }
-        ]
-      }
-      ' | jq \
-        --arg datearg "$(date --iso-8601=seconds -u)" \
-        --arg srcrefarg "$SRC_REF" \
-        --arg urlarg "${SRC_REPO_URL}?ref=${SRC_REF}&path=${SRC_PATH}" \
-        '.
-        | .creationInfo.created |= $datearg
-        | .packages[0].versionInfo |= $srcrefarg
-        | .packages[0].externalRefs[0].referenceLocator = $urlarg
-        ' > sbom.json
-      cosign attach sbom --sbom sbom.json --type spdx "$DST_URL"
+
+      mobster generate --output sbom.json pko-package --sbom-type spdx \
+        --url "$(params.SBOM_SRC)" --package-pullspec "$(cat "$(results.PACKAGE_REF.path)")" --package-digest "$(cat "$(results.PACKAGE_DIGEST.path)")"
+  - name: push-sbom
+    workingDir: $(workspaces.package.path)
+    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.PACKAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom sbom.json --type spdx "$(cat "$(results.PACKAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
+      
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="$(cat "$(results.PACKAGE_URL.path)")"
+      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" > "$(results.SBOM_BLOB_URL.path)"
+      cosign attach sbom --sbom sbom.json --type spdx "$(params.DST_URL)"
+  workspaces:
+    - description: Workspace that contains the package manifest.
+      name: package
