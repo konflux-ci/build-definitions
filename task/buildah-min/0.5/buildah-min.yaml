@@ -687,9 +687,11 @@ spec:
       if [ -n "$containerignore" ]; then
         ignorefile_copy=$(mktemp --tmpdir "$(basename "$containerignore").XXXXXX")
         cp "$containerignore" "$ignorefile_copy"
-
-        echo "" >> "$ignorefile_copy"
-        echo "!/labels.json" >> "$ignorefile_copy"
+        {
+          echo ""
+          echo "!/labels.json"
+          echo "!/content-sets.json"
+        } >> "$ignorefile_copy"
         BUILDAH_ARGS+=(--ignorefile "$ignorefile_copy")
       fi
 
