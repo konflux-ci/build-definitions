@@ -11,6 +11,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.5:BUILD_ARGS_FILE ; sast-coverity-check:0.3:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.5:BUILDAH_FORMAT|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.5:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.5:HERMETIC ; sast-coverity-check:0.3:HERMETIC|
@@ -52,7 +53,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
 |ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| | |
-|BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| |
+|BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
 |BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
 |BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch| | |
