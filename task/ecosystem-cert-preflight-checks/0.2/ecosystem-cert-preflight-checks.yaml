@@ -58,6 +58,8 @@ spec:
           description: |
             The process that sets the artifact type. Informational.
             Values from: introspection, parameter.
+        - name: image-digest
+          description: The digest of the image.
       env:
       - name: PARAM_ARTIFACT_TYPE
         value: $(params.artifact-type)
@@ -139,14 +141,21 @@ spec:
 
         # We purposely do not quote the array elements here, so that they are expanded by the shell as separate args.
         # shellcheck disable=SC2068
-        if ! retry skopeo inspect --retry-times "$skopeo_retries" ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}" \
-          | jq '.Labels | keys | .[]' -r \
-          | { grep operators.operatorframework.io.bundle || true ;} \
-          | tee /tmp/ecosystem-image-labels
+
+        # Saving skopeo output to a temp variable to be used later to create a file of labels and add digest back to the results
+        if ! _IMAGE_MANIFEST=$(retry skopeo inspect --retry-times "$skopeo_retries" ${_SKOPEO_INSPECT_ARGS[@]} "docker://${PARAM_IMAGE_URL}")
         then
           echo "Failed to inspect ${PARAM_IMAGE_URL}"
           exit 1
         fi
+
+        # Saving labels to a temp file if the image contains operator bundle defining labels
+        printf "%s" "${_IMAGE_MANIFEST}" | jq '.Labels | keys | .[]' -r \
+        | { grep operators.operatorframework.io.bundle || true ;} \
+        | tee /tmp/ecosystem-image-labels
+
+        # Saving the image digest to be used as input to app-set-outcome step
+        printf "%s" "${_IMAGE_MANIFEST}" | jq -r '.Digest' > "$(step.results.image-digest.path)"
 
         _OPFW_LABEL_COUNT=$(grep -c operators.operatorframework.io.bundle /tmp/ecosystem-image-labels || true)
         _MIN_LABELS=3
@@ -304,6 +313,8 @@ spec:
       env:
         - name: PARAM_IMAGE_URL
           value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: "$(steps.introspect.results.image-digest)"
       script: |
         #!/usr/bin/env bash
 
@@ -372,7 +383,8 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        image_digest=$(skopeo inspect "docker://${PARAM_IMAGE_URL}" | jq -r '.Digest')
+        # Adding IMAGE_DIGEST from input to ensure we capture all digests for the case if the image media type is a manifest.list or image.index
+        image_digest="${IMAGE_DIGEST}"
         if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi
