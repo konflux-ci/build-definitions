@@ -313,7 +313,7 @@ spec:
       env:
         - name: PARAM_IMAGE_URL
           value: $(params.image-url)
-        - name: IMAGE_DIGEST
+        - name: INPUT_IMAGE_DIGEST
           value: "$(steps.introspect.results.image-digest)"
       script: |
         #!/usr/bin/env bash
@@ -383,8 +383,8 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        # Adding IMAGE_DIGEST from input to ensure we capture all digests for the case if the image media type is a manifest.list or image.index
-        image_digest="${IMAGE_DIGEST}"
+        # Adding INPUT_IMAGE_DIGEST from input to ensure we capture all digests for the case if the image media type is a manifest.list or image.index
+        image_digest="${INPUT_IMAGE_DIGEST}"
         if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi
