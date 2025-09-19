@@ -237,13 +237,11 @@ spec:
           printf "Migration file %s is not found from image repository %s. Push it.\n" \
             "${migration_file_path##*/}" "${IMAGE%:*}" >&2
           auth_file=$(mktemp --suffix="-auth.json")
-          trap 'rm -f $auth_file' EXIT ERR
           pushd "${migration_file_path%/*}"
           select-oci-auth "$IMAGE" > "$auth_file"
           tag="${tag_prefix}-${sha256_checksum}-$(date --utc +%s)"
           migration_image="${IMAGE%:*}:${tag}"
           manifest_file=$(mktemp --suffix="-migration-image-manifest.json")
-          trap 'rm -f $manifest_file' EXIT ERR
           retry oras push \
             --registry-config "$auth_file" \
             --export-manifest "$manifest_file" \
