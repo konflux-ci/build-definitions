@@ -76,12 +76,12 @@ spec:
         name: varlibcontainers
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:441eeff7ac56bd270e3444da084227705b232b313dbc65a4bbfc6a742b328e4d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
+      image: quay.io/konflux-ci/yq:latest@sha256:875f69f9e2172d627bd01aaf7a0d49f67ffebc07fc148ae0d50865e48bd401b9
       script: |-
         #!/bin/bash
         set -o verbose
@@ -124,7 +124,7 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:1e686fc8fe41f985d9871d80f22bef4b58e6b2df3237385ee43113907231b458
       computeResources:
         limits:
           memory: 512Mi
