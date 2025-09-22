@@ -117,7 +117,7 @@ spec:
         subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:adf22f3ec90bfa3f7e2c832a7d52febd1ea31aa9fff6db21324c965d7d622327
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -165,7 +165,7 @@ spec:
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.6-1756977307
+      image: registry.access.redhat.com/ubi9/python-311:9.6-1758514539
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -258,7 +258,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
+      image: quay.io/konflux-ci/yq:latest@sha256:875f69f9e2172d627bd01aaf7a0d49f67ffebc07fc148ae0d50865e48bd401b9
       workingDir: /var/workdir
       script: |
         #!/bin/bash
