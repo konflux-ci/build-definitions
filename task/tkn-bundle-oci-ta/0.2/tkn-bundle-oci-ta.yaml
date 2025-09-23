@@ -266,6 +266,7 @@ spec:
               --annotation "dev.konflux-ci.task.is-migration=true" \
               "$migration_image" "${migration_file_path##*/}"
             read -r migration_image_digest _ < <(sha256sum "$manifest_file")
+            migration_image_digest="sha256:${migration_image_digest}"
             printf "Pushed migration image %s, digest %s\n" "$migration_image" "$migration_image_digest" >&2
             popd
           fi
