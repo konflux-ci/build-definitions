@@ -2,7 +2,7 @@ FROM quay.io/enterprise-contract/cli:latest AS ec-image
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
     cp /usr/local/bin/ec_linux_${ARCH}.gz /tmp/ec.gz
-FROM quay.io/konflux-ci/buildah-task:latest@sha256:1e686fc8fe41f985d9871d80f22bef4b58e6b2df3237385ee43113907231b458 AS buildah-task-image
+FROM quay.io/konflux-ci/buildah-task:latest@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d AS buildah-task-image
 FROM registry.access.redhat.com/ubi9/ubi
 
 COPY --from=ec-image /tmp/ec.gz /usr/bin/ec.gz
