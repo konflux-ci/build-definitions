@@ -238,13 +238,13 @@ spec:
             if [[ -z "$tag_name" ]]; then
               continue
             fi
-            if grep -s "^${tag_prefix}-${sha256_checksum}-[0-9]\+$" <<<"$tag_name"; then
+            if grep -s -E "^${tag_prefix}-${sha256_checksum}-[0-9]+$" <<<"$tag_name"; then
               # In case migration file is pushed more than once occasionally, only pick
               # the last (newest) one
               if [[ -z "$migration_image_digest" ]]; then
                 migration_image_digest="$manifest_digest"
               fi
-            elif grep -s "^${tag_prefix}-[0-9a-f]\{64\}-[0-9]\+$" <<<"$tag_name"; then
+            elif grep -s -E "^${tag_prefix}-[0-9a-f]{64}-[0-9]+$" <<<"$tag_name"; then
               printf "Modifying an existing migration is not allowed. Migration %s was pushed as image %s" \
                 "${migration_file_path##*/}" "$tag_name" >&2
               exit 1
