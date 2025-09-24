@@ -646,11 +646,11 @@ spec:
             "$dockerfile_copy"
           echo "Prefetched content will be made available"
 
-          prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+          prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/prefetch.repo"
           if [ -f "$prefetched_repo_for_my_arch" ]; then
             echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
             mkdir -p "$YUM_REPOS_D_FETCHED"
-            if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+            if [ ! -f "${YUM_REPOS_D_FETCHED}/prefetch.repo" ]; then
               cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
             fi
           fi
