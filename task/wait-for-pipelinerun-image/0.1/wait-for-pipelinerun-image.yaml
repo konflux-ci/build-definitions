@@ -1,0 +1,114 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-for-pipelinerun-image
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: >
+    The wait-for-pipelinerun-image Task waits for a Tekton PipelineRun that produces an image to complete, then extracts the image URL and digest from its results.
+  params:
+    - description: Label selector used to find the target PipelineRuns (e.g., "mylabel=myvalue").
+      name: selector
+      type: string
+    - description: Maximum time to wait for the selected PipelineRun to complete (e.g., "20m" or "120s").
+      name: wait-timeout
+      type: string
+      default: "20m"
+  results:
+    - description: The canonical URL of the found image, typically excluding the tag or digest (e.g., quay.io/namespace/repository).
+      name: IMAGE_URL
+    - description: The SHA256 digest of the image's manifest.
+      name: IMAGE_DIGEST
+  steps:
+    - name: wait-for-pipelinerun-image
+      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      env:
+      - name: SELECTOR
+        value: $(params.selector)
+      - name: WAIT_TIMEOUT
+        value: $(params.wait-timeout)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        
+        wait_timeout="${WAIT_TIMEOUT:-20m}"
+        
+        get_pipeline_run_status() {
+          local pipeline_run_name="$1"
+          local status
+          local wait_output
+          local wait_status
+          local filtered_wait_output
+
+          wait_output=$(oc wait "pipelinerun/$pipeline_run_name" --for=jsonpath='{.status.completionTime}' --timeout="${wait_timeout}" 2>&1)
+          wait_status=$?
+          filtered_wait_output=$(echo "$wait_output" | grep -v 'Failed to watch .*unstructured\.Unstructured: unknown' || true)
+          if [ -n "$filtered_wait_output" ]; then
+            echo "$filtered_wait_output" >&2
+          fi
+
+          if [ "$wait_status" -ne 0 ]; then
+            echo "Timed out waiting $wait_timeout for PipelineRun $pipeline_run_name to report a completionTime." >&2
+            exit 1
+          fi
+
+          status=$(oc get pipelinerun "$pipeline_run_name" -o jsonpath='{.status}' 2>/dev/null || echo "")
+          if [[ -z "$status" ]]; then
+            echo "pipeline_run_status: status not found" >&2
+            exit 1
+          fi
+
+          echo "$status"
+          exit 0
+        }
+          
+        IMAGE_URL=""
+        IMAGE_DIGEST=""
+        
+        echo "Searching PipelineRuns with selector '$SELECTOR'"
+        echo
+        pipeline_run_names=$(oc get pipelineruns -l "$SELECTOR" --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[*].metadata.name}' --ignore-not-found)
+        read -r -a pipeline_runs <<< "$pipeline_run_names"
+        pipeline_run_count=${#pipeline_runs[@]}
+
+        # Check if the array is empty
+        if (( pipeline_run_count == 0 )); then
+          echo "Error: No PipelineRuns found with selector '$SELECTOR'." >&2
+          exit 1
+        fi
+
+        echo "Found $pipeline_run_count PipelineRun(s) with selector '$SELECTOR'"
+        echo
+
+        # latest pipeline
+        latest_pipeline_run=${pipeline_runs[-1]}
+
+        echo "Check status of $latest_pipeline_run"
+        echo "Waiting up to $wait_timeout for PipelineRun $latest_pipeline_run to finish"
+        echo
+        pipeline_run_status_json=$(get_pipeline_run_status "$latest_pipeline_run")
+        condition_succeeded=$(echo "$pipeline_run_status_json" | jq -r '.conditions[]? | select(.type=="Succeeded") | .status')
+
+        if [ "$condition_succeeded" == "True" ]; then
+          IMAGE_URL=$(echo "$pipeline_run_status_json" | jq -r '.results[]? | select(.name=="IMAGE_URL") | .value')
+          IMAGE_DIGEST=$(echo "$pipeline_run_status_json" | jq -r '.results[]? | select(.name=="IMAGE_DIGEST") | .value')
+          echo "Image found in $latest_pipeline_run, IMAGE_URL: $IMAGE_URL, IMAGE_DIGEST: $IMAGE_DIGEST"
+          echo
+        else
+          echo "PipelineRun $latest_pipeline_run 'Succeeded' condition is 'False'" >&2
+          exit 1
+        fi
+          
+        if [[ -z "$IMAGE_DIGEST" ]]; then
+          echo "IMAGE_DIGEST: not found" >&2
+          exit 1
+        fi
+          
+        if [[ -z "$IMAGE_URL" ]]; then
+          echo "IMAGE_URL: not found" >&2
+          exit 1
+        fi
+        
+        printf "%s" "$IMAGE_DIGEST" > "$(results.IMAGE_DIGEST.path)"
+        printf "%s" "$IMAGE_URL" > "$(results.IMAGE_URL.path)"
