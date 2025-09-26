@@ -424,17 +424,20 @@ spec:
         hermeto --log-level="$LOG_LEVEL" generate-env "/var/workdir/cachi2/output" \
           --format env \
           --for-output-dir=/cachi2/output \
-          --output "/var/workdir/cachi2/cachi2.env"
+          --output "/var/workdir/cachi2/prefetch.env"
+
+        # backwards compatibility with legacy cachi2.env
+        ln -s "/var/workdir/cachi2/prefetch.env" "/var/workdir/cachi2/cachi2.env"
 
         hermeto --log-level="$LOG_LEVEL" inject-files "/var/workdir/cachi2/output" \
           --for-output-dir=/cachi2/output
 
         # NOTE: Compatibility hack, hermeto will create a hermeto.repo when processing RPMs (1 for
-        # each architecture) which may break users expecting cachi2.repo
+        # each architecture) which may break users expecting prefetch.repo or legacy cachi2.repo
         find "/var/workdir/cachi2/output" \
           -type f \
           -name hermeto.repo \
-          -execdir mv {} cachi2.repo \;
+          -execdir mv {} cachi2.repo \; -execdir ln -s cachi2.repo prefetch.repo \;
 
         # hack: the OCI generator would delete the function since it doesn't consider trap a "usage"
         if false; then
