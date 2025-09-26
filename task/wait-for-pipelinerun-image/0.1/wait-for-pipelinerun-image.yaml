@@ -31,9 +31,9 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        
+
         wait_timeout="${WAIT_TIMEOUT:-20m}"
-        
+
         get_pipeline_run_status() {
           local pipeline_run_name="$1"
           local status
@@ -62,10 +62,10 @@ spec:
           echo "$status"
           exit 0
         }
-          
+
         IMAGE_URL=""
         IMAGE_DIGEST=""
-        
+
         echo "Searching PipelineRuns with selector '$SELECTOR'"
         echo
         pipeline_run_names=$(oc get pipelineruns -l "$SELECTOR" --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[*].metadata.name}' --ignore-not-found)
@@ -99,16 +99,16 @@ spec:
           echo "PipelineRun $latest_pipeline_run 'Succeeded' condition is 'False'" >&2
           exit 1
         fi
-          
+
         if [[ -z "$IMAGE_DIGEST" ]]; then
           echo "IMAGE_DIGEST: not found" >&2
           exit 1
         fi
-          
+
         if [[ -z "$IMAGE_URL" ]]; then
           echo "IMAGE_URL: not found" >&2
           exit 1
         fi
-        
+
         printf "%s" "$IMAGE_DIGEST" > "$(results.IMAGE_DIGEST.path)"
         printf "%s" "$IMAGE_URL" > "$(results.IMAGE_URL.path)"
