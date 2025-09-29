@@ -42,6 +42,13 @@ spec:
       2d, 3w for hours, days, and weeks, respectively.
     name: image-expires-after
     type: string
+  - default: ""
+    description: Directories or files to be excluded from Snyk scan (Comma-separated).
+      In case multiple components are maintained in a single git repository, Snyk
+      Code is unable to distinguish which directories contain the source code for
+      which component.
+    name: snyk-ignore-file-paths
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-oci-artifact.results.IMAGE_URL)

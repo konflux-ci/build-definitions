@@ -69,6 +69,13 @@ spec:
       oci or docker.
     name: buildah-format
     type: string
+  - default: ""
+    description: Directories or files to be excluded from Snyk scan (Comma-separated).
+      In case multiple components are maintained in a single git repository, Snyk
+      Code is unable to distinguish which directories contain the source code for
+      which component.
+    name: snyk-ignore-file-paths
+    type: string
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
@@ -88,12 +95,6 @@ spec:
       set of values is determined by the configuration of the multi-platform-controller.
     name: build-platforms
     type: array
-  - default: ""
-    description: Directories or files to be excluded from Snyk scan (Comma-separated).
-      In case multiple components are maintained in a single git repository, 
-      Snyk Code is unable to distinguish which directories contain the source code for which component.
-    name: snyk-ignore-file-paths
-    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -323,8 +324,6 @@ spec:
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-    - name: IGNORE_FILE_PATHS
-      value: $(params.snyk-ignore-file-paths)
     runAfter:
     - build-image-index
     taskRef:

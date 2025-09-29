@@ -135,13 +135,21 @@ spec:
       oci or docker.
     name: buildah-format
     type: string
+  - default: ""
+    description: Directories or files to be excluded from Snyk scan (Comma-separated).
+      In case multiple components are maintained in a single git repository, Snyk
+      Code is unable to distinguish which directories contain the source code for
+      which component.
+    name: snyk-ignore-file-paths
+    type: string
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
     type: array
-  - default: ""
-    description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
-    name: build-args-file
+  - default: "false"
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
+    name: privileged-nested
     type: string
   - default: ""
     name: infra-deployment-update-script
