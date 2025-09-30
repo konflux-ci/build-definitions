@@ -184,10 +184,11 @@ spec:
         chmod +x /tmp/script.sh
 
         mkdir /var/workdir/output
-        buildah from --name script-container "$SCRIPT_RUNNER_IMAGE"
         # "--security-opt=unmask=/proc/interrupts" is necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
         # TODO remove the option once all hosts were updated
-        BUILDAH_CMD="buildah run ${PREFETCH_MOUNT} --security-opt=unmask=/proc/interrupts --volume /tmp/script.sh:/tmp/script.sh --volume /var/workdir/source:/var/workdir/source --volume /var/workdir/output:/var/workdir/output --workingdir ${SCRIPT_WORKDIR} --user root:root -- script-container /bin/sh -c '${PREFETCH_SOURCE} SCRIPT_OUTPUT=/var/workdir/output/output SCRIPT_OUTPUT_ARRAY=/var/workdir/output/array exec /tmp/script.sh'"
+        buildah from --name script-container --security-opt=unmask=/proc/interrupts "$SCRIPT_RUNNER_IMAGE"
+
+        BUILDAH_CMD="buildah run ${PREFETCH_MOUNT} --volume /tmp/script.sh:/tmp/script.sh --volume /var/workdir/source:/var/workdir/source --volume /var/workdir/output:/var/workdir/output --workingdir ${SCRIPT_WORKDIR} --user root:root -- script-container /bin/sh -c '${PREFETCH_SOURCE} SCRIPT_OUTPUT=/var/workdir/output/output SCRIPT_OUTPUT_ARRAY=/var/workdir/output/array exec /tmp/script.sh'"
         unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w /var/workdir sh -c "${BUILDAH_CMD}"
 
         IMAGE_REFERENCE=$(buildah inspect script-container | jq -r '.FromImage')
