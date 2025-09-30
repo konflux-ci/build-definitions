@@ -110,8 +110,18 @@ spec:
         continue
       fi
 
+      # Sanitize the image reference to handle Docker references with both tag and digest
+      sanitized_related_image=$(get_image_registry_repository_digest "${related_image}")
+
+      # If no digest is present, fallback to using tag-based sanitization
+      if [[ "${sanitized_related_image}" != *"@"* ]]; then
+        echo "No digest found in sanitized image, using tag-based sanitization"
+        sanitized_related_image=$(get_image_registry_repository_tag "${related_image}")
+      fi
+      echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for conversion to OCI format"
+
       # Convert image to OCI format since umoci can only handle the OCI format
-      if ! retry skopeo copy --remove-signatures "docker://${related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
+      if ! retry skopeo copy --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
         echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
         error_counter=$((error_counter + 1))
         continue
