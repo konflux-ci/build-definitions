@@ -15,6 +15,7 @@
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision ; build-container:0.2:REVISION|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+|snyk-ignore-file-paths| Directories or files to be excluded from Snyk scan (Comma-separated). In case multiple components are maintained in a single git repository, Snyk Code is unable to distinguish which directories contain the source code for which component.| | |
 
 ## Available params from tasks
 ### apply-tags:0.2 task parameters
