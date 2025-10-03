@@ -345,38 +345,43 @@ spec:
         echo "Validating FBC directory structure."
         PACKAGE_DIRS=$(find ".${conffolder}" -mindepth 1 -maxdepth 1 -type d)
 
-        VALID_STRUCTURE=true
         if [[ -z "${PACKAGE_DIRS}" ]]; then
-          echo "!FAILURE! - No package subdirectories found inside '.${conffolder}'."
-          VALID_STRUCTURE=false
-        else
-          # Loop through each found package directory
-          while IFS= read -r pkg_dir; do
-            if [[ ! -f "${pkg_dir}/catalog.json" && ! -f "${pkg_dir}/catalog.yaml" && ! -f "${pkg_dir}/catalog.yml" ]]; then
-              echo "!FAILURE! - Package directory '${pkg_dir}' must contain catalog file."
-              VALID_STRUCTURE=false
-              break # One failure is enough to stop checking
-            fi
-          done <<< "${PACKAGE_DIRS}"
-        fi
-
-        if [[ "${VALID_STRUCTURE}" == "false" ]]; then
-          echo "--> The FBC image must contain one or more package directories inside '.${conffolder}',"
-          echo "    and each must contain one of the supported catalog files."
-          echo "    Example valid structure:"
-          echo "    ${conffolder}/"
-          echo "    ├── <package-name-A>/"
-          echo "    │   └── catalog.json"
-          echo "    ├── <package-name-B>/"
-          echo "    │   └── catalog.yaml"
-          echo "    └── <package-name-C>/"
-          echo "        └── catalog.yml"
-          
-          note="FBC directory structure validation failed. Check logs for details."
+          echo "!FAILURE! - No package subdirectories found inside '.${conffolder}'. At least one is required."
+          note="FBC directory structure validation failed: No package subdirectories found."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         else
-          echo "FBC directory structure is valid."
+          # Array to hold directories that fail validation
+          invalid_dirs=()
+
+          # Loop through each found package directory and collect all failures
+          while IFS= read -r pkg_dir; do
+            if [[ ! -f "${pkg_dir}/catalog.json" && ! -f "${pkg_dir}/catalog.yaml" && ! -f "${pkg_dir}/catalog.yml" ]]; then
+              echo "!FAILURE! - Package directory '${pkg_dir}' is missing a required catalog file."
+              invalid_dirs+=("${pkg_dir}")
+            fi
+          done <<< "${PACKAGE_DIRS}"
+
+          # After checking all directories, report if any failed
+          if [[ ${#invalid_dirs[@]} -gt 0 ]]; then
+            echo "--> The FBC image must contain one or more package directories inside '.${conffolder}',"
+            echo "    and each must contain one of the supported catalog files."
+            echo "    Example valid structure:"
+            echo "    ${conffolder}/"
+            echo "    ├── <package-name-A>/"
+            echo "    │   └── catalog.json"
+            echo "    ├── <package-name-B>/"
+            echo "    │   └── catalog.yaml"
+            echo "    └── <package-name-C>/"
+            echo "        └── catalog.yml"
+
+            note="FBC directory validation failed. The following directories are missing a catalog file (e.g., catalog.json/yaml/yml): ${invalid_dirs[*]}"
+
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          else
+            echo "FBC directory structure is valid."
+          fi
         fi
 
         if ! opm validate ."${conffolder}"; then
