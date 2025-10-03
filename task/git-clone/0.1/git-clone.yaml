@@ -86,6 +86,10 @@ spec:
     description: Fetch all tags for the repo.
     name: fetchTags
     type: string
+  - name: fetchSubmoduleTags
+    description: Fetch all tags from all submodules.
+    type: string
+    default: "false"
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -154,6 +158,8 @@ spec:
       value: $(params.userHome)
     - name: PARAM_FETCH_TAGS
       value: $(params.fetchTags)
+    - name: PARAM_FETCH_SUBMODULE_TAGS
+      value: $(params.fetchSubmoduleTags)
     - name: PARAM_GIT_INIT_IMAGE
       value: $(params.gitInitImage)
     - name: PARAM_MERGE_TARGET_BRANCH
@@ -312,6 +318,10 @@ spec:
       if [ "${PARAM_FETCH_TAGS}" = "true" ] ; then
         echo "Fetching tags"
         retry git fetch --tags
+      fi
+      if [ "${PARAM_FETCH_SUBMODULE_TAGS}" = "true" ]; then
+        echo "Fetching tags of submodules"
+        git submodule foreach --recursive "git fetch --tags"
       fi
 
   - name: symlink-check
