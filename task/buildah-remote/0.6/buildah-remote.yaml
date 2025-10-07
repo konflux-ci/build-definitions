@@ -196,6 +196,10 @@ spec:
     description: The image is built from this URL.
     name: SOURCE_URL
     type: string
+  - default: "true"
+    description: Determines if SBOM will be contextualized.
+    name: CONTEXTUALIZE_SBOM
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -273,6 +277,8 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: BUILD_TIMESTAMP
       value: $(params.BUILD_TIMESTAMP)
+    - name: CONTEXTUALIZE_SBOM
+      value: $(params.CONTEXTUALIZE_SBOM)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
     - name: PLATFORM
@@ -972,6 +978,7 @@ spec:
           -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
+          -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
@@ -1170,7 +1177,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+    image: quay.io/konflux-ci/mobster:1.0.0-1760010717@sha256:213269cdde962187fef52532c5794589a9bd309962333d150e46b5dfe8e50461
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -1230,6 +1237,10 @@ spec:
       for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
         mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
       done
+
+      if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+        mobster_args+=(--contextualize)
+      fi
 
       mobster "${mobster_args[@]}"
 

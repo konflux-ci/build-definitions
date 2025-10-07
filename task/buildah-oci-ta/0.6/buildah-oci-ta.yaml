@@ -75,6 +75,10 @@ spec:
       description: Path to the directory to use as context.
       type: string
       default: .
+    - name: CONTEXTUALIZE_SBOM
+      description: Determines if SBOM will be contextualized.
+      type: string
+      default: "true"
     - name: DOCKERFILE
       description: Path to the Dockerfile to build.
       type: string
@@ -277,6 +281,8 @@ spec:
         value: $(params.BUILD_TIMESTAMP)
       - name: CONTEXT
         value: $(params.CONTEXT)
+      - name: CONTEXTUALIZE_SBOM
+        value: $(params.CONTEXTUALIZE_SBOM)
       - name: ENTITLEMENT_SECRET
         value: $(params.ENTITLEMENT_SECRET)
       - name: HERMETIC
@@ -1047,7 +1053,7 @@ spec:
 
         echo "[$(date --utc -Ins)] End sbom-syft-generate"
     - name: prepare-sboms
-      image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+      image: quay.io/konflux-ci/mobster:1.0.0-1760010717@sha256:213269cdde962187fef52532c5794589a9bd309962333d150e46b5dfe8e50461
       args:
         - --additional-base-images
         - $(params.ADDITIONAL_BASE_IMAGES[*])
@@ -1109,6 +1115,10 @@ spec:
         for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
           mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
         done
+
+        if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+          mobster_args+=(--contextualize)
+        fi
 
         mobster "${mobster_args[@]}"
 
