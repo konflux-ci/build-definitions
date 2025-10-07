@@ -63,5 +63,26 @@ ec track bundle --debug \
     --prune \
     "${PARAMS[@]}"
 
+# Run sanity checks before updating the :latest tag
+echo "Running bundle sanity validation..."
+echo "Validating bundle: ${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}"
+if ! bash "$(dirname "$0")/validate-bundle-sanity.sh"; then
+    echo "ERROR: Bundle sanity validation failed - NOT updating :latest tag"
+    echo ""
+    echo "Failed bundle details:"
+    echo "  Repository: ${DATA_BUNDLE_REPO}"
+    echo "  Tag: ${DATA_BUNDLE_TAG}"
+    echo "  Full image: ${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}"
+    echo ""
+    echo "The new bundle contains malformed or suspicious data that could break Conforma validations."
+    echo "Please investigate the issue and fix the bundle before retrying."
+    echo ""
+    echo "To inspect the failed bundle:"
+    echo "  skopeo inspect docker://${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}"
+    echo "  skopeo copy docker://${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG} dir:/tmp/failed-bundle"
+    exit 1
+fi
+
+echo "Bundle sanity validation passed - updating :latest tag"
 # To facilitate usage in some contexts, tag the image with the floating "latest" tag.
 skopeo copy "docker://${DATA_BUNDLE_REPO}:${DATA_BUNDLE_TAG}" "docker://${DATA_BUNDLE_REPO}:latest"
