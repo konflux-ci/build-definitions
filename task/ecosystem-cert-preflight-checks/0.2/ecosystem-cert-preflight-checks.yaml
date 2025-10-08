@@ -372,7 +372,7 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        image_digest=$(oras manifest fetch "${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
+        image_digest=$(skopeo inspect --raw "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
         if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi
