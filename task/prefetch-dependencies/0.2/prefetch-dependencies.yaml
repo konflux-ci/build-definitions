@@ -111,6 +111,10 @@ spec:
         name: activation-key
     computeResources:
       limits:
+        # We have seen strange behavior where prefetch memory consumption is
+        # abnormally high when CPU is unlimited and that lead to the pods being
+        # OOMKilled. This was observed with golang backend only so far.
+        cpu: '1'
         memory: 3Gi
       requests:
         cpu: '1'
