@@ -754,7 +754,9 @@ spec:
             tr -d "'"
         )
         if [[ -n "$FINAL_BASE_IMAGE" ]]; then
+          set_proxy
           buildah pull "$FINAL_BASE_IMAGE" >/dev/null$()
+          unset_proxy
           buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
         fi
       fi
