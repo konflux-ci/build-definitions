@@ -23,5 +23,43 @@ GitHub repositories and may encounter API rate limits without authentication.
 |SLSA_SOURCE_LEVEL_ACHIEVED|The SLSA source level achieved by this commit|
 |TEST_OUTPUT|JSON formatted test results for SLSA verification|
 
+## Workspaces
+|name|description|optional|
+|---|---|---|
+|basic-auth|A Workspace containing a token file for GitHub API authentication. The workspace should contain a file named 'token' with a GitHub personal access token or other authentication token. This is used to avoid rate limiting when accessing the GitHub API. Binding a Secret to this Workspace is strongly recommended over other volume types. |true|
 
 ## Additional info
+
+### GitHub Authentication
+
+To avoid GitHub API rate limits, you can provide a GitHub token via the `basic-auth` workspace.
+
+**Create a secret with your GitHub token:**
+
+```bash
+kubectl create secret generic github-token \
+  --from-literal=token=ghp_yourTokenHere
+```
+
+**Use the secret in your pipeline:**
+
+```yaml
+apiVersion: tekton.dev/v1
+kind: TaskRun
+metadata:
+  name: verify-source-example
+spec:
+  taskRef:
+    name: verify-source
+  params:
+    - name: url
+      value: https://github.com/slsa-framework/source-tool
+    - name: revision
+      value: 134593d9158efd253e979e2e8d87b939945d091e
+  workspaces:
+    - name: basic-auth
+      secret:
+        secretName: github-token
+```
+
+The task will automatically detect the `token` file in the workspace and use it for GitHub API authentication.
