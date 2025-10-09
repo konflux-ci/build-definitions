@@ -263,10 +263,11 @@ spec:
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" >"/tekton/home/images_processed.txt"
       computeResources:
         limits:
-          memory: 8Gi
+          cpu: "1"
+          memory: 12Gi
         requests:
           cpu: "1"
-          memory: 8Gi
+          memory: 12Gi
       securityContext:
         capabilities:
           add:
@@ -274,10 +275,11 @@ spec:
     - name: fips-operator-check-step-action
       computeResources:
         limits:
-          memory: 8Gi
+          cpu: "1"
+          memory: 12Gi
         requests:
-          cpu: 500m
-          memory: 8Gi
+          cpu: "1"
+          memory: 12Gi
       ref:
         params:
           - name: url
