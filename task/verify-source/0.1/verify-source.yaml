@@ -1,0 +1,131 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-source
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.21.0
+    tekton.dev/tags: security, slsa
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |
+    The verify-source Task verifies the SLSA source level of a git commit
+    by checking for a Verification Summary Attestation (VSA) stored as a
+    git note. This task does not explicitly clone the repository - it performs
+    the verification using the sourcetool verifycommit command.
+  params:
+    - name: url
+      description: Repository URL to verify.
+      type: string
+    - name: revision
+      description: Commit SHA to verify.
+      type: string
+  results:
+    - name: SLSA_SOURCE_LEVEL_ACHIEVED
+      description: The SLSA source level achieved by this commit
+    - name: TEST_OUTPUT
+      description: JSON formatted test results for SLSA verification
+  steps:
+    - name: slsa-verify
+      image: quay.io/konflux-ci/git-clone@sha256:bd303d16e9d9b01622d69deff77c583ebdea36611b15dc243da658d93763e8de
+      env:
+        - name: PARAM_URL
+          value: $(params.url)
+        - name: PARAM_REVISION
+          value: $(params.revision)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # Initialize variables
+        REPO_URL="${PARAM_URL}"
+        COMMIT_SHA="${PARAM_REVISION}"
+
+        # Extract repository information
+        REPO_HOST=$(echo "$REPO_URL" | awk -F/ '{print $3}')
+        REPO_OWNER=$(echo "$REPO_URL" | awk -F/ '{print $4}')
+        REPO_NAME=$(echo "$REPO_URL" | awk -F/ '{print $5}' | sed 's/\.git$//')
+
+        echo "=== SLSA Source Verification ==="
+        echo "Repository: $REPO_HOST/$REPO_OWNER/$REPO_NAME"
+        echo "Commit: $COMMIT_SHA"
+
+        # Initialize test results
+        VERIFICATION_RESULT="PASSED"
+        ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
+        SUCCESSES=0
+        FAILURES=0
+        WARNINGS=0
+        TESTS=()
+
+        # Attempt to verify with source-tool
+        echo "Running SLSA source verification..."
+
+        # Try to verify the commit using source-tool
+        # Note: sourcetool returns exit code 0 even on failure, so we check output
+        VERIFICATION_LOG=$(mktemp)
+        sourcetool verifycommit \
+          --commit "$COMMIT_SHA" \
+          --owner "$REPO_OWNER" \
+          --repo "$REPO_NAME" 2>&1 | tee "$VERIFICATION_LOG"
+
+        if grep -q "FAILED:" "$VERIFICATION_LOG"; then
+          echo "Source-tool verification failed - no VSA found in repository"
+          WARNINGS=$((WARNINGS + 1))
+          TESTS+=('{"name":"source-tool-execution","result":"WARNING"}')
+          # Fallback to basic level 1
+          ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
+        else
+          echo "Source-tool verification PASSED - VSA found in repository"
+          SUCCESSES=$((SUCCESSES + 1))
+          TESTS+=('{"name":"source-tool-execution","result":"PASSED"}')
+
+          # Extract the actual SLSA level from sourcetool output
+          # Format: "SUCCESS: commit ... verified with [SLSA_SOURCE_LEVEL_3 TAG_HYGIENE]"
+          EXTRACTED_LEVEL=$(grep -oP '\[SLSA_SOURCE_LEVEL_\d+' "$VERIFICATION_LOG" | sed 's/\[//')
+
+          if [ -n "$EXTRACTED_LEVEL" ]; then
+            ACHIEVED_LEVEL="$EXTRACTED_LEVEL"
+            echo "Extracted SLSA level from VSA: $ACHIEVED_LEVEL"
+          else
+            # Fallback if we can't parse the level
+            # Any repo is SLSA Source L1 if it exists in source control
+            ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
+            echo "Could not extract SLSA level, defaulting to: $ACHIEVED_LEVEL"
+          fi
+        fi
+
+        SUCCESSES=$((SUCCESSES + 1))
+        TESTS+=('{"name":"slsa-level-determination","result":"PASSED"}')
+
+        # Generate test output JSON
+        TESTS_JSON=$(printf '%s\n' "${TESTS[@]}" | paste -sd ',' -)
+
+        TEST_OUTPUT=$(
+          cat <<EOF
+        {
+          "result": "$VERIFICATION_RESULT",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "namespace": "slsa-source-verification",
+          "successes": $SUCCESSES,
+          "failures": $FAILURES,
+          "warnings": $WARNINGS,
+          "tests": [$TESTS_JSON]
+        }
+        EOF
+        )
+
+        # Write results
+        echo "$ACHIEVED_LEVEL" >"$(results.SLSA_SOURCE_LEVEL_ACHIEVED.path)"
+        echo "$TEST_OUTPUT" >"$(results.TEST_OUTPUT.path)"
+
+        echo "=== SLSA Verification Summary ==="
+        echo "Result: $VERIFICATION_RESULT"
+        echo "Achieved Level: $ACHIEVED_LEVEL"
+        echo "Successes: $SUCCESSES, Failures: $FAILURES, Warnings: $WARNINGS"
+
+        # Clean up
+        rm -f "$VERIFICATION_LOG"
+      securityContext:
+        runAsUser: 0
