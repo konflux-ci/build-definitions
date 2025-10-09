@@ -103,20 +103,22 @@ spec:
         WARNINGS=0
         TESTS=()
 
-        # Attempt to verify with source-tool and fetch VSA
+        # Attempt to fetch and parse VSA from git notes
         echo "Running SLSA source verification..."
 
         # Create a temporary directory for git operations
         TEMP_DIR=$(mktemp -d)
         cd "$TEMP_DIR"
-
-        # Initialize a bare repository and fetch only the notes
         git init --bare repo.git
         cd repo.git
 
-        # Fetch the git notes containing VSAs
-        # Note: We only fetch notes, not the entire repository
-        if git fetch "$REPO_URL" 'refs/notes/commits:refs/notes/commits' 2>&1; then
+        # Fetch the git notes containing VSAs (only notes, not the entire repository)
+        if ! git fetch "$REPO_URL" 'refs/notes/commits:refs/notes/commits' 2>&1; then
+          echo "Failed to fetch git notes from repository"
+          WARNINGS=$((WARNINGS + 1))
+          TESTS+=('{"name":"vsa-fetch","result":"WARNING"}')
+          cd / && rm -rf "$TEMP_DIR"
+        else
           echo "Successfully fetched git notes from repository"
 
           # Try to get the VSA for this commit
@@ -126,8 +128,6 @@ spec:
             echo "No VSA found in git notes for this commit"
             WARNINGS=$((WARNINGS + 1))
             TESTS+=('{"name":"vsa-fetch","result":"WARNING"}')
-            # Fallback to basic level 1
-            ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
           else
             echo "VSA found in git notes"
             SUCCESSES=$((SUCCESSES + 1))
@@ -135,50 +135,25 @@ spec:
 
             # Parse the VSA to extract the SLSA level
             # VSA note contains two JSON objects - the second one has the actual VSA
-            # Extract the second JSON object and decode its payload using bash tools
+            # Extract and decode the payload, then parse verifiedLevels field
             VSA_JSON=$(echo "$VSA_NOTE" | tail -1)
-
-            # Extract the base64 payload from dsseEnvelope.payload field
             PAYLOAD_B64=$(echo "$VSA_JSON" | grep -o '"payload":"[^"]*"' | sed 's/"payload":"//;s/"$//')
+            DECODED_PAYLOAD=$(echo "$PAYLOAD_B64" | base64 -d 2>/dev/null || echo "")
+            EXTRACTED_LEVEL=$(echo "$DECODED_PAYLOAD" | \
+              grep -o '"verifiedLevels":\["[^"]*"' | \
+              sed 's/"verifiedLevels":\["\([^"]*\)"/\1/')
 
-            if [ -n "$PAYLOAD_B64" ]; then
-              # Decode the payload
-              DECODED_PAYLOAD=$(echo "$PAYLOAD_B64" | base64 -d 2>/dev/null || echo "")
-
-              if [ -n "$DECODED_PAYLOAD" ]; then
-                # Extract verifiedLevels array - look for "verifiedLevels":["SLSA_SOURCE_LEVEL_X"]
-                EXTRACTED_LEVEL=$(echo "$DECODED_PAYLOAD" | \
-                  grep -o '"verifiedLevels":\["[^"]*"' | \
-                  sed 's/"verifiedLevels":\["\([^"]*\)"/\1/')
-
-                if [ -n "$EXTRACTED_LEVEL" ]; then
-                  ACHIEVED_LEVEL="$EXTRACTED_LEVEL"
-                  echo "Extracted SLSA level from VSA: $ACHIEVED_LEVEL"
-                else
-                  # Fallback if we can't parse the level
-                  ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
-                  echo "Could not parse SLSA level from VSA, defaulting to: $ACHIEVED_LEVEL"
-                fi
-              else
-                ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
-                echo "Could not decode VSA payload, defaulting to: $ACHIEVED_LEVEL"
-              fi
+            if [ -n "$EXTRACTED_LEVEL" ]; then
+              ACHIEVED_LEVEL="$EXTRACTED_LEVEL"
+              echo "Extracted SLSA level from VSA: $ACHIEVED_LEVEL"
             else
-              ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
-              echo "Could not extract payload from VSA, defaulting to: $ACHIEVED_LEVEL"
+              echo "Could not parse SLSA level from VSA, using default: $ACHIEVED_LEVEL"
             fi
           fi
-        else
-          echo "Failed to fetch git notes from repository"
-          WARNINGS=$((WARNINGS + 1))
-          TESTS+=('{"name":"vsa-fetch","result":"WARNING"}')
-          # Fallback to basic level 1
-          ACHIEVED_LEVEL="SLSA_SOURCE_LEVEL_1"
-        fi
 
-        # Clean up temp directory
-        cd /
-        rm -rf "$TEMP_DIR"
+          # Clean up temp directory
+          cd / && rm -rf "$TEMP_DIR"
+        fi
 
         SUCCESSES=$((SUCCESSES + 1))
         TESTS+=('{"name":"slsa-level-determination","result":"PASSED"}')
