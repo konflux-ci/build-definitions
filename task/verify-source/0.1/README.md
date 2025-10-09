@@ -7,8 +7,8 @@ the verification using the sourcetool verifycommit command.
 
 WARNING: This task uses source-tool (https://github.com/slsa-framework/source-tool)
 which is currently a proof-of-concept and under active development. It should
-not be used in production environments. Additionally, it currently only supports
-GitHub repositories and may encounter API rate limits without authentication.
+not be used in production environments. It supports GitHub and GitLab repositories,
+and may encounter API rate limits without authentication.
 
 
 ## Parameters
@@ -26,19 +26,24 @@ GitHub repositories and may encounter API rate limits without authentication.
 ## Workspaces
 |name|description|optional|
 |---|---|---|
-|basic-auth|A Workspace containing a token file for GitHub API authentication. The workspace should contain a file named 'token' with a GitHub personal access token or other authentication token. This is used to avoid rate limiting when accessing the GitHub API. Binding a Secret to this Workspace is strongly recommended over other volume types. |true|
+|basic-auth|A Workspace containing a token file for API authentication. The workspace should contain a file named 'token' with a GitHub personal access token, GitLab personal access token, or other authentication token. The task will automatically set the appropriate environment variable (GITHUB_TOKEN or GITLAB_TOKEN) based on the repository host. This is used to avoid rate limiting when accessing the API. Binding a Secret to this Workspace is strongly recommended over other volume types. |true|
 
 ## Additional info
 
-### GitHub Authentication
+### API Authentication
 
-To avoid GitHub API rate limits, you can provide a GitHub token via the `basic-auth` workspace.
+To avoid API rate limits, you can provide an authentication token via the `basic-auth` workspace. The task automatically detects the repository host and sets the appropriate environment variable (`GITHUB_TOKEN` for GitHub, `GITLAB_TOKEN` for GitLab).
 
-**Create a secret with your GitHub token:**
+**Create a secret with your token:**
 
 ```bash
-kubectl create secret generic github-token \
-  --from-literal=token=ghp_yourTokenHere
+# For GitHub
+kubectl create secret generic git-token \
+  --from-literal=token=ghp_yourGitHubTokenHere
+
+# For GitLab
+kubectl create secret generic git-token \
+  --from-literal=token=glpat-yourGitLabTokenHere
 ```
 
 **Use the secret in your pipeline:**
@@ -59,7 +64,7 @@ spec:
   workspaces:
     - name: basic-auth
       secret:
-        secretName: github-token
+        secretName: git-token
 ```
 
-The task will automatically detect the `token` file in the workspace and use it for GitHub API authentication.
+The task will automatically detect the `token` file in the workspace and set the appropriate environment variable based on the repository URL.
