@@ -31,6 +31,15 @@ spec:
       description: The SLSA source level achieved by this commit
     - name: TEST_OUTPUT
       description: JSON formatted test results for SLSA verification
+  workspaces:
+    - name: basic-auth
+      description: |
+        A Workspace containing a token file for GitHub API authentication.
+        The workspace should contain a file named 'token' with a GitHub
+        personal access token or other authentication token. This is used
+        to avoid rate limiting when accessing the GitHub API. Binding a
+        Secret to this Workspace is strongly recommended over other volume types.
+      optional: true
   steps:
     - name: slsa-verify
       image: quay.io/konflux-ci/git-clone@sha256:bd303d16e9d9b01622d69deff77c583ebdea36611b15dc243da658d93763e8de
@@ -39,6 +48,10 @@ spec:
           value: $(params.url)
         - name: PARAM_REVISION
           value: $(params.revision)
+        - name: WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND
+          value: $(workspaces.basic-auth.bound)
+        - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
+          value: $(workspaces.basic-auth.path)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -51,6 +64,15 @@ spec:
         REPO_HOST=$(echo "$REPO_URL" | awk -F/ '{print $3}')
         REPO_OWNER=$(echo "$REPO_URL" | awk -F/ '{print $4}')
         REPO_NAME=$(echo "$REPO_URL" | awk -F/ '{print $5}' | sed 's/\.git$//')
+
+        # Check for GitHub token in workspace
+        GITHUB_TOKEN=""
+        if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ]; then
+          if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/token" ]; then
+            GITHUB_TOKEN=$(cat "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/token")
+            echo "Using GitHub token from workspace for authentication"
+          fi
+        fi
 
         echo "=== SLSA Source Verification ==="
         echo "Repository: $REPO_HOST/$REPO_OWNER/$REPO_NAME"
@@ -70,10 +92,14 @@ spec:
         # Try to verify the commit using source-tool
         # Note: sourcetool returns exit code 0 even on failure, so we check output
         VERIFICATION_LOG=$(mktemp)
-        sourcetool verifycommit \
-          --commit "$COMMIT_SHA" \
-          --owner "$REPO_OWNER" \
-          --repo "$REPO_NAME" 2>&1 | tee "$VERIFICATION_LOG"
+
+        # Build sourcetool command with optional token
+        SOURCETOOL_CMD="sourcetool verifycommit --commit $COMMIT_SHA --owner $REPO_OWNER --repo $REPO_NAME"
+        if [ -n "$GITHUB_TOKEN" ]; then
+          SOURCETOOL_CMD="$SOURCETOOL_CMD --github_token $GITHUB_TOKEN"
+        fi
+
+        eval "$SOURCETOOL_CMD" 2>&1 | tee "$VERIFICATION_LOG"
 
         if grep -q "FAILED:" "$VERIFICATION_LOG"; then
           echo "Source-tool verification failed - no VSA found in repository"
