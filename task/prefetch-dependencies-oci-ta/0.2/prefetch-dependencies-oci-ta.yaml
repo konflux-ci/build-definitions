@@ -148,12 +148,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:adf22f3ec90bfa3f7e2c832a7d52febd1ea31aa9fff6db21324c965d7d622327
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2448b17953dc15faae0996f833286521b24f01bf0281338008e84724c430b41d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:24c87766e0bd03b288e69034d629d3fbdda50cef95a661caae553cb20adf04f8
+      image: quay.io/konflux-ci/yq:latest@sha256:e85a8a2993b62708b74d4a778efb31c59f2aac63a2fff0e9251cb8b49d5c2715
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
@@ -162,7 +162,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.39.0@sha256:edcbf837eb289da50a4d65f630a8bb1938ba8fa1e9ae617a224b6d349b2ae3f2
+      image: quay.io/konflux-ci/hermeto:0.40.0@sha256:6ef7f13186492a44f748e79dee3f3c6e9d9f6c97693a450435eeaaf3956ae10b
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -447,7 +447,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:adf22f3ec90bfa3f7e2c832a7d52febd1ea31aa9fff6db21324c965d7d622327
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2448b17953dc15faae0996f833286521b24f01bf0281338008e84724c430b41d
       args:
         - create
         - --store
