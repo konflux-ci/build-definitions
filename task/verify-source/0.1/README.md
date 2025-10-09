@@ -3,7 +3,7 @@
 The verify-source Task verifies the SLSA source level of a git commit
 by checking for a Verification Summary Attestation (VSA) stored as a
 git note. This task does not explicitly clone the repository - it performs
-the verification using the sourcetool verifycommit command.
+the verification using the source-tool verifycommit command.
 
 WARNING: This task uses source-tool (https://github.com/slsa-framework/source-tool)
 which is currently a proof-of-concept and under active development. It should
