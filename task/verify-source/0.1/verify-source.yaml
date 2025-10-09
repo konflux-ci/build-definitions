@@ -17,8 +17,8 @@ spec:
 
     WARNING: This task uses source-tool (https://github.com/slsa-framework/source-tool)
     which is currently a proof-of-concept and under active development. It should
-    not be used in production environments. Additionally, it currently only supports
-    GitHub repositories and may encounter API rate limits without authentication.
+    not be used in production environments. It supports GitHub and GitLab repositories,
+    and may encounter API rate limits without authentication.
   params:
     - name: url
       description: Repository URL to verify.
@@ -34,11 +34,14 @@ spec:
   workspaces:
     - name: basic-auth
       description: |
-        A Workspace containing a token file for GitHub API authentication.
+        A Workspace containing a token file for API authentication.
         The workspace should contain a file named 'token' with a GitHub
-        personal access token or other authentication token. This is used
-        to avoid rate limiting when accessing the GitHub API. Binding a
-        Secret to this Workspace is strongly recommended over other volume types.
+        personal access token, GitLab personal access token, or other
+        authentication token. The task will automatically set the appropriate
+        environment variable (GITHUB_TOKEN or GITLAB_TOKEN) based on the
+        repository host. This is used to avoid rate limiting when accessing
+        the API. Binding a Secret to this Workspace is strongly recommended
+        over other volume types.
       optional: true
   steps:
     - name: slsa-verify
@@ -65,12 +68,25 @@ spec:
         REPO_OWNER=$(echo "$REPO_URL" | awk -F/ '{print $4}')
         REPO_NAME=$(echo "$REPO_URL" | awk -F/ '{print $5}' | sed 's/\.git$//')
 
-        # Check for GitHub token in workspace
-        GITHUB_TOKEN=""
+        # Check for token in workspace and set appropriate environment variable
         if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ]; then
           if [ -f "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/token" ]; then
-            GITHUB_TOKEN=$(cat "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/token")
-            echo "Using GitHub token from workspace for authentication"
+            TOKEN=$(cat "${WORKSPACE_BASIC_AUTH_DIRECTORY_PATH}/token")
+
+            # Set appropriate environment variable based on repo host
+            case "$REPO_HOST" in
+              *github.com)
+                export GITHUB_TOKEN="$TOKEN"
+                echo "Using GitHub token from workspace for authentication"
+                ;;
+              *gitlab.com|*gitlab.*)
+                export GITLAB_TOKEN="$TOKEN"
+                echo "Using GitLab token from workspace for authentication"
+                ;;
+              *)
+                echo "Warning: Unknown host $REPO_HOST, token authentication may not work"
+                ;;
+            esac
           fi
         fi
 
@@ -92,14 +108,10 @@ spec:
         # Try to verify the commit using source-tool
         # Note: sourcetool returns exit code 0 even on failure, so we check output
         VERIFICATION_LOG=$(mktemp)
-
-        # Build sourcetool command with optional token
-        SOURCETOOL_CMD="sourcetool verifycommit --commit $COMMIT_SHA --owner $REPO_OWNER --repo $REPO_NAME"
-        if [ -n "$GITHUB_TOKEN" ]; then
-          SOURCETOOL_CMD="$SOURCETOOL_CMD --github_token $GITHUB_TOKEN"
-        fi
-
-        eval "$SOURCETOOL_CMD" 2>&1 | tee "$VERIFICATION_LOG"
+        sourcetool verifycommit \
+          --commit "$COMMIT_SHA" \
+          --owner "$REPO_OWNER" \
+          --repo "$REPO_NAME" 2>&1 | tee "$VERIFICATION_LOG"
 
         if grep -q "FAILED:" "$VERIFICATION_LOG"; then
           echo "Source-tool verification failed - no VSA found in repository"
