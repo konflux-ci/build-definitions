@@ -274,7 +274,8 @@
         "task_bundle: (?<depName>quay\\.io/konflux-ci/(?:konflux-vanguard|tekton-catalog)/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
-      "datasourceTemplate": "docker"
+      "datasourceTemplate": "docker",
+      "extractVersionTemplate": "{{currentValue}}"
     },
     {
       "customType": "regex",
