@@ -64,7 +64,7 @@ spec:
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
-        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1758514242'
+        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1759242207'
       - name: PLATFORM
         value: $(params.PLATFORM)
       - name: IMAGE_APPEND_PLATFORM
@@ -76,12 +76,12 @@ spec:
         name: varlibcontainers
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:adf22f3ec90bfa3f7e2c832a7d52febd1ea31aa9fff6db21324c965d7d622327
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:2448b17953dc15faae0996f833286521b24f01bf0281338008e84724c430b41d
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/konflux-ci/yq:latest@sha256:875f69f9e2172d627bd01aaf7a0d49f67ffebc07fc148ae0d50865e48bd401b9
+      image: quay.io/konflux-ci/yq:latest@sha256:e85a8a2993b62708b74d4a778efb31c59f2aac63a2fff0e9251cb8b49d5c2715
       script: |-
         #!/bin/bash
         set -o verbose
