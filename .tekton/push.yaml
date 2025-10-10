@@ -18,6 +18,8 @@ spec:
       value: "quay.io/konflux-ci/appstudio-utils:{{ revision }}"
     - name: slack-webhook-notification-team
       value: "integration-slack-alerts"
+    - name: console_url
+      value: "https://console-openshift-console.apps.kflux-prd-rh03.nnv1.p1.openshiftapps.com"
   pipelineSpec:
     params:
       - description: 'Source Repository URL'
@@ -258,7 +260,7 @@ spec:
           values: ["Failed"]
         params:
         - name: message
-          value: ":x: Tekton pipelineRun $(context.pipelineRun.name) failed"
+          value: ":x: Tekton pipelineRun <$(params.console_url)/k8s/ns/$(context.pipelineRun.namespace)/tekton.dev~v1~PipelineRun/$(context.pipelineRun.name)|$(context.pipelineRun.name)> failed"
         - name: key-name
           value: $(params.slack-webhook-notification-team)
   workspaces:
