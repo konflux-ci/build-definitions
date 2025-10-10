@@ -175,9 +175,9 @@ spec:
         EOF
         )
 
-        # Write results
-        echo "$ACHIEVED_LEVEL" >"$(results.SLSA_SOURCE_LEVEL_ACHIEVED.path)"
-        echo "$TEST_OUTPUT" >"$(results.TEST_OUTPUT.path)"
+        # Write results (without trailing newlines)
+        printf '%s' "$ACHIEVED_LEVEL" >"$(results.SLSA_SOURCE_LEVEL_ACHIEVED.path)"
+        printf '%s' "$TEST_OUTPUT" >"$(results.TEST_OUTPUT.path)"
 
         echo "=== SLSA Verification Summary ==="
         echo "Result: $VERIFICATION_RESULT"
