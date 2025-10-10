@@ -1,0 +1,56 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  labels:
+    pipelines.openshift.io/runtime: generic
+  name: package-operator-package
+spec:
+  description: |
+    Given a git repository, a reference (as in, tag or commit) and a path within the repository this pipeline will create a package-operator package.
+
+    The process of how a pko package is defined and packaged is documented [here](https://package-operator.run/docs/guides/packaging-an-application/). This task expects the package definition, will build it using `kubectl-package` and push the created package to the given OCI registry destination.
+  params:
+    - name: SRC_REPO_URL
+      description: URL of the git repo containing the package definition.
+      type: string
+    - name: SRC_REF
+      description: Git ref (branch, tag, commit) to use on the given src repo.
+      type: string
+    - name: SRC_PATH
+      description: Path within the check out src repo containing the package definition.
+      type: string
+    - name: DST_URL
+      description: URL where to push the generated pko package to.
+      type: string
+  tasks:
+  - name: clone-package-repository
+    params:
+    - name: url
+      value: $(params.SRC_REPO_URL)
+    - name: revision
+      value: $(params.SRC_REF)
+    - name: subdirectory
+      value: source
+    taskRef:
+      name: git-clone
+      version: "0.1"
+    workspaces:
+    - name: output
+      workspace: package
+  - name: run-package-operator-package
+    runAfter:
+      - clone-package-repository
+    taskRef:
+      name: package-operator-package
+    params:
+      - name: PACKAGE_PATH
+        value: source/$(params.SRC_PATH)
+      - name: DST_URL
+        value: $(params.DST_URL)
+      - name: SBOM_SRC
+        value: $(params.SRC_REPO_URL)?ref=$(params.SRC_REF)&path=$(params.SRC_PATH)
+    workspaces:
+      - name: package
+        workspace: package
+  workspaces:
+  - name: package
