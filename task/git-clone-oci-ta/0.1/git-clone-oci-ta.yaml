@@ -34,6 +34,10 @@ spec:
         Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.
       type: string
       default: "true"
+    - name: fetchSubmoduleTags
+      description: Fetch all tags from all submodules.
+      type: string
+      default: "false"
     - name: fetchTags
       description: Fetch all tags for the repo.
       type: string
@@ -197,6 +201,8 @@ spec:
           value: $(params.userHome)
         - name: PARAM_FETCH_TAGS
           value: $(params.fetchTags)
+        - name: PARAM_FETCH_SUBMODULE_TAGS
+          value: $(params.fetchSubmoduleTags)
         - name: PARAM_MERGE_TARGET_BRANCH
           value: $(params.mergeTargetBranch)
         - name: PARAM_TARGET_BRANCH
@@ -320,6 +326,10 @@ spec:
         if [ "${PARAM_FETCH_TAGS}" = "true" ]; then
           echo "Fetching tags"
           retry git fetch --tags
+        fi
+        if [ "${PARAM_FETCH_SUBMODULE_TAGS}" = "true" ]; then
+          echo "Fetching tags of submodules"
+          git submodule foreach --recursive "git fetch --tags"
         fi
       securityContext:
         runAsUser: 0
