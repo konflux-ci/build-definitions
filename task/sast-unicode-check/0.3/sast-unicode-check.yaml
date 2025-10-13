@@ -111,7 +111,7 @@ spec:
             PROJECT_NAME=${COMPONENT_LABEL}
         fi
 
-        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+        echo "INFO: The PROJECT_NAME used is: ${PROJECT_NAME}"
 
         SCAN_PROP=""
 
@@ -197,50 +197,56 @@ spec:
         csgrep --mode=evtstat processed_sast_unicode_check_out.json
 
         if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
-          # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
-          PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
-          echo -n "Probing ${PROBE_URL}... "
-          if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
-            echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
             KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-          else
-            echo "Setting KFP_GIT_URL to empty string"
-            KFP_GIT_URL=
-          fi
+        fi
+        PROBE_URL="${KFP_GIT_URL%.git}" # trims '.git' suffix
+
+        # create the KFP clone directory regardless
+        KFP_DIR="known-false-positives"
+        KFP_CLONED="0"
+        mkdir "${KFP_DIR}"
+
+        # We check if the KFP_GIT_URL variable is set to clone and apply the filters or not
+        if [[ -n "${KFP_GIT_URL}" ]]; then
+            # Default location only reachable from internal Konflux instances, check reachable first
+            echo -n "INFO: Probing ${PROBE_URL}... "
+            if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
+                echo "INFO: Trying to clone known-false-positives.."
+                git clone "${KFP_GIT_URL}" "${KFP_DIR}" && KFP_CLONED="1"
+            fi
         fi
 
-        # Filter known false positives if KFP_GIT_URL is set
-        if [ -n "${KFP_GIT_URL}" ]; then
-            echo "Filtering false positives in results files using ${KFP_GIT_URL}..." >&2
+        # If KFP clone failed, use the unfiltered results
+        if [[ "${KFP_CLONED}" -eq "0" ]]; then
+            echo "WARN: Failed to clone known-false-positives at ${KFP_GIT_URL}, scan results will not be filtered"
+            mv processed_sast_unicode_check_out.json sast_unicode_check_out.json
+        else
+            echo "INFO: Filtering false positives in results files using csfilter-kfp..."
 
             # Build initial csfilter-kfp command
             csfilter_kfp_cmd=(
                 csfilter-kfp
                 --verbose
-                --kfp-git-url="${KFP_GIT_URL}"
+                --kfp-dir="${KFP_DIR}"
+                --project-nvr="${PROJECT_NAME}"
             )
-
-            # Append --project-nvr option if PROJECT_NVR is set
-            if [[ -n "${PROJECT_NAME}" ]]; then
-                csfilter_kfp_cmd+=(--project-nvr="${PROJECT_NAME}")
-            fi
 
             # Append --record-excluded option if RECORD_EXCLUDED is true
             if [[ "${RECORD_EXCLUDED}" == "true" ]]; then
                 csfilter_kfp_cmd+=(--record-excluded="excluded-findings.json")
             fi
 
-            if ! "${csfilter_kfp_cmd[@]}" processed_sast_unicode_check_out.json > sast_unicode_check_out.json 2> sast_unicode_check_out.error; then
-                echo "Failed to filter known false positives" >&2
-                cat sast_unicode_check_out.error
-                note="Task $(context.task.name) failed: For details, check Tekton task log."
-                ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-                echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-                exit 1
+            # Execute the command and capture any errors
+            set +e
+            "${csfilter_kfp_cmd[@]}" processed_sast_unicode_check_out.json > sast_unicode_check_out.json 2> sast_unicode_check_out.error
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+                echo "WARN: failed to filter known false positives" >&2
+                mv processed_sast_unicode_check_out.json sast_unicode_check_out.json
+            else
+                echo "INFO: Succeeded filtering known false positives" >&2
             fi
-        else
-            echo "KFP_GIT_URL is not set. Skipping false positive filtering." >&2
-            mv processed_sast_unicode_check_out.json sast_unicode_check_out.json
         fi
 
         # Generate sarif report
