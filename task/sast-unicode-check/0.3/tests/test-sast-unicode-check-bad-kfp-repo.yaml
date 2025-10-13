@@ -1,0 +1,87 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-sast-unicode-check-bad-kfp-repo
+spec:
+  description: |
+    Test the sast-unicode-check task with an unreachable known-false-positives-repo
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-unicode-check:latest"
+        - name: image-digest
+          value: sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+    - name: clone-repository
+      runAfter:
+        - init
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      params:
+        - name: url
+          value: https://github.com/konflux-ci/test-data-sast
+        - name: revision
+          value: main
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/git-clone/0.1/git-clone.yaml
+    - name: scan-with-unicode
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: sast-unicode-check
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-unicode-check:latest"
+        - name: image-digest
+          value: sha256:d9fea2ee280880feef6909bef3e18318444231c83736bcc41d54b4e5064f23c9
+        - name: KFP_GIT_URL
+          value: https://gitlab.com/bad/repo/url.git
+    - name: check-result
+      runAfter:
+        - scan-with-unicode
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+              echo "Check-result"
+              # Extract findings stats from the resulting SARIF data
+              output=$(csgrep --mode=evtstat "$(workspaces.workspace.path)"/hacbs/sast-unicode-check/sast_unicode_check_out.sarif | tr -d '\n')
+              expected="    196	UNICONTROL_WARNING                              	warning"
+              # Compare output with expected string
+              if [[ "$output" == "$expected" ]]; then
+                echo "Test passed!"
+              else
+                echo "Test failed!"
+                echo "Actual output: [$output]"
+                echo "Expected output: [$expected]"
+                return 1
+              fi
