@@ -1,0 +1,86 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-sast-shell-check-bad-kfp-rep
+spec:
+  description: |
+    Test the sast-shell-check task succeeds even if the KFP repo is unreachable
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-shell-check:latest"
+    - name: clone-repository
+      runAfter:
+        - init
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      params:
+        - name: url
+          value: https://github.com/konflux-ci/test-data-sast
+        - name: revision
+          value: main
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/git-clone/0.1/git-clone.yaml
+    - name: scan-with-shellcheck
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      runAfter:
+        - clone-repository
+      taskRef:
+        name: sast-shell-check
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-shell-check:latest"
+          # Test using a non-existent KFP repo does not cause task failure
+        - name: KFP_GIT_URL
+          value: https://gitlab.com/bad/repo/url.git
+    - name: check-result
+      runAfter:
+        - scan-with-shellcheck
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+              echo "Check-result"
+              # Extract findings stats from the resulting SARIF data
+              ls -la "$(workspaces.workspace.path)"/hacbs/
+              cat "$(workspaces.workspace.path)"/hacbs/sast-shell-check/shellcheck-results.sarif
+              output=$(csgrep --mode=evtstat "$(workspaces.workspace.path)"/hacbs/sast-shell-check/shellcheck-results.sarif | tr -d '\n')
+              expected="      8	SHELLCHECK_WARNING                              	warning[SC1083]      2	SHELLCHECK_WARNING                              	warning[SC2069]"
+              # Compare output with expected string
+              if [[ "$output" == "$expected" ]]; then
+                echo "Test passed!"
+              else
+                echo "Test failed!"
+                echo "Actual output: [$output]"
+                echo "Expected output: [$expected]"
+                return 1
+              fi
