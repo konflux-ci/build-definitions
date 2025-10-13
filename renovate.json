@@ -241,6 +241,12 @@
       ]
     },
     {
+      "groupName": "verify-source",
+      "matchFileNames": [
+        "task/verify-source/**"
+      ]
+    },
+    {
       "groupName": "mobster",
       "matchFileNames": [
         "task/**"
@@ -274,7 +280,7 @@
         "^external-task/.*/.*/.*\\.yaml$"
       ],
       "matchStrings": [
-        "task_bundle: (?<depName>quay\\.io/konflux-ci/konflux-vanguard/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+        "task_bundle: (?<depName>quay\\.io/konflux-ci/(?:konflux-vanguard|tekton-catalog)/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
@@ -324,17 +330,6 @@
         "image: (?<depName>quay\\.io/konflux-ci/mobster[^:]*):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
-      "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "fileMatch": [
-        "^external-task/.*/.*/.*\\.yaml$"
-      ],
-      "matchStrings": [
-        "task_bundle: (?<depName>quay\\.io/konflux-ci/tekton-catalog/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
-      ],
-      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker"
     }
   ]

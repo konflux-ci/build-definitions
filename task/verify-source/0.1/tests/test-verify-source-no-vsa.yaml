@@ -1,0 +1,68 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-verify-source-no-vsa
+spec:
+  description: |
+    Test the verify-source task with a repository that has no VSA
+  tasks:
+    - name: run-task
+      taskRef:
+        name: verify-source
+      params:
+        - name: url
+          value: https://github.com/kelseyhightower/nocode
+        - name: revision
+          value: ed6c73fc16578ec53ea374585df2b965ce9f4a31
+    - name: check-result
+      params:
+        - name: SLSA_SOURCE_LEVEL_ACHIEVED
+          value: $(tasks.run-task.results.SLSA_SOURCE_LEVEL_ACHIEVED)
+        - name: TEST_OUTPUT
+          value: $(tasks.run-task.results.TEST_OUTPUT)
+      taskSpec:
+        params:
+          - name: SLSA_SOURCE_LEVEL_ACHIEVED
+          - name: TEST_OUTPUT
+        steps:
+          - name: check-result
+            env:
+              - name: SLSA_LEVEL_ACHIEVED
+                value: $(params.SLSA_SOURCE_LEVEL_ACHIEVED)
+              - name: TEST_OUTPUT
+                value: $(params.TEST_OUTPUT)
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env sh
+              set -eux
+
+              # Strip trailing newlines from results
+              LEVEL=$(echo "$SLSA_LEVEL_ACHIEVED" | tr -d '\n')
+              OUTPUT=$(echo "$TEST_OUTPUT" | tr -d '\n')
+
+              echo "SLSA_SOURCE_LEVEL_ACHIEVED: $LEVEL"
+              echo "TEST_OUTPUT: $OUTPUT"
+
+              # For repos without VSA, verify SLSA level is 1 (baseline)
+              if [ "$LEVEL" != "SLSA_SOURCE_LEVEL_1" ]; then
+                echo "ERROR: Expected SLSA_SOURCE_LEVEL_1 for repo without VSA, got: $LEVEL"
+                exit 1
+              fi
+
+              # Verify that TEST_OUTPUT is non-empty
+              if [ -z "$OUTPUT" ]; then
+                echo "ERROR: TEST_OUTPUT is empty"
+                exit 1
+              fi
+
+              # Verify that there is at least one warning (no VSA found)
+              WARNINGS=$(echo "$OUTPUT" | grep -o '"warnings": [0-9]*' | grep -o '[0-9]*' || echo "0")
+              if [ "$WARNINGS" -eq 0 ]; then
+                echo "ERROR: Expected at least one warning for repo without VSA"
+                exit 1
+              fi
+
+              echo "SUCCESS: No-VSA verification test passed - correctly identified repo without VSA"
+      runAfter:
+        - run-task

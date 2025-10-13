@@ -6,7 +6,7 @@ metadata:
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: "0.5"
+    app.kubernetes.io/version: "0.6"
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -73,6 +73,10 @@ spec:
   - default: .
     description: Path to the directory to use as context.
     name: CONTEXT
+    type: string
+  - default: "true"
+    description: Determines if SBOM will be contextualized.
+    name: CONTEXTUALIZE_SBOM
     type: string
   - default: ./Dockerfile
     description: Path to the Dockerfile to build.
@@ -246,6 +250,8 @@ spec:
       value: $(params.BUILD_TIMESTAMP)
     - name: CONTEXT
       value: $(params.CONTEXT)
+    - name: CONTEXTUALIZE_SBOM
+      value: $(params.CONTEXTUALIZE_SBOM)
     - name: ENTITLEMENT_SECRET
       value: $(params.ENTITLEMENT_SECRET)
     - name: HERMETIC
@@ -984,6 +990,7 @@ spec:
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e CONTEXT="${CONTEXT@Q}" \
+          -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
           -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
           -e HERMETIC="${HERMETIC@Q}" \
           -e IMAGE="${IMAGE@Q}" \
@@ -1200,7 +1207,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+    image: quay.io/konflux-ci/mobster:1.0.0-1760010717@sha256:213269cdde962187fef52532c5794589a9bd309962333d150e46b5dfe8e50461
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -1263,6 +1270,10 @@ spec:
       for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
         mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
       done
+
+      if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+        mobster_args+=(--contextualize)
+      fi
 
       mobster "${mobster_args[@]}"
 

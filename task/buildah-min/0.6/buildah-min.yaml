@@ -6,7 +6,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.5"
+    app.kubernetes.io/version: "0.6"
     build.appstudio.redhat.com/build_type: docker
   name: buildah-min
 spec:
@@ -196,6 +196,10 @@ spec:
     description: The image is built from this URL.
     name: SOURCE_URL
     type: string
+  - default: "true"
+    description: Determines if SBOM will be contextualized.
+    name: CONTEXTUALIZE_SBOM
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -265,6 +269,8 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: BUILD_TIMESTAMP
       value: $(params.BUILD_TIMESTAMP)
+    - name: CONTEXTUALIZE_SBOM
+      value: $(params.CONTEXTUALIZE_SBOM)
     imagePullPolicy: IfNotPresent
     volumeMounts:
     - mountPath: /shared
@@ -987,7 +993,7 @@ spec:
       requests:
         cpu: 10m
         memory: 128Mi
-    image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+    image: quay.io/konflux-ci/mobster:1.0.0-1760010717@sha256:213269cdde962187fef52532c5794589a9bd309962333d150e46b5dfe8e50461
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -1043,6 +1049,10 @@ spec:
       for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
         mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
       done
+
+      if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+        mobster_args+=(--contextualize)
+      fi
 
       mobster "${mobster_args[@]}"
 
