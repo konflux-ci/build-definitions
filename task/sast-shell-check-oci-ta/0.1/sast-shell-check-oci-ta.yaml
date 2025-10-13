@@ -133,7 +133,7 @@ spec:
           PROJECT_NAME=${COMPONENT_LABEL}
         fi
 
-        echo "The PROJECT_NAME used is: ${PROJECT_NAME}"
+        echo "INFO: The PROJECT_NAME used is: ${PROJECT_NAME}"
 
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         if [ -f "$ca_bundle" ]; then
@@ -207,27 +207,35 @@ spec:
         fi
 
         if [[ "${KFP_GIT_URL}" == "SITE_DEFAULT" ]]; then
-          # Set KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git for internal Konflux instances
-          PROBE_URL="https://gitlab.cee.redhat.com/osh/known-false-positives"
-          echo -n "Probing ${PROBE_URL}... "
+          KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
+        fi
+        PROBE_URL="${KFP_GIT_URL%.git}" # trims '.git' suffix
+
+        # create the KFP clone directory regardless
+        KFP_DIR="known-false-positives"
+        KFP_CLONED="0"
+        mkdir "${KFP_DIR}"
+
+        # We check if the KFP_GIT_URL variable is set to clone and apply the filters or not
+        if [[ -n "${KFP_GIT_URL}" ]]; then
+          # Default location only reachable from internal Konflux instances, check reachable first
+          echo -n "INFO: Probing ${PROBE_URL}... "
           if curl --fail --head --max-time 60 --no-progress-meter "${PROBE_URL}" > >(head -1); then
-            echo "Setting KFP_GIT_URL to https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-            KFP_GIT_URL="https://gitlab.cee.redhat.com/osh/known-false-positives.git"
-          else
-            echo "Setting KFP_GIT_URL to empty string"
-            KFP_GIT_URL=
+            echo "INFO: Trying to clone known-false-positives.."
+            git clone "${KFP_GIT_URL}" "${KFP_DIR}" && KFP_CLONED="1"
           fi
         fi
 
-        # Filter known false positives if KFP_GIT_URL is set
-        if [ -n "${KFP_GIT_URL}" ]; then
-          echo "Filtering known false positives using ${KFP_GIT_URL}"
+        if [[ "${KFP_CLONED}" -eq "0" ]]; then
+          echo "WARN: Failed to clone known-false-positives at ${KFP_GIT_URL}, scan results will not be filtered"
+        else
+          echo "INFO: Filtering false positives in results files using csfilter-kfp..."
 
           # build initial csfilter-kfp command
           csfilter_kfp_cmd=(
             csfilter-kfp
             --verbose
-            --kfp-git-url="${KFP_GIT_URL}"
+            --kfp-dir="${KFP_DIR}"
             --project-nvr="${PROJECT_NAME}"
           )
 
@@ -236,19 +244,16 @@ spec:
           fi
 
           # Execute the command and capture any errors
-          if ! "${csfilter_kfp_cmd[@]}" "${OUTPUT_FILE}" >"${OUTPUT_FILE}.filtered" 2>"${OUTPUT_FILE}.error"; then
-            echo "Error occurred while filtering known false positives:"
-            cat "${OUTPUT_FILE}.error"
-            note="Task $(context.task.name) failed: For details, check Tekton task log."
-            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-            exit 1
+          set +e
+          "${csfilter_kfp_cmd[@]}" "${OUTPUT_FILE}" >"${OUTPUT_FILE}.filtered" 2>"${OUTPUT_FILE}.error"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "WARN: failed to filter known false positives" >&2
           else
             mv "${OUTPUT_FILE}.filtered" "$OUTPUT_FILE"
-            echo "Filtered results saved back to $OUTPUT_FILE"
+            echo "INFO: Succeeded filtering known false positives" >&2
           fi
-        else
-          echo "KFP_GIT_URL is not set. Skipping false positive filtering."
         fi
 
         echo "ShellCheck results have been saved to $OUTPUT_FILE"
