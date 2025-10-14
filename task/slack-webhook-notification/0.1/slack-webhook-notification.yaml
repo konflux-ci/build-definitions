@@ -20,6 +20,12 @@ spec:
       default: slack-webhook-notification-secret
     - name: key-name
       description: Key in the key in secret which contains webhook URL for slack.
+    - name: user-id
+      description: Slack user ID to mention (e.g., U024BE7LH). If set, the user will be mentioned in the notification.
+      default: ""
+    - name: group-id
+      description: Slack group ID to mention (e.g., S0614TZR7). If set, the group will be mentioned in the notification.
+      default: ""
     - name: submodules
       type: array
       description: List of submodules name to dump. Git log since previous submodule commit will be added to the message. The previous submodule commit is found by looking at the previous commit in the repository that declares the submodules.
@@ -49,6 +55,10 @@ spec:
           value: $(params.key-name)
         - name: MESSAGE
           value: $(params.message)
+        - name: USER_ID
+          value: $(params.user-id)
+        - name: GROUP_ID
+          value: $(params.group-id)
       args:
         - --files
         - $(params.files[*])
@@ -160,6 +170,16 @@ spec:
         # ------
 
         slack_message=${MESSAGE}
+
+        # Add user mention if user-id is set
+        if [ -n "${USER_ID}" ]; then
+          slack_message="<@${USER_ID}> ${slack_message}"
+        fi
+
+        # Add group mention if group-id is set
+        if [ -n "${GROUP_ID}" ]; then
+          slack_message="<!subteam^${GROUP_ID}> ${slack_message}"
+        fi
 
         if [ ${#FILES[@]} -ne 0 ]; then
             slack_message=$(concat "${slack_message}" "$(dumpSeparator)")
