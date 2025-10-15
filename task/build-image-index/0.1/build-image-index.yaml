@@ -42,6 +42,14 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
     default: oci
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data
+    default: ca-bundle.crt
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -57,6 +65,13 @@ spec:
   volumes:
     - name: shared-dir
       emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
 
   stepTemplate:
     env:
@@ -75,6 +90,9 @@ spec:
     volumeMounts:
       - name: shared-dir
         mountPath: /index-build-data
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
+        readOnly: true
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
