@@ -49,6 +49,15 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from
+    name: caTrustConfigMapName
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data
+    name: caTrustConfigMapKey
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -80,6 +89,9 @@ spec:
     volumeMounts:
     - mountPath: /index-build-data
       name: shared-dir
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
   steps:
   - args:
     - $(params.IMAGES[*])
@@ -252,3 +264,10 @@ spec:
   volumes:
   - emptyDir: {}
     name: shared-dir
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
