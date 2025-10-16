@@ -21,7 +21,7 @@ Scans RPMs in an image and provide information about RPMs signatures.
 
 ## Additional info
 
-The RPM's signature keys as well as the unsigned RPMs are saved into the `RPMS_DATA` 
+The RPM's signature keys as well as the unsigned RPMs are saved into the `RPMS_DATA`
 result path and they are processed by Conforma to detemine whether the task should fail
 or not.
 
