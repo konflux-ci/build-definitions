@@ -263,6 +263,8 @@ spec:
           value: ":x: Tekton pipelineRun <$(params.console_url)/k8s/ns/$(context.pipelineRun.namespace)/tekton.dev~v1~PipelineRun/$(context.pipelineRun.name)|$(context.pipelineRun.name)> failed"
         - name: key-name
           value: $(params.slack-webhook-notification-team)
+  taskRunTemplate:
+    serviceAccountName: konflux-ci-sa
   workspaces:
     - name: workspace
       volumeClaimTemplate:
