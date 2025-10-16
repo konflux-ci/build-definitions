@@ -95,16 +95,17 @@ spec:
           filename=$(echo $entry | yq .filename)
           artifact_type=$(echo $entry | yq .type)
           artifact_digest=$(echo $entry | yq .sha256sum)
+          varfile="${filename//\//-}"
 
           {
             echo "declare OCI_SOURCE=${source}"
             echo "declare OCI_FILENAME=${filename}"
             echo "declare OCI_ARTIFACT_TYPE=${artifact_type}"
             echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}"
-          } >"/var/workdir/vars/$filename"
+          } >"/var/workdir/vars/$varfile"
 
-          echo "Wrote /var/workdir/vars/$filename with contents:"
-          cat "/var/workdir/vars/$filename"
+          echo "Wrote /var/workdir/vars/$varfile with contents:"
+          cat "/var/workdir/vars/$varfile"
         done
     - name: oci-copy
       image: quay.io/konflux-ci/oras:latest@sha256:e52de03c78ea65bf806cebee6892f054e2ae7b554d302e4a83ef28ec5010b2ee
@@ -140,6 +141,13 @@ spec:
           url="$1"
           file="$2"
           method="GET"
+
+          directory=$(dirname "${file}")
+          echo "Found directory of ${file} to be ${directory}"
+          if [ ! -d "${directory}" ]; then
+            echo "Found that directory ${directory} does not exist. Creating."
+            mkdir -p "${directory}"
+          fi
 
           curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
