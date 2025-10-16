@@ -8,11 +8,11 @@ import shutil
 from pathlib import Path
 from tempfile import mkdtemp
 
-PIPELINE_GENERATE_INPUT_DIRS = ('./pipelines/', './pipelines/rhtap/')
+PIPELINE_GENERATE_INPUT_DIRS = ('./pipelines/',)
 PIPELINES_DIR = './pipelines/'
 TASKS_DIR = './task/'
 # mapping pipeline_name to directory name, in case it isn't the same
-PIPELINE_TO_DIRECTORY_MAPPING = {'gitops-pull-request': 'gitops-pull-request-rhtap'}
+PIPELINE_TO_DIRECTORY_MAPPING = {}
 
 
 def run(cmd):
