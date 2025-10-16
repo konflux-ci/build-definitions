@@ -23,6 +23,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. |true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
+|fetchSubmoduleTags|Fetch all tags from all submodules.|false|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|

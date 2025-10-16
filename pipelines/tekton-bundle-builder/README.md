@@ -46,6 +46,7 @@
 |deleteExisting| Clean out the contents of the destination directory if it already exists before cloning.| true| |
 |depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
+|fetchSubmoduleTags| Fetch all tags from all submodules.| false| |
 |fetchTags| Fetch all tags for the repo.| false| |
 |gitInitImage| Deprecated. Has no effect. Will be removed in the future.| | |
 |httpProxy| HTTP proxy server for non-SSL requests.| | |
