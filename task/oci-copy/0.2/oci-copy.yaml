@@ -74,16 +74,17 @@ spec:
           filename=$(echo $entry | yq .filename)
           artifact_type=$(echo $entry | yq .type)
           artifact_digest=$(echo $entry | yq .sha256sum)
+          varfile="${filename//\//-}"
 
           {
             echo "declare OCI_SOURCE=${source}";
             echo "declare OCI_FILENAME=${filename}";
             echo "declare OCI_ARTIFACT_TYPE=${artifact_type}";
             echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}";
-          } > "$(workspaces.source.path)/vars/$filename"
+          } > "$(workspaces.source.path)/vars/$varfile"
 
-          echo "Wrote $(workspaces.source.path)/vars/$filename with contents:"
-          cat "$(workspaces.source.path)/vars/$filename"
+          echo "Wrote $(workspaces.source.path)/vars/$varfile with contents:"
+          cat "$(workspaces.source.path)/vars/$varfile"
         done
       workingDir: $(workspaces.source.path)
     - name: oci-copy
@@ -126,6 +127,13 @@ spec:
           url="$1"
           file="$2"
           method="GET"
+
+          directory=$(dirname "${file}")
+          echo "Found directory of ${file} to be ${directory}"
+          if [ ! -d "${directory}" ]; then
+            echo "Found that directory ${directory} does not exist. Creating."
+            mkdir -p "${directory}"
+          fi
 
           curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
