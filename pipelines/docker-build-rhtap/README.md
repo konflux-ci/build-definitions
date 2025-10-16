@@ -14,6 +14,7 @@
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:CONTEXT|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|snyk-ignore-file-paths| Directories or files to be excluded from Snyk scan (Comma-separated). In case multiple components are maintained in a single git repository, Snyk Code is unable to distinguish which directories contain the source code for which component.| | |
 |stackrox-secret| | rox-api-token| acs-image-check:0.1:rox-secret-name ; acs-image-scan:0.1:rox-secret-name ; acs-deploy-check:0.1:rox-secret-name|
 
 ## Available params from tasks
