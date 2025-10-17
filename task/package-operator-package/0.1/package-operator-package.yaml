@@ -1,0 +1,93 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.21.1"
+    tekton.dev/tags: package-operator
+    tekton.dev/platforms: linux/amd64
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: package-operator-package
+  name: package-operator-package
+spec:
+  description: |-
+    Given a git repository, a reference (as in, tag or commit) and a path within the
+    repository this task will create a package-operator package.
+
+    The process of how a pko package is defined and packaged is documented
+    [here](https://package-operator.run/docs/guides/packaging-an-application/).
+    This task expects the package definition, will build it using `kubectl-package`
+    and push the created package to the given OCI registry destination.
+  params:
+    - name: PACKAGE_PATH
+      description: File path the package manifest is in.
+      type: string
+    - name: SBOM_SRC
+      description: Source that is being specified in the SBOM pushed alongside the package.
+      type: string
+    - name: DST_URL
+      description: URL where to push the generated pko package to.
+      type: string
+  results:
+    - name: PACKAGE_DIGEST
+      description: Digest of the package just built
+    - name: PACKAGE_URL
+      description: Image repository and tag where the built package was pushed
+    - name: PACKAGE_REF
+      description: Image reference of the built package
+    - name: SBOM_BLOB_URL
+      description: Reference of SBOM blob digest to enable digest-based verification from provenance
+      type: string
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: ca-bundle.crt
+            path: ca-bundle.crt
+        name: trusted-ca
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+  - name: build-pkg
+    image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794@sha256:f02995b241a7d1a8afbc60b9dec233b03179328c7d4718c6d7360758d0b13794
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      digest=$(kubectl-package build --tag "$(params.DST_URL)" --push "$(workspaces.package.path)/$(params.PACKAGE_PATH)" --output-format digest)
+      echo "$digest" > "$(results.PACKAGE_DIGEST.path)"
+      echo "$(params.DST_URL)" > "$(results.PACKAGE_URL.path)"
+      echo "$(params.DST_URL)@$digest" > "$(results.PACKAGE_REF.path)"
+
+  - name: sbom
+    image: quay.io/konflux-ci/appstudio-utils:48c311af02858e2422d6229600e9959e496ddef1@sha256:91ddd999271f65d8ec8487b10f3dd378f81aa894e11b9af4d10639fd52bba7e8
+    script: |
+      #!/bin/bash
+      set -eu -o pipefail
+      mobster generate --output sbom.json pko-package --sbom-type spdx \
+        --url "$(cat "$(params.SBOM_SRC.path)")" --package-pullspec "$(cat "$(results.PACKAGE_REF.path)")" --package-digest "$(cat "$(results.PACKAGE_DIGEST.path)")"
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.PACKAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom sbom.json --type spdx "$(cat "$(results.PACKAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="$(cat "$(results.PACKAGE_URL.path)")"
+      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" > "$(results.SBOM_BLOB_URL.path)"
+
+      cosign attach sbom --sbom sbom.json --type spdx "$(params.DST_URL)"
+  workspaces:
+    - description: Workspace that contains the package manifest.
+      name: package
