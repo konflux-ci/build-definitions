@@ -364,14 +364,16 @@ spec:
           exit 0
         fi
 
-        UPLOAD_FILES="sast_snyk_check_out.sarif excluded-findings.json"
+        UPLOAD_FILES="sast_snyk_check_out.sarif excluded-findings.json stdout.txt"
         for UPLOAD_FILE in ${UPLOAD_FILES}; do
             if [ ! -f "${UPLOAD_FILE}" ]; then
               echo "No ${UPLOAD_FILE} exists. Skipping upload."
               continue
             fi
-            if [ "${UPLOAD_FILES}" == "excluded-findings.json" ]; then
+            if [ "${UPLOAD_FILE}" == "excluded-findings.json" ]; then
                 MEDIA_TYPE=application/json
+            elif [ "${UPLOAD_FILE}" == "stdout.txt" ]; then
+                MEDIA_TYPE=text/plain
             else
                 MEDIA_TYPE=application/sarif+json
             fi
