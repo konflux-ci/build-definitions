@@ -345,13 +345,13 @@ spec:
         echo "Validating FBC directory structure."
         PACKAGE_DIRS=$(find ".${conffolder}" -mindepth 1 -maxdepth 1 -type d)
 
-        # The only requirement is that at least one package subdirectory exists.
+        # First, check if any package subdirectories exist at all.
         if [[ -z "${PACKAGE_DIRS}" ]]; then
           echo "!FAILURE! - No package subdirectories found inside '.${conffolder}'. At least one is required."
           echo "--> The FBC image must contain one or more package directories."
           echo "    Example valid structure:"
           echo "    ${conffolder}/"
-          echo "    └── <any-package-name>/"
+          echo "    └── <package-name>/"
 
           # Set the note for the final error report
           note="FBC directory structure validation failed: No package subdirectories were found inside the '${conffolder}' directory."
@@ -359,7 +359,33 @@ spec:
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         else
-          echo "FBC directory structure is valid."
+          # Array to hold directories that are found to be empty
+          empty_dirs=()
+
+          # Loop through each found package directory to check if it's empty
+          while IFS= read -r pkg_dir; do
+            # Check if the find command returns anything inside the directory
+            if [[ -z "$(find "${pkg_dir}" -mindepth 1)" ]]; then
+              echo "!FAILURE! - Package directory '${pkg_dir}' is empty."
+              empty_dirs+=("${pkg_dir}")
+            fi
+          done <<< "${PACKAGE_DIRS}"
+
+          # After checking all directories, report if any were empty
+          if [[ ${#empty_dirs[@]} -gt 0 ]]; then
+            echo "--> FBC package directories must not be empty."
+            echo "    Example valid structure:"
+            echo "    ${conffolder}/"
+            echo "    └── <package-name>/"
+
+            # Set a detailed note for the final error report, listing all empty directories
+            note="FBC directory validation failed. The following package directories are empty: ${empty_dirs[*]}"
+
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          else
+            echo "FBC directory structure is valid."
+          fi
         fi
 
         if ! opm validate ."${conffolder}"; then
