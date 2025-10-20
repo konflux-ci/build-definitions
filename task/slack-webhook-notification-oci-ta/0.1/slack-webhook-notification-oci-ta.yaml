@@ -20,6 +20,11 @@ spec:
         message.
       type: array
       default: []
+    - name: group-ids
+      description: List of Slack group IDs to mention (e.g., S0614TZR7). If
+        set, the groups will be mentioned in the notification.
+      type: array
+      default: []
     - name: key-name
       description: Key in the key in secret which contains webhook URL for
         slack.
@@ -35,6 +40,11 @@ spec:
         submodule commit will be added to the message. The previous submodule
         commit is found by looking at the previous commit in the repository
         that declares the submodules.
+      type: array
+      default: []
+    - name: user-ids
+      description: List of Slack user IDs to mention (e.g., U024BE7LH). If
+        set, the users will be mentioned in the notification.
       type: array
       default: []
   volumes:
@@ -61,6 +71,10 @@ spec:
         - $(params.files[*])
         - --submodules
         - $(params.submodules[*])
+        - --user-ids
+        - $(params.user-ids[*])
+        - --group-ids
+        - $(params.group-ids[*])
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/secrets
@@ -143,6 +157,8 @@ spec:
 
         FILES=()
         SUBMODULES=()
+        USER_IDS=()
+        GROUP_IDS=()
 
         while [[ $# -gt 0 ]]; do
           case $1 in
@@ -157,6 +173,20 @@ spec:
             shift
             while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
               SUBMODULES+=("$1")
+              shift
+            done
+            ;;
+          --user-ids)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              USER_IDS+=("$1")
+              shift
+            done
+            ;;
+          --group-ids)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              GROUP_IDS+=("$1")
               shift
             done
             ;;
@@ -179,6 +209,23 @@ spec:
         # ------
 
         slack_message=${MESSAGE}
+
+        # Add user mentions if user-ids are set
+        user_mentions=""
+        for user_id in "${USER_IDS[@]}"; do
+          user_mentions="${user_mentions}<@${user_id}> "
+        done
+
+        # Add group mentions if group-ids are set
+        group_mentions=""
+        for group_id in "${GROUP_IDS[@]}"; do
+          group_mentions="${group_mentions}<!subteam^${group_id}> "
+        done
+
+        # Prepend mentions to message
+        if [ -n "${user_mentions}" ] || [ -n "${group_mentions}" ]; then
+          slack_message="${user_mentions}${group_mentions}${slack_message}"
+        fi
 
         if [ ${#FILES[@]} -ne 0 ]; then
           slack_message=$(concat "${slack_message}" "$(dumpSeparator)")
