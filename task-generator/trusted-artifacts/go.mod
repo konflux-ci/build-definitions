@@ -17,11 +17,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-replace (
-	k8s.io/api v0.34.1 => k8s.io/api v0.32.8
-	k8s.io/apimachinery v0.34.1 => k8s.io/apimachinery v0.32.8
-)
-
 require (
 	cel.dev/expr v0.24.0 // indirect
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
