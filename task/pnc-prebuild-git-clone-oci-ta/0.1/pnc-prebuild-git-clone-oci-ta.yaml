@@ -87,6 +87,12 @@ spec:
       is not advised unless you are sure that you trust your git remote.
     name: sslVerify
     type: string
+  - default: ""
+    description: |
+      Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched.
+      Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable.
+    name: submodulePaths
+    type: string
   - default: "true"
     description: Initialize and fetch git submodules.
     name: submodules
@@ -159,6 +165,8 @@ spec:
       value: $(params.refspec)
     - name: PARAM_SUBMODULES
       value: $(params.submodules)
+    - name: PARAM_SUBMODULE_PATHS
+      value: $(params.submodulePaths)
     - name: PARAM_DEPTH
       value: $(params.depth)
     - name: PARAM_SHORT_COMMIT_LENGTH
@@ -193,7 +201,7 @@ spec:
       value: $(workspaces.basic-auth.path)
     - name: CHECKOUT_DIR
       value: /var/workdir/source
-    image: quay.io/konflux-ci/git-clone@sha256:bd303d16e9d9b01622d69deff77c583ebdea36611b15dc243da658d93763e8de
+    image: quay.io/konflux-ci/git-clone@sha256:8398a89bc2c6124dca4ffc66ffb2aa6d8f7acb3af9b1a51580abd3a66918a0ea
     name: clone
     script: |
       #!/usr/bin/env sh
@@ -244,6 +252,7 @@ spec:
         -path="${CHECKOUT_DIR}" \
         -sslVerify="${PARAM_SSL_VERIFY}" \
         -submodules="${PARAM_SUBMODULES}" \
+        -submodulePaths="${PARAM_SUBMODULE_PATHS}" \
         -depth="${PARAM_DEPTH}" \
         -sparseCheckoutDirectories="${PARAM_SPARSE_CHECKOUT_DIRECTORIES}" \
         -retryMaxAttempts=10
