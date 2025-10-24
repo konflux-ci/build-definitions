@@ -61,7 +61,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch| | |
 |COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
-|CONTEXTUALIZE_SBOM| Determines if SBOM will be contextualized.| true| |
+|CONTEXTUALIZE_SBOM| Determines if SBOM will be contextualized.| false| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|

@@ -20,7 +20,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |COMMIT_SHA|The image is built from this commit.|""|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
-|CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|true|false|
+|CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|false|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
