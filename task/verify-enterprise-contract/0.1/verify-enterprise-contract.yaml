@@ -164,7 +164,7 @@ spec:
   steps:
 
     - name: initialize-tuf
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       script: |-
         set -euo pipefail
 
@@ -192,12 +192,12 @@ spec:
           value: $(params.SINGLE_COMPONENT_CUSTOM_RESOURCE_NS)
         - name: SNAPSHOT_PATH
           value: $(params.HOMEDIR)/snapshot.json
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [reduce-snapshot.sh]
 
     - name: validate
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [ec]
       args:
@@ -261,14 +261,14 @@ spec:
           readOnly: true
 
     - name: report-json
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [cat]
       args:
         - "$(params.HOMEDIR)/report-json.json"
 
     - name: summary
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       onError: continue  # progress even if the step fails so we can see the debug logs
       command: [jq]
       args:
@@ -276,25 +276,25 @@ spec:
         - "$(results.TEST_OUTPUT.path)"
 
     - name: info
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       command: [printf]
       args:
         - "----- DEBUG OUTPUT -----\n"
 
     - name: version
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       command: [ec]
       args:
         - version
 
     - name: debug-log
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       command: [cat]
       args:
         - "$(params.HOMEDIR)/debug.log"
 
     - name: assert
-      image: registry.redhat.io/rhtas/ec-rhel9:0.6
+      image: registry.redhat.io/rhtas/ec-rhel9:0.7
       command: [jq]
       args:
         - "--argjson"
