@@ -82,72 +82,37 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
-              echo "Extracting image to inspect /root/buildinfo/labels.json"
               REGISTRY_REPO=$(echo "$IMAGE_URL" | sed 's|:[^:]*$||')
               IMAGE_REF="${REGISTRY_REPO}@${IMAGE_DIGEST}"
 
-              # Extract the image to a temp directory
-              mkdir -p /tmp/image-extract
-              cd /tmp/image-extract
+              echo "Verifying layer count is 3 (2 base + 1 combined new layer)"
+              layer_count=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF}" | jq '.Layers | length')
+              echo "Image has $layer_count layers"
 
-              # Use skopeo to copy the image and extract it
-              skopeo copy --src-tls-verify=false "docker://${IMAGE_REF}" "oci:/tmp/image-oci:latest"
+              if [ "$layer_count" -ne 3 ]; then
+                echo "ERROR: Expected exactly 3 layers, got $layer_count"
+                echo "Layer count should not change for STONEBLD-3924 fix"
+                exit 1
+              fi
 
-              # Use oci-unpack or similar to extract filesystem (we'll use umoci or just inspect the layers)
-              # Actually, let's use podman/buildah to extract
-              # For now, let's just use the image directly with podman
-
-              # Alternative: use oc image extract or similar
-              # Let's use skopeo + tar
-              echo "Getting image manifest"
-              manifest=$(skopeo inspect --tls-verify=false --raw "docker://${IMAGE_REF}")
-
-              # Get the layer containing /root/buildinfo/labels.json
-              # This is complex, so let's use a simpler approach: run the image and cat the file
-              # But we can't run it easily in this context
-
-              # Let's use skopeo + extraction
-              # Actually, the easiest is to pull with buildah/podman and mount
-
-              # Simpler approach: use the image to read its own file
-              # We'll create a container from the image and copy the file out
-              # But that requires a container runtime
-
-              # Let's use skopeo to download blobs and tar extract
-              # This is getting complex. Let me try a different approach.
-
-              # Use buildah to inspect and extract
-              echo "Using buildah to get labels from built image"
-
-              # Get the actual labels from the image
+              echo "Getting actual image labels"
               actual_labels=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF}" | jq '.Labels')
-
               echo "Actual image labels:"
               echo "$actual_labels" | jq .
 
-              # Now we need to extract labels.json from the image
-              # Use skopeo copy to oci format, then extract
+              echo "Copying image to OCI format for extraction"
               skopeo copy --src-tls-verify=false "docker://${IMAGE_REF}" "oci:/tmp/image-oci:latest"
 
-              # The OCI format stores layers as blobs
-              # Let's use a simpler approach - download and extract each layer
-              cd /tmp
-
-              # Get layer digests from the image
+              echo "Extracting labels.json from image layers"
               layer_digests=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF}" | jq -r '.Layers[]')
 
-              # Download each layer as a tarball and search for labels.json
               found=false
               for digest in $layer_digests; do
                 echo "Checking layer: $digest"
-                # Use skopeo to get the blob
                 mkdir -p /tmp/layer-extract
                 cd /tmp/layer-extract
                 rm -rf *
 
-                # Download this specific layer using skopeo
-                # Actually, we need a different approach - let's use the OCI copy we already made
-                # The layers are in /tmp/image-oci/blobs/sha256/
                 layer_sha=$(echo "$digest" | cut -d: -f2)
                 if [ -f "/tmp/image-oci/blobs/sha256/$layer_sha" ]; then
                   tar -xzf "/tmp/image-oci/blobs/sha256/$layer_sha" 2>/dev/null || tar -xf "/tmp/image-oci/blobs/sha256/$layer_sha" 2>/dev/null || true
@@ -162,15 +127,13 @@ spec:
 
               if [ "$found" != "true" ]; then
                 echo "ERROR: Could not find /root/buildinfo/labels.json in any layer"
-                echo "Layers checked:"
-                echo "$layer_digests"
                 exit 1
               fi
 
               echo "Contents of /root/buildinfo/labels.json from image:"
               cat /tmp/labels.json | jq .
 
-              # Check for un-interpolated variables
+              echo "Checking for un-interpolated template variables"
               if grep -q '\${' /tmp/labels.json; then
                 echo "ERROR: labels.json contains un-interpolated template variables:"
                 grep '\${' /tmp/labels.json
@@ -179,10 +142,9 @@ spec:
                 exit 1
               fi
 
-              echo "Verifying that labels.json matches actual image labels"
+              echo "Verifying labels.json matches actual image labels"
               labels_json_content=$(cat /tmp/labels.json)
 
-              # Check specific labels that use template variables
               version_in_file=$(echo "$labels_json_content" | jq -r '.version')
               version_in_image=$(echo "$actual_labels" | jq -r '.version')
 
@@ -203,6 +165,6 @@ spec:
                 exit 1
               fi
 
-              echo "SUCCESS: labels.json matches image labels with interpolated values"
+              echo "SUCCESS: labels.json has 3 layers and contains interpolated values matching image labels"
       runAfter:
         - run-buildah
