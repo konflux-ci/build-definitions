@@ -176,26 +176,39 @@ spec:
           exit 1
       fi
 
+      # Remove local cache to force remote 'inspect'.
+      # When 'buildah push' converts formats (e.g., OCI->Docker), it creates new
+      # digests in the registry, but the local cache becomes stale (retains old digests).
+      # This ensures we 'inspect' the correct post-conversion digests for SBOMs.
+      echo "Removing local manifest list: $IMAGE"
+      buildah manifest rm "$IMAGE"
+
       INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
-      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
+      PUSHED_INDEX_DIGEST=$(cat image-digest)
+      IMMUTABLE_INDEX_REF="${INDEX_REPOSITORY}@${PUSHED_INDEX_DIGEST}"
+      INSPECT_FILE="/index-build-data/manifest_data.json"
+
+      echo "Inspecting remote manifest index at: $IMMUTABLE_INDEX_REF"
+
+      if ! retry buildah manifest inspect "$IMMUTABLE_INDEX_REF" > "$INSPECT_FILE"
+      then
+          echo "Failed to inspect remote manifest index: $IMMUTABLE_INDEX_REF"
+          exit 1
+      fi
+
+      echo "Successfully inspected remote index, saved to $INSPECT_FILE"
+
+      MANIFEST_DIGESTS=$(jq -er ".manifests[].digest" "$INSPECT_FILE")
       image_manifests=""
       for i in $MANIFEST_DIGESTS
       do
         image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
       done
 
-      cat image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$PUSHED_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-      {
-        echo -n "${IMAGE}@"
-        cat "image-digest"
-      } > "$(results.IMAGE_REF.path)"
+      echo -n "${IMMUTABLE_INDEX_REF}" > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
-
-      # buildah manifest inspect will always give precedence to the local image.
-      # Since we built this image in the same place as we are inspecting it, we can
-      # just inspect it instead of finding the digest and inspecting the remote image.
-      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
