@@ -1,0 +1,208 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-buildah-labels-json-interpolation
+spec:
+  description: |
+    Test that /root/buildinfo/labels.json contains interpolated label values,
+    not template variables like ${VAR}. This reproduces STONEBLD-3924.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: create-dockerfile
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Create a Dockerfile with labels using ARG template variables
+              mkdir -p "$(workspaces.source.path)"
+              cat > "$(workspaces.source.path)/Dockerfile" << 'EOF'
+              FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:d85040b6e3ed3628a89683f51a38c709185efc3fb552db2ad1b9180f2a6c38be
+              ARG RELEASE_VERSION=v1.2.3
+              ARG COMMIT_SHA=abc123def456
+              ARG SOURCE_URL=https://github.com/example/repo
+              LABEL version="${RELEASE_VERSION}"
+              LABEL release="${RELEASE_VERSION}"
+              LABEL io.openshift.build.commit.id="${COMMIT_SHA}"
+              LABEL io.openshift.build.source-location="${SOURCE_URL}"
+              LABEL io.openshift.build.commit.url="${SOURCE_URL}/commit/${COMMIT_SHA}"
+              RUN echo "Test image" > /test.txt
+              EOF
+
+              echo "Created Dockerfile with template variable labels:"
+              cat "$(workspaces.source.path)/Dockerfile"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+    - name: run-buildah
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: registry-service.kind-registry/test-labels-json:latest
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: .
+        - name: HERMETIC
+          value: "false"
+        - name: SKIP_SBOM_GENERATION
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+      runAfter:
+        - setup-source
+    - name: verify-labels-json
+      params:
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-buildah.results.IMAGE_DIGEST)
+        - name: IMAGE_URL
+          value: $(tasks.run-buildah.results.IMAGE_URL)
+      taskSpec:
+        params:
+          - name: IMAGE_DIGEST
+          - name: IMAGE_URL
+        steps:
+          - name: check-labels-json-contents
+            env:
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              echo "Extracting image to inspect /root/buildinfo/labels.json"
+              REGISTRY_REPO=$(echo "$IMAGE_URL" | sed 's|:[^:]*$||')
+              IMAGE_REF="${REGISTRY_REPO}@${IMAGE_DIGEST}"
+
+              # Extract the image to a temp directory
+              mkdir -p /tmp/image-extract
+              cd /tmp/image-extract
+
+              # Use skopeo to copy the image and extract it
+              skopeo copy --src-tls-verify=false "docker://${IMAGE_REF}" "oci:/tmp/image-oci:latest"
+
+              # Use oci-unpack or similar to extract filesystem (we'll use umoci or just inspect the layers)
+              # Actually, let's use podman/buildah to extract
+              # For now, let's just use the image directly with podman
+
+              # Alternative: use oc image extract or similar
+              # Let's use skopeo + tar
+              echo "Getting image manifest"
+              manifest=$(skopeo inspect --tls-verify=false --raw "docker://${IMAGE_REF}")
+
+              # Get the layer containing /root/buildinfo/labels.json
+              # This is complex, so let's use a simpler approach: run the image and cat the file
+              # But we can't run it easily in this context
+
+              # Let's use skopeo + extraction
+              # Actually, the easiest is to pull with buildah/podman and mount
+
+              # Simpler approach: use the image to read its own file
+              # We'll create a container from the image and copy the file out
+              # But that requires a container runtime
+
+              # Let's use skopeo to download blobs and tar extract
+              # This is getting complex. Let me try a different approach.
+
+              # Use buildah to inspect and extract
+              echo "Using buildah to get labels from built image"
+
+              # Get the actual labels from the image
+              actual_labels=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF}" | jq '.Labels')
+
+              echo "Actual image labels:"
+              echo "$actual_labels" | jq .
+
+              # Now we need to extract labels.json from the image
+              # Use skopeo copy to oci format, then extract
+              skopeo copy --src-tls-verify=false "docker://${IMAGE_REF}" "oci:/tmp/image-oci:latest"
+
+              # The OCI format stores layers as blobs
+              # Let's use a simpler approach - download and extract each layer
+              cd /tmp
+
+              # Get layer digests from the image
+              layer_digests=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF}" | jq -r '.Layers[]')
+
+              # Download each layer as a tarball and search for labels.json
+              found=false
+              for digest in $layer_digests; do
+                echo "Checking layer: $digest"
+                # Use skopeo to get the blob
+                mkdir -p /tmp/layer-extract
+                cd /tmp/layer-extract
+                rm -rf *
+
+                # Download this specific layer using skopeo
+                # Actually, we need a different approach - let's use the OCI copy we already made
+                # The layers are in /tmp/image-oci/blobs/sha256/
+                layer_sha=$(echo "$digest" | cut -d: -f2)
+                if [ -f "/tmp/image-oci/blobs/sha256/$layer_sha" ]; then
+                  tar -xzf "/tmp/image-oci/blobs/sha256/$layer_sha" 2>/dev/null || tar -xf "/tmp/image-oci/blobs/sha256/$layer_sha" 2>/dev/null || true
+                  if [ -f root/buildinfo/labels.json ]; then
+                    echo "Found labels.json in layer $digest"
+                    cp root/buildinfo/labels.json /tmp/labels.json
+                    found=true
+                    break
+                  fi
+                fi
+              done
+
+              if [ "$found" != "true" ]; then
+                echo "ERROR: Could not find /root/buildinfo/labels.json in any layer"
+                echo "Layers checked:"
+                echo "$layer_digests"
+                exit 1
+              fi
+
+              echo "Contents of /root/buildinfo/labels.json from image:"
+              cat /tmp/labels.json | jq .
+
+              # Check for un-interpolated variables
+              if grep -q '\${' /tmp/labels.json; then
+                echo "ERROR: labels.json contains un-interpolated template variables:"
+                grep '\${' /tmp/labels.json
+                echo ""
+                echo "This is STONEBLD-3924 - labels.json should have interpolated values"
+                exit 1
+              fi
+
+              echo "Verifying that labels.json matches actual image labels"
+              labels_json_content=$(cat /tmp/labels.json)
+
+              # Check specific labels that use template variables
+              version_in_file=$(echo "$labels_json_content" | jq -r '.version')
+              version_in_image=$(echo "$actual_labels" | jq -r '.version')
+
+              if [ "$version_in_file" != "$version_in_image" ]; then
+                echo "ERROR: version label mismatch"
+                echo "  In labels.json: $version_in_file"
+                echo "  In image: $version_in_image"
+                exit 1
+              fi
+
+              commit_id_in_file=$(echo "$labels_json_content" | jq -r '."io.openshift.build.commit.id"')
+              commit_id_in_image=$(echo "$actual_labels" | jq -r '."io.openshift.build.commit.id"')
+
+              if [ "$commit_id_in_file" != "$commit_id_in_image" ]; then
+                echo "ERROR: commit.id label mismatch"
+                echo "  In labels.json: $commit_id_in_file"
+                echo "  In image: $commit_id_in_image"
+                exit 1
+              fi
+
+              echo "SUCCESS: labels.json matches image labels with interpolated values"
+      runAfter:
+        - run-buildah
