@@ -120,7 +120,60 @@ spec:
                 exit 1
               fi
 
+              echo "Downloading SBOM using cosign"
+              # Use cosign to download the SBOM from the image
+              # The SBOM is attached as an attestation by the buildah task
+              # Remove the tag from IMAGE_REF if present (cosign expects digest-only for download sbom)
+              IMAGE_DIGEST_ONLY="${IMAGE_URL}@${IMAGE_DIGEST}"
+
+              # Try downloading with cosign, allowing http registry
+              export COSIGN_EXPERIMENTAL=1
+              if ! cosign download sbom --allow-http-registry --allow-insecure-registry "$IMAGE_DIGEST_ONLY" > /tmp/sbom.json 2>/dev/null; then
+                echo "ERROR: Failed to download SBOM with cosign"
+                echo "Image reference: $IMAGE_DIGEST_ONLY"
+                echo "SBOM blob URL: ${SBOM_BLOB_URL}"
+                exit 1
+              fi
+
+              echo "Verifying SBOM is valid JSON"
+              if ! jq . /tmp/sbom.json > /dev/null 2>&1; then
+                echo "ERROR: SBOM is not valid JSON"
+                cat /tmp/sbom.json
+                exit 1
+              fi
+
+              echo "Checking SBOM format is SPDX"
+              spdx_version=$(jq -r '.spdxVersion' /tmp/sbom.json)
+              if [[ -z "$spdx_version" || "$spdx_version" == "null" ]]; then
+                echo "ERROR: SBOM does not appear to be SPDX format (missing spdxVersion)"
+                jq . /tmp/sbom.json | head -20
+                exit 1
+              fi
+              echo "SBOM format verified: $spdx_version"
+
+              echo "Checking SBOM contains packages"
+              package_count=$(jq '.packages | length' /tmp/sbom.json)
+              if [ "$package_count" -eq 0 ]; then
+                echo "ERROR: SBOM contains no packages"
+                exit 1
+              fi
+              echo "SBOM contains $package_count packages"
+
+              echo "Verifying SBOM has required SPDX fields"
+              doc_name=$(jq -r '.name' /tmp/sbom.json)
+              doc_namespace=$(jq -r '.documentNamespace' /tmp/sbom.json)
+              if [[ -z "$doc_name" || "$doc_name" == "null" ]]; then
+                echo "ERROR: SBOM missing required 'name' field"
+                exit 1
+              fi
+              if [[ -z "$doc_namespace" || "$doc_namespace" == "null" ]]; then
+                echo "ERROR: SBOM missing required 'documentNamespace' field"
+                exit 1
+              fi
+              echo "SBOM document name: $doc_name"
+              echo "SBOM document namespace: $doc_namespace"
+
               echo "Build with SBOM generation succeeded"
-              echo "SBOM was generated and uploaded to: $SBOM_BLOB_URL"
+              echo "SBOM validation complete - all checks passed"
       runAfter:
         - run-buildah
