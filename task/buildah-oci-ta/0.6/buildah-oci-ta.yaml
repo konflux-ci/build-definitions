@@ -747,8 +747,32 @@ spec:
         [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
         label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
 
+        # Get labels from Dockerfile, but we need to interpolate ARG values
+        # First, extract ARG definitions and their default values from the parsed Dockerfile
+        declare -A arg_values
+        while IFS='=' read -r arg_name arg_value; do
+          if [ -n "$arg_name" ]; then
+            arg_values["$arg_name"]="$arg_value"
+          fi
+        done < <(jq -r '.Stages[].Commands[] | select(.Name == "ARG") | "\(.Args[0].Key)=\(.Args[0].Value // "")"' /shared/parsed_dockerfile.json)
+
+        # Override with values from BUILD_ARGS if provided
+        for build_arg in "${build_args[@]}"; do
+          arg_name="${build_arg%%=*}"
+          arg_value="${build_arg#*=}"
+          arg_values["$arg_name"]="$arg_value"
+        done
+
+        # Read labels from Dockerfile and interpolate ARG values
         while IFS= read -r label; do
-          label_pairs+=("$label")
+          # Interpolate ${VAR} references in the label value
+          interpolated_label="$label"
+          for arg_name in "${!arg_values[@]}"; do
+            arg_value="${arg_values[$arg_name]}"
+            # Replace ${ARG_NAME} with its value
+            interpolated_label="${interpolated_label//\$\{$arg_name\}/$arg_value}"
+          done
+          label_pairs+=("$interpolated_label")
         done < <(jq -r '.Stages[].Commands[] | select(.Name == "LABEL") | .Labels[] | "\(.Key)=\(.Value)"' /shared/parsed_dockerfile.json | sed 's/"//g')
 
         printf '%s\n' "${label_pairs[@]}" | jq -Rn '
@@ -760,6 +784,7 @@ spec:
 
         jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
 
+        # Now append COPY labels.json to Dockerfile with interpolated values
         echo "" >>"$dockerfile_copy"
         echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
 
