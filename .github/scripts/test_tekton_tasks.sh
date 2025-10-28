@@ -144,9 +144,52 @@ for ITEM in $TEST_ITEMS; do
     PIPELINERUN=$(tkn p start $TEST_NAME -n ${TEST_NS} -w name=tests-workspace,volumeClaimTemplateFile=$WORKSPACE_TEMPLATE  -o json | jq -r '.metadata.name')
     echo "INFO: Started pipelinerun: $PIPELINERUN"
     sleep 1  # allow a second for the prun object to appear (including a status condition)
+
+    # Wait for pipeline with timeout and periodic diagnostics
+    WAIT_TIMEOUT=3600  # 1 hour timeout
+    WAIT_INTERVAL=10
+    ELAPSED=0
     while [ "$(${KUBECTL_CMD} get pr $PIPELINERUN -n ${TEST_NS} -o=jsonpath='{.status.conditions[0].status}')" == "Unknown" ]; do
-      echo "DEBUG: PipelineRun $PIPELINERUN is in progress (status Unknown). Waiting for update..."
-      sleep 5
+      echo "DEBUG: PipelineRun $PIPELINERUN is in progress (status Unknown). Elapsed: ${ELAPSED}s..."
+
+      # Every 60 seconds, show detailed diagnostics
+      if [ $((ELAPSED % 60)) -eq 0 ] && [ $ELAPSED -gt 0 ]; then
+        echo "===== Diagnostics at ${ELAPSED}s ====="
+
+        # Show TaskRun statuses
+        echo "--- TaskRun Status ---"
+        ${KUBECTL_CMD} get tr -n ${TEST_NS} -l tekton.dev/pipelineRun=$PIPELINERUN -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[0].status,REASON:.status.conditions[0].reason 2>/dev/null || echo "No TaskRuns yet"
+
+        # Show Pod statuses
+        echo "--- Pod Status ---"
+        ${KUBECTL_CMD} get pods -n ${TEST_NS} -l tekton.dev/pipelineRun=$PIPELINERUN -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.conditions[*].status 2>/dev/null || echo "No Pods yet"
+
+        # Show recent events in namespace
+        echo "--- Recent Events (last 10) ---"
+        ${KUBECTL_CMD} get events -n ${TEST_NS} --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || echo "No events"
+
+        # Show PipelineRun status details
+        echo "--- PipelineRun Conditions ---"
+        ${KUBECTL_CMD} get pr $PIPELINERUN -n ${TEST_NS} -o jsonpath='{.status.conditions[*]}' 2>/dev/null | jq -r '.' || echo "No conditions yet"
+
+        echo "======================"
+      fi
+
+      sleep $WAIT_INTERVAL
+      ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+
+      if [ $ELAPSED -ge $WAIT_TIMEOUT ]; then
+        echo "ERROR: Timeout waiting for PipelineRun $PIPELINERUN to complete after ${WAIT_TIMEOUT}s"
+        echo "===== Final Diagnostic Dump ====="
+        ${KUBECTL_CMD} describe pr $PIPELINERUN -n ${TEST_NS}
+        echo "--- TaskRuns ---"
+        ${KUBECTL_CMD} get tr -n ${TEST_NS} -l tekton.dev/pipelineRun=$PIPELINERUN -o yaml
+        echo "--- Pods ---"
+        ${KUBECTL_CMD} get pods -n ${TEST_NS} -l tekton.dev/pipelineRun=$PIPELINERUN -o wide
+        echo "--- Events ---"
+        ${KUBECTL_CMD} get events -n ${TEST_NS} --sort-by='.lastTimestamp' | tail -50
+        exit 1
+      fi
     done
     tkn pr logs $PIPELINERUN -n ${TEST_NS}
 
