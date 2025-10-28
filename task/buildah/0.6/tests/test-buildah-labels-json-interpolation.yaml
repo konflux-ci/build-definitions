@@ -7,6 +7,8 @@ spec:
   description: |
     Test that /root/buildinfo/labels.json contains interpolated label values,
     not template variables like ${VAR}. This reproduces STONEBLD-3924.
+  timeouts:
+    pipeline: "30m"
   workspaces:
     - name: tests-workspace
   tasks:
@@ -111,7 +113,7 @@ spec:
                 echo "Checking layer: $digest"
                 mkdir -p /tmp/layer-extract
                 cd /tmp/layer-extract
-                rm -rf *
+                rm -rf ./*
 
                 layer_sha=$(echo "$digest" | cut -d: -f2)
                 if [ -f "/tmp/image-oci/blobs/sha256/$layer_sha" ]; then
@@ -131,12 +133,12 @@ spec:
               fi
 
               echo "Contents of /root/buildinfo/labels.json from image:"
-              cat /tmp/labels.json | jq .
+              jq . /tmp/labels.json
 
               echo "Checking for un-interpolated template variables"
-              if grep -q '\${' /tmp/labels.json; then
+              if grep -q "\${" /tmp/labels.json; then
                 echo "ERROR: labels.json contains un-interpolated template variables:"
-                grep '\${' /tmp/labels.json
+                grep "\${" /tmp/labels.json
                 echo ""
                 echo "This is STONEBLD-3924 - labels.json should have interpolated values"
                 exit 1
