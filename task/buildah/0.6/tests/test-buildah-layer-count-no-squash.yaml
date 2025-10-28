@@ -79,7 +79,7 @@ spec:
 
               echo "Inspecting image to count layers"
               # Extract registry and repository from IMAGE_URL
-              REGISTRY_REPO=$(echo "$IMAGE_URL" | sed 's|:[^:]*$||')
+              REGISTRY_REPO="${IMAGE_URL%:*}"
               IMAGE_REF="${REGISTRY_REPO}@${IMAGE_DIGEST}"
 
               # Use skopeo to inspect the image and count layers

@@ -84,7 +84,7 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
-              REGISTRY_REPO=$(echo "$IMAGE_URL" | sed 's|:[^:]*$||')
+              REGISTRY_REPO="${IMAGE_URL%:*}"
               IMAGE_REF="${REGISTRY_REPO}@${IMAGE_DIGEST}"
 
               echo "Verifying layer count is 3 (2 base + 1 combined new layer)"
