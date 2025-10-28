@@ -38,6 +38,10 @@ spec:
       description: Name of secret which contains the entitlement certificates
       name: ENTITLEMENT_SECRET
       type: string
+    - default: activation-key
+      description: Name of secret which contains subscription activation key
+      name: ACTIVATION_KEY
+      type: string
     - name: STORAGE_DRIVER
       description: Storage driver to configure for buildah
       type: string
@@ -61,6 +65,8 @@ spec:
         value: $(params.IMAGE_TYPE)
       - name: ENTITLEMENT_SECRET
         value: $(params.ENTITLEMENT_SECRET)
+      - name: ACTIVATION_KEY
+        value: $(params.ACTIVATION_KEY)
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
@@ -160,10 +166,10 @@ spec:
         chmod 0400 ~/.ssh/id_rsa
         export SSH_HOST=$(cat /ssh/host)
         export BUILD_DIR=$(cat /ssh/user-dir)
-        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60"
+        export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60)
         mkdir -p scripts
         echo "$BUILD_DIR"
-        ssh -v $SSH_ARGS "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement"
+        ssh -v "${SSH_ARGS[@]}" "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement" "$BUILD_DIR/activation-key"
 
         if [ ! -n "${CONFIG_TOML_FILE}" ]; then
           echo "No CONFIG_TOML_FILE specified"
@@ -182,7 +188,14 @@ spec:
 
         rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
         rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
+        # Rsync activation-key for remote registration or entitlement certificates if provided
+        if [ -e "/activation-key/org" ]; then
+          echo "Syncing activation-key for remote registration"
+          rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/activation-key/"
+        elif [ -d "/entitlement" ] && [ "$(ls -A /entitlement)" ]; then
+          echo "Syncing provided entitlement certificates"
+          rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
+        fi
 
         if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
           OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
@@ -226,6 +239,48 @@ spec:
         mkdir output
         buildah_retries=3
 
+        # Register with subscription manager if activation key is provided
+        # This happens on the remote VM inside a container to ensure correct architecture-specific repos
+        # We run it in a container (as root) to avoid sudo password requirements
+        if [ -e "$BUILD_DIR/activation-key/org" ] && [ -e "$BUILD_DIR/activation-key/activationkey" ]; then
+          echo "Activation key found, registering with subscription manager on remote VM ($(uname -m))"
+          mkdir -p $BUILD_DIR/entitlement
+          mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/entitlement
+          mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/consumer
+
+          export RETRY_MAX_TRIES=6
+          # Run subscription-manager inside a container where we're root (no password needed)
+          if ! retry sudo podman run --rm \
+            -v $BUILD_DIR/activation-key:/activation-key:Z \
+            -v $BUILD_DIR/rhsm-tmp/etc/pki/entitlement:/etc/pki/entitlement:Z \
+            -v $BUILD_DIR/rhsm-tmp/etc/pki/consumer:/etc/pki/consumer:Z \
+            "$BUILDAH_IMAGE" \
+            /bin/bash -c 'subscription-manager register --org "$(cat /activation-key/org)" --activationkey "$(cat /activation-key/activationkey)"'
+          then
+            echo "Subscription-manager register failed on remote VM"
+            exit 1
+          fi
+          unset RETRY_MAX_TRIES
+
+          # Unregister on exit using a container
+          trap 'sudo podman run --rm -v $BUILD_DIR/rhsm-tmp/etc/pki/entitlement:/etc/pki/entitlement:Z -v $BUILD_DIR/rhsm-tmp/etc/pki/consumer:/etc/pki/consumer:Z "$BUILDAH_IMAGE" /bin/bash -c "subscription-manager unregister || true"' EXIT
+
+          # Copy generated certificates to entitlement directory for the build
+          if ! cp $BUILD_DIR/rhsm-tmp/etc/pki/entitlement/*.pem $BUILD_DIR/entitlement/ 2>/dev/null; then
+            echo "Warning: No entitlement certificates found after registration"
+            ls -la $BUILD_DIR/rhsm-tmp/etc/pki/entitlement/ || true
+          fi
+          echo "Entitlement certificates generated on remote VM ($(uname -m))"
+        fi
+
+        # Check if entitlement certificates are available (from activation-key or directly provided)
+        ENTITLEMENT_VOLUME=""
+        if [ -d "$BUILD_DIR/entitlement" ] && [ "$(ls -A $BUILD_DIR/entitlement)" ]; then
+          # Use entitlement certificates (generated from activation-key or directly provided)
+          ENTITLEMENT_VOLUME="-v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z"
+          echo "Using entitlement certificates for the build"
+        fi
+
         echo "PULLING BUILDER IMAGE"
         if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
         then
@@ -246,7 +301,7 @@ spec:
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/config.toml:/config.toml -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
-          -v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z \
+          $ENTITLEMENT_VOLUME \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
 
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
@@ -347,7 +402,7 @@ spec:
         rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
         rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
 
-        ssh -v $SSH_ARGS "$SSH_HOST" $BUILD_DIR/scripts/script-build.sh
+        ssh -v "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
         rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
 
       volumeMounts:
@@ -356,6 +411,8 @@ spec:
           readOnly: true
         - mountPath: /entitlement
           name: etc-pki-entitlement
+        - mountPath: /activation-key
+          name: activation-key
 
   volumes:
     - emptyDir: {}
@@ -370,3 +427,7 @@ spec:
       secret:
         optional: true
         secretName: $(params.ENTITLEMENT_SECRET)
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
