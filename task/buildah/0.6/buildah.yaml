@@ -666,7 +666,12 @@ spec:
       jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
 
       echo "" >>"$dockerfile_copy"
-      echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+      # Always write labels.json to the new standard location
+      echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
+      # Conditionally write to the old location for backward compatibility
+      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+        echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+      fi
 
       # Make sure our labels.json file isn't filtered out
       containerignore=""
