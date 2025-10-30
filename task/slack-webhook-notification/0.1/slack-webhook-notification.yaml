@@ -192,13 +192,17 @@ spec:
         # Add user mentions if user-ids are set
         user_mentions=""
         for user_id in "${USER_IDS[@]}"; do
-          user_mentions="${user_mentions}<@${user_id}> "
+          if [ -n "${user_id}" ]; then
+            user_mentions="${user_mentions}<@${user_id}> "
+          fi
         done
 
         # Add group mentions if group-ids are set
         group_mentions=""
         for group_id in "${GROUP_IDS[@]}"; do
-          group_mentions="${group_mentions}<!subteam^${group_id}> "
+          if [ -n "${group_id}" ]; then
+            group_mentions="${group_mentions}<!subteam^${group_id}> "
+          fi
         done
 
         # Prepend mentions to message
