@@ -148,6 +148,11 @@ spec:
       format.'
     name: SBOM_TYPE
     type: string
+  - default: ""
+    description: Extra option to customize Syft's default catalogers when generating
+      SBOMs. The value corresponds to Syft's CLI flag --select-catalogers.
+    name: SBOM_SYFT_SELECT_CATALOGERS
+    type: string
   - default: oci
     description: The format for the resulting image's mediaType. Valid values are
       oci (default) or docker.
@@ -269,6 +274,8 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: SBOM_SYFT_SELECT_CATALOGERS
+      value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
@@ -979,6 +986,7 @@ spec:
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
+          -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
@@ -1146,6 +1154,11 @@ spec:
         exit 0
       fi
 
+      SYFT_EXTRA_PARAMS=""
+      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+        SYFT_EXTRA_PARAMS="--select-catalogers ${SBOM_SYFT_SELECT_CATALOGERS}"
+      fi
+
       case $SBOM_TYPE in
         cyclonedx)
           syft_sbom_type=cyclonedx-json@1.5 ;;
@@ -1158,9 +1171,9 @@ spec:
       esac
 
       echo "Running syft on the source directory"
-      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json" $SYFT_EXTRA_PARAMS
       echo "Running syft on the image"
-      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
+      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json" $SYFT_EXTRA_PARAMS
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:

@@ -141,6 +141,11 @@ spec:
     description: The name of the ConfigMap to read proxy CA bundle data from.
     name: PROXY_CA_TRUST_CONFIG_MAP_NAME
     type: string
+  - default: ""
+    description: Extra option to customize Syft's default catalogers when generating
+      SBOMs. The value corresponds to Syft's CLI flag --select-catalogers.
+    name: SBOM_SYFT_SELECT_CATALOGERS
+    type: string
   - default: spdx
     description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.
       Note: the SBOM from the prefetch task - if there is one - must be in the same
@@ -264,6 +269,8 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SBOM_SYFT_SELECT_CATALOGERS
+      value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
     - name: SKIP_SBOM_GENERATION
@@ -1002,6 +1009,7 @@ spec:
           -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
           -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
@@ -1174,6 +1182,11 @@ spec:
         exit 0
       fi
 
+      SYFT_EXTRA_PARAMS=""
+      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+        SYFT_EXTRA_PARAMS="--select-catalogers ${SBOM_SYFT_SELECT_CATALOGERS}"
+      fi
+
       case $SBOM_TYPE in
       cyclonedx)
         syft_sbom_type=cyclonedx-json@1.5
@@ -1188,9 +1201,9 @@ spec:
       esac
 
       echo "Running syft on the source directory"
-      syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json"
+      syft dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="/var/workdir/sbom-source.json" $SYFT_EXTRA_PARAMS
       echo "Running syft on the image"
-      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json"
+      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json" $SYFT_EXTRA_PARAMS
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
