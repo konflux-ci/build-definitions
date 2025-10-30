@@ -976,8 +976,6 @@ spec:
           ;;
       esac
 
-      echo "Running syft on the source directory"
-      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json" $SYFT_EXTRA_PARAMS
       echo "Running syft on the image"
       syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json" $SYFT_EXTRA_PARAMS
 
@@ -1038,7 +1036,6 @@ spec:
         generate
         --output sbom.json
         oci-image
-        --from-syft "$(workspaces.source.path)/sbom-source.json"
         --from-syft "$(workspaces.source.path)/sbom-image.json"
         --image-pullspec "$IMAGE_URL"
         --image-digest "$IMAGE_DIGEST"
