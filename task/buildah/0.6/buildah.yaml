@@ -132,6 +132,12 @@ spec:
       Note: the SBOM from the prefetch task - if there is one - must be in the same format.
     type: string
     default: spdx
+  - name: SBOM_SYFT_SELECT_CATALOGERS
+    description: >-
+      Extra option to customize Syft's default catalogers when generating SBOMs.
+      The value corresponds to Syft's CLI flag --select-catalogers.
+    type: string
+    default: ""
   - name: BUILDAH_FORMAT
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
@@ -245,6 +251,8 @@ spec:
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: SBOM_SYFT_SELECT_CATALOGERS
+      value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
@@ -952,6 +960,11 @@ spec:
         exit 0
       fi
 
+      SYFT_EXTRA_PARAMS=""
+      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+        SYFT_EXTRA_PARAMS="--select-catalogers ${SBOM_SYFT_SELECT_CATALOGERS}"
+      fi
+
       case $SBOM_TYPE in
         cyclonedx)
           syft_sbom_type=cyclonedx-json@1.5 ;;
@@ -964,9 +977,9 @@ spec:
       esac
 
       echo "Running syft on the source directory"
-      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json"
+      syft dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-source.json" $SYFT_EXTRA_PARAMS
       echo "Running syft on the image"
-      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json"
+      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json" $SYFT_EXTRA_PARAMS
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
