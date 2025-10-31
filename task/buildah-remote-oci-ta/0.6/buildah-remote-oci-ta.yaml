@@ -141,6 +141,13 @@ spec:
     description: The name of the ConfigMap to read proxy CA bundle data from.
     name: PROXY_CA_TRUST_CONFIG_MAP_NAME
     type: string
+  - default: "true"
+    description: Flag to enable or disable SBOM generation from source code. The scanner
+      of the source code is enabled only for non-hermetic builds and can be disabled
+      if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false
+      positives on source code scanning.
+    name: SBOM_SOURCE_SCAN_ENABLED
+    type: string
   - default: ""
     description: 'Extra option to customize Syft''s default catalogers when generating
       SBOMs. The value corresponds to Syft''s CLI flag --select-catalogers. The details
@@ -270,6 +277,8 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SBOM_SOURCE_SCAN_ENABLED
+      value: $(params.SBOM_SOURCE_SCAN_ENABLED)
     - name: SBOM_SYFT_SELECT_CATALOGERS
       value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
     - name: SBOM_TYPE
@@ -1010,6 +1019,7 @@ spec:
           -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \
           -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
@@ -1198,17 +1208,28 @@ spec:
 
       OCI_DIR="$(cat /shared/container_path)"
 
-      syft_args=(
+      syft_oci_args=(
         oci-dir:"${OCI_DIR}"
         --output "$syft_sbom_type=/var/workdir/sbom-image.json"
       )
+      syft_source_args=(
+        dir:"/var/workdir/$SOURCE_CODE_DIR/$CONTEXT"
+        --output "$syft_sbom_type=/var/workdir/sbom-source.json"
+      )
 
       if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
-        syft_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        syft_oci_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        syft_source_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
       fi
 
       echo "Running syft on the image"
-      syft "${syft_args[@]}"
+      syft "${syft_oci_args[@]}"
+      if [[ "${HERMETIC}" == "false" && "${SBOM_SOURCE_SCAN_ENABLED}" == "true" ]]; then
+        echo "Running syft on the source code"
+        syft "${syft_source_args[@]}"
+      else
+        echo "Skipping syft on source code."
+      fi
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
@@ -1280,6 +1301,10 @@ spec:
         --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
         --base-image-digest-file "/shared/base_images_digests"
       )
+
+      if [ -f "/var/workdir/sbom-source.json" ]; then
+        mobster_args+=(--from-syft "/var/workdir/sbom-source.json")
+      fi
 
       if [ -f "/var/workdir/sbom-prefetch.json" ]; then
         mobster_args+=(--from-hermeto "/var/workdir/sbom-prefetch.json")
