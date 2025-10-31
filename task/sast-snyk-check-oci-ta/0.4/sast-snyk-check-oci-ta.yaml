@@ -229,7 +229,7 @@ spec:
         done
 
         # Merge all SARIF outputs
-        find "$SOURCE_CODE_DIR" -name "sast_snyk_check_out_*.json" -exec cat {} + >"${SOURCE_CODE_DIR}/sast_snyk_check_out.json"
+        find "$SOURCE_CODE_DIR" -name "sast_snyk_check_out_*.json" -exec jq -s '{"version": "2.1.0", "runs": map(.runs[])}' {} + >"${SOURCE_CODE_DIR}/sast_snyk_check_out.json" 2>/dev/null || echo '{"version": "2.1.0", "runs": []}' >"${SOURCE_CODE_DIR}/sast_snyk_check_out.json"
 
         SNYK_EXIT_CODE=$?
         set -e
