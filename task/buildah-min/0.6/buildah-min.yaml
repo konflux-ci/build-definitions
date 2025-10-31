@@ -154,6 +154,13 @@ spec:
       about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection'
     name: SBOM_SYFT_SELECT_CATALOGERS
     type: string
+  - default: "true"
+    description: Flag to enable or disable SBOM generation from source code. The scanner
+      of the source code is enabled only for non-hermetic builds and can be disabled
+      if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false
+      positives on source code scanning.
+    name: SBOM_SOURCE_SCAN_ENABLED
+    type: string
   - default: oci
     description: The format for the resulting image's mediaType. Valid values are
       oci (default) or docker.
@@ -269,6 +276,8 @@ spec:
       value: $(params.SBOM_TYPE)
     - name: SBOM_SYFT_SELECT_CATALOGERS
       value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
+    - name: SBOM_SOURCE_SCAN_ENABLED
+      value: $(params.SBOM_SOURCE_SCAN_ENABLED)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
     - name: WORKINGDIR_MOUNT
@@ -985,17 +994,28 @@ spec:
 
       OCI_DIR="$(cat /shared/container_path)"
 
-      syft_args=(
+      syft_oci_args=(
         oci-dir:"${OCI_DIR}"
         --output "$syft_sbom_type=$(workspaces.source.path)/sbom-image.json"
       )
+      syft_source_args=(
+        dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT"
+        --output "$syft_sbom_type=$(workspaces.source.path)/sbom-source.json"
+      )
 
       if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
-        syft_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        syft_oci_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        syft_source_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
       fi
 
       echo "Running syft on the image"
-      syft "${syft_args[@]}"
+      syft "${syft_oci_args[@]}"
+      if [[ "${HERMETIC}" == "false" && "${SBOM_SOURCE_SCAN_ENABLED}" == "true" ]]; then
+        echo "Running syft on the source code"
+        syft "${syft_source_args[@]}"
+      else
+        echo "Skipping syft on source code."
+      fi
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
@@ -1060,6 +1080,10 @@ spec:
         --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
         --base-image-digest-file "/shared/base_images_digests"
       )
+
+      if [ -f "$(workspaces.source.path)/sbom-source.json" ]; then
+        mobster_args+=(--from-syft "$(workspaces.source.path)/sbom-source.json")
+      fi
 
       if [ -f "$(workspaces.source.path)/sbom-prefetch.json" ]; then
         mobster_args+=(--from-hermeto "$(workspaces.source.path)/sbom-prefetch.json")
