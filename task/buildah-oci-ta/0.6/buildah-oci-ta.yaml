@@ -146,8 +146,9 @@ spec:
       type: string
       default: proxy-ca-bundle
     - name: SBOM_SYFT_SELECT_CATALOGERS
-      description: Extra option to customize Syft's default catalogers when
-        generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers.
+      description: 'Extra option to customize Syft''s default catalogers when
+        generating SBOMs. The value corresponds to Syft''s CLI flag --select-catalogers.
+        The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection'
       type: string
       default: ""
     - name: SBOM_TYPE
@@ -1038,16 +1039,13 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
       script: |
+        #!/bin/bash
+        set -euo pipefail
         echo "[$(date --utc -Ins)] Generate SBOM"
 
         if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
           echo "Skipping SBOM generation"
           exit 0
-        fi
-
-        SYFT_EXTRA_PARAMS=""
-        if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
-          SYFT_EXTRA_PARAMS="--select-catalogers ${SBOM_SYFT_SELECT_CATALOGERS}"
         fi
 
         case $SBOM_TYPE in
@@ -1063,8 +1061,19 @@ spec:
           ;;
         esac
 
+        OCI_DIR="$(cat /shared/container_path)"
+
+        syft_args=(
+          oci-dir:"${OCI_DIR}"
+          --output "$syft_sbom_type=/var/workdir/sbom-image.json"
+        )
+
+        if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+          syft_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        fi
+
         echo "Running syft on the image"
-        syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="/var/workdir/sbom-image.json" $SYFT_EXTRA_PARAMS
+        syft "${syft_args[@]}"
 
         echo "[$(date --utc -Ins)] End sbom-syft-generate"
     - name: prepare-sboms

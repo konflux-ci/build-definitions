@@ -149,8 +149,9 @@ spec:
     name: SBOM_TYPE
     type: string
   - default: ""
-    description: Extra option to customize Syft's default catalogers when generating
-      SBOMs. The value corresponds to Syft's CLI flag --select-catalogers.
+    description: 'Extra option to customize Syft''s default catalogers when generating
+      SBOMs. The value corresponds to Syft''s CLI flag --select-catalogers. The details
+      about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection'
     name: SBOM_SYFT_SELECT_CATALOGERS
     type: string
   - default: oci
@@ -1142,7 +1143,7 @@ spec:
     name: sbom-syft-generate
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
@@ -1152,11 +1153,6 @@ spec:
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
         echo "Skipping SBOM generation"
         exit 0
-      fi
-
-      SYFT_EXTRA_PARAMS=""
-      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
-        SYFT_EXTRA_PARAMS="--select-catalogers ${SBOM_SYFT_SELECT_CATALOGERS}"
       fi
 
       case $SBOM_TYPE in
@@ -1170,8 +1166,19 @@ spec:
           ;;
       esac
 
+      OCI_DIR="$(cat /shared/container_path)"
+
+      syft_args=(
+        oci-dir:"${OCI_DIR}"
+        --output "$syft_sbom_type=$(workspaces.source.path)/sbom-image.json"
+      )
+
+      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+        syft_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+      fi
+
       echo "Running syft on the image"
-      syft oci-dir:"$(cat /shared/container_path)" --output "$syft_sbom_type"="$(workspaces.source.path)/sbom-image.json" $SYFT_EXTRA_PARAMS
+      syft "${syft_args[@]}"
 
       echo "[$(date --utc -Ins)] End sbom-syft-generate"
     volumeMounts:
