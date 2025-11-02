@@ -116,6 +116,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|IMAGE_NAMING_STRATEGY| One of --base-import-paths, --bare, or --preserve-import-paths| --base-import-paths| |
 |IMPORT_PATH| import path of package main| .| '$(params.import-path)'|
 |KO_DEFAULTBASEIMAGE| base image for ko build| | '$(params.default-base-image)'|
 |KO_DOCKER_REPO| Container repository where to push images built with ko| | '$(params.ko-docker-repo)'|

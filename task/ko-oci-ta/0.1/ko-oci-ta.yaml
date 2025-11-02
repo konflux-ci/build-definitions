@@ -25,6 +25,9 @@ spec:
         hours, days, and weeks, respectively.
       type: string
       default: ""
+    - name: IMAGE_NAMING_STRATEGY
+      description: One of --base-import-paths, --bare, or --preserve-import-paths
+      default: --base-import-paths
     - name: IMPORT_PATH
       description: import path of package main
       default: .
@@ -120,13 +123,18 @@ spec:
         #!/bin/bash
         set -euo pipefail
 
+        if [ "${IMAGE_NAMING_STRATEGY}" != "--base-import-paths" ] && [ "${IMAGE_NAMING_STRATEGY}" != "--bare" ] && [ "${IMAGE_NAMING_STRATEGY}" != "--preserve-import-paths" ]; then
+            echo "Invalid value specified for IMAGE_NAMING_STRATEGY: ${IMAGE_NAMING_STRATEGY}"
+            exit 1
+        fi
+
         [ -n "${DEFAULT_BASEIMAGE}" ] && KO_DEFAULTBASEIMAGE="${DEFAULT_BASEIMAGE}" && export KO_DEFAULTBASEIMAGE
 
         labels="architecture=$(uname -m),vcs-type=git,build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
         [ -n "${COMMIT_SHA}" ] && labels+=",vcs-ref=${COMMIT_SHA}"
         [ -n "${IMAGE_EXPIRES_AFTER}" ] && labels+=",quay.expires-after=${IMAGE_EXPIRES_AFTER})"
 
-        args=(--base-import-paths --image-label "${labels}")
+        args=("${IMAGE_NAMING_STRATEGY}" --image-label "${labels}")
         [ -n "${TAG}" ] && args+=(-t "${TAG}")
 
         ko build "${args[@]}" "${IMPORT_PATH}" 2>&1 | tee /tmp/build.log
