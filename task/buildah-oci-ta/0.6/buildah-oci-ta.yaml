@@ -59,7 +59,7 @@ spec:
       default: ""
     - name: BUILD_TIMESTAMP
       description: Defines the single build time for all buildah builds in
-        seconds since UNIX epoch
+        seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.
       type: string
       default: ""
     - name: CACHI2_ARTIFACT
@@ -150,6 +150,11 @@ spec:
         from.
       type: string
       default: proxy-ca-bundle
+    - name: REWRITE_TIMESTAMP
+      description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH.
+        Does nothing if SOURCE_DATE_EPOCH is not defined.
+      type: string
+      default: "false"
     - name: SBOM_SOURCE_SCAN_ENABLED
       description: Flag to enable or disable SBOM generation from source code.
         The scanner of the source code is enabled only for non-hermetic builds
@@ -183,6 +188,12 @@ spec:
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
       type: string
+    - name: SOURCE_DATE_EPOCH
+      description: Timestamp in seconds since Unix epoch for reproducible
+        builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts
+        with BUILD_TIMESTAMP.
+      type: string
+      default: ""
     - name: SOURCE_URL
       description: The image is built from this URL.
       type: string
@@ -399,6 +410,10 @@ spec:
           value: $(params.ICM_KEEP_COMPAT_LOCATION)
         - name: BUILDAH_OMIT_HISTORY
           value: $(params.OMIT_HISTORY)
+        - name: BUILDAH_SOURCE_DATE_EPOCH
+          value: $(params.SOURCE_DATE_EPOCH)
+        - name: BUILDAH_REWRITE_TIMESTAMP
+          value: $(params.REWRITE_TIMESTAMP)
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -658,6 +673,19 @@ spec:
 
         if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
           BUILDAH_ARGS+=("--inherit-labels=false")
+        fi
+
+        if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
+          BUILDAH_ARGS+=("--source-date-epoch=${BUILDAH_SOURCE_DATE_EPOCH}")
+          if [ "${BUILDAH_REWRITE_TIMESTAMP}" = "true" ]; then
+            BUILDAH_ARGS+=("--rewrite-timestamp")
+          fi
+          if [ -n "$BUILD_TIMESTAMP" ]; then
+            echo "ERROR: cannot use both BUILD_TIMESTAMP and SOURCE_DATE_EPOCH"
+            exit 1
+          fi
+          # but do set it so that we get all the labels/annotations associated with it
+          BUILD_TIMESTAMP="$BUILDAH_SOURCE_DATE_EPOCH"
         fi
 
         if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
