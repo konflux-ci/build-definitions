@@ -187,7 +187,8 @@ spec:
     description: The name of the key in the ConfigMap that contains the proxy CA bundle data.
     default: ca-bundle.crt
   - name: BUILD_TIMESTAMP
-    description: Defines the single build time for all buildah builds in seconds since UNIX epoch
+    description: Defines the single build time for all buildah builds in seconds
+      since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.
     type: string
     default: ""
   - name: SOURCE_URL
@@ -201,6 +202,17 @@ spec:
   - name: OMIT_HISTORY
     description: Omit build history information from the resulting image. Improves
       reproducibility by excluding timestamps and layer metadata.
+    type: string
+    default: "false"
+  - name: SOURCE_DATE_EPOCH
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+      Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with
+      BUILD_TIMESTAMP.
+    type: string
+    default: ""
+  - name: REWRITE_TIMESTAMP
+    description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does
+      nothing if SOURCE_DATE_EPOCH is not defined.
     type: string
     default: "false"
   results:
@@ -307,6 +319,10 @@ spec:
       value: $(params.ICM_KEEP_COMPAT_LOCATION)
     - name: BUILDAH_OMIT_HISTORY
       value: $(params.OMIT_HISTORY)
+    - name: BUILDAH_SOURCE_DATE_EPOCH
+      value: $(params.SOURCE_DATE_EPOCH)
+    - name: BUILDAH_REWRITE_TIMESTAMP
+      value: $(params.REWRITE_TIMESTAMP)
     args:
     - --build-args
     - $(params.BUILD_ARGS[*])
@@ -566,6 +582,19 @@ spec:
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
         BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
+        BUILDAH_ARGS+=("--source-date-epoch=${BUILDAH_SOURCE_DATE_EPOCH}")
+        if [ "${BUILDAH_REWRITE_TIMESTAMP}" = "true" ]; then
+          BUILDAH_ARGS+=("--rewrite-timestamp")
+        fi
+        if [ -n "$BUILD_TIMESTAMP" ]; then
+          echo "ERROR: cannot use both BUILD_TIMESTAMP and SOURCE_DATE_EPOCH"
+          exit 1
+        fi
+        # but do set it so that we get all the labels/annotations associated with it
+        BUILD_TIMESTAMP="$BUILDAH_SOURCE_DATE_EPOCH"
       fi
 
       if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then

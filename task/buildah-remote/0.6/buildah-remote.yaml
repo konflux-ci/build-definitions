@@ -202,7 +202,7 @@ spec:
     type: string
   - default: ""
     description: Defines the single build time for all buildah builds in seconds since
-      UNIX epoch
+      UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.
     name: BUILD_TIMESTAMP
     type: string
   - default: ""
@@ -217,6 +217,16 @@ spec:
     description: Omit build history information from the resulting image. Improves
       reproducibility by excluding timestamps and layer metadata.
     name: OMIT_HISTORY
+    type: string
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds. Sets
+      image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.
+    name: SOURCE_DATE_EPOCH
+    type: string
+  - default: "false"
+    description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing
+      if SOURCE_DATE_EPOCH is not defined.
+    name: REWRITE_TIMESTAMP
     type: string
   - description: The platform to build on
     name: PLATFORM
@@ -340,6 +350,10 @@ spec:
       value: $(params.ICM_KEEP_COMPAT_LOCATION)
     - name: BUILDAH_OMIT_HISTORY
       value: $(params.OMIT_HISTORY)
+    - name: BUILDAH_SOURCE_DATE_EPOCH
+      value: $(params.SOURCE_DATE_EPOCH)
+    - name: BUILDAH_REWRITE_TIMESTAMP
+      value: $(params.REWRITE_TIMESTAMP)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
     name: build
     script: |-
@@ -661,6 +675,19 @@ spec:
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
         BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
+        BUILDAH_ARGS+=("--source-date-epoch=${BUILDAH_SOURCE_DATE_EPOCH}")
+        if [ "${BUILDAH_REWRITE_TIMESTAMP}" = "true" ]; then
+          BUILDAH_ARGS+=("--rewrite-timestamp")
+        fi
+        if [ -n "$BUILD_TIMESTAMP" ]; then
+          echo "ERROR: cannot use both BUILD_TIMESTAMP and SOURCE_DATE_EPOCH"
+          exit 1
+        fi
+        # but do set it so that we get all the labels/annotations associated with it
+        BUILD_TIMESTAMP="$BUILDAH_SOURCE_DATE_EPOCH"
       fi
 
       if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
@@ -1021,6 +1048,8 @@ spec:
           -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \
           -e ICM_KEEP_COMPAT_LOCATION="${ICM_KEEP_COMPAT_LOCATION@Q}" \
           -e BUILDAH_OMIT_HISTORY="${BUILDAH_OMIT_HISTORY@Q}" \
+          -e BUILDAH_SOURCE_DATE_EPOCH="${BUILDAH_SOURCE_DATE_EPOCH@Q}" \
+          -e BUILDAH_REWRITE_TIMESTAMP="${BUILDAH_REWRITE_TIMESTAMP@Q}" \
           -v "${BUILD_DIR@Q}/workspaces/source:$(workspaces.source.path):Z" \
           -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
           -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
