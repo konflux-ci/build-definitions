@@ -92,6 +92,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
 |httpsProxy| HTTPS proxy server for SSL requests.| ""| |
+|mergeSourceDepth| Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. | ""| |
+|mergeSourceRepoUrl| URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. | ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
