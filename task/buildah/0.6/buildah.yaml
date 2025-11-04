@@ -198,6 +198,11 @@ spec:
     description: Determines if SBOM will be contextualized.
     type: string
     default: "false"
+  - name: OMIT_HISTORY
+    description: Omit build history information from the resulting image. Improves
+      reproducibility by excluding timestamps and layer metadata.
+    type: string
+    default: "false"
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -300,6 +305,8 @@ spec:
       value: $(params.NO_PROXY)
     - name: ICM_KEEP_COMPAT_LOCATION
       value: $(params.ICM_KEEP_COMPAT_LOCATION)
+    - name: BUILDAH_OMIT_HISTORY
+      value: $(params.OMIT_HISTORY)
     args:
     - --build-args
     - $(params.BUILD_ARGS[*])
@@ -559,6 +566,10 @@ spec:
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
         BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
+        BUILDAH_ARGS+=("--omit-history")
       fi
 
       VOLUME_MOUNTS=()

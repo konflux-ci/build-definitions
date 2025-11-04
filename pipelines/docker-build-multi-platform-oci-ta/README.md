@@ -75,6 +75,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| | |
+|OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| |
 |PLATFORM| The platform to build on| None| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|

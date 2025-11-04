@@ -122,6 +122,11 @@ spec:
       HTTP/HTTPS proxy.
     name: NO_PROXY
     type: string
+  - default: "false"
+    description: Omit build history information from the resulting image. Improves
+      reproducibility by excluding timestamps and layer metadata.
+    name: OMIT_HISTORY
+    type: string
   - default: ""
     description: In case it is not empty, the prefetched content should be made available
       to the build.
@@ -356,6 +361,8 @@ spec:
       value: $(params.NO_PROXY)
     - name: ICM_KEEP_COMPAT_LOCATION
       value: $(params.ICM_KEEP_COMPAT_LOCATION)
+    - name: BUILDAH_OMIT_HISTORY
+      value: $(params.OMIT_HISTORY)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
     name: build
     script: |-
@@ -685,6 +692,10 @@ spec:
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
         BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
+        BUILDAH_ARGS+=("--omit-history")
       fi
 
       VOLUME_MOUNTS=()
@@ -1039,6 +1050,7 @@ spec:
           -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \
           -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \
           -e ICM_KEEP_COMPAT_LOCATION="${ICM_KEEP_COMPAT_LOCATION@Q}" \
+          -e BUILDAH_OMIT_HISTORY="${BUILDAH_OMIT_HISTORY@Q}" \
           -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
           -v "${BUILD_DIR@Q}/volumes/workdir:/var/workdir:Z" \
           -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \

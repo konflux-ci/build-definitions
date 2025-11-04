@@ -125,6 +125,11 @@ spec:
         the HTTP/HTTPS proxy.
       type: string
       default: ""
+    - name: OMIT_HISTORY
+      description: Omit build history information from the resulting image.
+        Improves reproducibility by excluding timestamps and layer metadata.
+      type: string
+      default: "false"
     - name: PREFETCH_INPUT
       description: In case it is not empty, the prefetched content should
         be made available to the build.
@@ -392,6 +397,8 @@ spec:
           value: $(params.NO_PROXY)
         - name: ICM_KEEP_COMPAT_LOCATION
           value: $(params.ICM_KEEP_COMPAT_LOCATION)
+        - name: BUILDAH_OMIT_HISTORY
+          value: $(params.OMIT_HISTORY)
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -651,6 +658,10 @@ spec:
 
         if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
           BUILDAH_ARGS+=("--inherit-labels=false")
+        fi
+
+        if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
+          BUILDAH_ARGS+=("--omit-history")
         fi
 
         VOLUME_MOUNTS=()
