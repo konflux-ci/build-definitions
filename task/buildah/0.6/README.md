@@ -45,6 +45,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |NO_PROXY|Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.|""|false|
 |PROXY_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read proxy CA bundle data from.|proxy-ca-bundle|false|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the proxy CA bundle data.|ca-bundle.crt|false|
+|OMIT_HISTORY|Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.|false|false|
 
 ## Results
 |name|description|
