@@ -97,7 +97,7 @@ validate_schema() {
     fi
 
     # Check if trusted_tasks key exists
-    if ! yq eval '.trusted_tasks' "${bundle_file}" >/dev/null 2>&1; then
+    if ! yq eval -e '.trusted_tasks' "${bundle_file}" >/dev/null 2>&1; then
         log_error "Bundle file ${bundle_file} is missing 'trusted_tasks' key"
         return 1
     fi
@@ -114,7 +114,7 @@ validate_schema() {
         entries=$(yq eval ".trusted_tasks[\"${task_path}\"]" "${bundle_file}")
 
         # Check if entries is an array
-        if ! echo "${entries}" | yq eval 'type == "!!seq"' >/dev/null 2>&1; then
+        if ! echo "${entries}" | yq eval -e 'type == "!!seq"' >/dev/null 2>&1; then
             log_error "Task ${task_path} entries are not an array"
             invalid_entries=$((invalid_entries + 1))
             continue
@@ -128,14 +128,14 @@ validate_schema() {
             entry=$(echo "${entries}" | yq eval ".[${i}]")
 
             # Check if entry is an object (not a string)
-            if ! echo "${entry}" | yq eval 'type == "!!map"' >/dev/null 2>&1; then
+            if ! echo "${entry}" | yq eval -e 'type == "!!map"' >/dev/null 2>&1; then
                 log_error "Task ${task_path} entry ${i} is not an object (found: $(echo "${entry}" | yq eval 'type'))"
                 invalid_entries=$((invalid_entries + 1))
                 continue
             fi
 
             # Check if entry has 'ref' field
-            if ! echo "${entry}" | yq eval 'has("ref")' >/dev/null 2>&1; then
+            if ! echo "${entry}" | yq eval -e 'has("ref")' >/dev/null 2>&1; then
                 log_error "Task ${task_path} entry ${i} is missing 'ref' field"
                 invalid_entries=$((invalid_entries + 1))
                 continue
@@ -159,7 +159,7 @@ validate_schema() {
 
             # For entries after the first one, check if they have expires_on field
             if [[ ${i} -gt 0 ]]; then
-                if ! echo "${entry}" | yq eval 'has("expires_on")' >/dev/null 2>&1; then
+                if ! echo "${entry}" | yq eval -e 'has("expires_on")' >/dev/null 2>&1; then
                     log_error "Task ${task_path} entry ${i} is missing 'expires_on' field (required for non-latest entries)"
                     invalid_entries=$((invalid_entries + 1))
                     continue
