@@ -171,6 +171,11 @@ spec:
     name: SBOM_TYPE
     type: string
   - default: "false"
+    description: Don't inject a content-sets.json or a labels.json file. This requires
+      that the canonical Containerfile takes care of this itself.
+    name: SKIP_INJECTIONS
+    type: string
+  - default: "false"
     description: Skip SBOM-related operations. This will likely cause EC policies
       to fail if enabled
     name: SKIP_SBOM_GENERATION
@@ -298,6 +303,8 @@ spec:
       value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
     - name: SBOM_TYPE
       value: $(params.SBOM_TYPE)
+    - name: SKIP_INJECTIONS
+      value: $(params.SKIP_INJECTIONS)
     - name: SKIP_SBOM_GENERATION
       value: $(params.SKIP_SBOM_GENERATION)
     - name: SKIP_UNUSED_STAGES
@@ -550,7 +557,9 @@ spec:
       if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
         icm_opts+=(-c)
       fi
-      inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      fi
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -849,12 +858,14 @@ spec:
 
       jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
 
-      echo "" >>"$dockerfile_copy"
-      # Always write labels.json to the new standard location
-      echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
-      # Conditionally write to the old location for backward compatibility
-      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
-        echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        echo "" >>"$dockerfile_copy"
+        # Always write labels.json to the new standard location
+        echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
+        # Conditionally write to the old location for backward compatibility
+        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+          echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+        fi
       fi
 
       # Make sure our labels.json file isn't filtered out
@@ -1060,6 +1071,7 @@ spec:
           -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \
           -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
+          -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
           -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
           -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
           -e SOURCE_CODE_DIR="${SOURCE_CODE_DIR@Q}" \
