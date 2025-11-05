@@ -49,6 +49,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |OMIT_HISTORY|Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.|false|false|
 |SOURCE_DATE_EPOCH|Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and clamps file mtimes to ensure consistent digests.|""|false|
 |REWRITE_TIMESTAMP|Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.|false|false|
+|SKIP_INJECTIONS|Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.|false|false|
 
 ## Results
 |name|description|

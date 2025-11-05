@@ -228,6 +228,11 @@ spec:
       if SOURCE_DATE_EPOCH is not defined.
     name: REWRITE_TIMESTAMP
     type: string
+  - default: "false"
+    description: Don't inject a content-sets.json or a labels.json file. This requires
+      that the canonical Containerfile takes care of this itself.
+    name: SKIP_INJECTIONS
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -311,6 +316,8 @@ spec:
       value: $(params.BUILD_TIMESTAMP)
     - name: CONTEXTUALIZE_SBOM
       value: $(params.CONTEXTUALIZE_SBOM)
+    - name: SKIP_INJECTIONS
+      value: $(params.SKIP_INJECTIONS)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
     - name: PLATFORM
@@ -527,7 +534,9 @@ spec:
       if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
         icm_opts+=(-c)
       fi
-      inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      fi
 
       echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
@@ -818,12 +827,14 @@ spec:
 
       jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
 
-      echo "" >>"$dockerfile_copy"
-      # Always write labels.json to the new standard location
-      echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
-      # Conditionally write to the old location for backward compatibility
-      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
-        echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        echo "" >>"$dockerfile_copy"
+        # Always write labels.json to the new standard location
+        echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
+        # Conditionally write to the old location for backward compatibility
+        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+          echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+        fi
       fi
 
       # Make sure our labels.json file isn't filtered out
@@ -1041,6 +1052,7 @@ spec:
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
+          -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
