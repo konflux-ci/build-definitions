@@ -113,122 +113,122 @@ validate_schema() {
         local entries
         entries=$(yq eval ".trusted_tasks[\"${task_path}\"]" "${bundle_file}")
 
-    # Check if entries is an array
-    if ! echo "${entries}" | yq eval 'type == "!!seq"' >/dev/null 2>&1; then
-        log_error "Task ${task_path} entries are not an array"
-        invalid_entries=$((invalid_entries + 1))
-        continue
-    fi
-
-    # Validate each entry in the array
-    local entry_count
-    entry_count=$(echo "${entries}" | yq eval 'length')
-    for ((i=0; i<entry_count; i++)); do
-        local entry
-        entry=$(echo "${entries}" | yq eval ".[${i}]")
-
-        # Check if entry is an object (not a string)
-        if ! echo "${entry}" | yq eval 'type == "!!map"' >/dev/null 2>&1; then
-            log_error "Task ${task_path} entry ${i} is not an object (found: $(echo "${entry}" | yq eval 'type'))"
+        # Check if entries is an array
+        if ! echo "${entries}" | yq eval 'type == "!!seq"' >/dev/null 2>&1; then
+            log_error "Task ${task_path} entries are not an array"
             invalid_entries=$((invalid_entries + 1))
             continue
         fi
 
-        # Check if entry has 'ref' field
-        if ! echo "${entry}" | yq eval 'has("ref")' >/dev/null 2>&1; then
-            log_error "Task ${task_path} entry ${i} is missing 'ref' field"
-            invalid_entries=$((invalid_entries + 1))
-            continue
-        fi
+        # Validate each entry in the array
+        local entry_count
+        entry_count=$(echo "${entries}" | yq eval 'length')
+        for ((i=0; i<entry_count; i++)); do
+            local entry
+            entry=$(echo "${entries}" | yq eval ".[${i}]")
 
-        # Check if ref is not empty
-        local ref_value
-        ref_value=$(echo "${entry}" | yq eval '.ref')
-        if [[ -z "${ref_value}" || "${ref_value}" == "null" ]]; then
-            log_error "Task ${task_path} entry ${i} has empty or null 'ref' field"
-            invalid_entries=$((invalid_entries + 1))
-            continue
-        fi
-
-        # Check for old effective_on field (should be expires_on) - check ALL entries
-        if echo "${entry}" | yq eval 'has("effective_on")' | grep -q "true"; then
-            log_error "Task ${task_path} entry ${i} has deprecated 'effective_on' field (should be 'expires_on')"
-            invalid_entries=$((invalid_entries + 1))
-            continue
-        fi
-
-        # For entries after the first one, check if they have expires_on field
-        if [[ ${i} -gt 0 ]]; then
-            if ! echo "${entry}" | yq eval 'has("expires_on")' >/dev/null 2>&1; then
-                log_error "Task ${task_path} entry ${i} is missing 'expires_on' field (required for non-latest entries)"
+            # Check if entry is an object (not a string)
+            if ! echo "${entry}" | yq eval 'type == "!!map"' >/dev/null 2>&1; then
+                log_error "Task ${task_path} entry ${i} is not an object (found: $(echo "${entry}" | yq eval 'type'))"
                 invalid_entries=$((invalid_entries + 1))
                 continue
             fi
 
-            # Validate expires_on format (ISO 8601)
-            local expires_on
-            expires_on=$(echo "${entry}" | yq eval '.expires_on')
-            if [[ -z "${expires_on}" || "${expires_on}" == "null" ]]; then
-                log_error "Task ${task_path} entry ${i} has empty or null 'expires_on' field"
+            # Check if entry has 'ref' field
+            if ! echo "${entry}" | yq eval 'has("ref")' >/dev/null 2>&1; then
+                log_error "Task ${task_path} entry ${i} is missing 'ref' field"
                 invalid_entries=$((invalid_entries + 1))
                 continue
             fi
 
-            # Basic ISO 8601 format check (YYYY-MM-DDTHH:MM:SSZ)
-            if ! [[ "${expires_on}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
-                log_error "Task ${task_path} entry ${i} has invalid 'expires_on' format: ${expires_on} (expected ISO 8601)"
+            # Check if ref is not empty
+            local ref_value
+            ref_value=$(echo "${entry}" | yq eval '.ref')
+            if [[ -z "${ref_value}" || "${ref_value}" == "null" ]]; then
+                log_error "Task ${task_path} entry ${i} has empty or null 'ref' field"
                 invalid_entries=$((invalid_entries + 1))
                 continue
             fi
-        fi
 
-        # Check for suspicious date values that indicate data generation errors
-        local suspicious_dates=0
-        for field in $(echo "${entry}" | yq eval 'keys[]' 2>/dev/null); do
-            local field_value
-            field_value=$(echo "${entry}" | yq eval ".[\"${field}\"]")
+            # Check for old effective_on field (should be expires_on) - check ALL entries
+            if echo "${entry}" | yq eval 'has("effective_on")' | grep -q "true"; then
+                log_error "Task ${task_path} entry ${i} has deprecated 'effective_on' field (should be 'expires_on')"
+                invalid_entries=$((invalid_entries + 1))
+                continue
+            fi
 
-            # Check if field value looks like a date
-            if [[ "${field_value}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
-                # Check for suspicious date patterns
-                case "${field_value}" in
-                    "0001-01-01T00:00:00Z")
-                        log_error "Task ${task_path} entry ${i} has suspicious zero date value in field '${field}': ${field_value} (indicates data generation error)"
-                        suspicious_dates=$((suspicious_dates + 1))
-                        ;;
-                    "1970-01-01T00:00:00Z")
-                        log_error "Task ${task_path} entry ${i} has suspicious Unix epoch date in field '${field}': ${field_value} (indicates data generation error)"
-                        suspicious_dates=$((suspicious_dates + 1))
-                        ;;
-                    "1900-01-01T00:00:00Z")
-                        log_error "Task ${task_path} entry ${i} has suspicious 1900 date in field '${field}': ${field_value} (indicates data generation error)"
-                        suspicious_dates=$((suspicious_dates + 1))
-                        ;;
-                esac
-
-                # Check for future dates that are too far in the future (more than 10 years)
-                local year
-                year=$(echo "${field_value}" | cut -d'-' -f1)
-                local current_year
-                current_year=$(date +%Y)
-                if [[ ${year} -gt $((current_year + 10)) ]]; then
-                    log_error "Task ${task_path} entry ${i} has suspicious future date in field '${field}': ${field_value} (year ${year} is more than 10 years in the future)"
-                    suspicious_dates=$((suspicious_dates + 1))
+            # For entries after the first one, check if they have expires_on field
+            if [[ ${i} -gt 0 ]]; then
+                if ! echo "${entry}" | yq eval 'has("expires_on")' >/dev/null 2>&1; then
+                    log_error "Task ${task_path} entry ${i} is missing 'expires_on' field (required for non-latest entries)"
+                    invalid_entries=$((invalid_entries + 1))
+                    continue
                 fi
 
-                # Check for dates that are too far in the past (before 2020)
-                if [[ ${year} -lt 2020 ]]; then
-                    log_error "Task ${task_path} entry ${i} has suspicious old date in field '${field}': ${field_value} (year ${year} is before 2020, likely indicates data generation error)"
-                    suspicious_dates=$((suspicious_dates + 1))
+                # Validate expires_on format (ISO 8601)
+                local expires_on
+                expires_on=$(echo "${entry}" | yq eval '.expires_on')
+                if [[ -z "${expires_on}" || "${expires_on}" == "null" ]]; then
+                    log_error "Task ${task_path} entry ${i} has empty or null 'expires_on' field"
+                    invalid_entries=$((invalid_entries + 1))
+                    continue
                 fi
+
+                # Basic ISO 8601 format check (YYYY-MM-DDTHH:MM:SSZ)
+                if ! [[ "${expires_on}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+                    log_error "Task ${task_path} entry ${i} has invalid 'expires_on' format: ${expires_on} (expected ISO 8601)"
+                    invalid_entries=$((invalid_entries + 1))
+                    continue
+                fi
+            fi
+
+            # Check for suspicious date values that indicate data generation errors
+            local suspicious_dates=0
+            for field in $(echo "${entry}" | yq eval 'keys[]' 2>/dev/null); do
+                local field_value
+                field_value=$(echo "${entry}" | yq eval ".[\"${field}\"]")
+
+                # Check if field value looks like a date
+                if [[ "${field_value}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+                    # Check for suspicious date patterns
+                    case "${field_value}" in
+                        "0001-01-01T00:00:00Z")
+                            log_error "Task ${task_path} entry ${i} has suspicious zero date value in field '${field}': ${field_value} (indicates data generation error)"
+                            suspicious_dates=$((suspicious_dates + 1))
+                            ;;
+                        "1970-01-01T00:00:00Z")
+                            log_error "Task ${task_path} entry ${i} has suspicious Unix epoch date in field '${field}': ${field_value} (indicates data generation error)"
+                            suspicious_dates=$((suspicious_dates + 1))
+                            ;;
+                        "1900-01-01T00:00:00Z")
+                            log_error "Task ${task_path} entry ${i} has suspicious 1900 date in field '${field}': ${field_value} (indicates data generation error)"
+                            suspicious_dates=$((suspicious_dates + 1))
+                            ;;
+                    esac
+
+                    # Check for future dates that are too far in the future (more than 10 years)
+                    local year
+                    year=$(echo "${field_value}" | cut -d'-' -f1)
+                    local current_year
+                    current_year=$(date +%Y)
+                    if [[ ${year} -gt $((current_year + 10)) ]]; then
+                        log_error "Task ${task_path} entry ${i} has suspicious future date in field '${field}': ${field_value} (year ${year} is more than 10 years in the future)"
+                        suspicious_dates=$((suspicious_dates + 1))
+                    fi
+
+                    # Check for dates that are too far in the past (before 2020)
+                    if [[ ${year} -lt 2020 ]]; then
+                        log_error "Task ${task_path} entry ${i} has suspicious old date in field '${field}': ${field_value} (year ${year} is before 2020, likely indicates data generation error)"
+                        suspicious_dates=$((suspicious_dates + 1))
+                    fi
+                fi
+            done
+
+            if [[ ${suspicious_dates} -gt 0 ]]; then
+                invalid_entries=$((invalid_entries + suspicious_dates))
+                continue
             fi
         done
-
-        if [[ ${suspicious_dates} -gt 0 ]]; then
-            invalid_entries=$((invalid_entries + suspicious_dates))
-            continue
-        fi
-    done
     done < <(yq eval '.trusted_tasks | keys | .[]' "${bundle_file}")
 
     if [[ ${invalid_entries} -gt 0 ]]; then
