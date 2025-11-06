@@ -23,6 +23,8 @@ spec:
     - name: DST_URL
       description: URL where to push the generated pko package to.
       type: string
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with the package files.
   results:
     - name: IMAGE_DIGEST
       description: Digest of the package just built
@@ -120,6 +122,3 @@ spec:
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" > "$(results.SBOM_BLOB_URL.path)"
       cosign attach sbom --sbom sbom.json --type spdx "$DST_URL"
-  workspaces:
-    - description: Workspace that contains the package manifest.
-      name: package
