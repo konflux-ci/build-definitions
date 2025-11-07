@@ -104,7 +104,7 @@ make sure to run the `hack/generate-ta-tasks.sh` script to update the
 ### External tasks
 
 External tasks are tasks that were built outside of build definitions.
-The option to add them to our pipelines is now available by adding them to the 
+The option to add them to our pipelines is now available by adding them to the
 external-task folder in the structure of a catalog including the name and version
 of the task, for example:
 
@@ -353,24 +353,44 @@ The migration file is a normal Bash script file:
   value to check pipeline type or do test in `if-then-else` statement for
   conditional operations.
 
-Here are example steps to create a migration for a task `task-a`:
+Here are example steps to create a migration for a task `task-a` (and oci-ta variant):
 
 ```bash
 yq -i "(.metadata.labels.\"app.kubernetes.io/version\") |= \"0.2.2\"" task/task-a/0.2/task-a.yaml
 mkdir -p task/task-a/0.2/migrations || :
 cat >task/task-a/0.2/migrations/0.2.2.sh <<EOF
 #!/usr/bin/env bash
-set -e
-pipeline_file=\$1
 
-# Ensure parameter is added only once whatever how many times to run this script.
-if ! yq -e '.spec.tasks[] | select(.name == "task-a") | .params[] | select(.name == "pipelinerun-name")' >/dev/null
-then
-  yq -i -e '
-    (.spec.tasks[] | select(.name == "task-a") | .params) +=
-    {"name": "pipelinerun-name", "value": "\$(context.pipelineRun.name)"}
-  ' "\$pipeline_file"
+# A migration script should find out tasks from a Pipeline by the referenced real task name
+
+set -e
+declare -r pipeline_file=${1:?missing pipeline file}
+
+# Get task names, a same task ref may be used multiple times, task names are unique but can be changed by users
+tasks_names=()
+
+for task_refname in "task-a" "task-a-oci-ta"; do
+    if yq -e ".spec.tasks[] | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\"))" "$pipeline_file" >/dev/null; then
+        tasks_found="$(yq -e ".spec.tasks[] | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\")).name" "${pipeline_file}")"
+        readarray -t -O ${#tasks_names[@]} tasks_names <<< "${tasks_found}"  # multiple tasks names can be returned
+    fi
+done
+
+if [ ${#tasks_names[@]} -eq 0 ]; then
+    echo "No tasks found"
+    exit 0
 fi
+
+for task_name in "${tasks_names[@]}"; do
+  # Ensure parameter is added only once whatever how many times to run this script.
+  if ! yq -e ".spec.tasks[] | select( .name == \"${task_name}\" ) | .params[] | select(.name == \"pipelinerun-name\")" "$pipeline_file" >/dev/null
+  then
+    yq -i -e "
+      (.spec.tasks[] | select( .name == \"${task_name}\" ) | .params) +=
+      {\"name\": \"pipelinerun-name\", \"value\": \"\$(context.pipelineRun.name)\"}
+    " "$pipeline_file"
+  fi
+done
 EOF
 ```
 
