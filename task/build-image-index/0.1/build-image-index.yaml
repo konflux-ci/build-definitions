@@ -114,6 +114,15 @@ spec:
 
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
       if [[ $# -ne 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
         echo "Skipping image index generation while supplying multiple image inputs is unsupported."
         exit 2
@@ -249,6 +258,15 @@ spec:
     script: |
       #!/bin/bash
       set -e
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       SBOM_RESULT_FILE="/index-build-data/index.spdx.json"
       if [ ! -f "$SBOM_RESULT_FILE" ]; then
