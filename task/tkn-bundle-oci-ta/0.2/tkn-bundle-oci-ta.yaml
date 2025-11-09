@@ -62,12 +62,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5dcb1a5e2054d9bb90b52bb98b670edf3ecfcf90cf0cdb8f6970e8a28cd4f260
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:43d997ac61bef77eaee0413fe50c29b66eb4d0d32066f5bd4a83f39e4b2d9457
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: modify-task-files
-      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      image: quay.io/konflux-ci/konflux-test:v1.4.40@sha256:99eb8bcc7bcb35bdd5edea7b0ac333bbdb67586dea6b4dab92baf2b8fb32bf2c
       workingDir: /var/workdir
       env:
         - name: CONTEXT
@@ -138,7 +138,7 @@ spec:
 
         printf "%s\n" "${FILES[@]}" >"${TASK_FILE}"
     - name: build
-      image: quay.io/konflux-ci/appstudio-utils@sha256:37d8a83ec1ff40445260d519faef2cedd02ca55d3eac3acb01e75ea8420bd731
+      image: quay.io/konflux-ci/appstudio-utils@sha256:5ea29232825b6bf9599e7d7902235f0463a4f4d363366027a312eb8cb46700fc
       workingDir: /var/workdir
       env:
         - name: CONTEXT
