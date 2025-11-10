@@ -317,7 +317,7 @@ updates can be applied to user pipelines automatically, that is done by the
 
 Task migrations are Bash scripts defined in version-specific task
 directories. In general, a migration consists of a series of
-pipeline-migration-tool `modify` subcommands to modify pass-in pipeline in
+pipeline-migration-tool `modify` subcommands to modify pipeline YAML in
 order to work with the new version of task. Developers can do more with task
 migrations on the pipelines, e.g. add/remove a task, add/remove/update task
 parameters, change execution order of a task, etc.
@@ -353,13 +353,9 @@ The following is the steps to write a migration:
 
 The migration file is a normal Bash script file:
 
-- It accepts a single argument. The pipeline file path is provided via this
-  argument. The script must work with a Tekton Pipeline by modifying the
-  pipeline definition under the `.spec` field. In practice, regardless of whether
-  the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
-  extracted into a separate YAML file, the migration tool ensures that the
-  passed-in pipeline file contains the correct pipeline definition.
-- Use `pmt-modify` command to modify pass-in pipeline.
+- It accepts a single argument, which is a file path pointing to a
+  Pipeline/PipelineRun file including the task bundle update.
+- Use `pmt-modify` command to modify pipeline YAML.
 - It should be simple and small as much as possible.
 - It should be idempotent as much as possible to ensure that the changes are
   not duplicated to the pipeline when run the migration multiple times.
@@ -387,7 +383,7 @@ declare -r pipeline_file=${1:?missing pipeline file}
 tasks_names=()
 tasks_selector="(.spec.tasks[], .spec.pipelineSpec.tasks[])"
 
-# A migration script should find out tasks from a Pipeline by the referenced real task name
+# A migration script should find out tasks from a Pipeline/PipelineRun by the referenced real task name
 for task_refname in "task-a" "task-a-oci-ta"; do
     task_selector="${tasks_selector} | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\"))"
     if yq -e "$task_selector" "$pipeline_file" >/dev/null; then
@@ -402,11 +398,8 @@ if [ ${#tasks_names[@]} -eq 0 ]; then
 fi
 
 for task_name in "${tasks_names[@]}"; do
-  # Ensure parameter is added only once whatever how many times to run this script.
-  if ! yq -e "${tasks_selector} | select( .name == \"${task_name}\" ) | .params[] | select(.name == \"pipelinerun-name\")" "$pipeline_file" >/dev/null
-  then
+    # add-param subcommand is idempotent. It does not add parameter repeatedly.
     pmt modify -f "$pipeline_file" task "$task_name" add-param pipelinerun-name "\$(context.pipelineRun.name)"
-  fi
 done
 EOF
 ```
@@ -418,7 +411,7 @@ EOF
 > ```bash
 > bash task/hello/migrations/0.2.sh /path/to/repo/.tekton/component-a-pull.yaml`
 > ```
-> Note that, ensure `pmt` is available in `$PATH`.
+> Note: ensure `pmt` is available in `$PATH`.
 
 To add a new task to the user pipelines, a migration can be created with a
 fictional task update. That is to select a task, e.g. `init`, bump its version
