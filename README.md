@@ -316,10 +316,30 @@ updates can be applied to user pipelines automatically, that is done by the
 [pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
 
 Task migrations are Bash scripts defined in version-specific task
-directories. In general, a migration consists of a series of `yq` commands that
-modify pipeline in order to work with the new version of task. Developers can
-do more with task migrations on the pipelines, e.g. add/review a task,
-add/remove/update task parameters, change execution order of a task, etc.
+directories. In general, a migration consists of a series of
+pipeline-migration-tool `modify` subcommands to modify pass-in pipeline in
+order to work with the new version of task. Developers can do more with task
+migrations on the pipelines, e.g. add/review a task, add/remove/update task
+parameters, change execution order of a task, etc.
+
+### `pmt-modify` command
+
+`modify` is a subcommand of pipeline-migration-tool, which does in-place
+modification on both Pipeline and PipelineRun definitions.
+
+`pmt` is an alias of pipeline-migration-tool executable command. In migration
+scripts, invoke the command like this:
+
+```bash
+pmt modify -f "$pipeline_file" ...
+```
+
+> [!IMPORTANT]
+> Using `yq -i` to modify pipelines has been deprecated. Task maintainers have
+> to invoke `pmt modify` in new migrations.
+
+For more information about the command, please refer to [To modify Konflux
+pipelines with modify] and `pmt modify --help`.
 
 ### Create a migration
 
@@ -339,8 +359,7 @@ The migration file is a normal Bash script file:
   the pipeline definition is embedded within the PipelineRun by `pipelineSpec` or
   extracted into a separate YAML file, the migration tool ensures that the
   passed-in pipeline file contains the correct pipeline definition.
-- All modifications to the pipeline must be done in-place, i.e. using `yq
-  -i` to operate the pipeline YAML.
+- Use `pmt-modify` command to modify pass-in pipeline.
 - It should be simple and small as much as possible.
 - It should be idempotent as much as possible to ensure that the changes are
   not duplicated to the pipeline when run the migration multiple times.
@@ -361,17 +380,18 @@ mkdir -p task/task-a/0.2/migrations || :
 cat >task/task-a/0.2/migrations/0.2.2.sh <<EOF
 #!/usr/bin/env bash
 
-# A migration script should find out tasks from a Pipeline by the referenced real task name
-
 set -e
 declare -r pipeline_file=${1:?missing pipeline file}
 
 # Get task names, a same task ref may be used multiple times, task names are unique but can be changed by users
 tasks_names=()
+tasks_selector="(.spec.tasks[], .spec.pipelineSpec.tasks[])"
 
+# A migration script should find out tasks from a Pipeline by the referenced real task name
 for task_refname in "task-a" "task-a-oci-ta"; do
-    if yq -e ".spec.tasks[] | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\"))" "$pipeline_file" >/dev/null; then
-        tasks_found="$(yq -e ".spec.tasks[] | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\")).name" "${pipeline_file}")"
+    task_selector="${tasks_selector} | select(.taskRef.params[] | (.name == \"name\" and .value == \"${task_refname}\"))"
+    if yq -e "$task_selector" "$pipeline_file" >/dev/null; then
+        tasks_found="$(yq -e "${task_selector} | .name" "${pipeline_file}")"
         readarray -t -O ${#tasks_names[@]} tasks_names <<< "${tasks_found}"  # multiple tasks names can be returned
     fi
 done
@@ -383,16 +403,22 @@ fi
 
 for task_name in "${tasks_names[@]}"; do
   # Ensure parameter is added only once whatever how many times to run this script.
-  if ! yq -e ".spec.tasks[] | select( .name == \"${task_name}\" ) | .params[] | select(.name == \"pipelinerun-name\")" "$pipeline_file" >/dev/null
+  if ! yq -e "${tasks_selector} | select( .name == \"${task_name}\" ) | .params[] | select(.name == \"pipelinerun-name\")" "$pipeline_file" >/dev/null
   then
-    yq -i -e "
-      (.spec.tasks[] | select( .name == \"${task_name}\" ) | .params) +=
-      {\"name\": \"pipelinerun-name\", \"value\": \"\$(context.pipelineRun.name)\"}
-    " "$pipeline_file"
+    pmt modify -f "$pipeline_file" task "$task_name" add-param pipelinerun-name "\$(context.pipelineRun.name)"
   fi
 done
 EOF
 ```
+
+> [!TIP]
+> Task selector `(.spec.tasks[], .spec.pipelineSpec.tasks[])` in the above
+> example makes it easy to test the migration scripts in local by passing
+> Pipeline or PipelineRun YAML file. For example:
+> ```bash
+> bash task/hello/migrations/0.2.sh /path/to/repo/.tekton/component-a-pull.yaml`
+> ```
+> Note that, ensure `pmt` is available in `$PATH`.
 
 To add a new task to the user pipelines, a migration can be created with a
 fictional task update. That is to select a task, e.g. `init`, bump its version
@@ -441,20 +467,10 @@ is the workflow:
     #!/usr/bin/env bash
     pipeline=$1
     name="<task name>"
+    bundle_ref="<image reference>"
     if ! yq -e ".spec.tasks[] | select(.name == \"${name}\")" "$pipeline" >/dev/null 2>&1
     then
-      task_def="{
-        \"name\": \"${name}\",
-        \"taskRef\": {
-          \"params\": [
-            {\"name\": \"name\", \"value\": \"${name}\"},
-            {\"name\": \"bundle\", \"value\": \"<bundle reference>\"},
-            {\"name\": \"kind\", \"value\": \"task\"}
-          ]
-        },
-        \"runAfter\": [\"<task name>\"]
-      }"
-      yq -i ".spec.tasks += ${task_def}" "$pipeline"
+      pmt add-task --run-after "<task name>" --bundle-ref "$bundle_ref" "$name" "$pipeline"
     fi
     ```
 
@@ -497,3 +513,6 @@ task:
 6. Optionally, introduce a new version of the task. Make sure **NOT** to reference the old
    version of the task in `kustomization.yaml` in such case as that would break CI.
 7. Once the old task is past its expiration date, it can be removed from the repository completely.
+
+
+[To modify Konflux pipelines with modify]: https://github.com/konflux-ci/pipeline-migration-tool?tab=readme-ov-file#to-modify-konflux-pipelines-with-modify
