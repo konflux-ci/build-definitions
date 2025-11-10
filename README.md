@@ -319,7 +319,7 @@ Task migrations are Bash scripts defined in version-specific task
 directories. In general, a migration consists of a series of
 pipeline-migration-tool `modify` subcommands to modify pass-in pipeline in
 order to work with the new version of task. Developers can do more with task
-migrations on the pipelines, e.g. add/review a task, add/remove/update task
+migrations on the pipelines, e.g. add/remove a task, add/remove/update task
 parameters, change execution order of a task, etc.
 
 ### `pmt-modify` command
