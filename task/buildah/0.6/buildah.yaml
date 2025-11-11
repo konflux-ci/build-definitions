@@ -199,6 +199,10 @@ spec:
     description: Determines if SBOM will be contextualized.
     type: string
     default: "false"
+  - name: SBOM_SKIP_VALIDATION
+    description: Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.
+    type: string
+    default: "true"
   - name: OMIT_HISTORY
     description: Omit build history information from the resulting image. Improves
       reproducibility by excluding timestamps and layer metadata.
@@ -297,6 +301,8 @@ spec:
       value: $(params.BUILD_TIMESTAMP)
     - name: CONTEXTUALIZE_SBOM
       value: $(params.CONTEXTUALIZE_SBOM)
+    - name: SBOM_SKIP_VALIDATION
+      value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
     imagePullPolicy: IfNotPresent
@@ -1073,7 +1079,7 @@ spec:
       subPath: ca-bundle.crt
 
   - name: prepare-sboms
-    image: quay.io/konflux-ci/mobster:1.1.0-1761230566@sha256:8c8044c24042e991ee246c75544380652ee50e1f684055d4fd7c3433a3b839e2
+    image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
     computeResources:
       limits:
         memory: 512Mi
@@ -1117,6 +1123,16 @@ spec:
       mobster_args=(
         generate
         --output sbom.json
+      )
+
+      # Validation is a flag for `generate`, not `oci-image`, so we need to
+      # handle it before the oci-image arguments
+      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+        echo "Skipping SBOM validation"
+        mobster_args+=(--skip-validation)
+      fi
+
+      mobster_args+=(
         oci-image
         --from-syft "$(workspaces.source.path)/sbom-image.json"
         --image-pullspec "$IMAGE_URL"

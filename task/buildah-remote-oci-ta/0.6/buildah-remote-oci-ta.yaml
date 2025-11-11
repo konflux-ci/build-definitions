@@ -152,6 +152,11 @@ spec:
     name: REWRITE_TIMESTAMP
     type: string
   - default: "true"
+    description: Flag to enable or disable SBOM validation before save. Validation
+      is optional - use this if you are experiencing performance issues.
+    name: SBOM_SKIP_VALIDATION
+    type: string
+  - default: "true"
     description: Flag to enable or disable SBOM generation from source code. The scanner
       of the source code is enabled only for non-hermetic builds and can be disabled
       if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false
@@ -297,6 +302,8 @@ spec:
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: SBOM_SKIP_VALIDATION
+      value: $(params.SBOM_SKIP_VALIDATION)
     - name: SBOM_SOURCE_SCAN_ENABLED
       value: $(params.SBOM_SOURCE_SCAN_ENABLED)
     - name: SBOM_SYFT_SELECT_CATALOGERS
@@ -1068,6 +1075,7 @@ spec:
           -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \
           -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
           -e SBOM_TYPE="${SBOM_TYPE@Q}" \
@@ -1304,7 +1312,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:1.1.0-1761230566@sha256:8c8044c24042e991ee246c75544380652ee50e1f684055d4fd7c3433a3b839e2
+    image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -1347,6 +1355,16 @@ spec:
       mobster_args=(
         generate
         --output sbom.json
+      )
+
+      # Validation is a flag for `generate`, not `oci-image`, so we need to
+      # handle it before the oci-image arguments
+      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+        echo "Skipping SBOM validation"
+        mobster_args+=(--skip-validation)
+      fi
+
+      mobster_args+=(
         oci-image
         --from-syft "/var/workdir/sbom-image.json"
         --image-pullspec "$IMAGE_URL"

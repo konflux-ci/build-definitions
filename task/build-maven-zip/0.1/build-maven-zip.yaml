@@ -37,7 +37,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
-
+  - name: SBOM_SKIP_VALIDATION
+    description: Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.
+    type: string
+    default: "false"
   results:
   - description: Digest of the OCI-Artifact just built
     name: IMAGE_DIGEST
@@ -58,6 +61,8 @@ spec:
       value: $(params.FILE_NAME)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: SBOM_SKIP_VALIDATION
+      value: $(params.SBOM_SKIP_VALIDATION)
     volumeMounts:
       - mountPath: /shared
         name: shared
@@ -146,7 +151,7 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/mobster:1.1.0-1761230566@sha256:8c8044c24042e991ee246c75544380652ee50e1f684055d4fd7c3433a3b839e2
+  - image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
     name: save-sbom
     computeResources:
       limits:
@@ -163,12 +168,18 @@ spec:
 
       # Use Mobster to generate maven-zip SBOM file using the Hermeto (Cachi2) output
       if [ -f "$(workspaces.source.path)/cachi2/output/bom.json" ]; then
-        mobster generate \
-                --output sbom.json \
-                oci-image \
-                --from-hermeto "$(workspaces.source.path)/cachi2/output/bom.json" \
-                --image-pullspec "$IMAGE_URL" \
-                --image-digest "$IMAGE_DIGEST"
+        mobster_args=(generate --output sbom.json)
+        if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+          echo "Skipping SBOM validation"
+          mobster_args+=(--skip-validation)
+        fi
+        mobster_args+=(
+          oci-image
+          --from-hermeto "$(workspaces.source.path)/cachi2/output/bom.json"
+          --image-pullspec "$IMAGE_URL"
+          --image-digest "$IMAGE_DIGEST"
+        )
+        mobster "${mobster_args[@]}"
       else
         echo "The SBOM file for fetched artifacts is not found!"
         exit 1
