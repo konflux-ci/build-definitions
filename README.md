@@ -453,18 +453,15 @@ is the workflow:
     ./hack/create-task-migration.sh -t init
     ```
 
-  - Edit the generated migration file, write script to add the task. Here is an
-    example using `yq`:
+  - Edit the generated migration file, write script to add the task:
 
     ```bash
     #!/usr/bin/env bash
     pipeline=$1
     name="<task name>"
     bundle_ref="<image reference>"
-    if ! yq -e ".spec.tasks[] | select(.name == \"${name}\")" "$pipeline" >/dev/null 2>&1
-    then
-      pmt add-task --run-after "<task name>" --bundle-ref "$bundle_ref" "$name" "$pipeline"
-    fi
+    # add-task subcommand is idempotent. It does not add a task repeatedly.
+    pmt add-task --run-after "<task name>" --bundle-ref "$bundle_ref" "$name" "$pipeline"
     ```
 
     Add necessary additional code to make the migration work well.
