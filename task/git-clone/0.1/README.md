@@ -28,6 +28,8 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|
 |targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
+|mergeSourceRepoUrl|URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository.|""|false|
+|mergeSourceDepth|Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch.|""|false|
 
 ## Results
 |name|description|
