@@ -58,7 +58,7 @@ spec:
         value: $(params.SBOM_TYPE)
   steps:
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:41aee71bcaa8a759073e00d6acea358fbc4013ad6e28554729451606c0c35591
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         set -eu
@@ -335,7 +335,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:41aee71bcaa8a759073e00d6acea358fbc4013ad6e28554729451606c0c35591
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}
