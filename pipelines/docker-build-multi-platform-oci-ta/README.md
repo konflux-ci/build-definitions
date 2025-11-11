@@ -39,10 +39,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
-|COMMIT_SHA| The commit the image is built from.| | '$(tasks.clone-repository.results.commit)'|
+|COMMIT_SHA| The commit the image is built from.| ""| '$(tasks.clone-repository.results.commit)'|
 |IMAGE| The target image and tag where the image will be pushed to.| None| '$(params.output-image)'|
 |IMAGES| List of Image Manifests to be referenced by the Image Index| None| '['$(tasks.build-images.results.IMAGE_REF[*])']'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
@@ -53,49 +53,49 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
 |ADDITIONAL_BASE_IMAGES| Additional base image references to include to the SBOM. Array of image_reference_with_digest strings| []| |
 |ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
-|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
+|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| ""| |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
-|ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| | |
+|ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| ""| |
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
-|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
-|BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.| | |
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
-|COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| ""| '$(params.build-args-file)'|
+|BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.| ""| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|COMMIT_SHA| The image is built from this commit.| ""| '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |CONTEXTUALIZE_SBOM| Determines if SBOM will be contextualized.| false| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
-|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| | |
+|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| |
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_APPEND_PLATFORM| Whether to append a sanitized platform architecture on the IMAGE tag| false| 'true'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
-|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| | |
+|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| |
 |OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| |
 |PLATFORM| The platform to build on| None| |
-|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
+|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| ""| '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
 |PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| proxy-ca-bundle| |
 |REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| |
 |SBOM_SOURCE_SCAN_ENABLED| Flag to enable or disable SBOM generation from source code. The scanner of the source code is enabled only for non-hermetic builds and can be disabled if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false positives on source code scanning.| true| |
-|SBOM_SYFT_SELECT_CATALOGERS| Extra option to customize Syft's default catalogers when generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers. The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection| | |
+|SBOM_SYFT_SELECT_CATALOGERS| Extra option to customize Syft's default catalogers when generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers. The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection| ""| |
 |SBOM_TYPE| Select the SBOM format to generate. Valid values: spdx, cyclonedx. Note: the SBOM from the prefetch task - if there is one - must be in the same format.| spdx| |
 |SKIP_INJECTIONS| Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.| false| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| | |
-|SOURCE_URL| The image is built from this URL.| | '$(tasks.clone-repository.results.url)'|
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
-|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
+|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| ""| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
-|WORKINGDIR_MOUNT| Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).| | |
+|WORKINGDIR_MOUNT| Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).| ""| |
 |YUM_REPOS_D_FETCHED| Path in source workspace where dynamically-fetched repos are present| fetched.repos.d| |
 |YUM_REPOS_D_SRC| Path in the git repository in which yum repository files are stored| repos.d| |
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
@@ -106,9 +106,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|docker-auth| unused, should be removed in next task version.| | |
+|docker-auth| unused, should be removed in next task version.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-platform| The platform built by.| | |
+|image-platform| The platform built by.| ""| |
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### clamav-scan:0.3 task parameters
 |name|description|default value|already set by|
@@ -116,8 +116,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |clamd-max-threads| Maximum number of threads clamd runs.| 8| |
-|docker-auth| unused| | |
-|image-arch| Image arch.| | |
+|docker-auth| unused| ""| |
+|image-arch| Image arch.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### coverity-availability-check:0.2 task parameters
@@ -128,7 +128,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### deprecated-image-check:0.5 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES_DIGESTS| Digests of base build images.| | |
+|BASE_IMAGES_DIGESTS| Digests of base build images.| ""| |
 |CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
@@ -142,7 +142,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|platform| The platform the image is built on.| | |
+|platform| The platform the image is built on.| ""| |
 ### git-clone-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -151,18 +151,18 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
 |fetchTags| Fetch all tags for the repo.| false| |
-|httpProxy| HTTP proxy server for non-SSL requests.| | |
-|httpsProxy| HTTPS proxy server for SSL requests.| | |
+|httpProxy| HTTP proxy server for non-SSL requests.| ""| |
+|httpsProxy| HTTPS proxy server for SSL requests.| ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
-|noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
-|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).git'|
-|refspec| Refspec to fetch before checking out revision.| | |
-|revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
+|refspec| Refspec to fetch before checking out revision.| ""| |
+|revision| Revision to checkout. (branch, tag, sha, ref, etc...)| ""| '$(params.revision)'|
 |shortCommitLength| Length of short commit SHA| 7| |
-|sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| | |
+|sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| ""| |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
-|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. | | |
+|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. | ""| |
 |submodules| Initialize and fetch git submodules.| true| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
@@ -181,11 +181,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
+|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | ""| |
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
-|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### push-dockerfile-oci-ta:0.1 task parameters
@@ -214,32 +214,32 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
 |ADDITIONAL_BASE_IMAGES| Additional base image references to include to the SBOM. Array of image_reference_with_digest strings| []| |
 |ADDITIONAL_SECRET| Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET| does-not-exist| |
-|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| | |
+|ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| ""| |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
-|ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| | |
+|ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| ""| |
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| |
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
-|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| | '$(params.build-args-file)'|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
-|COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
+|BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| ""| '$(params.build-args-file)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|COMMIT_SHA| The image is built from this commit.| ""| '$(tasks.clone-repository.results.commit)'|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |COV_ANALYZE_ARGS| Arguments to be appended to the cov-analyze command| --enable HARDCODED_CREDENTIALS --security --concurrency --spotbugs-max-mem=4096| |
 |COV_LICENSE| Name of secret which contains the Coverity license| cov-license| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
-|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| | |
+|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| |
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
 |IMAGE| The task will build a container image and tag it locally as $IMAGE, but will not push the image anywhere. Due to the relationship between this task and the buildah task, the parameter is required, but its value is mostly irrelevant.| None| '$(params.output-image)'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
-|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| | |
-|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| | '$(params.prefetch-input)'|
+|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| |
+|PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| ""| '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| |
-|PROJECT_NAME| | | |
+|PROJECT_NAME| | ""| |
 |PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
 |PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| proxy-ca-bundle| |
 |RECORD_EXCLUDED| | false| |
@@ -250,9 +250,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
 |TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas. This only applies to buildless capture, which is only attempted if buildful capture fails to produce and results.| .| |
-|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| | |
+|TARGET_STAGE| Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.| ""| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
-|WORKINGDIR_MOUNT| Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).| | |
+|WORKINGDIR_MOUNT| Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).| ""| |
 |YUM_REPOS_D_FETCHED| Path in source workspace where dynamically-fetched repos are present| fetched.repos.d| |
 |YUM_REPOS_D_SRC| Path in the git repository in which yum repository files are stored| repos.d| |
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
@@ -263,26 +263,26 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-shell-check-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |IMP_FINDINGS_ONLY| Whether to include important findings only| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (default to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### sast-snyk-check-oci-ta:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|ARGS| Append arguments.| | |
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
-|IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| | |
+|ARGS| Append arguments.| ""| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| ""| |
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
@@ -294,11 +294,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-unicode-check-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
 |FIND_UNICODE_CONTROL_GIT_URL| URL from repository to find unicode control.| https://github.com/siddhesh/find-unicode-control.git#c2accbfbba7553a8bc1ebd97089ae08ad8347e58| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -308,10 +308,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### source-build-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| | |
+|BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| ""| |
 |BINARY_IMAGE| Binary image name with tag.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |BINARY_IMAGE_DIGEST| Digest of the binary image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |IGNORE_UNSIGNED_IMAGE| When set to "true", source build task won't fail when source image is missing signatures (this can be used for development)| false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |

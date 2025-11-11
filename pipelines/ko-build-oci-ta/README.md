@@ -35,10 +35,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| 'true'|
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| 'docker'|
-|COMMIT_SHA| The commit the image is built from.| | '$(tasks.clone-repository.results.commit)'|
+|COMMIT_SHA| The commit the image is built from.| ""| '$(tasks.clone-repository.results.commit)'|
 |IMAGE| The target image and tag where the image will be pushed to.| None| '$(params.output-image)'|
 |IMAGES| List of Image Manifests to be referenced by the Image Index| None| '['$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)']'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
@@ -48,9 +48,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|docker-auth| unused, should be removed in next task version.| | |
+|docker-auth| unused, should be removed in next task version.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-platform| The platform built by.| | |
+|image-platform| The platform built by.| ""| |
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### clamav-scan:0.3 task parameters
 |name|description|default value|already set by|
@@ -58,14 +58,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |clamd-max-threads| Maximum number of threads clamd runs.| 8| |
-|docker-auth| unused| | |
-|image-arch| Image arch.| | |
+|docker-auth| unused| ""| |
+|image-arch| Image arch.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### deprecated-image-check:0.5 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES_DIGESTS| Digests of base build images.| | |
+|BASE_IMAGES_DIGESTS| Digests of base build images.| ""| |
 |CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
@@ -79,7 +79,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-|platform| The platform the image is built on.| | |
+|platform| The platform the image is built on.| ""| |
 ### git-clone-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -88,18 +88,18 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
 |fetchTags| Fetch all tags for the repo.| false| |
-|httpProxy| HTTP proxy server for non-SSL requests.| | |
-|httpsProxy| HTTPS proxy server for SSL requests.| | |
+|httpProxy| HTTP proxy server for non-SSL requests.| ""| |
+|httpsProxy| HTTPS proxy server for SSL requests.| ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
-|noProxy| Opt out of proxying HTTP/HTTPS requests.| | |
-|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).git'|
-|refspec| Refspec to fetch before checking out revision.| | |
-|revision| Revision to checkout. (branch, tag, sha, ref, etc...)| | '$(params.revision)'|
+|refspec| Refspec to fetch before checking out revision.| ""| |
+|revision| Revision to checkout. (branch, tag, sha, ref, etc...)| ""| '$(params.revision)'|
 |shortCommitLength| Length of short commit SHA| 7| |
-|sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| | |
+|sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| ""| |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
-|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. | | |
+|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. | ""| |
 |submodules| Initialize and fetch git submodules.| true| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
@@ -114,12 +114,12 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### ko-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|COMMIT_SHA| The image is built from this commit.| | '$(tasks.clone-repository.results.commit)'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | '$(params.image-expires-after)'|
+|COMMIT_SHA| The image is built from this commit.| ""| '$(tasks.clone-repository.results.commit)'|
+|IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |IMAGE_NAMING_STRATEGY| One of --base-import-paths, --bare, or --preserve-import-paths| --base-import-paths| |
 |IMPORT_PATH| import path of package main| .| '$(params.import-path)'|
-|KO_DEFAULTBASEIMAGE| base image for ko build| | '$(params.default-base-image)'|
-|KO_DOCKER_REPO| Container repository where to push images built with ko| | '$(params.ko-docker-repo)'|
+|KO_DEFAULTBASEIMAGE| base image for ko build| ""| '$(params.default-base-image)'|
+|KO_DOCKER_REPO| Container repository where to push images built with ko| ""| '$(params.ko-docker-repo)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TAG| Tag of PR to add to image| None| '$(params.pr-tag)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -131,11 +131,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | | |
+|config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | ""| |
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
-|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| | '$(params.image-expires-after)'|
+|ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### rpms-signature-scan:0.2 task parameters
@@ -149,26 +149,26 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-shell-check-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| |
 |IMP_FINDINGS_ONLY| Whether to include important findings only| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (default to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|image-digest| Image digest to report findings for.| | '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-url| Image URL.| | '$(tasks.build-image-index.results.IMAGE_URL)'|
+|image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Image URL.| ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### sast-snyk-check-oci-ta:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|ARGS| Append arguments.| | |
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | |
-|IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| | |
+|ARGS| Append arguments.| ""| |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| |
+|IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| ""| |
 |IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
@@ -180,11 +180,11 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-unicode-check-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| |
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
 |FIND_UNICODE_CONTROL_GIT_URL| URL from repository to find unicode control.| https://github.com/siddhesh/find-unicode-control.git#c2accbfbba7553a8bc1ebd97089ae08ad8347e58| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
-|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| | |
+|PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -194,10 +194,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### source-build-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
-|BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| | |
+|BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| ""| |
 |BINARY_IMAGE| Binary image name with tag.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |BINARY_IMAGE_DIGEST| Digest of the binary image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| | |
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| |
 |IGNORE_UNSIGNED_IMAGE| When set to "true", source build task won't fail when source image is missing signatures (this can be used for development)| false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
