@@ -327,7 +327,7 @@ parameters, change execution order of a task, etc.
 `modify` is a subcommand of pipeline-migration-tool, which does in-place
 modification on both Pipeline and PipelineRun definitions.
 
-`pmt` is an alias of pipeline-migration-tool executable command. In migration
+`pmt` is an alias for the pipeline-migration-tool executable command. In migration
 scripts, invoke the command like this:
 
 ```bash
@@ -335,8 +335,8 @@ pmt modify -f "$pipeline_file" ...
 ```
 
 > [!IMPORTANT]
-> Using `yq -i` to modify pipelines has been deprecated. Task maintainers have
-> to invoke `pmt modify` in new migrations.
+> Using `yq -i` to modify pipelines has been deprecated. Task maintainers must
+> invoke `pmt modify` in new migrations.
 
 For more information about the command, please refer to [To modify Konflux
 pipelines with modify] and `pmt modify --help`.
