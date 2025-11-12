@@ -132,7 +132,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1760515502@sha256:34880b64c07f28f64d95737f82f891516de9a3b43583f39970f7bf8e4cfa48b7
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1762180032@sha256:2ddd6e10383981c7d10e4966a7c0edce7159f8ca91b1691cafabc78bae79d8f8
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,12 +148,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:43d997ac61bef77eaee0413fe50c29b66eb4d0d32066f5bd4a83f39e4b2d9457
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7d829000642752a739f7823b1981e5bcfbc70da48d473f04b624ec8bf784322b
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:5c4d54c7aa36f58df7fa7f3404464953b4a15aa95ec6455d74eb58207fd0c06b
+      image: quay.io/konflux-ci/yq:latest@sha256:3129be98229ee1cb023f20b87f733a6c68912579bcbf990e498e4da0abfab7b2
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
@@ -448,7 +448,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:43d997ac61bef77eaee0413fe50c29b66eb4d0d32066f5bd4a83f39e4b2d9457
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7d829000642752a739f7823b1981e5bcfbc70da48d473f04b624ec8bf784322b
       args:
         - create
         - --store
