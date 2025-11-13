@@ -67,6 +67,7 @@
 ### init:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|enable-cache-proxy| Enable cache proxy configuration| false| |
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
@@ -153,6 +154,8 @@
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|HTTP_PROXY| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
+|NO_PROXY| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
 |build| Defines if the image in param image-url should be built| |
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
