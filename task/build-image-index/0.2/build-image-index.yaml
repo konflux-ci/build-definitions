@@ -116,6 +116,33 @@ spec:
       set -o pipefail
       chown root:root /var/lib/containers
 
+      get_image_format() {
+        local image_ref="$1"
+        local tmp_manifest="tmp-manifest-$$"
+        local media_type="unknown"
+        local format="unknown"
+        local buildah_retries=3
+
+        if buildah manifest create "$tmp_manifest" >/dev/null &&
+          retry buildah manifest add "$tmp_manifest" "docker://$image_ref" --all >/dev/null; then
+          media_type=$(buildah manifest inspect "$tmp_manifest" | jq -r '.mediaType // "unknown"')
+          buildah manifest rm "$tmp_manifest" >/dev/null
+        else
+          echo "WARNING: Failed to inspect manifest for $image_ref" >&2
+          exit 1
+        fi
+
+        case "$media_type" in
+          *"vnd.oci"*) format="oci" ;;
+          *"vnd.docker"*) format="docker" ;;
+          *)
+            echo "WARNING: Could not determine format for $image_ref (MediaType: $media_type)" >&2
+            ;;
+        esac
+
+        echo "$format"
+      }
+
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
       echo "[$(date --utc -Ins)] Update CA trust"
@@ -152,6 +179,15 @@ spec:
           echo -n "${TOADD}" > "$(results.IMAGES.path)"
           exit 0
         fi
+
+        actual_format=$(get_image_format "$TOADD")
+        if [ "$actual_format" != "$BUILDAH_FORMAT" ]; then
+            echo "ERROR: Platform image $TOADD is in $actual_format format, but index will be $BUILDAH_FORMAT"
+            echo "This will cause digest changes and break SBOM accessibility."
+            echo "Ensure all platform images are built with buildah-format: $BUILDAH_FORMAT"
+            exit 1
+        fi
+
         echo "Adding $TOADD"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
