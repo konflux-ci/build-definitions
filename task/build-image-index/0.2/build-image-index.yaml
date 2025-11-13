@@ -152,9 +152,29 @@ spec:
           echo -n "${TOADD}" > "$(results.IMAGES.path)"
           exit 0
         fi
+
         echo "Adding $TOADD"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
+
+      echo "Validating format consistency"
+      INCOMPATIBLE_STRING="vnd.oci.image.manifest"
+      INCOMPATIBLE_NAME="oci"
+      if [ "$BUILDAH_FORMAT" == "oci" ]; then
+        INCOMPATIBLE_STRING="vnd.docker.distribution.manifest"
+        INCOMPATIBLE_NAME="docker"
+      fi
+
+      # If mismatched formats (e.g., Docker manifests within an OCI index) exist locally, 'buildah push'
+      # converts the inner manifests to match the target BUILDAH_FORMAT.
+      # This alters the digests and breaks the link to the attached SBOMs.
+      MANIFEST_MEDIA_TYPES=$(buildah manifest inspect "$IMAGE" | jq -er '.manifests[].mediaType')
+      if echo "$MANIFEST_MEDIA_TYPES" | grep -q "$INCOMPATIBLE_STRING"; then
+        echo "ERROR: Platform image contains $INCOMPATIBLE_NAME format, but index will be $BUILDAH_FORMAT"
+        echo "This will cause digest changes and break SBOM accessibility."
+        echo "Ensure all platform images are built with buildah-format: $BUILDAH_FORMAT"
+        exit 1
+      fi
 
       # While the BUILDAH_FORMAT environment variable can define the push
       # format, lets be explicit about the format that we want when we push.
