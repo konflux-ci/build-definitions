@@ -62,6 +62,9 @@ spec:
         oci or docker.
       type: string
       default: "docker"
+    - name: enable-cache-proxy
+      description: Enable cache proxy configuration
+      default: "false"
   tasks:
     - name: init
       params:
@@ -71,6 +74,8 @@ spec:
           value: "$(params.rebuild)"
         - name: skip-checks
           value: "$(params.skip-checks)"
+        - name: enable-cache-proxy
+          value: "$(params.enable-cache-proxy)"
       taskRef:
         name: init
         # A pointer for referencing the correct version of task in the built pipeline bundles.
