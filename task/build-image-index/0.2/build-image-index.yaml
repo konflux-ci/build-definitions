@@ -199,7 +199,7 @@ spec:
         image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
       done
 
-      cat image-digest | tee $(results.IMAGE_DIGEST.path)
+      tee "$(results.IMAGE_DIGEST.path)" < image-digest
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
       {
         echo -n "${IMAGE}@"
