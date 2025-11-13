@@ -26,3 +26,31 @@ FBC builds should continue using `oci` format.
 Change `BUILDAH_FORMAT` param value to `docker` in build related tasks: build-images, build-container, build-image-index (build-image-manifest eventually).
 
 If your project require OCI, you don't need to do change (However, check automatic migration if it didn't migrate you to docker format).
+
+# Migration from 0.2.3 to 0.2.4
+
+The `init` task now supports cache proxy configuration through a new `enable-cache-proxy` parameter. When enabled, the init task outputs proxy configuration values (`http-proxy` and `no-proxy` results) that can be consumed by build tasks like `buildah`.
+
+This enables builds to use a caching proxy to reduce network traffic and improve build performance.
+
+## Automatic Migration
+
+The migration script (`0.2.4.sh`) automatically performs the following:
+
+1. **Adds `enable-cache-proxy` parameter** to the pipeline with a default value of `"false"` to maintain backward compatibility
+2. **Adds `enable-cache-proxy` parameter** to the `init` task, passing the pipeline parameter value
+3. **Adds `HTTP_PROXY` and `NO_PROXY` parameters** to all buildah-related tasks (including `buildah`, `buildah-remote`, `buildah-oci-ta`, `buildah-remote-oci-ta`, and `buildah-min`) that reference the init task's proxy results:
+   ```yaml
+   - name: HTTP_PROXY
+     value: $(tasks.init.results.http-proxy)
+   - name: NO_PROXY
+     value: $(tasks.init.results.no-proxy)
+   ```
+
+The migration script is idempotent and will skip tasks that already have these parameters configured.
+
+## Action from users
+
+No action required. The migration script automatically handles all necessary changes.
+
+If you want to enable cache proxy for your builds, set the `enable-cache-proxy` parameter to `"true"` in your pipeline configuration. The proxy configuration will then be automatically passed to all buildah tasks.
