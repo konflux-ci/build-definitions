@@ -7,6 +7,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.2:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| init:0.2:image-url ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
@@ -60,6 +61,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### init:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
@@ -199,6 +201,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
 ### sast-coverity-check:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
