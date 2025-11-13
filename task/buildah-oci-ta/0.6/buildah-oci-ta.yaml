@@ -990,7 +990,8 @@ spec:
         echo "Recording base image digests used"
         for image in $BASE_IMAGES; do
           # Get the image pullspec and filter out a tag if it is not set
-          base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image")
+          # Use head -n 1 to ensure we only get one result even if multiple images match the filter
+          base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image" | head -n 1)
           # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
           # if buildah did not use that particular image during build because it was skipped
           if [ -n "$base_image_digest" ]; then
