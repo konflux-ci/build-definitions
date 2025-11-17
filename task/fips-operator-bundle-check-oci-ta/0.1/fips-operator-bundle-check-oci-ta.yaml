@@ -23,6 +23,9 @@ spec:
     It should map unreleased `registry.redhat.io` pullspecs of relatedImages
     to their valid `quay.io` pullspecs.
   params:
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel
+      default: "8"
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -150,19 +153,22 @@ spec:
           add:
             - SETFCAP
     - name: fips-operator-check-step-action
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
       computeResources:
         limits:
-          cpu: "1"
+          cpu: "8"
           memory: 12Gi
         requests:
-          cpu: "1"
+          cpu: "8"
           memory: 12Gi
       ref:
         params:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 374d67d92cc4d7ac8c0d80876e4e4ca97f07d8b1
+            value: 07cce518c45fe75a9078f5a2f44d49ba711c829e
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
         resolver: git

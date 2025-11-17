@@ -7,6 +7,7 @@ In order to resolve them, this task expects a ImageDigestMirrorSet file located 
 ## Parameters
 |name|description|default value|required|
 |---|---|---|---|
+|MAX_PARALLEL|Maximum number of images to process in parallel|8|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |image-digest|Image digest to scan.||true|
 |image-url|Image URL.||true|
@@ -19,3 +20,5 @@ In order to resolve them, this task expects a ImageDigestMirrorSet file located 
 
 
 ## Additional info
+### Parallel Processing
+The MAX_PARALLEL parameter controls how many related images are scanned concurrently. The default value is "8", but this can be adjusted based on your resource availability and performance requirements. Increasing this value can speed up the scan for FBC fragments with many related images, but may require more memory and CPU resources.

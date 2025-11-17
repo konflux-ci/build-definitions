@@ -21,6 +21,9 @@ spec:
       description: Image digest to scan.
     - name: image-url
       description: Image URL.
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel
+      default: "8"
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -261,17 +264,20 @@ spec:
       computeResources:
         limits:
           memory: 12Gi
-          cpu: '1'
+          cpu: '8'
         requests:
           memory: 12Gi
-          cpu: '1'
+          cpu: '8'
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
       ref:
         resolver: git
         params:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 374d67d92cc4d7ac8c0d80876e4e4ca97f07d8b1
+            value: 07cce518c45fe75a9078f5a2f44d49ba711c829e
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
