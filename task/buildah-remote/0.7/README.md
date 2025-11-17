@@ -1,4 +1,4 @@
-# buildah task
+# buildah-remote task
 
 Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
 In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
@@ -40,16 +40,13 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
 |ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
-|INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|false|false|
+|INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |NO_PROXY|Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.|""|false|
-|PROXY_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read proxy CA bundle data from.|caching-ca-bundle|false|
+|PROXY_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read proxy CA bundle data from.|proxy-ca-bundle|false|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the proxy CA bundle data.|ca-bundle.crt|false|
-|BUILD_TIMESTAMP|Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.|""|false|
-|OMIT_HISTORY|Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.|false|false|
-|SOURCE_DATE_EPOCH|Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and clamps file mtimes to ensure consistent digests.|""|false|
-|REWRITE_TIMESTAMP|Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.|false|false|
-|SKIP_INJECTIONS|Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.|false|false|
+|PLATFORM|The platform to build on||true|
+|IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
 
 ## Results
 |name|description|
