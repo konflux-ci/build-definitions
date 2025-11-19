@@ -147,7 +147,7 @@ spec:
         sbom_url=$(grep 'Published SBOM' /tmp/build.log | awk '{print $5}')
         sbom_file=$(grep 'Writing SBOM to' /tmp/build.log | awk '{print $6}')
 
-        cosign attach sbom --type=spdx --input-format=json --sbom="${sbom_file}" "${url}"
+        cosign attach sbom --type=spdx --input-format=json --sbom="${sbom_file}" "${url}@${digest}"
 
         echo "IMAGE_DIGEST=${digest}"
         echo "IMAGE_REF=${ref}"
