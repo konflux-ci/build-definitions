@@ -482,13 +482,13 @@ migrate onto a newer version.
 If you are a task maintainer here's what you need to do when deprecating a particular version of a
 task:
 
-1. Set the `build.appstudio.redhat.com/expires-on` label on the old task version.
+1. Set the `build.appstudio.redhat.com/expires-on` annotation on the old task version.
 2. Depending on whether you're adding a new version of a task or deprecating it completely set the
    `build.appstudio.redhat.com/expiry-message` on the old version. There's a default expiration
    message emitted by [Conforma](https://conforma.dev/docs/policy/tasks.html#_setting_task_expiry)
    which may be handy if you're just adding a new version.
-3. Release a fresh build of the old task version with these labels (by merging the PR that sets the
-   labels).
+3. Release a fresh build of the old task version with these annotations (by merging the PR that sets
+   the annotations).
 4. Move the old task to the `archived-tasks` top-level directory.
 
     ```bash
