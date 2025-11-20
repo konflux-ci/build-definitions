@@ -21,6 +21,8 @@ todo=(
   task/buildah-min/0.5/buildah-min.yaml
   task/buildah-min/0.6/kustomization.yaml
   task/buildah-min/0.6/buildah-min.yaml
+  task/buildah-min/0.7/kustomization.yaml
+  task/buildah-min/0.7/buildah-min.yaml
   task/buildah-rhtap/0.1/buildah-rhtap.yaml
   task/download-sbom-from-url-in-attestation/0.1/download-sbom-from-url-in-attestation.yaml
   task/gather-deploy-images/0.1/gather-deploy-images.yaml
