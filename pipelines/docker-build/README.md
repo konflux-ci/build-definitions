@@ -9,14 +9,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.7:BUILD_ARGS ; sast-coverity-check:0.3:BUILD_ARGS|
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.7:BUILD_ARGS_FILE ; sast-coverity-check:0.3:BUILD_ARGS_FILE|
-|build-image-index| Add built image into an OCI image index| false| build-image-index:0.1:ALWAYS_BUILD_INDEX|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
-|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.7:BUILDAH_FORMAT ; build-image-index:0.1:BUILDAH_FORMAT|
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.7:BUILDAH_FORMAT ; build-image-index:0.2:BUILDAH_FORMAT|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.7:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.1:DOCKERFILE|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.7:HERMETIC ; sast-coverity-check:0.3:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.7:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; build-container:0.7:IMAGE ; build-image-index:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.7:IMAGE_EXPIRES_AFTER ; build-image-index:0.2:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; build-container:0.7:IMAGE ; build-image-index:0.2:IMAGE ; sast-coverity-check:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.7:CONTEXT ; sast-coverity-check:0.3:CONTEXT ; push-dockerfile:0.1:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-container:0.7:PREFETCH_INPUT ; sast-coverity-check:0.3:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.7:PRIVILEGED_NESTED|
@@ -33,7 +33,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### build-image-index:0.1 task parameters
+### build-image-index:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
@@ -309,7 +309,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index:0.1 task results
+### build-image-index:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
@@ -322,7 +322,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.1:IMAGES|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.2:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### clair-scan:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -358,7 +358,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.7:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA ; sast-coverity-check:0.3:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.7:COMMIT_SHA ; build-image-index:0.2:COMMIT_SHA ; sast-coverity-check:0.3:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
