@@ -8,11 +8,14 @@ Initialize Pipeline Task, include flags for rebuild and auth. Generates image re
 |image-url|Image URL for build by PipelineRun||true|
 |rebuild|Rebuild the image if exists|false|false|
 |skip-checks|Skip checks against built image|false|false|
+|enable-cache-proxy|Enable cache proxy configuration|false|false|
 
 ## Results
 |name|description|
 |---|---|
 |build|Defines if the image in param image-url should be built|
+|http-proxy|HTTP proxy URL for cache proxy (when enable-cache-proxy is true)|
+|no-proxy|NO_PROXY value for cache proxy (when enable-cache-proxy is true)|
 
 
 ## Additional info
