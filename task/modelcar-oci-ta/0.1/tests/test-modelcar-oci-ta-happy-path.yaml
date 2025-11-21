@@ -165,17 +165,20 @@ spec:
               #!/usr/bin/env bash
               set -eu
 
-              echo "Confirm we can inspect the image"
-              skopeo inspect "docker://${IMAGE_REF//:latest/}"
+              echo "Stripping latest tag from ${IMAGE_REF}"
+              IMAGE_REF="${IMAGE_REF//:latest/}"
+
+              echo "Confirm we can inspect the image ${IMAGE_REF}"
+              skopeo inspect "docker://${IMAGE_REF}"
 
               echo "Confirm the image is single-arch; multiarch not supported"
-              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest/}" | jq -r .mediaType)
+              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF}" | jq -r .mediaType)
               if [ "$mediaType" != "application/vnd.oci.image.manifest.v1+json" ]; then
                   echo "Image is not single-arch." && exit 1
               fi
 
               echo "Confirm the image is amd64 - the one matching the single-arch base image we provided"
-              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest/}" | jq -r .Architecture)
+              mediaType=$(skopeo inspect "docker://${IMAGE_REF}" | jq -r .Architecture)
               if [ "$mediaType" != "amd64" ]; then
                   echo "Image is not amd64." && exit 1
               fi
@@ -201,5 +204,13 @@ spec:
                   echo "$purl not found in $packages" && exit 1
                 fi
               done
+
+              echo "Confirm the sbom has a reasonable name"
+              sbom_name=$(cosign download sbom "$IMAGE_REF" | jq -r '.name')
+              if [[ "$sbom_name" == "$IMAGE_REF" ]]; then
+                echo "SBOM name $sbom_name is as expected."
+              else
+                echo "SBOM name $sbom_name is not $IMAGE_REF" && exit 1
+              fi
       runAfter:
         - run-modelcar-task
