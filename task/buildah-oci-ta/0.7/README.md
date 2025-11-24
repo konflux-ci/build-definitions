@@ -28,7 +28,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
 |IMAGE|Reference of the image buildah will produce.||true|
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
-|INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|false|false|
+|INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
 |NO_PROXY|Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.|""|false|
 |OMIT_HISTORY|Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.|false|false|
