@@ -1,71 +1,59 @@
-# WARNING: This is an auto generated file, do not modify this file directly
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  annotations:
-    build.appstudio.redhat.com/expires-on: "2026-01-09T00:00:00Z"
-    build.appstudio.redhat.com/expiry-message: Please update your configuration to
-      use the 'build-image-index' task (version 0.2).
-    tekton.dev/pipelines.minVersion: 0.12.1
-    tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1"
-    build.appstudio.redhat.com/build_type: docker
-  name: build-image-manifest
+    app.kubernetes.io/version: "0.2"
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, konflux"
+  name: build-image-index
 spec:
-  description: This takes existing Image Manifests and combines them in an Image Index.
+  description: |-
+    This takes existing Image Manifests and combines them in an Image Index.
   params:
-  - description: The target image and tag where the image will be pushed to.
-    name: IMAGE
+  - name: IMAGE
+    description: The target image and tag where the image will be pushed to.
     type: string
-  - default: "true"
-    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS
-      registry)
-    name: TLSVERIFY
+  - name: TLSVERIFY
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     type: string
-  - default: ""
+    default: "true"
+  - name: COMMIT_SHA
     description: The commit the image is built from.
-    name: COMMIT_SHA
     type: string
-  - description: List of Image Manifests to be referenced by the Image Index
-    name: IMAGES
+    default: ""
+  - name: IMAGES
+    description: List of Image Manifests to be referenced by the Image Index
     type: array
-  - default: ""
-    description: Delete image tag after specified time resulting in garbage collection
-      of the digest. Empty means to keep the image tag. Time values could be something
-      like 1h, 2d, 3w for hours, days, and weeks, respectively.
-    name: IMAGE_EXPIRES_AFTER
+  - name: IMAGE_EXPIRES_AFTER
+    description: Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     type: string
-  - default: "true"
-    description: Build an image index even if IMAGES is of length 1. Default true.
-      If the image index generation is skipped, the task will forward values for params.IMAGES[0]
-      to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest
-      format for the IMAGES parameter.
-    name: ALWAYS_BUILD_INDEX
+    default: ""
+  - name: ALWAYS_BUILD_INDEX
+    description: Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.
     type: string
-  - default: vfs
+    default: "true"
+  - name: STORAGE_DRIVER
     description: Storage driver to configure for buildah
-    name: STORAGE_DRIVER
     type: string
-  - default: oci
-    description: The format for the resulting image's mediaType. Valid values are
-      oci (default) or docker.
-    name: BUILDAH_FORMAT
+    default: vfs
+  - name: BUILDAH_FORMAT
+    description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
-  - default: "false"
-    description: Flag to enable or disable SBOM validation before save. Validation
-      is optional - use this if you are experiencing performance issues.
-    name: SBOM_SKIP_VALIDATION
+    default: oci
+  - name: SBOM_SKIP_VALIDATION
+    description: Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.
     type: string
-  - default: trusted-ca
+    default: "false"
+  - name: caTrustConfigMapName
+    type: string
     description: The name of the ConfigMap to read CA bundle data from
-    name: caTrustConfigMapName
+    default: trusted-ca
+  - name: caTrustConfigMapKey
     type: string
-  - default: ca-bundle.crt
-    description: The name of the key in the ConfigMap that contains the CA bundle
-      data
-    name: caTrustConfigMapKey
-    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data
+    default: ca-bundle.crt
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -73,13 +61,22 @@ spec:
     name: IMAGE_URL
   - description: List of all referenced image manifests
     name: IMAGES
-  - description: Image reference of the built image containing both the repository
-      and the digest
+  - description: Image reference of the built image containing both the repository and the digest
     name: IMAGE_REF
-  - description: Reference of SBOM blob digest to enable digest-based verification
-      from provenance
-    name: SBOM_BLOB_URL
+  - name: SBOM_BLOB_URL
+    description: Reference of SBOM blob digest to enable digest-based verification from provenance
     type: string
+  volumes:
+    - name: shared-dir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+
   stepTemplate:
     env:
     - name: BUILDAH_FORMAT
@@ -95,22 +92,23 @@ spec:
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     volumeMounts:
-    - mountPath: /index-build-data
-      name: shared-dir
-    - mountPath: /mnt/trusted-ca
-      name: trusted-ca
-      readOnly: true
+      - name: shared-dir
+        mountPath: /index-build-data
+      - name: trusted-ca
+        mountPath: /mnt/trusted-ca
+        readOnly: true
   steps:
-  - args:
-    - $(params.IMAGES[*])
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+    # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+    # the cluster will set imagePullPolicy to IfNotPresent
+    name: build
     computeResources:
       limits:
         memory: 4Gi
       requests:
-        cpu: 250m
         memory: 512Mi
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
-    name: build
+        cpu: 250m
+    args: ["$(params.IMAGES[*])"]
     script: |
       #!/bin/bash
       # Fixing group permission on /var/lib/containers
@@ -154,9 +152,29 @@ spec:
           echo -n "${TOADD}" > "$(results.IMAGES.path)"
           exit 0
         fi
+
         echo "Adding $TOADD"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
+
+      echo "Validating format consistency"
+      INCOMPATIBLE_STRING="vnd.oci.image.manifest"
+      INCOMPATIBLE_NAME="oci"
+      if [ "$BUILDAH_FORMAT" == "oci" ]; then
+        INCOMPATIBLE_STRING="vnd.docker.distribution.manifest"
+        INCOMPATIBLE_NAME="docker"
+      fi
+
+      # If mismatched formats (e.g., Docker manifests within an OCI index) exist locally, 'buildah push'
+      # converts the inner manifests to match the target BUILDAH_FORMAT.
+      # This alters the digests and breaks the link to the attached SBOMs.
+      MANIFEST_MEDIA_TYPES=$(buildah manifest inspect "$IMAGE" | jq -er '.manifests[].mediaType')
+      if echo "$MANIFEST_MEDIA_TYPES" | grep -q "$INCOMPATIBLE_STRING"; then
+        echo "ERROR: Platform image contains $INCOMPATIBLE_NAME format, but index will be $BUILDAH_FORMAT"
+        echo "This will cause digest changes and break SBOM accessibility."
+        echo "Ensure all platform images are built with buildah-format: $BUILDAH_FORMAT"
+        exit 1
+      fi
 
       # While the BUILDAH_FORMAT environment variable can define the push
       # format, lets be explicit about the format that we want when we push.
@@ -193,51 +211,39 @@ spec:
           exit 1
       fi
 
-      # Remove local cache to force remote 'inspect'.
-      # When 'buildah push' converts formats (e.g., OCI->Docker), it creates new
-      # digests in the registry, but the local cache becomes stale (retains old digests).
-      # This ensures we 'inspect' the correct post-conversion digests for SBOMs.
-      echo "Removing local manifest list: $IMAGE"
-      buildah manifest rm "$IMAGE"
-
       INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
-      PUSHED_INDEX_DIGEST=$(cat image-digest)
-      IMMUTABLE_INDEX_REF="${INDEX_REPOSITORY}@${PUSHED_INDEX_DIGEST}"
-      INSPECT_FILE="/index-build-data/manifest_data.json"
-
-      echo "Inspecting remote manifest index at: $IMMUTABLE_INDEX_REF"
-
-      if ! retry buildah manifest inspect "$IMMUTABLE_INDEX_REF" > "$INSPECT_FILE"
-      then
-          echo "Failed to inspect remote manifest index: $IMMUTABLE_INDEX_REF"
-          exit 1
-      fi
-
-      echo "Successfully inspected remote index, saved to $INSPECT_FILE"
-
-      MANIFEST_DIGESTS=$(jq -er ".manifests[].digest" "$INSPECT_FILE")
+      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
       image_manifests=""
       for i in $MANIFEST_DIGESTS
       do
         image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
       done
 
-      echo -n "$PUSHED_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+      tee "$(results.IMAGE_DIGEST.path)" < image-digest
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-      echo -n "${IMMUTABLE_INDEX_REF}" > "$(results.IMAGE_REF.path)"
+      {
+        echo -n "${IMAGE}@"
+        cat "image-digest"
+      } > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
+
+      # buildah manifest inspect will always give precedence to the local image.
+      # Since we built this image in the same place as we are inspecting it, we can
+      # just inspect it instead of finding the digest and inspecting the remote image.
+      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
-        - SETFCAP
-  - computeResources:
+          - SETFCAP
+
+  - image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
+    name: create-sbom
+    computeResources:
       limits:
         memory: 512Mi
       requests:
-        cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
-    name: create-sbom
+        cpu: 100m
     script: |
       #!/bin/bash
       set -e
@@ -265,14 +271,9 @@ spec:
         --index-manifest-path "$MANIFEST_DATA_FILE"
       )
       mobster "${mobster_args[@]}"
-  - computeResources:
-      limits:
-        memory: 512Mi
-      requests:
-        cpu: 100m
-        memory: 256Mi
+
+  - name: upload-sbom
     image: quay.io/konflux-ci/appstudio-utils:latest@sha256:ca4a6d3ac06597ac0678e1f7b1186a0c7bf19a5b02caf9e3d2aa04d4980f80a7
-    name: upload-sbom
     script: |
       #!/bin/bash
       set -e
@@ -308,13 +309,9 @@ spec:
       sbom_digest="$(sha256sum "$SBOM_RESULT_FILE" | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
-  volumes:
-  - emptyDir: {}
-    name: shared-dir
-  - configMap:
-      items:
-      - key: $(params.caTrustConfigMapKey)
-        path: ca-bundle.crt
-      name: $(params.caTrustConfigMapName)
-      optional: true
-    name: trusted-ca
+    computeResources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+        cpu: 100m
