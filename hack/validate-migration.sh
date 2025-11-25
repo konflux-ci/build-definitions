@@ -407,6 +407,29 @@ check_oci_ta_migration() {
     fi
 }
 
+# Check if migrations are using 'pmt modify' and not "yq -i" for updating yaml files
+check_migrations_use_only_pmt() {
+    local migration_file=$1
+    local matches
+
+    # Ignores comments (full-line and same-line).
+    # Finds 'yq' usage with inplace flags (e.g.: -i, -xi, --inplace).
+    local regex_pattern='^[^#]*\byq[^#]*[[:blank:]](-[[:alpha:]]*i|--inplace)'
+    matches=$(grep -nE "${regex_pattern}" "${migration_file}")
+
+    if [[ -n "${matches}" ]]; then
+        error "Usage of 'yq -i/--inplace' found in ${migration_file}."
+        error "Please use 'pmt modify' for updating YAML files."
+        error "Learn more here: https://github.com/konflux-ci/build-definitions/?tab=readme-ov-file#task-migration"
+
+        error "Triggering line(s):"
+        echo "${matches}"
+        return 1
+    fi
+
+    return 0
+}
+
 main() {
     if git status --porcelain | grep -qv "^??"; then
         info "There are uncommitted changes. Please commit them and run again."
@@ -432,6 +455,9 @@ main() {
     for migration_file in $output; do
         info "check pass shellcheck"
         check_pass_shellcheck "$migration_file"
+
+        info "check if YAML modifications are done with 'pmt modify'"
+        check_migrations_use_only_pmt "$migration_file"
 
         info "check migrations/ is created in versioned-specific task directory"
         check_migrations_is_in_task_version_specific_dir "$migration_file"
