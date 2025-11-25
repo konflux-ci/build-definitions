@@ -668,15 +668,17 @@ spec:
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
       fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
-        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
-        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       else
-        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+        BUILD_TIMESTAMP_RFC3339=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
       fi
+
+      DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+      DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
 
       label_pairs=()
       # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
@@ -724,7 +726,7 @@ spec:
       done
 
       # Labels that we explicitly add to the image
-      [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
 
       while IFS= read -r label; do
