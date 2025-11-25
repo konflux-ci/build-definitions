@@ -2,6 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-02-19T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
@@ -191,7 +192,7 @@ spec:
       HTTP/HTTPS proxy.
     name: NO_PROXY
     type: string
-  - default: proxy-ca-bundle
+  - default: caching-ca-bundle
     description: The name of the ConfigMap to read proxy CA bundle data from.
     name: PROXY_CA_TRUST_CONFIG_MAP_NAME
     type: string
@@ -209,9 +210,14 @@ spec:
     description: The image is built from this URL.
     name: SOURCE_URL
     type: string
-  - default: "false"
+  - default: "true"
     description: Determines if SBOM will be contextualized.
     name: CONTEXTUALIZE_SBOM
+    type: string
+  - default: "true"
+    description: Flag to enable or disable SBOM validation before save. Validation
+      is optional - use this if you are experiencing performance issues.
+    name: SBOM_SKIP_VALIDATION
     type: string
   - default: "false"
     description: Omit build history information from the resulting image. Improves
@@ -316,6 +322,8 @@ spec:
       value: $(params.BUILD_TIMESTAMP)
     - name: CONTEXTUALIZE_SBOM
       value: $(params.CONTEXTUALIZE_SBOM)
+    - name: SBOM_SKIP_VALIDATION
+      value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
     - name: BUILDER_IMAGE
@@ -984,7 +992,8 @@ spec:
       echo "Recording base image digests used"
       for image in $BASE_IMAGES; do
         # Get the image pullspec and filter out a tag if it is not set
-        base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image")
+        # Use head -n 1 to ensure we only get one result even if multiple images match the filter
+        base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image" | head -n 1)
         # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
         # if buildah did not use that particular image during build because it was skipped
         if [ -n "$base_image_digest" ]; then
@@ -1052,6 +1061,7 @@ spec:
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
           -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
+          -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \
@@ -1274,7 +1284,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:1.1.0-1761230566@sha256:8c8044c24042e991ee246c75544380652ee50e1f684055d4fd7c3433a3b839e2
+    image: quay.io/konflux-ci/mobster:1.1.0-1763042639@sha256:028dfcf2ac8b0404141550de17364bf049b0ddb35f45a24a075bc1f485a56c80
     name: prepare-sboms
     script: |
       #!/bin/bash
@@ -1314,6 +1324,16 @@ spec:
       mobster_args=(
         generate
         --output sbom.json
+      )
+
+      # Validation is a flag for `generate`, not `oci-image`, so we need to
+      # handle it before the oci-image arguments
+      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+        echo "Skipping SBOM validation"
+        mobster_args+=(--skip-validation)
+      fi
+
+      mobster_args+=(
         oci-image
         --from-syft "$(workspaces.source.path)/sbom-image.json"
         --image-pullspec "$IMAGE_URL"
@@ -1354,7 +1374,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:b7bb649b8bec2cd59ab92e0a633ade7e80e08dc8a62f9577bd0ad8847e52a26d
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:5beab55042923b241f6ce0c653c622c2eefb4fcc46f7e4f04febc499291fcbcd
     name: upload-sbom
     script: |
       #!/bin/bash

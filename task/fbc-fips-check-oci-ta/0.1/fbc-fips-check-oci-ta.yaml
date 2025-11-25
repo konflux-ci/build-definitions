@@ -14,6 +14,9 @@ spec:
     This task extracts relatedImages from all unreleased operator bundle images from your FBC fragment and scans them. In the context of FBC fragment, an unreleased operator bundle image is the one that isn't currently present in the Red Hat production Index Image (`registry.redhat.io/redhat/redhat-operator-index`). It is necessary for relatedImages pullspecs to be pullable at build time of the FBC fragment.
     In order to resolve them, this task expects a ImageDigestMirrorSet file located at .tekton/images-mirror-set.yaml of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
   params:
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel
+      default: "8"
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -41,7 +44,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
+      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -273,24 +276,27 @@ spec:
           add:
             - SETFCAP
     - name: fips-operator-check-step-action
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
       computeResources:
         limits:
-          cpu: "1"
+          cpu: "8"
           memory: 12Gi
         requests:
-          cpu: "1"
+          cpu: "8"
           memory: 12Gi
       ref:
         params:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 374d67d92cc4d7ac8c0d80876e4e4ca97f07d8b1
+            value: 02ac30080ba6bb62d9738e5c5ad6268c73e74a20
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
         resolver: git
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:2b1e6e5e9b28f17770476039d1c3e68166b61fefcf0d4a6359f30d044b149b65
+      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)

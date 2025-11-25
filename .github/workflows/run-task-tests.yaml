@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout build-defintions Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: "${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
           path: build-definitions
@@ -58,11 +58,11 @@ jobs:
 
       - name: Checkout konflux-ci/konflux-ci Repository
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci
-          ref: 982d53c7a6aba2e5493943334488008bd9ca65e0
+          ref: cb95a4b1f2581fa41a6f546551c2a6ce3611185d
 
       - name: Create k8s Kind Cluster
         if: steps.tasks-to-be-tested.outputs.tasklist != ''

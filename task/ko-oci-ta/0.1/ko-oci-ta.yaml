@@ -95,7 +95,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/ko-builder:latest@sha256:6979405057c6061e3a0e4dc3a6e69e323839bd484bc5ff66286f9387b8af3b97
+      image: quay.io/konflux-ci/ko-builder:latest@sha256:16f831a5fbf777202716c15a773c1dd27cf239649b3fc6a0eca4ce1fc9617ae9
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -136,7 +136,7 @@ spec:
         [ -n "${COMMIT_SHA}" ] && labels+=",vcs-ref=${COMMIT_SHA}"
         [ -n "${IMAGE_EXPIRES_AFTER}" ] && labels+=",quay.expires-after=${IMAGE_EXPIRES_AFTER})"
 
-        args=("${IMAGE_NAMING_STRATEGY}" --image-label "${labels}")
+        args=("${IMAGE_NAMING_STRATEGY}" --image-label "${labels}" --sbom spdx --sbom-dir /tmp)
         [ -n "${TAG}" ] && args+=(-t "${TAG}")
 
         ko build "${args[@]}" "${IMPORT_PATH}" 2>&1 | tee /tmp/build.log
@@ -144,15 +144,18 @@ spec:
         digest=$(grep Published /tmp/build.log | grep -v SBOM | awk '{print $4}' | awk -F@ '{print $2}')
         url=$(grep Publishing /tmp/build.log | awk '{print $4}')
         ref="${url}@${digest}"
-        sbom=$(grep SBOM /tmp/build.log | awk '{print $5}')
+        sbom_url=$(grep 'Published SBOM' /tmp/build.log | awk '{print $5}')
+        sbom_file=$(grep 'Writing SBOM to' /tmp/build.log | awk '{print $6}')
+
+        cosign attach sbom --type=spdx --input-format=json --sbom="${sbom_file}" "${url}@${digest}"
 
         echo "IMAGE_DIGEST=${digest}"
         echo "IMAGE_REF=${ref}"
         echo "IMAGE_URL=${url}"
-        echo "SBOM_BLOB_URL=${sbom}"
+        echo "SBOM_BLOB_URL=${sbom_url}"
 
         echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
         echo -n "${url}@${digest}" >"$(results.IMAGE_REF.path)"
         echo -n "${url}" >"$(results.IMAGE_URL.path)"
-        echo -n "${sbom}" >"$(results.SBOM_BLOB_URL.path)"
+        echo -n "${sbom_url}" >"$(results.SBOM_BLOB_URL.path)"
         echo "Completed."

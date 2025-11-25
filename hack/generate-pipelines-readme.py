@@ -217,7 +217,13 @@ def main():
                             set_by = f"'{set_by}'"
 
                         desc = param['description'].replace("\n", " ")
-                        f.write(f"|{param['name']}| {desc}| {param['default']}| {set_by}|\n")
+                        if param["default"] is None:
+                            default_value = "None"
+                        elif param["default"] == "":
+                            default_value = '""'
+                        else:
+                            default_value = param["default"]
+                        f.write(f"|{param['name']}| {desc}| {default_value}| {set_by}|\n")
 
                 # print pipeline results
                 f.write("\n## Results\n")
