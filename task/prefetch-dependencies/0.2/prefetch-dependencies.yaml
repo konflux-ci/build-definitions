@@ -48,6 +48,10 @@ spec:
   - name: sbom-type
     default: spdx
     description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
+  - name: mode
+    description: "Control how input requirement violations are handled: strict (errors) or permissive (warnings)."
+    type: string
+    default: strict
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -95,6 +99,8 @@ spec:
       value: $(params.log-level)
     - name: SBOM_TYPE
       value: $(params.sbom-type)
+    - name: MODE
+      value: $(params.mode)
     - name: WORKSPACE_GIT_AUTH_BOUND
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
@@ -348,7 +354,7 @@ spec:
       fi
       unset RETRY_MAX_TRIES
 
-      hermeto --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" --mode="$MODE" $config_flag fetch-deps \
       $dev_pacman_flag \
       --source="$(workspaces.source.path)/source" \
       --output="$(workspaces.source.path)/cachi2/output" \

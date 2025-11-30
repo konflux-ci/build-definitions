@@ -72,9 +72,25 @@ set -euo pipefail
 
 declare -r pipeline_file=\${1:missing pipeline file}
 
-# REMEMBER: migration must make changes in place inside the given pipeline file.
-# E.g. passing -i to yq
-
+# 1. Use yq to retrieve information from your YAML files, but
+# do NOT use 'yq -i' for modification, because it may change the formatting of the YAML file for a user.
+#
+# 2. When selecting tasks in your yq command, target Pipeline and PipelineRun with selectors:
+#   '.spec.tasks[]' and '.spec.pipelineSpec.tasks[]'
+#
+# 3. Use pmt-modify to make changes to the pipeline.
+# Documentation: https://github.com/konflux-ci/pipeline-migration-tool?tab=readme-ov-file#to-modify-konflux-pipelines-with-modify
+#
+# Example: Add a parameter
+#   pmt modify -f \"\$pipeline_file\" task ${task_name} add-param \"param-name\" \"param-value\"
+#
+# Use generic modification when a specific subcommand for a resource is not available:
+#   pmt modify -f \"\$pipeline_file\" generic replace '[\"spec\", \"tasks\", 0, \"params\", 0, \"value\"]' \"new-value\"
+#
+#   Learn more about pmt-modify generic here:
+#   https://github.com/konflux-ci/pipeline-migration-tool?tab=readme-ov-file#unsupported-resource
+#
+#
 # migration code here...
 #
 # For an example, refer to https://github.com/konflux-ci/build-definitions/?tab=readme-ov-file#task-migration

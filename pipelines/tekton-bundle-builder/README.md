@@ -81,6 +81,7 @@
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
+|mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### sast-shell-check:0.1 task parameters
 |name|description|default value|already set by|

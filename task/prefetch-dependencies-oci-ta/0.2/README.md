@@ -34,6 +34,7 @@ params:
 |dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
 |input|Configures project packages that will have their dependencies prefetched.||true|
 |log-level|Set prefetch tool log level (debug, info, warning, error)|info|false|
+|mode|Control how input requirement violations are handled: strict (errors) or permissive (warnings).|strict|false|
 |ociArtifactExpiresAfter|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
 |ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
 |sbom-type|Select the SBOM format to generate. Valid values: spdx, cyclonedx.|spdx|false|
