@@ -46,6 +46,18 @@ spec:
       description: HTTPS proxy server for SSL requests.
       type: string
       default: ""
+    - name: mergeSourceDepth
+      description: |
+        Perform a shallow fetch of the target branch, fetching only the most recent N commits.
+        If empty, fetches the full history of the target branch.
+      type: string
+      default: ""
+    - name: mergeSourceRepoUrl
+      description: |
+        URL of the repository to fetch the target branch from when mergeTargetBranch is true.
+        If empty, uses the same repository (origin). This allows merging a branch from a different repository.
+      type: string
+      default: ""
     - name: mergeTargetBranch
       description: Set to "true" to merge the targetBranch into the checked-out
         revision.
@@ -209,6 +221,10 @@ spec:
           value: $(params.mergeTargetBranch)
         - name: PARAM_TARGET_BRANCH
           value: $(params.targetBranch)
+        - name: PARAM_MERGE_SOURCE_REPO_URL
+          value: $(params.mergeSourceRepoUrl)
+        - name: PARAM_MERGE_SOURCE_DEPTH
+          value: $(params.mergeSourceDepth)
         - name: WORKSPACE_SSH_DIRECTORY_BOUND
           value: $(workspaces.ssh-directory.bound)
         - name: WORKSPACE_SSH_DIRECTORY_PATH
@@ -281,17 +297,55 @@ spec:
         fi
         if [ "${PARAM_MERGE_TARGET_BRANCH}" = "true" ]; then
           echo "Merge option enabled. Attempting to merge target branch '${PARAM_TARGET_BRANCH}' into HEAD (${RESULT_SHA})."
-          echo "Fetching target branch '${PARAM_TARGET_BRANCH}'..."
-          retry git fetch origin "${PARAM_TARGET_BRANCH}"
+
+          if [ "${PARAM_DEPTH}" = "1" ]; then
+            echo "WARNING: Shallow clone with depth=1 may cause merge conflicts due to insufficient commit history." >&2
+          fi
+
+          if [ "${PARAM_MERGE_SOURCE_DEPTH}" = "1" ]; then
+            echo "WARNING: Shallow fetch with mergeSourceDepth=1 may cause merge conflicts due to insufficient commit history." >&2
+          fi
+
+          # Determine if merging from a different repository or the same one
+          if [ -n "${PARAM_MERGE_SOURCE_REPO_URL}" ]; then
+            # Normalize URLs for comparison (remove trailing slashes and .git suffix)
+            normalize_url() {
+              echo "$1" | sed -e 's#/$##' -e 's#\.git$##'
+            }
+
+            NORMALIZED_ORIGIN_URL=$(normalize_url "${PARAM_URL}")
+            NORMALIZED_MERGE_URL=$(normalize_url "${PARAM_MERGE_SOURCE_REPO_URL}")
+
+            if [ "${NORMALIZED_ORIGIN_URL}" = "${NORMALIZED_MERGE_URL}" ]; then
+              echo "Merge source URL is the same as origin. Using existing 'origin' remote."
+              MERGE_REMOTE="origin"
+            else
+              echo "Merging from different repository: ${PARAM_MERGE_SOURCE_REPO_URL}"
+              echo "Adding remote 'merge-source'..."
+              git remote add merge-source "${PARAM_MERGE_SOURCE_REPO_URL}"
+              MERGE_REMOTE="merge-source"
+            fi
+          else
+            echo "Merging from the same repository (origin)"
+            MERGE_REMOTE="origin"
+          fi
+
+          echo "Fetching target branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE}..."
+          if [ -n "${PARAM_MERGE_SOURCE_DEPTH}" ]; then
+            retry git fetch --depth="${PARAM_MERGE_SOURCE_DEPTH}" ${MERGE_REMOTE} "${PARAM_TARGET_BRANCH}"
+          else
+            retry git fetch ${MERGE_REMOTE} "${PARAM_TARGET_BRANCH}"
+          fi
           FETCH_EXIT_CODE="$?"
           if [ "${FETCH_EXIT_CODE}" != "0" ]; then
-            echo "ERROR: Failed to fetch target branch '${PARAM_TARGET_BRANCH}'." >&2
+            echo "ERROR: Failed to fetch target branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE}." >&2
             exit "${FETCH_EXIT_CODE}"
           fi
-          echo "Merging origin/${PARAM_TARGET_BRANCH} into current HEAD..."
+
+          echo "Merging ${MERGE_REMOTE}/${PARAM_TARGET_BRANCH} into current HEAD..."
           git config --global user.email "tekton-git-clone@tekton.dev"
           git config --global user.name "Tekton Git Clone Task"
-          git merge "origin/${PARAM_TARGET_BRANCH}" --no-commit --no-ff --allow-unrelated-histories
+          git merge "${MERGE_REMOTE}/${PARAM_TARGET_BRANCH}" --no-commit --no-ff --allow-unrelated-histories
           MERGE_CHECK_EXIT_CODE="$?"
           if [ "${MERGE_CHECK_EXIT_CODE}" != "0" ]; then
             echo "ERROR: Merge conflict detected or merge failed before commit." >&2
@@ -305,7 +359,7 @@ spec:
               echo "No diff was found, skipping merge..." >&2
             else
               echo "Merge successful (no conflicts found), committing..."
-              git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' into ${RESULT_SHA}"
+              git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE} into ${RESULT_SHA}"
               COMMIT_EXIT_CODE="$?"
               if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
                 echo "ERROR: Failed to commit merge." >&2

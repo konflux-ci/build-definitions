@@ -12,6 +12,8 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |fetchTags|Fetch all tags for the repo.|false|false|
 |httpProxy|HTTP proxy server for non-SSL requests.|""|false|
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
+|mergeSourceDepth|Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. |""|false|
+|mergeSourceRepoUrl|URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. |""|false|
 |mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
 |ociArtifactExpiresAfter|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
