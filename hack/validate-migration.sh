@@ -415,7 +415,9 @@ check_migrations_use_only_pmt() {
     # Ignores comments (full-line and same-line).
     # Finds 'yq' usage with inplace flags (e.g.: -i, -xi, --inplace).
     local regex_pattern='^[^#]*\byq[^#]*[[:blank:]](-[[:alpha:]]*i|--inplace)'
-    matches=$(grep -nE "${regex_pattern}" "${migration_file}")
+
+    # We don't want to fail if no 'yq -i' is found, so we add || true to prevent set -e from exiting
+    matches=$(grep -nE "${regex_pattern}" "${migration_file}" || true)
 
     if [[ -n "${matches}" ]]; then
         error "Usage of 'yq -i/--inplace' found in ${migration_file}."
