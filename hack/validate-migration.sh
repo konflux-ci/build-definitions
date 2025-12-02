@@ -50,23 +50,6 @@ warning() {
     echo "warning: $*" >&2
 }
 
-format_yaml_in_python() {
-    local -r filepath=$1
-    python3 -c "
-import sys
-from ruamel.yaml import YAML
-yaml = YAML()
-# These settings are same as pipeline-migration-tool
-yaml.preserve_quotes = True
-yaml.width = 8192
-yaml_file = sys.argv[1]
-with open(yaml_file, 'r', encoding='utf-8') as f:
-    data = yaml.load(f)
-with open(yaml_file, 'w', encoding='utf-8') as f:
-    yaml.dump(data, f)
-" "$filepath"
-}
-
 wrapped_diff() {
     set +e
     echo "\`\`\`diff"
@@ -126,7 +109,6 @@ prepare_pipelines() {
                     task_selector="(.spec.tasks[], .spec.finally[]) | select(.name == \"${task_name}\")"
                     yq -i "(${task_selector} | .taskRef) |= ${fake_bundle_ref}" "$file_path"
                 done
-                format_yaml_in_python "$file_path"
             fi
         done
 
@@ -161,7 +143,6 @@ check_apply_on_pipelines() {
             failed=true
         else
             info "diff to see if pipeline is modified by the migration"
-            format_yaml_in_python "$pl_copy_file_path"
             if ! wrapped_diff -u "$file_path" "$pl_copy_file_path"; then
                 updated=true
                 mv "$pl_copy_file_path" "${file_path}.modified"
