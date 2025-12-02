@@ -1,0 +1,345 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: build, konflux, macos
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/version: 0.1.0
+    build.appstudio.redhat.com/build_type: macos-native
+  name: build-macos-native-remote
+spec:
+  description: |-
+    Builds native macOS applications on remote macOS instances.
+    This task uses multi-platform-controller for macOS instance provisioning and builds native desktop applications.
+    The built application (.dmg, .app, etc.) is returned to the workspace.
+  params:
+  - description: Name for the output artifact (e.g., "podman-desktop-1.2.3")
+    name: OUTPUT_NAME
+    type: string
+  - description: The platform to build on (e.g., macos/arm64, macos/amd64)
+    name: PLATFORM
+    type: string
+  - description: The Git commit SHA for versioning and metadata
+    name: COMMIT_SHA
+    default: ""
+    type: string
+  - description: Source repository URL for metadata
+    name: SOURCE_URL
+    default: ""
+    type: string
+  - description: Build command to execute on the remote macOS instance
+    name: BUILD_COMMAND
+    default: "pnpm compile:next"
+    type: string
+  - description: Node.js version to use (if installation is needed)
+    name: NODE_VERSION
+    default: "22"
+    type: string
+  - description: Enable macOS code signing (requires signing secrets to be configured)
+    name: ENABLE_CODE_SIGNING
+    default: "false"
+    type: string
+  - description: Name of secret containing CSC_LINK (code signing certificate)
+    name: CODE_SIGNING_SECRET
+    default: "macos-signing-secret"
+    type: string
+  - description: Path to context directory (relative to workspace source)
+    name: CONTEXT
+    default: "."
+    type: string
+  - description: Additional environment variables to set during build (KEY=VALUE format, one per line)
+    name: BUILD_ENV_VARS
+    default: ""
+    type: string
+  - description: Artifact file pattern to sync back (e.g., "dist/*.dmg")
+    name: ARTIFACT_PATTERN
+    default: "dist/*.dmg"
+    type: string
+  results:
+  - description: Path to the built artifact in the workspace
+    name: ARTIFACT_PATH
+    type: string
+  - description: SHA256 checksum of the built artifact
+    name: ARTIFACT_SHA256
+    type: string
+  - description: Application version (extracted from package.json if available)
+    name: APP_VERSION
+    type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 512Mi
+    env:
+    - name: PLATFORM
+      value: $(params.PLATFORM)
+    - name: OUTPUT_NAME
+      value: $(params.OUTPUT_NAME)
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    - name: SOURCE_URL
+      value: $(params.SOURCE_URL)
+    - name: BUILD_COMMAND
+      value: $(params.BUILD_COMMAND)
+    - name: NODE_VERSION
+      value: $(params.NODE_VERSION)
+    - name: ENABLE_CODE_SIGNING
+      value: $(params.ENABLE_CODE_SIGNING)
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: BUILD_ENV_VARS
+      value: $(params.BUILD_ENV_VARS)
+    - name: ARTIFACT_PATTERN
+      value: $(params.ARTIFACT_PATTERN)
+  steps:
+  - name: build
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:5beab55042923b241f6ce0c653c622c2eefb4fcc46f7e4f04febc499291fcbcd
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      set -o verbose
+
+      echo "[$(date --utc -Ins)] Prepare connection"
+
+      mkdir -p ~/.ssh
+      if [ -e "/ssh/error" ]; then
+        # No server could be provisioned
+        cat /ssh/error
+        exit 1
+      fi
+      export SSH_HOST=$(cat /ssh/host)
+
+      if [ "$SSH_HOST" == "localhost" ]; then
+        echo "ERROR: localhost builds are not supported for macOS native builds"
+        exit 1
+      fi
+
+      # Setup SSH credentials from multi-platform-controller
+      if [ -e "/ssh/otp" ]; then
+        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+        echo "" >> ~/.ssh/id_rsa
+      else
+        cp /ssh/id_rsa ~/.ssh
+      fi
+
+      chmod 0400 ~/.ssh/id_rsa
+      export BUILD_DIR=$(cat /ssh/user-dir)
+      export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
+
+      echo "[$(date --utc -Ins)] Setup remote macOS instance"
+      echo "Build directory: $BUILD_DIR"
+      echo "SSH host: $SSH_HOST"
+      echo "Platform: $PLATFORM"
+
+      # Create remote directories
+      # shellcheck disable=SC2086
+      ssh $SSH_ARGS "$SSH_HOST" mkdir -p "${BUILD_DIR@Q}/workspaces/source" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/results"
+
+      mkdir -p scripts
+
+      echo "[$(date --utc -Ins)] Rsync source code to remote instance"
+
+      # Sync source code to remote macOS instance
+      rsync -razW --stats "$(workspaces.source.path)"/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+      rsync -razW --stats "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
+
+      # If code signing is enabled, sync signing secrets
+      if [ "${ENABLE_CODE_SIGNING}" == "true" ]; then
+        echo "[$(date --utc -Ins)] Syncing code signing credentials"
+        if [ -d "/code-signing" ]; then
+          rsync -razW --stats /code-signing/ "$SSH_HOST:$BUILD_DIR/code-signing/"
+        else
+          echo "WARNING: Code signing enabled but /code-signing directory not found"
+        fi
+      fi
+
+      echo "[$(date --utc -Ins)] Create remote build script"
+
+      cat >scripts/script-build.sh <<'REMOTESSHEOF'
+      #!/bin/bash
+      set -euo pipefail
+
+      cd $(workspaces.source.path)
+
+      echo "[$(date --utc -Ins)] Starting macOS native build"
+      echo "Platform: ${PLATFORM}"
+      echo "Context: ${CONTEXT}"
+      echo "Build command: ${BUILD_COMMAND}"
+
+      # Navigate to build context
+      if [ -n "${CONTEXT}" ] && [ "${CONTEXT}" != "." ]; then
+        cd "${CONTEXT}"
+      fi
+
+      echo "[$(date --utc -Ins)] Current directory: $(pwd)"
+      echo "[$(date --utc -Ins)] Directory contents:"
+      ls -la
+
+      # Setup code signing environment if enabled
+      if [ "${ENABLE_CODE_SIGNING}" == "true" ]; then
+        echo "[$(date --utc -Ins)] Setting up code signing environment"
+
+        if [ -f "/code-signing/CSC_LINK" ]; then
+          export CSC_LINK=$(cat /code-signing/CSC_LINK)
+        fi
+        if [ -f "/code-signing/CSC_KEY_PASSWORD" ]; then
+          export CSC_KEY_PASSWORD=$(cat /code-signing/CSC_KEY_PASSWORD)
+        fi
+        if [ -f "/code-signing/APPLE_ID" ]; then
+          export APPLE_ID=$(cat /code-signing/APPLE_ID)
+        fi
+        if [ -f "/code-signing/APPLE_APP_SPECIFIC_PASSWORD" ]; then
+          export APPLE_APP_SPECIFIC_PASSWORD=$(cat /code-signing/APPLE_APP_SPECIFIC_PASSWORD)
+        fi
+        if [ -f "/code-signing/APPLE_TEAM_ID" ]; then
+          export APPLE_TEAM_ID=$(cat /code-signing/APPLE_TEAM_ID)
+        fi
+
+        echo "Code signing environment configured"
+      fi
+
+      # Set additional environment variables if provided
+      if [ -n "${BUILD_ENV_VARS}" ]; then
+        echo "[$(date --utc -Ins)] Setting additional environment variables"
+        while IFS= read -r line; do
+          if [ -n "$line" ]; then
+            export "$line"
+            echo "  Set: ${line%%=*}"
+          fi
+        done <<< "$BUILD_ENV_VARS"
+      fi
+
+      # Set metadata environment variables
+      if [ -n "${COMMIT_SHA}" ]; then
+        export GIT_COMMIT_SHA="${COMMIT_SHA}"
+      fi
+      if [ -n "${SOURCE_URL}" ]; then
+        export GIT_SOURCE_URL="${SOURCE_URL}"
+      fi
+
+      # Verify required tools are available
+      echo "[$(date --utc -Ins)] Verifying build environment"
+      if ! command -v node &> /dev/null; then
+        echo "ERROR: node is not installed on the remote macOS instance"
+        exit 1
+      fi
+      if ! command -v pnpm &> /dev/null; then
+        echo "ERROR: pnpm is not installed on the remote macOS instance"
+        exit 1
+      fi
+
+      echo "Node version: $(node --version)"
+      echo "pnpm version: $(pnpm --version)"
+
+      # Check if package.json exists and extract version
+      if [ -f "package.json" ]; then
+        APP_VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "unknown")
+        echo "Application version: ${APP_VERSION}"
+        echo -n "${APP_VERSION}" > /tekton/results/APP_VERSION
+      fi
+
+      echo "[$(date --utc -Ins)] Installing dependencies"
+      pnpm install --frozen-lockfile
+
+      echo "[$(date --utc -Ins)] Running build command: ${BUILD_COMMAND}"
+      eval "${BUILD_COMMAND}"
+
+      echo "[$(date --utc -Ins)] Build completed successfully"
+      REMOTESSHEOF
+
+      chmod +x scripts/script-build.sh
+
+      echo "[$(date --utc -Ins)] Uploading and executing build script on remote instance"
+
+      # Upload build script
+      rsync -razW scripts/ "$SSH_HOST:$BUILD_DIR/scripts/"
+
+      # Execute build on remote macOS instance
+      # shellcheck disable=SC2086
+      ssh $SSH_ARGS "$SSH_HOST" \
+        "export PLATFORM=${PLATFORM@Q} && \
+         export OUTPUT_NAME=${OUTPUT_NAME@Q} && \
+         export COMMIT_SHA=${COMMIT_SHA@Q} && \
+         export SOURCE_URL=${SOURCE_URL@Q} && \
+         export BUILD_COMMAND=${BUILD_COMMAND@Q} && \
+         export NODE_VERSION=${NODE_VERSION@Q} && \
+         export ENABLE_CODE_SIGNING=${ENABLE_CODE_SIGNING@Q} && \
+         export CONTEXT=${CONTEXT@Q} && \
+         export BUILD_ENV_VARS=${BUILD_ENV_VARS@Q} && \
+         cd ${BUILD_DIR@Q}/workspaces/source && \
+         ${BUILD_DIR@Q}/scripts/script-build.sh"
+
+      echo "[$(date --utc -Ins)] Build completed, syncing artifacts back"
+
+      # Sync results back
+      rsync -razW --stats "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
+
+      # Determine artifact path from pattern
+      CONTEXT_PATH="${BUILD_DIR}/workspaces/source"
+      if [ -n "${CONTEXT}" ] && [ "${CONTEXT}" != "." ]; then
+        CONTEXT_PATH="${CONTEXT_PATH}/${CONTEXT}"
+      fi
+
+      echo "[$(date --utc -Ins)] Looking for artifacts matching pattern: ${ARTIFACT_PATTERN}"
+
+      # Find and sync artifacts
+      # shellcheck disable=SC2086
+      ARTIFACT_FILES=$(ssh $SSH_ARGS "$SSH_HOST" "find ${CONTEXT_PATH@Q} -path '*${ARTIFACT_PATTERN}' -type f" || echo "")
+
+      if [ -z "$ARTIFACT_FILES" ]; then
+        echo "ERROR: No artifacts found matching pattern: ${ARTIFACT_PATTERN}"
+        exit 1
+      fi
+
+      echo "Found artifacts:"
+      echo "$ARTIFACT_FILES"
+
+      # Sync artifacts back to workspace
+      while IFS= read -r artifact; do
+        if [ -n "$artifact" ]; then
+          RELATIVE_PATH="${artifact#${BUILD_DIR}/workspaces/source/}"
+          LOCAL_PATH="$(workspaces.source.path)/${RELATIVE_PATH}"
+          mkdir -p "$(dirname "$LOCAL_PATH")"
+
+          echo "Syncing: $artifact -> $LOCAL_PATH"
+          rsync -razW --stats "$SSH_HOST:$artifact" "$LOCAL_PATH"
+
+          # Calculate SHA256
+          ARTIFACT_SHA256=$(ssh $SSH_ARGS "$SSH_HOST" "shasum -a 256 ${artifact@Q}" | cut -d' ' -f1)
+
+          # Store first artifact as primary result
+          if [ ! -f "$(results.ARTIFACT_PATH.path)" ]; then
+            echo -n "${RELATIVE_PATH}" > "$(results.ARTIFACT_PATH.path)"
+            echo -n "${ARTIFACT_SHA256}" > "$(results.ARTIFACT_SHA256.path)"
+            echo "Primary artifact: ${RELATIVE_PATH} (SHA256: ${ARTIFACT_SHA256})"
+          fi
+        fi
+      done <<< "$ARTIFACT_FILES"
+
+      echo "[$(date --utc -Ins)] Build on remote host $SSH_HOST finished successfully"
+    securityContext:
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /ssh
+      name: ssh
+      readOnly: true
+    - mountPath: /code-signing
+      name: code-signing
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+  volumes:
+  - name: ssh
+    secret:
+      optional: false
+      secretName: multi-platform-ssh-$(context.taskRun.name)
+  - name: code-signing
+    secret:
+      optional: true
+      secretName: $(params.CODE_SIGNING_SECRET)
+  workspaces:
+  - description: Workspace containing the source code to build
+    name: source
