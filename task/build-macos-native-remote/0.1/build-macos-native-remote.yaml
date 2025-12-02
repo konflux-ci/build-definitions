@@ -111,7 +111,8 @@ spec:
         cat /ssh/error
         exit 1
       fi
-      export SSH_HOST=$(cat /ssh/host)
+      SSH_HOST=$(cat /ssh/host)
+      export SSH_HOST
 
       if [ "$SSH_HOST" == "localhost" ]; then
         echo "ERROR: localhost builds are not supported for macOS native builds"
@@ -120,14 +121,16 @@ spec:
 
       # Setup SSH credentials from multi-platform-controller
       if [ -e "/ssh/otp" ]; then
-        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+        OTP_SERVER=$(cat /ssh/otp-server)
+        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$OTP_SERVER" >~/.ssh/id_rsa
         echo "" >> ~/.ssh/id_rsa
       else
         cp /ssh/id_rsa ~/.ssh
       fi
 
       chmod 0400 ~/.ssh/id_rsa
-      export BUILD_DIR=$(cat /ssh/user-dir)
+      BUILD_DIR=$(cat /ssh/user-dir)
+      export BUILD_DIR
       export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
 
       echo "[$(date --utc -Ins)] Setup remote macOS instance"
@@ -261,17 +264,17 @@ spec:
       # Execute build on remote macOS instance
       # shellcheck disable=SC2086
       ssh $SSH_ARGS "$SSH_HOST" \
-        "export PLATFORM=${PLATFORM@Q} && \
-         export OUTPUT_NAME=${OUTPUT_NAME@Q} && \
-         export COMMIT_SHA=${COMMIT_SHA@Q} && \
-         export SOURCE_URL=${SOURCE_URL@Q} && \
-         export BUILD_COMMAND=${BUILD_COMMAND@Q} && \
-         export NODE_VERSION=${NODE_VERSION@Q} && \
-         export ENABLE_CODE_SIGNING=${ENABLE_CODE_SIGNING@Q} && \
-         export CONTEXT=${CONTEXT@Q} && \
-         export BUILD_ENV_VARS=${BUILD_ENV_VARS@Q} && \
-         cd ${BUILD_DIR@Q}/workspaces/source && \
-         ${BUILD_DIR@Q}/scripts/script-build.sh"
+        "export PLATFORM=\"${PLATFORM}\" && \
+         export OUTPUT_NAME=\"${OUTPUT_NAME}\" && \
+         export COMMIT_SHA=\"${COMMIT_SHA}\" && \
+         export SOURCE_URL=\"${SOURCE_URL}\" && \
+         export BUILD_COMMAND=\"${BUILD_COMMAND}\" && \
+         export NODE_VERSION=\"${NODE_VERSION}\" && \
+         export ENABLE_CODE_SIGNING=\"${ENABLE_CODE_SIGNING}\" && \
+         export CONTEXT=\"${CONTEXT}\" && \
+         export BUILD_ENV_VARS=\"${BUILD_ENV_VARS}\" && \
+         cd \"${BUILD_DIR}/workspaces/source\" && \
+         \"${BUILD_DIR}/scripts/script-build.sh\""
 
       echo "[$(date --utc -Ins)] Build completed, syncing artifacts back"
 
@@ -288,7 +291,7 @@ spec:
 
       # Find and sync artifacts
       # shellcheck disable=SC2086
-      ARTIFACT_FILES=$(ssh $SSH_ARGS "$SSH_HOST" "find ${CONTEXT_PATH@Q} -path '*${ARTIFACT_PATTERN}' -type f" || echo "")
+      ARTIFACT_FILES=$(ssh -n $SSH_ARGS "$SSH_HOST" "find \"${CONTEXT_PATH}\" -path '*${ARTIFACT_PATTERN}' -type f" || echo "")
 
       if [ -z "$ARTIFACT_FILES" ]; then
         echo "ERROR: No artifacts found matching pattern: ${ARTIFACT_PATTERN}"
@@ -301,7 +304,7 @@ spec:
       # Sync artifacts back to workspace
       while IFS= read -r artifact; do
         if [ -n "$artifact" ]; then
-          RELATIVE_PATH="${artifact#${BUILD_DIR}/workspaces/source/}"
+          RELATIVE_PATH="${artifact#"${BUILD_DIR}/workspaces/source/"}"
           LOCAL_PATH="$(workspaces.source.path)/${RELATIVE_PATH}"
           mkdir -p "$(dirname "$LOCAL_PATH")"
 
@@ -309,7 +312,8 @@ spec:
           rsync -razW --stats "$SSH_HOST:$artifact" "$LOCAL_PATH"
 
           # Calculate SHA256
-          ARTIFACT_SHA256=$(ssh $SSH_ARGS "$SSH_HOST" "shasum -a 256 ${artifact@Q}" | cut -d' ' -f1)
+          # shellcheck disable=SC2086
+          ARTIFACT_SHA256=$(ssh -n $SSH_ARGS "$SSH_HOST" "shasum -a 256 \"${artifact}\"" | cut -d' ' -f1)
 
           # Store first artifact as primary result
           if [ ! -f "$(results.ARTIFACT_PATH.path)" ]; then
