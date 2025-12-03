@@ -206,6 +206,7 @@ spec:
 
       # Push migration to registry if there is
       migration_image_digest=
+      migration_image_tag=
       migration_file_path="${task_dir}/migrations/${actual_task_version}.sh"
       if [[ -f "$migration_file_path" ]]; then
         sha256_checksum=$(sha256sum "$migration_file_path" | cut -d' ' -f1)
@@ -226,6 +227,7 @@ spec:
             if [[ -z "$migration_image_digest" ]]; then
               printf "Found migration image %s, whose digest is %s\n" "$tag_name" "$manifest_digest" >&2
               migration_image_digest="$manifest_digest"
+              migration_image_tag="$tag_name"
             fi
           elif grep -q -E "^${tag_prefix}-[0-9a-f]{64}-[0-9]+$" <<<"$tag_name"; then
             printf "Modifying an existing migration is not allowed. Migration %s was pushed as image %s" \
@@ -250,6 +252,7 @@ spec:
             "$migration_image" "${migration_file_path##*/}"
           read -r migration_image_digest _ < <(sha256sum "$manifest_file")
           migration_image_digest="sha256:${migration_image_digest}"
+          migration_image_tag="$tag"
           printf "Pushed migration image %s, digest %s\n" "$migration_image" "$migration_image_digest" >&2
           popd
         fi
@@ -276,7 +279,10 @@ spec:
       ANNOTATIONS+=("org.opencontainers.image.description=${description}")
 
       if [[ -n "$migration_image_digest" ]]; then
-        ANNOTATIONS+=("dev.konflux-ci.task.migration=${migration_image_digest}")
+        ANNOTATIONS+=(
+          "dev.konflux-ci.task.migration.digest=${migration_image_digest}"
+          "dev.konflux-ci.task.migration.tag=${migration_image_tag}"
+        )
       fi
 
       echo "Added annotations:"
