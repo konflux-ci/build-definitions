@@ -34,8 +34,6 @@ todo=(
   task/summary/0.2/summary.yaml
   task/update-infra-deployments/0.1/update-infra-deployments.yaml
   task/upload-sbom-to-trustification/0.1/upload-sbom-to-trustification.yaml
-  task/verify-enterprise-contract/0.1/kustomization.yaml
-  task/verify-enterprise-contract/0.1/verify-enterprise-contract.yaml
 )
 
 emit() {
