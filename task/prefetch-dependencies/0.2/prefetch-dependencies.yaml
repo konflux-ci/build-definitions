@@ -48,6 +48,10 @@ spec:
   - name: sbom-type
     default: spdx
     description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
+  - name: mode
+    description: "Control how input requirement violations are handled: strict (errors) or permissive (warnings)."
+    type: string
+    default: strict
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -72,7 +76,7 @@ spec:
         name: shared
   steps:
   - name: sanitize-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
+    image: quay.io/konflux-ci/yq:latest@sha256:50530ee1116439dac43f525b1df7d6219d3dc71ce0cd48623ad3517b7ece43b2
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -83,7 +87,7 @@ spec:
       fi
 
   - name: prefetch-dependencies
-    image: quay.io/konflux-ci/hermeto:0.38.0@sha256:bd7d43d80dde2fdd82fb9c9952aba9f830b052bcb1e5f3b54d613555b3a2eda7
+    image: quay.io/konflux-ci/hermeto:0.43.0@sha256:d8c6ced3a79494a8c8afd212cbecaf481b770af4fa5d190de2c2154abd8e72c7
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -95,6 +99,8 @@ spec:
       value: $(params.log-level)
     - name: SBOM_TYPE
       value: $(params.sbom-type)
+    - name: MODE
+      value: $(params.mode)
     - name: WORKSPACE_GIT_AUTH_BOUND
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
@@ -111,6 +117,10 @@ spec:
         name: activation-key
     computeResources:
       limits:
+        # We have seen strange behavior where prefetch memory consumption is
+        # abnormally high when CPU is unlimited and that lead to the pods being
+        # OOMKilled. This was observed with golang backend only so far.
+        cpu: '1'
         memory: 3Gi
       requests:
         cpu: '1'
@@ -344,7 +354,7 @@ spec:
       fi
       unset RETRY_MAX_TRIES
 
-      hermeto --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" --mode="$MODE" $config_flag fetch-deps \
       $dev_pacman_flag \
       --source="$(workspaces.source.path)/source" \
       --output="$(workspaces.source.path)/cachi2/output" \

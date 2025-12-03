@@ -6,7 +6,8 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "${SCRIPTDIR}/../task-generator/remote"
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o /tmp/remote-generator main.go
 
-for version in 0.4; do
+# shellcheck disable=2043
+for version in 0.6 0.7; do
     /tmp/remote-generator --buildah-task="${SCRIPTDIR}/../task/buildah/${version}/buildah.yaml" \
         --remote-task="${SCRIPTDIR}/../task/buildah-remote/${version}/buildah-remote.yaml" --task-version="$version"
     /tmp/remote-generator --buildah-task="${SCRIPTDIR}/../task/buildah-oci-ta/${version}/buildah-oci-ta.yaml" \

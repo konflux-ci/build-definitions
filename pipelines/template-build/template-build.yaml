@@ -57,6 +57,14 @@ spec:
       description: Add built image into an OCI image index
       type: string
       default: "false"
+    - name: buildah-format
+      description: The format for the resulting image's mediaType. Valid values are
+        oci or docker.
+      type: string
+      default: "docker"
+    - name: enable-cache-proxy
+      description: Enable cache proxy configuration
+      default: "false"
   tasks:
     - name: init
       params:
@@ -66,6 +74,8 @@ spec:
           value: "$(params.rebuild)"
         - name: skip-checks
           value: "$(params.skip-checks)"
+        - name: enable-cache-proxy
+          value: "$(params.enable-cache-proxy)"
       taskRef:
         name: init
         # A pointer for referencing the correct version of task in the built pipeline bundles.
@@ -127,7 +137,7 @@ spec:
         - build-container
       taskRef:
         name: build-image-index
-        version: "0.1"
+        version: "0.2"
       params:
       - name: IMAGE
         value: $(params.output-image)
@@ -140,6 +150,8 @@ spec:
       - name: IMAGES
         value:
         - $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
+      - name: BUILDAH_FORMAT
+        value: "$(params.buildah-format)"
     - name: build-source-image
       when:
         - input: $(tasks.init.results.build)
@@ -348,23 +360,7 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-  finally:
-    - name: show-summary
-      taskRef:
-        name: summary
-        version: "0.2"
-      params:
-      - name: pipelinerun-name
-        value: "$(context.pipelineRun.name)"
-      - name: git-url
-        value: "$(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)"
-      - name: image-url
-        value: $(params.output-image)
-      - name: build-task-status
-        value: $(tasks.build-image-index.status)
-      workspaces:
-      - name: workspace
-        workspace: workspace
+  finally: []
   results:
     - name: IMAGE_URL
       value: "$(tasks.build-image-index.results.IMAGE_URL)"

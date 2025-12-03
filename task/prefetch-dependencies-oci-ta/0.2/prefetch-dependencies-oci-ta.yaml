@@ -65,6 +65,11 @@ spec:
     - name: log-level
       description: Set prefetch tool log level (debug, info, warning, error)
       default: info
+    - name: mode
+      description: 'Control how input requirement violations are handled:
+        strict (errors) or permissive (warnings).'
+      type: string
+      default: strict
     - name: ociArtifactExpiresAfter
       description: Expiration date for the trusted artifacts created in the
         OCI repository. An empty string means the artifacts do not expire.
@@ -132,7 +137,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350@sha256:2f06ae0e6d3d9c4f610d32c480338eef474867f435d8d28625f2985e8acde6e8
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218@sha256:61d5ad475048c2e655cd46d0a55dfeaec182cc3faa6348cb85989a7c9e196483
       env:
         - name: INPUT
           value: $(params.input)
@@ -148,12 +153,12 @@ spec:
           echo -n "" >$(results.CACHI2_ARTIFACT.path)
         fi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:7ef2e2f76ca36bdc7eb9203df31f3bce546d1267b969d9bd2691094b88610dbb
+      image: quay.io/konflux-ci/yq:latest@sha256:50530ee1116439dac43f525b1df7d6219d3dc71ce0cd48623ad3517b7ece43b2
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
@@ -162,7 +167,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.38.0@sha256:bd7d43d80dde2fdd82fb9c9952aba9f830b052bcb1e5f3b54d613555b3a2eda7
+      image: quay.io/konflux-ci/hermeto:0.43.0@sha256:d8c6ced3a79494a8c8afd212cbecaf481b770af4fa5d190de2c2154abd8e72c7
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
@@ -178,6 +183,8 @@ spec:
           value: $(params.log-level)
         - name: SBOM_TYPE
           value: $(params.sbom-type)
+        - name: MODE
+          value: $(params.mode)
         - name: WORKSPACE_GIT_AUTH_BOUND
           value: $(workspaces.git-basic-auth.bound)
         - name: WORKSPACE_GIT_AUTH_PATH
@@ -414,7 +421,7 @@ spec:
         fi
         unset RETRY_MAX_TRIES
 
-        hermeto --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+        hermeto --log-level="$LOG_LEVEL" --mode="$MODE" $config_flag fetch-deps \
           $dev_pacman_flag \
           --source="/var/workdir/source" \
           --output="/var/workdir/cachi2/output" \
@@ -442,12 +449,13 @@ spec:
         fi
       computeResources:
         limits:
+          cpu: "1"
           memory: 3Gi
         requests:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:98641d6162ee305d09927a87c7c8245a77bffb0061aef6ed18f14c1348a77d07
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - create
         - --store

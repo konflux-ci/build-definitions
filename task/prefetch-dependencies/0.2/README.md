@@ -29,6 +29,7 @@ params:
 |log-level|Set prefetch tool log level (debug, info, warning, error)|info|false|
 |config-file-content|Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! |""|false|
 |sbom-type|Select the SBOM format to generate. Valid values: spdx, cyclonedx.|spdx|false|
+|mode|Control how input requirement violations are handled: strict (errors) or permissive (warnings). Valid values: strict, permissive.|strict|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|

@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.4/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.2/apply-tags.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.6/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.2/apply-tags.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -18,6 +18,8 @@ spec:
       value: "quay.io/konflux-ci/appstudio-utils:{{ revision }}"
     - name: slack-webhook-notification-team
       value: "integration-slack-alerts"
+    - name: console_url
+      value: "https://console-openshift-console.apps.kflux-prd-rh03.nnv1.p1.openshiftapps.com"
   pipelineSpec:
     params:
       - description: 'Source Repository URL'
@@ -134,7 +136,6 @@ spec:
             - name: build-bundles-konflux-ci
               image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: konflux-ci/tekton-catalog
@@ -148,10 +149,14 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-konflux-ci
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
             - name: build-bundles-redhat-appstudio
               image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
-              command: ["./hack/build-and-push.sh"]
               env:
                 - name: QUAY_NAMESPACE
                   value: redhat-appstudio-tekton-catalog
@@ -165,6 +170,11 @@ spec:
                   value: $(workspaces.source.path)/task-bundle-list-appstudio
                 - name: OUTPUT_PIPELINE_BUNDLE_LIST
                   value: $(workspaces.source.path)/pipeline-bundle-list-appstudio
+              script: |
+                #!/bin/bash
+                set -e
+                git config --global --add safe.directory "$PWD"
+                ./hack/build-and-push.sh
               volumeMounts:
                 - mountPath: /tekton/home/.docker/config.json
                   subPath: .dockerconfigjson
@@ -250,9 +260,11 @@ spec:
           values: ["Failed"]
         params:
         - name: message
-          value: ":x: Tekton pipelineRun $(context.pipelineRun.name) failed"
+          value: ":x: Tekton pipelineRun <$(params.console_url)/k8s/ns/$(context.pipelineRun.namespace)/tekton.dev~v1~PipelineRun/$(context.pipelineRun.name)|$(context.pipelineRun.name)> failed"
         - name: key-name
           value: $(params.slack-webhook-notification-team)
+  taskRunTemplate:
+    serviceAccountName: konflux-ci-sa
   workspaces:
     - name: workspace
       volumeClaimTemplate:

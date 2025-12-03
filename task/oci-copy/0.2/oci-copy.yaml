@@ -58,7 +58,7 @@ spec:
         value: $(params.SBOM_TYPE)
   steps:
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         set -eu
@@ -74,20 +74,21 @@ spec:
           filename=$(echo $entry | yq .filename)
           artifact_type=$(echo $entry | yq .type)
           artifact_digest=$(echo $entry | yq .sha256sum)
+          varfile="${filename//\//-}"
 
           {
             echo "declare OCI_SOURCE=${source}";
             echo "declare OCI_FILENAME=${filename}";
             echo "declare OCI_ARTIFACT_TYPE=${artifact_type}";
             echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}";
-          } > "$(workspaces.source.path)/vars/$filename"
+          } > "$(workspaces.source.path)/vars/$varfile"
 
-          echo "Wrote $(workspaces.source.path)/vars/$filename with contents:"
-          cat "$(workspaces.source.path)/vars/$filename"
+          echo "Wrote $(workspaces.source.path)/vars/$varfile with contents:"
+          cat "$(workspaces.source.path)/vars/$varfile"
         done
       workingDir: $(workspaces.source.path)
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:e52de03c78ea65bf806cebee6892f054e2ae7b554d302e4a83ef28ec5010b2ee
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
       computeResources:
         limits:
           memory: 1Gi
@@ -126,6 +127,13 @@ spec:
           url="$1"
           file="$2"
           method="GET"
+
+          directory=$(dirname "${file}")
+          echo "Found directory of ${file} to be ${directory}"
+          if [ ! -d "${directory}" ]; then
+            echo "Found that directory ${directory} does not exist. Creating."
+            mkdir -p "${directory}"
+          fi
 
           curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
@@ -301,7 +309,7 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+      image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -327,7 +335,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:15d0238843d954ee78c9c190705eb8b36f6e52c31434183c37d99a80841a635a
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}

@@ -3,6 +3,9 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-01-09T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: Please update your configuration to
+      use the 'build-image-index' task (version 0.2).
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
@@ -49,6 +52,20 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - default: "false"
+    description: Flag to enable or disable SBOM validation before save. Validation
+      is optional - use this if you are experiencing performance issues.
+    name: SBOM_SKIP_VALIDATION
+    type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from
+    name: caTrustConfigMapName
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data
+    name: caTrustConfigMapKey
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -80,6 +97,9 @@ spec:
     volumeMounts:
     - mountPath: /index-build-data
       name: shared-dir
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
   steps:
   - args:
     - $(params.IMAGES[*])
@@ -89,7 +109,7 @@ spec:
       requests:
         cpu: 250m
         memory: 512Mi
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:cb58912cc9aecdb4c64e353ac44d0586574e89ba6cec2f2b191b4eeb98c6f81e
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
     name: build
     script: |
       #!/bin/bash
@@ -99,6 +119,15 @@ spec:
       chown root:root /var/lib/containers
 
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       if [[ $# -ne 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
         echo "Skipping image index generation while supplying multiple image inputs is unsupported."
@@ -164,26 +193,39 @@ spec:
           exit 1
       fi
 
+      # Remove local cache to force remote 'inspect'.
+      # When 'buildah push' converts formats (e.g., OCI->Docker), it creates new
+      # digests in the registry, but the local cache becomes stale (retains old digests).
+      # This ensures we 'inspect' the correct post-conversion digests for SBOMs.
+      echo "Removing local manifest list: $IMAGE"
+      buildah manifest rm "$IMAGE"
+
       INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
-      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
+      PUSHED_INDEX_DIGEST=$(cat image-digest)
+      IMMUTABLE_INDEX_REF="${INDEX_REPOSITORY}@${PUSHED_INDEX_DIGEST}"
+      INSPECT_FILE="/index-build-data/manifest_data.json"
+
+      echo "Inspecting remote manifest index at: $IMMUTABLE_INDEX_REF"
+
+      if ! retry buildah manifest inspect "$IMMUTABLE_INDEX_REF" > "$INSPECT_FILE"
+      then
+          echo "Failed to inspect remote manifest index: $IMMUTABLE_INDEX_REF"
+          exit 1
+      fi
+
+      echo "Successfully inspected remote index, saved to $INSPECT_FILE"
+
+      MANIFEST_DIGESTS=$(jq -er ".manifests[].digest" "$INSPECT_FILE")
       image_manifests=""
       for i in $MANIFEST_DIGESTS
       do
         image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
       done
 
-      cat image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$PUSHED_INDEX_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-      {
-        echo -n "${IMAGE}@"
-        cat "image-digest"
-      } > "$(results.IMAGE_REF.path)"
+      echo -n "${IMMUTABLE_INDEX_REF}" > "$(results.IMAGE_REF.path)"
       echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
-
-      # buildah manifest inspect will always give precedence to the local image.
-      # Since we built this image in the same place as we are inspecting it, we can
-      # just inspect it instead of finding the digest and inspecting the remote image.
-      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
     securityContext:
       capabilities:
         add:
@@ -194,7 +236,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:0.6.0-1755613650@sha256:41e877cac3bda4ae5b8a59bbb8241e6f56dc18750476e6ce979264de161516dc
+    image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
     name: create-sbom
     script: |
       #!/bin/bash
@@ -209,23 +251,40 @@ spec:
       IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
       IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
       echo "Creating SBOM result file..."
-      mobster generate \
-        --output /index-build-data/index.spdx.json \
-        oci-index \
-        --index-image-pullspec "$IMAGE_URL" \
-        --index-image-digest "$IMAGE_DIGEST" \
-        --index-manifest-path "$MANIFEST_DATA_FILE" \
+      mobster_args=(generate --output /index-build-data/index.spdx.json)
+
+      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+        echo "Skipping SBOM validation"
+        mobster_args+=(--skip-validation)
+      fi
+
+      mobster_args+=(
+        oci-index
+        --index-image-pullspec "$IMAGE_URL"
+        --index-image-digest "$IMAGE_DIGEST"
+        --index-manifest-path "$MANIFEST_DATA_FILE"
+      )
+      mobster "${mobster_args[@]}"
   - computeResources:
       limits:
         memory: 512Mi
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:5beab55042923b241f6ce0c653c622c2eefb4fcc46f7e4f04febc499291fcbcd
     name: upload-sbom
     script: |
       #!/bin/bash
       set -e
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
 
       SBOM_RESULT_FILE="/index-build-data/index.spdx.json"
       if [ ! -f "$SBOM_RESULT_FILE" ]; then
@@ -252,3 +311,10 @@ spec:
   volumes:
   - emptyDir: {}
     name: shared-dir
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca

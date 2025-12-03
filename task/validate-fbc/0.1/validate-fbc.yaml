@@ -69,7 +69,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/inspect-image
@@ -188,7 +188,7 @@ spec:
           exit 0
         fi
     - name: extract-and-validate
-      image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -199,9 +199,9 @@ spec:
             - SETFCAP
       computeResources:
         limits:
-          memory: 8Gi
+          memory: 10Gi
         requests:
-          memory: 8Gi
+          memory: 10Gi
           cpu: "8"
       script: |
         #!/usr/bin/env bash
@@ -330,8 +330,8 @@ spec:
         mv "$OPM_BINARY" /shared/bin/opm
         export PATH=/shared/bin:$PATH
 
-        # We have 9 total checks
-        check_num=9
+        # We have 10 total checks
+        check_num=10
         failure_num=0
         TESTPASSED=true
 
@@ -339,6 +339,53 @@ spec:
           echo "!FAILURE! - grpc_health_probe binary presence check failed."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
+        fi
+
+        ### FBC DIRECTORY STRUCTURE VALIDATION ###
+        echo "Validating FBC directory structure."
+        PACKAGE_DIRS=$(find ".${conffolder}" -mindepth 1 -maxdepth 1 -type d)
+
+        # First, check if any package subdirectories exist at all.
+        if [[ -z "${PACKAGE_DIRS}" ]]; then
+          echo "!FAILURE! - No package subdirectories found inside '.${conffolder}'. At least one is required."
+          echo "--> The FBC image must contain one or more package directories."
+          echo "    Example valid structure:"
+          echo "    ${conffolder}/"
+          echo "    └── <package-name>/"
+
+          # Set the note for the final error report
+          note="FBC directory structure validation failed: No package subdirectories were found inside the '${conffolder}' directory."
+
+          failure_num=$((failure_num + 1))
+          TESTPASSED=false
+        else
+          # Array to hold directories that are found to be empty
+          empty_dirs=()
+
+          # Loop through each found package directory to check if it's empty
+          while IFS= read -r pkg_dir; do
+            # Check if the find command returns anything inside the directory
+            if [[ -z "$(find "${pkg_dir}" -mindepth 1)" ]]; then
+              echo "!FAILURE! - Package directory '${pkg_dir}' is empty."
+              empty_dirs+=("${pkg_dir}")
+            fi
+          done <<< "${PACKAGE_DIRS}"
+
+          # After checking all directories, report if any were empty
+          if [[ ${#empty_dirs[@]} -gt 0 ]]; then
+            echo "--> FBC package directories must not be empty."
+            echo "    Example valid structure:"
+            echo "    ${conffolder}/"
+            echo "    └── <package-name>/"
+
+            # Set a detailed note for the final error report, listing all empty directories
+            note="FBC directory validation failed. The following package directories are empty: ${empty_dirs[*]}"
+
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          else
+            echo "FBC directory structure is valid."
+          fi
         fi
 
         if ! opm validate ."${conffolder}"; then
@@ -456,7 +503,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -478,7 +525,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

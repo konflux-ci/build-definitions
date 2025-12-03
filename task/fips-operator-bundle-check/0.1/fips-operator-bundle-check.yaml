@@ -18,6 +18,9 @@ spec:
       description: Image digest to scan.
     - name: image-url
       description: Image URL.
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel
+      default: "8"
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -26,13 +29,14 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.34@sha256:62a7bf68015c711e0eb0698c10d203d0393a8e0efa09306f1fce543dea383f3c
+      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
       computeResources:
         limits:
-          memory: 8Gi
+          memory: 12Gi
+          cpu: '1'
         requests:
-          memory: 8Gi
-          cpu: 500m
+          memory: 12Gi
+          cpu: '1'
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -124,22 +128,26 @@ spec:
     - name: fips-operator-check-step-action
       computeResources:
         limits:
-          memory: 8Gi
+          memory: 12Gi
+          cpu: '8'
         requests:
-          memory: 8Gi
-          cpu: 500m
+          memory: 12Gi
+          cpu: '8'
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
       ref:
         resolver: git
         params:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 5394c347b0f67c516bc7ebad3144cfe38ce6b0b4
+            value: 02ac30080ba6bb62d9738e5c5ad6268c73e74a20
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.34@sha256:62a7bf68015c711e0eb0698c10d203d0393a8e0efa09306f1fce543dea383f3c
+      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

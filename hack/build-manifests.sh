@@ -26,7 +26,7 @@ SKIP_TASKS=
 # with the task name separated by a space, for example:
 # SKIP_PIPELINES="rhtap gitops-pull-request-rhtap"
 
-SKIP_PIPELINES="gitops-pull-request-rhtap"
+SKIP_PIPELINES=
 
 warning_message="# WARNING: This is an auto generated file, do not modify this file directly"
 

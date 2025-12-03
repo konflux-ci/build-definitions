@@ -20,6 +20,11 @@ spec:
         message.
       type: array
       default: []
+    - name: group-ids
+      description: List of Slack group IDs to mention (e.g., S0614TZR7). If
+        set, the groups will be mentioned in the notification.
+      type: array
+      default: []
     - name: key-name
       description: Key in the key in secret which contains webhook URL for
         slack.
@@ -37,6 +42,11 @@ spec:
         that declares the submodules.
       type: array
       default: []
+    - name: user-ids
+      description: List of Slack user IDs to mention (e.g., U024BE7LH). If
+        set, the users will be mentioned in the notification.
+      type: array
+      default: []
   volumes:
     - name: webhook-secret
       secret:
@@ -50,7 +60,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9c7df11f4403488294cabe594676eef1a3df525a06fd62cbc3ba8601568b34ed
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -61,6 +71,10 @@ spec:
         - $(params.files[*])
         - --submodules
         - $(params.submodules[*])
+        - --user-ids
+        - $(params.user-ids[*])
+        - --group-ids
+        - $(params.group-ids[*])
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/secrets
@@ -143,6 +157,8 @@ spec:
 
         FILES=()
         SUBMODULES=()
+        USER_IDS=()
+        GROUP_IDS=()
 
         while [[ $# -gt 0 ]]; do
           case $1 in
@@ -157,6 +173,20 @@ spec:
             shift
             while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
               SUBMODULES+=("$1")
+              shift
+            done
+            ;;
+          --user-ids)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              USER_IDS+=("$1")
+              shift
+            done
+            ;;
+          --group-ids)
+            shift
+            while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^--.* ]]; do
+              GROUP_IDS+=("$1")
               shift
             done
             ;;
@@ -179,6 +209,27 @@ spec:
         # ------
 
         slack_message=${MESSAGE}
+
+        # Add user mentions if user-ids are set
+        user_mentions=""
+        for user_id in "${USER_IDS[@]}"; do
+          if [ -n "${user_id}" ]; then
+            user_mentions="${user_mentions}<@${user_id}> "
+          fi
+        done
+
+        # Add group mentions if group-ids are set
+        group_mentions=""
+        for group_id in "${GROUP_IDS[@]}"; do
+          if [ -n "${group_id}" ]; then
+            group_mentions="${group_mentions}<!subteam^${group_id}> "
+          fi
+        done
+
+        # Prepend mentions to message
+        if [ -n "${user_mentions}" ] || [ -n "${group_mentions}" ]; then
+          slack_message="${user_mentions}${group_mentions}${slack_message}"
+        fi
 
         if [ ${#FILES[@]} -ne 0 ]; then
           slack_message=$(concat "${slack_message}" "$(dumpSeparator)")

@@ -29,7 +29,10 @@
 #      9  image-expires-after
 #     10  build-source-image
 #     11  build-image-index
+#     12  buildah-format
 
+- op: remove
+  path: /spec/params/12  # buildah-format
 - op: remove
   path: /spec/params/11  # build-image-index
 - op: remove
@@ -163,7 +166,3 @@
 - op: replace
   path: /spec/results/1/value
   value: "$(tasks.build-oci-artifact.results.IMAGE_DIGEST)"
-# change finally show result
-- op: replace
-  path: /spec/finally/0/params/3/value
-  value: "$(tasks.build-oci-artifact.status)"

@@ -21,6 +21,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |shortCommitLength|Length of short commit SHA|7|false|
 |sparseCheckoutDirectories|Define the directory patterns to match or exclude when performing a sparse checkout.|""|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
+|submodulePaths|Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. |""|false|
 |submodules|Initialize and fetch git submodules.|true|false|
 |targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
 |url|Repository URL to clone from.||true|

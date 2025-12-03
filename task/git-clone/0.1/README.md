@@ -9,6 +9,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |revision|Revision to checkout. (branch, tag, sha, ref, etc...)|""|false|
 |refspec|Refspec to fetch before checking out revision.|""|false|
 |submodules|Initialize and fetch git submodules.|true|false|
+|submodulePaths|Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. |""|false|
 |depth|Perform a shallow clone, fetching only the most recent N commits.|1|false|
 |shortCommitLength|Length of short commit SHA|7|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
