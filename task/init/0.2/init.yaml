@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2.3"
+    app.kubernetes.io/version: "0.2.4"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -19,9 +19,16 @@ spec:
     - name: skip-checks
       description: Skip checks against built image
       default: "false"
+    - name: enable-cache-proxy
+      description: Enable cache proxy configuration
+      default: "false"
   results:
     - name: build
       description: Defines if the image in param image-url should be built
+    - name: http-proxy
+      description: HTTP proxy URL for cache proxy (when enable-cache-proxy is true)
+    - name: no-proxy
+      description: NO_PROXY value for cache proxy (when enable-cache-proxy is true)
 
   steps:
     - name: init
@@ -39,6 +46,8 @@ spec:
           value: $(params.rebuild)
         - name: SKIP_CHECKS
           value: $(params.skip-checks)
+        - name: ENABLE_CACHE_PROXY
+          value: $(params.enable-cache-proxy)
       script: |
         #!/bin/bash
         echo "Build Initialize: $IMAGE_URL"
@@ -50,7 +59,15 @@ spec:
         # Build the image when rebuild is set to true or image does not exist
         # The image check comes last to avoid unnecessary, slow API calls
         if [ "$REBUILD" == "true" ] || [ "$SKIP_CHECKS" == "false" ] || ! skopeo inspect --retry-times "$skopeo_retries" --no-tags --raw "docker://$IMAGE_URL" &>/dev/null; then
-          echo -n "true" > $(results.build.path)
+          echo -n "true" > "$(results.build.path)"
         else
-          echo -n "false" > $(results.build.path)
+          echo -n "false" > "$(results.build.path)"
         fi
+
+        # Set cache proxy configuration if enabled
+        if [ "$ENABLE_CACHE_PROXY" == "true" ]; then
+          echo -n "squid.caching.svc.cluster.local:3128" > "$(results.http-proxy.path)"
+        else
+          echo -n "" > "$(results.http-proxy.path)"
+        fi
+        echo -n "" > "$(results.no-proxy.path)"
