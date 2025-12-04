@@ -6,6 +6,7 @@
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.2:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url ; build-container:0.2:URL|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-image-index:0.2:IMAGE_EXPIRES_AFTER|
@@ -49,6 +50,8 @@
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
 |httpsProxy| HTTPS proxy server for SSL requests.| ""| |
+|mergeSourceDepth| Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. | ""| |
+|mergeSourceRepoUrl| URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. | ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
@@ -67,6 +70,7 @@
 ### init:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
@@ -81,6 +85,7 @@
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
+|mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
@@ -154,6 +159,8 @@
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|

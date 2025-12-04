@@ -46,6 +46,9 @@ spec:
     description: Build a source image.
     name: build-source-image
     type: string
+  - default: "false"
+    description: Enable cache proxy configuration
+    name: enable-cache-proxy
   - default: ""
     description: Default base image for ko
     name: default-base-image
@@ -84,6 +87,8 @@ spec:
       value: $(params.rebuild)
     - name: skip-checks
       value: $(params.skip-checks)
+    - name: enable-cache-proxy
+      value: $(params.enable-cache-proxy)
     taskRef:
       name: init
       version: "0.2"
@@ -170,7 +175,7 @@ spec:
       value:
       - $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
     - name: BUILDAH_FORMAT
-      value: docker
+      value: oci
     runAfter:
     - build-container
     taskRef:

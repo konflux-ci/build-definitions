@@ -50,23 +50,6 @@ warning() {
     echo "warning: $*" >&2
 }
 
-format_yaml_in_python() {
-    local -r filepath=$1
-    python3 -c "
-import sys
-from ruamel.yaml import YAML
-yaml = YAML()
-# These settings are same as pipeline-migration-tool
-yaml.preserve_quotes = True
-yaml.width = 8192
-yaml_file = sys.argv[1]
-with open(yaml_file, 'r', encoding='utf-8') as f:
-    data = yaml.load(f)
-with open(yaml_file, 'w', encoding='utf-8') as f:
-    yaml.dump(data, f)
-" "$filepath"
-}
-
 wrapped_diff() {
     set +e
     echo "\`\`\`diff"
@@ -126,7 +109,6 @@ prepare_pipelines() {
                     task_selector="(.spec.tasks[], .spec.finally[]) | select(.name == \"${task_name}\")"
                     yq -i "(${task_selector} | .taskRef) |= ${fake_bundle_ref}" "$file_path"
                 done
-                format_yaml_in_python "$file_path"
             fi
         done
 
@@ -161,7 +143,6 @@ check_apply_on_pipelines() {
             failed=true
         else
             info "diff to see if pipeline is modified by the migration"
-            format_yaml_in_python "$pl_copy_file_path"
             if ! wrapped_diff -u "$file_path" "$pl_copy_file_path"; then
                 updated=true
                 mv "$pl_copy_file_path" "${file_path}.modified"
@@ -407,6 +388,31 @@ check_oci_ta_migration() {
     fi
 }
 
+# Check if migrations are using 'pmt modify' and not "yq -i" for updating yaml files
+check_migrations_use_only_pmt() {
+    local migration_file=$1
+    local matches
+
+    # Ignores comments (full-line and same-line).
+    # Finds 'yq' usage with inplace flags (e.g.: -i, -xi, --inplace).
+    local regex_pattern='^[^#]*\byq[^#]*[[:blank:]](-[[:alpha:]]*i|--inplace)'
+
+    # We don't want to fail if no 'yq -i' is found, so we add || true to prevent set -e from exiting
+    matches=$(grep -nE "${regex_pattern}" "${migration_file}" || true)
+
+    if [[ -n "${matches}" ]]; then
+        error "Usage of 'yq -i/--inplace' found in ${migration_file}."
+        error "Please use 'pmt modify' for updating YAML files."
+        error "Learn more here: https://github.com/konflux-ci/build-definitions/?tab=readme-ov-file#task-migration"
+
+        error "Triggering line(s):"
+        echo "${matches}"
+        return 1
+    fi
+
+    return 0
+}
+
 main() {
     if git status --porcelain | grep -qv "^??"; then
         info "There are uncommitted changes. Please commit them and run again."
@@ -432,6 +438,9 @@ main() {
     for migration_file in $output; do
         info "check pass shellcheck"
         check_pass_shellcheck "$migration_file"
+
+        info "check if YAML modifications are done with 'pmt modify'"
+        check_migrations_use_only_pmt "$migration_file"
 
         info "check migrations/ is created in versioned-specific task directory"
         check_migrations_is_in_task_version_specific_dir "$migration_file"

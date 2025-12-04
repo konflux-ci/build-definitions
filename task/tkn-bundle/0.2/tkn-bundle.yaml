@@ -49,7 +49,7 @@ spec:
     - name: SOURCE_CODE_DIR
       value: source
   steps:
-  - image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+  - image: quay.io/konflux-ci/konflux-test:v1.4.42@sha256:32112ba0f1b8a3944f4905be40308713c32beb6c059c42ef0bc2b5fe7947ff2f
     name: modify-task-files
     env:
     - name: CONTEXT
@@ -114,13 +114,13 @@ spec:
 
       if [[ -n "${STEPS_IMAGE}" ]]; then
         for f in "${FILES[@]}"; do
-          yq --in-place --yml-output '(.spec.steps[] | select(has("image")).image) = env.STEPS_IMAGE' "$f"
+          yq '(.spec.steps[] | select(has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
         done
       fi
 
       printf "%s\n" "${FILES[@]}" > "${TASK_FILE}"
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/appstudio-utils@sha256:37d8a83ec1ff40445260d519faef2cedd02ca55d3eac3acb01e75ea8420bd731
+  - image: quay.io/konflux-ci/appstudio-utils@sha256:2ccc9b78144917c8a6a90d41af105c7a65e23468b6f6b3c84b7f506a4828c94c
     name: build
     env:
     - name: CONTEXT
@@ -417,16 +417,21 @@ spec:
       ANNOTATIONS+=("${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}=${previous_migration_bundle_digest}")
 
       if [ "$has_migration" == "true" ]; then
+        # Assume we add the annotation unless proven otherwise
+        should_add_annotation=true
+
         if [ -n "$previous_migration_bundle_digest" ]; then
           previous_task_bundle="${IMAGE%%:*}@${previous_migration_bundle_digest}"
-          if ! has_same_migration_in_previous_task_bundle=$(bundle_has_migration "${previous_task_bundle}" "${task_version}" "${migration_file}") || [[ "${has_same_migration_in_previous_task_bundle}" == "false" ]]; then
-            ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
-          else
-            # still ignore the migration script file if the same migration script file has been attached to previous task bundle
-            # especially for repush or PR with .tekton/ files change only
-            echo "the same migration script file exists in previous task bundle ${previous_task_bundle} for pushed event, skipped"
-            has_migration=false
+          # Check if the exact same migration exists in the previous bundle
+          if has_same_migration_in_previous_task_bundle=$(bundle_has_migration "${previous_task_bundle}" "${task_version}" "${migration_file}") && [[ "${has_same_migration_in_previous_task_bundle}" == "true" ]]; then
+             echo "the same migration script file exists in previous task bundle ${previous_task_bundle} for pushed event, skipped"
+             should_add_annotation=false
+             has_migration=false
           fi
+        fi
+
+        if [ "$should_add_annotation" == "true" ]; then
+          ANNOTATIONS+=("${ANNOTATION_HAS_MIGRATION}=true")
         fi
       fi
 
