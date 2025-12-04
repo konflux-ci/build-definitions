@@ -1,4 +1,4 @@
-FROM quay.io/enterprise-contract/cli:latest AS ec-image
+FROM quay.io/conforma/cli:latest AS ec-image
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
     cp /usr/local/bin/ec_linux_${ARCH}.gz /tmp/ec.gz
