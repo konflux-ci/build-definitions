@@ -54,3 +54,12 @@ The migration script is idempotent and will skip tasks that already have these p
 No action required. The migration script automatically handles all necessary changes.
 
 If you want to enable cache proxy for your builds, set the `enable-cache-proxy` parameter to `"true"` in your pipeline configuration. The proxy configuration will then be automatically passed to all buildah tasks.
+
+# Migration from 0.2.4 to 0.2.5
+
+This is a fix made to 0.2.4 version migration script.
+The migration script failed to detect variations of buildah task and therefore did not update them
+
+## Action from users
+
+No action required. The migration script automatically handles all necessary changes.
