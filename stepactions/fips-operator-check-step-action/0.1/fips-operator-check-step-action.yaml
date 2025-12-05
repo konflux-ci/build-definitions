@@ -41,13 +41,14 @@ spec:
 
     # Function to clean up OCI image and unpacked directory
     cleanup_image_artifacts() {
-      local component_label="$1"
-      local version_label="$2"
-      local release_label="$3"
+      local image_num="$1"
+      local component_label="$2"
+      local version_label="$3"
+      local release_label="$4"
       # Clean up OCI image (may or may not exist depending on failure point)
-      rm -rf "/tekton/home/${component_label}-${version_label}-${release_label}:latest" 2>/dev/null || true
+      rm -rf "/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest" 2>/dev/null || true
       # Clean up unpacked directory (may or may not exist depending on failure point)
-      rm -rf "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
+      rm -rf "/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
     }
 
     # Function to process a single related image
@@ -124,21 +125,21 @@ spec:
       echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for conversion to OCI format"
 
       # Convert image to OCI format since umoci can only handle the OCI format
-      if ! retry skopeo copy --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${component_label}-${version_label}-${release_label}:latest"; then
+      if ! retry skopeo copy --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest"; then
         echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
         # Clean up any partial OCI image artifacts to prevent resource accumulation
-        cleanup_image_artifacts "${component_label}" "${version_label}" "${release_label}"
+        cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
         echo "1" >> "${counter_dir}/error"
         return
       fi
 
       # Unpack OCI image
       if ! retry umoci raw unpack --rootless \
-          --image "/tekton/home/${component_label}-${version_label}-${release_label}:latest" \
-          "/tekton/home/unpacked-${component_label}-${version_label}-${release_label}"; then
+          --image "/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest" \
+          "/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}"; then
         echo -e "Error: Unable to scan image: Could not unpack OCI image ${related_image}\n"
         # Clean up OCI image and any partial unpacked directory to prevent resource accumulation
-        cleanup_image_artifacts "${component_label}" "${version_label}" "${release_label}"
+        cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
         echo "1" >> "${counter_dir}/error"
         return
       fi
@@ -147,29 +148,29 @@ spec:
       # The check-payload command fails with exit 1 when the scan for an image is unsuccessful
       # or when the image is not FIPS compliant. Hence, count those as failures and not errors
       if ! check-payload scan local \
-          --path="/tekton/home/unpacked-${component_label}-${version_label}-${release_label}" \
+          --path="/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}" \
           "${check_payload_version}" \
           --components="${component_label}" \
           --output-format=csv \
-          --output-file="/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
+          --output-file="/tekton/home/report-${image_num}-${component_label}-${version_label}-${release_label}.csv"; then
         echo -e "check-payload scan failed for ${related_image}\n"
         # Clean up OCI image and unpacked directory on scan failure to prevent resource accumulation
-        cleanup_image_artifacts "${component_label}" "${version_label}" "${release_label}"
+        cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
         echo "1" >> "${counter_dir}/failure"
         return
       fi
 
-      if [ -f "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv" ]; then
-        if grep -q -- "---- Successful run" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
+      if [ -f "/tekton/home/report-${image_num}-${component_label}-${version_label}-${release_label}.csv" ]; then
+        if grep -q -- "---- Successful run" "/tekton/home/report-${image_num}-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful for ${related_image}\n"
           echo "1" >> "${counter_dir}/success"
           # Clean up OCI image and unpacked directory on successful run to save space
-          cleanup_image_artifacts "${component_label}" "${version_label}" "${release_label}"
-        elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${component_label}-${version_label}-${release_label}.csv"; then
+          cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
+        elif grep -q -- "---- Successful run with warnings" "/tekton/home/report-${image_num}-${component_label}-${version_label}-${release_label}.csv"; then
           echo -e "check-payload scan was successful with warnings for ${related_image}\n"
           echo "1" >> "${counter_dir}/warnings"
           # Clean up OCI image and unpacked directory on successful run with warnings to save space
-          cleanup_image_artifacts "${component_label}" "${version_label}" "${release_label}"
+          cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
         fi
       fi
     }
