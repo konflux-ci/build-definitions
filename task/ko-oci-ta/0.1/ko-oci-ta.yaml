@@ -85,7 +85,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:edd8e3affc389320b15b9de8a5aedbf7b0463211b77c981563a2cfa20076b0c0
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -95,7 +95,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/ko-builder:latest@sha256:16f831a5fbf777202716c15a773c1dd27cf239649b3fc6a0eca4ce1fc9617ae9
+      image: quay.io/konflux-ci/ko-builder:latest@sha256:43ee75b2815fff696f61624484ddcfb54f1ef53c66b442463eef7de27a0e32b4
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
