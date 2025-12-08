@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -24,6 +29,7 @@ usage() {
     -v   task version in form major.minor, e.g. 0.2. This is the version presenting in the path to a version-specific task. If create a migration for version 0.3 of task summary, 0.3 is the version passed to this option.
     -w   alternative working directory to find out task. If omitted, this script runs from the root this repository.
     -a   add new and modified files to git index.
+    -n   use new task layout. When specify this option, option -v means nothing to this script.
 
 Examples:
 
@@ -38,6 +44,10 @@ Examples:
     ./hack/create-task-migration.sh -t push-dockerfile -v 0.2
 
         Create a migration for a task version explicitly. This is useful particularly for a new task version with a migration. Note that, the new task has to be created in advance.
+
+    ./hack/create-task-migration.sh -t push-dockerfile -n
+
+        Create a migration under path task/push-dockerfile/migrations/.
 "
     exit 1
 }
@@ -93,7 +103,7 @@ declare -r pipeline_file=\${1:missing pipeline file}
 #
 # migration code here...
 #
-# For an example, refer to https://github.com/konflux-ci/build-definitions/?tab=readme-ov-file#task-migration
+# For an example, refer to the 'Task migration' section in SHARED-CI.md
 "
 }
 
@@ -104,13 +114,15 @@ create_migration() {
     local work_dir=
     local add_to_index=
     local opt=
+    local use_new_layout=
 
-    while getopts 't:v:w:ah' opt; do
+    while getopts 't:v:w:ahn' opt; do
         case "$opt" in
             t) task_name="$OPTARG" ;;
             v) task_version="$OPTARG" ;;
             w) work_dir="$OPTARG" ;;
             a) add_to_index=true ;;
+            n) use_new_layout=true ;;
             *) usage ;;
         esac
     done
@@ -125,7 +137,7 @@ create_migration() {
         cd "$work_dir" || exit 1
     fi
 
-    local -r task_dir="task/${task_name}"
+    local task_dir="task/${task_name}"
 
     if [[ ! -e "$task_dir" ]]; then
         error "task $task_dir does not exist."
@@ -133,28 +145,30 @@ create_migration() {
 
     local detected_version=
 
-    if [[ -z "$task_version" ]]; then
-        detected_version=$(
-            find "$task_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | \
-                sort -t. -k 1,1n -k 2,2n | \
-                tail -n1
-        )
-        if [[ -z "$detected_version" ]]; then
-            error "there is no version directory under $task_dir"
+    if [[ -z "$use_new_layout" ]]; then
+        if [[ -z "$task_version" ]]; then
+            detected_version=$(
+                find "$task_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | \
+                    sort -t. -k 1,1n -k 2,2n | \
+                    tail -n1
+            )
+            if [[ -z "$detected_version" ]]; then
+                error "there is no version directory under $task_dir"
+            fi
+            task_version="$detected_version"
         fi
-        task_version="$detected_version"
+
+        task_dir="${task_dir}/${task_version}"
+
+        if [[ ! -e "$task_dir" ]]; then
+            error "task directory does not exist: ${task_dir}"
+        fi
     fi
 
-    local -r versioned_dir="${task_dir}/${task_version}"
-
-    if [[ ! -e "$versioned_dir" ]]; then
-        error "task versioned directory does not exist: ${versioned_dir}"
-    fi
-
-    local -r migration_dir="${versioned_dir}/migrations"
+    local -r migration_dir="${task_dir}/migrations"
     [[ -e "$migration_dir" ]] || mkdir "$migration_dir"
 
-    if is_kustomized_task "$versioned_dir"; then
+    if is_kustomized_task "$task_dir"; then
         info "You are creating migration for a task kustomized from the other one."
         info "Migration directory has been created: $migration_dir. "
         info "Please create the migration file manually with correct version. REMEMBER to bump task version if necessary."
@@ -164,9 +178,7 @@ create_migration() {
         return 0
     fi
 
-    info "Creating a migration for task ${task_name}@${task_version}"
-
-    declare -r task_file="task/${task_name}/${task_version}/${task_name}.yaml"
+    declare -r task_file="${task_dir}/${task_name}.yaml"
     if [[ ! -e "$task_file" ]]; then
         error "task file $task_file does not exist."
     fi
@@ -175,8 +187,10 @@ create_migration() {
         yq '.metadata.labels."app.kubernetes.io/version"' "$task_file"
     )
 
-    if [[ "${major}.${minor}" != "$task_version" ]]; then
-        error "version ${major}.${minor}.${patch} is not a patched version of $task_version"
+    if [[ -z "$use_new_layout" ]]; then
+        if [[ "${major}.${minor}" != "$task_version" ]]; then
+            error "version ${major}.${minor}.${patch} is not a patched version of $task_version"
+        fi
     fi
 
     patch=$((patch+1))
@@ -186,6 +200,7 @@ create_migration() {
 
     local -r migration_file="${migration_dir}/${new_version}.sh"
     get_migration_template "$(date --iso-8601=s --utc)" "$task_name" "$new_version" >"$migration_file"
+    info "Created migration $migration_file"
 
     if [[ "$add_to_index" == true ]]; then
         git add "$task_file" "$migration_file"
