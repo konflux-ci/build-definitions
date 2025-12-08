@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
 set -o errexit
 set -o errtrace
 set -o nounset
@@ -14,20 +19,35 @@ command -v go &> /dev/null || { echo Please install golang to run this tool; exi
 HACK_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 TASK_DIR="$(realpath "${ROOT_DIR}/task")"
+TRUSTED_ARTIFACTS="task-generator/trusted-artifacts"
 
-tashbin="$(mktemp --dry-run)"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${ROOT_DIR}/task-generator/trusted-artifacts" -o "${tashbin}"
-trap 'rm "${tashbin}"' EXIT
+tashdir="$(mktemp --dry-run)"
+if [[ -d "${TRUSTED_ARTIFACTS}" ]]; then
+    tashbin=${tashdir}/trusted-artifacts
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${TRUSTED_ARTIFACTS}" -o "${tashbin}"
+else
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOBIN="$tashdir" go install "${TRUSTED_ARTIFACTS}"
+    bin=("${tashdir}"/*)
+    if [[ ${#bin[@]} -ne 1 ]]; then
+      echo "Expected exactly one executable, got ${#bin[@]}: ${bin[*]}" >&2
+      exit 1
+    fi
+    tashbin=${bin[0]}
+fi
+trap 'rm -r "${tashdir}"' EXIT
+
 tash() {
   "${tashbin}" "$@"
 }
 
 declare -i changes=0
 emit() {
+  local file=$1
+  local msg=$2
   if [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
-    printf "::error file=%s,line=1,col=0::%s\n" "$1" "$2"
+    printf "::error file=%s,line=1,col=0::%s\n" "$file" "$msg"
   else
-    printf "INFO: \033[1m%s\033[0m %s\n" "$1" "$2"
+    printf "INFO: \033[1m%s\033[0m %s\n" "$file" "$msg"
   fi
   changes=$((changes + 1))
 }
