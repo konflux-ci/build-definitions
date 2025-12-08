@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
 # Validate migration file introduced by a branch.
 #
 # This script can be run in the CI against a PR or in local from a topic branch.
@@ -77,40 +82,6 @@ prepare_pipelines() {
         info "fetch pipeline $pl_name from bundle $pl_bundle -> $pl_file"
         tkn bundle list "$pl_bundle" pipeline "$pl_name" -o yaml >"$pl_file"
     done <<<"$pushed_pipelines"
-
-    mkdir -p "${WORK_DIR}/pipelines/local"
-    kubectl kustomize --output "${WORK_DIR}/pipelines/local" pipelines/
-
-    local -r names="${pl_names_in_config[*]}"
-    read -r hexdigits _ < <(sha256sum "${BASH_SOURCE[0]}")
-    local -r fake_digest="sha256:${hexdigits}"
-    local fake_bundle_ref=
-    local task_name=
-    local task_selector=
-
-    find "${WORK_DIR}/pipelines/local" -type f -name "*.yaml" | \
-        while read -r file_path; do
-            if [[ ! "$names" =~ $(yq '.metadata.name' "$file_path") ]]; then
-                # Drop pipelines that are not included in the config above.
-                rm "$file_path"
-            else
-                # Replace taskRef with fake bundle reference so that the
-                # .taskRef.version field will not confuse tekton.
-                #
-                for task_name in $(yq '(.spec.tasks[], .spec.finally[]) | .name' "$file_path"); do
-                    fake_bundle_ref="{
-                        \"resolver\": \"bundles\",
-                        \"params\": [
-                            {\"name\": \"name\", \"value\": \"${task_name}\"},
-                            {\"name\": \"bundle\", \"value\": \"${fake_digest}\"},
-                            {\"name\": \"kind\", \"value\": \"task\"}
-                        ]
-                    }"
-                    task_selector="(.spec.tasks[], .spec.finally[]) | select(.name == \"${task_name}\")"
-                    yq -i "(${task_selector} | .taskRef) |= ${fake_bundle_ref}" "$file_path"
-                done
-            fi
-        done
 
     return 0
 }
@@ -208,19 +179,40 @@ resolve_migrations_parent_dir() {
     echo "${dir_path%/*}"  # remove path component migrations/
 }
 
-# Check a migration file is included in a task version-specific directory.
-# Each task version has its own migrations. Developers have to create
-# migrations/ directory under a specific task version directory, for example
-# task/buildah/0.2/migrations/.
-check_migrations_is_in_task_version_specific_dir() {
+# Construct expected task file path according to given migration file.
+# Arguments: a migration file path, e.g. task/foo/migrations/0.3.sh
+construct_task_file_path() {
     local -r migration_file=$1
-    local -r parent_dir=$(resolve_migrations_parent_dir "$migration_file")
-    local -r result=$(find task/*/* -type d -regex "$parent_dir" -print -quit)
-    if [ -z "$result" ]; then
-        info "${FUNCNAME[0]}: migrations/ directory is not created in a task version-specific directory. Current is under $parent_dir. To fix it, move it to a path like task/task-1/0.1/."
+    local task_dir
+    local task_file
+    local task_name
+
+    task_name=${migration_file#task/}
+    task_name=${task_name%%/*}
+    task_dir=${migration_file%/migrations/*}
+    printf "%s" "${task_dir}/${task_name}.yaml"
+}
+
+# Directory migrations/ must be present alongside task file.
+# In version-specific task directory, it is:
+#     task/<name>/<version>/<name>.yaml
+#     task/<name>/<version>/migrations/
+# Otherwise, it is:
+#      task/<name>/<name>.yaml
+#      task/<name>/migrations/
+# Arguments: a migration file path, e.g. task/foo/migrations/0.3.sh
+check_migrations_dir_alongside_task_file() {
+    local -r migration_file=$1
+    local task_file
+
+    task_file=$(construct_task_file_path "$migration_file")
+
+    if [ ! -f "$task_file" ]; then
+        error "Migration $migration_file is not present alongside task file $task_file."
         exit 1
     fi
 }
+
 
 # Check that version within the migration file name must match the task version
 # in task label .metadata.labels."app.kubernetes.io/version".
@@ -230,14 +222,15 @@ check_version_match() {
     local -r migration_file=$1
     local -r task_dir=$(resolve_migrations_parent_dir "$migration_file")
 
-    local task_name=${task_dir%/*}  # remove version part
-    task_name=${task_name##*/}  # remove all path components before the name
+    local task_name
+    task_name=${migration_file#task/}
+    task_name=${task_name%%/*}
 
     local task_version=
     local -r label=".metadata.labels.\"${LABEL_TASK_VERSION}\""
 
     if is_normal_task "$task_dir" "$task_name" ; then
-        task_version=$(yq "$label" "${task_dir}/${task_name}.yaml")
+        task_version=$(yq "$label" "$(construct_task_file_path "$migration_file")")
     elif is_kustomized_task "$task_dir" "$task_name"; then
         task_version=$(kubectl kustomize "$task_dir" | yq "$label")
     else
@@ -356,31 +349,18 @@ check_apply_in_real_cluster() {
 # Arguments: the normal-task migration file path
 check_oci_ta_migration() {
     local migration_file=$1
-    # e.g. migration_file=task/foo/0.2/migrations/0.2.1.sh
-    local parent_dir
-    parent_dir=$(resolve_migrations_parent_dir "$migration_file")    # => task/foo/0.2
+    local oci_migration_file
 
-    # get the “foo” and “0.2”
-    local task_dir="${parent_dir%/*}"                               # => task/foo
-    local task_name
-    task_name=$(basename "$task_dir")                               # => foo
-    local version
-    version=$(basename "$parent_dir")                               # => 0.2
-
-    # path to the OCI-TA variant and the migrations:
-    local oci_task_dir="${task_dir}-oci-ta/${version}"
-    local oci_mig_dir="${oci_task_dir}/migrations"
+    # Add suffix oci-ta to task name
+    oci_migration_file=$(sed -E 's|task/([^/]+)(.+)|task/\1-oci-ta\2|' <<<"$migration_file")
+    oci_task_dir=${oci_migration_file%/migrations/*.sh}
 
     if [ ! -d "$oci_task_dir" ]; then
-        info "OCI-TA variant not found for task '${task_name}' and version '${version}', skipping check."
+        info "OCI-TA variant ${oci_task_dir} is not found, skipping check."
         return 0
     fi
 
     # Check if the corresponding migration file exists in the OCI-TA variant
-    local migration_script_name
-    migration_script_name=$(basename "$migration_file")
-    local oci_migration_file="${oci_mig_dir}/${migration_script_name}"
-
     if [ ! -f "$oci_migration_file" ]; then
         error "OCI-TA variant of task '${task_name}' is missing migration script:"
         error "  ${oci_migration_file}"
@@ -442,8 +422,8 @@ main() {
         info "check if YAML modifications are done with 'pmt modify'"
         check_migrations_use_only_pmt "$migration_file"
 
-        info "check migrations/ is created in versioned-specific task directory"
-        check_migrations_is_in_task_version_specific_dir "$migration_file"
+        info "check migrations/ is present alongside task file."
+        check_migrations_dir_alongside_task_file "$migration_file"
         
         info "check OCI-TA variant has migration script"
         check_oci_ta_migration "$migration_file"
