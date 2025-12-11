@@ -178,11 +178,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### run-opm-command-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|CONVERT_TAGS_TO_DIGESTS| Optional. Convert all image tags in the catalog output to sha256 digests. Enabled by default. Set to 'false' to disable.| true| |
 |FILE_TO_UPDATE_PULLSPEC| Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.| ""| |
 |IDMS_PATH| Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'| .tekton/images-mirror-set.yaml| |
 |OPM_ARGS| The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).| []| []|
 |OPM_OUTPUT_PATH| Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).| None| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
+|caTrustConfigMapKey| The key in the ConfigMap containing the CA bundle.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap containing the CA bundle for TLS verification.| trusted-ca| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts. Empty string means no expiration.| None| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).opm'|
 ### validate-fbc:0.1 task parameters

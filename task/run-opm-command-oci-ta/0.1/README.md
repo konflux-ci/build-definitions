@@ -12,6 +12,7 @@ This task runs an OPM command with user-specified arguments, passed as an array.
 |OPM_ARGS|The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).|[]|false|
 |OPM_OUTPUT_PATH|Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).||true|
 |IDMS_PATH|Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'|.tekton/images-mirror-set.yaml|false|
+|CONVERT_TAGS_TO_DIGESTS|Optional. Convert image tags to sha256 digests in specific OLM catalog paths (`.image` and `.relatedImages[].image`). Enabled by default. Set to 'false' to disable.|"true"|false|
 
 ## Results
 |name|description|
@@ -32,8 +33,11 @@ and helps in automating the process of generating and validating OPM-related out
 The `run-opm-command-oci-ta` Task performs the following key steps:
 
 1.  **Retrieves Source Artifacts**: Downloads your application's source code, which should contain any necessary `opm` inputs (e.g., catalog templates). This is done using the `use-trusted-artifact` step.
-2.  **Applies ImageDigestMirrorSet (Optional)**: If an `ImageDigestMirrorSet` (IDMS) file is provided, this step replaces image pull specifications in the generated OPM output. This is handled by the `replace-related-images-pullspec-in-file` step which modifies a specified file before the `opm` command is run. 
+2.  **Applies ImageDigestMirrorSet (Optional)**: If an `ImageDigestMirrorSet` (IDMS) file is provided, this step replaces image pull specifications in the generated OPM output. This is handled by the `replace-related-images-pullspec-in-file` step which modifies a specified file before the `opm` command is run.
 3.  **Executes OPM Command**: Runs the `opm` command with user-defined arguments and redirects the output to a specified file within the source directory. This step is configured to fail if the output path is not provided or is absolute.
-4.  **Creates Trusted Artifact**: Uploads the modified source directory (including the `opm` command's output) as a new Trusted Artifact.
+4.  **Converts Image Tags to Digests**: When `CONVERT_TAGS_TO_DIGESTS` is enabled (default), image references in specific OLM catalog paths are converted from tag format (`image:tag`) to digest format (`image@sha256:...`). This ensures immutable image references. Only the following paths are processed:
+    - `.image` - The root-level bundle image
+    - `.relatedImages[].image` - Images in the relatedImages array
+5.  **Creates Trusted Artifact**: Uploads the modified source directory (including the `opm` command's output) as a new Trusted Artifact.
 
 ---
