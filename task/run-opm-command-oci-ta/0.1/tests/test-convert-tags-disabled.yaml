@@ -1,0 +1,175 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-convert-tags-to-digests-disabled
+spec:
+  description: |
+    Tests the convert_tags_to_digests step when CONVERT_TAGS_TO_DIGESTS is disabled.
+    Verifies that image tags are preserved (not converted) when the feature is off.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: create-source-artifact
+      params:
+        - name: ociStorage
+          value: registry-service.kind-registry/oci-ta:test-convert-disabled
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        results:
+          - name: SOURCE_ARTIFACT
+            type: string
+        params:
+          - name: ociStorage
+          - name: caTrustConfigMapName
+          - name: caTrustConfigMapKey
+        workspaces:
+          - name: tests-workspace
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: create-catalog-with-tags
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Create source directory structure
+              mkdir -p "$(workspaces.tests-workspace.path)/source/.konflux/catalog/test-operator"
+
+              # Create a catalog with tagged images (not digests)
+              # These are intentionally fake images - we're testing the skip logic
+              cat > "$(workspaces.tests-workspace.path)/source/.konflux/catalog/test-operator/catalog.json" << 'EOF'
+              {
+                "schema": "olm.bundle",
+                "name": "test-operator.v1.0.0",
+                "image": "registry.example.com/test/operator-bundle:v1.0.0",
+                "relatedImages": [
+                  {
+                    "name": "operator",
+                    "image": "registry.example.com/test/operator:v1.0.0"
+                  }
+                ]
+              }
+              EOF
+
+              echo "Created catalog with tagged images:"
+              cat "$(workspaces.tests-workspace.path)/source/.konflux/catalog/test-operator/catalog.json"
+          - name: create-trusted-artifact
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+            args:
+              - create
+              - --store
+              - $(params.ociStorage)
+              - $(results.SOURCE_ARTIFACT.path)=$(workspaces.tests-workspace.path)/source
+      workspaces:
+        - name: tests-workspace
+          workspace: tests-workspace
+    - name: run-task-with-conversion-disabled
+      taskRef:
+        name: run-opm-command-oci-ta
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.create-source-artifact.results.SOURCE_ARTIFACT)
+        - name: ociStorage
+          value: registry-service.kind-registry/oci-ta:test-convert-disabled-output
+        - name: ociArtifactExpiresAfter
+          value: ""
+        - name: OPM_ARGS
+          value: []
+        - name: OPM_OUTPUT_PATH
+          value: ".konflux/catalog/test-operator/catalog.json"
+        - name: CONVERT_TAGS_TO_DIGESTS
+          value: "false"
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      runAfter:
+        - create-source-artifact
+    - name: verify-tags-preserved
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.run-task-with-conversion-disabled.results.SOURCE_ARTIFACT)
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        params:
+          - name: SOURCE_ARTIFACT
+          - name: caTrustConfigMapName
+          - name: caTrustConfigMapKey
+        workspaces:
+          - name: tests-workspace
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: fetch-artifact
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+            args:
+              - use
+              - $(params.SOURCE_ARTIFACT)=$(workspaces.tests-workspace.path)/output
+          - name: verify-images-still-tagged
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              CATALOG_FILE="$(workspaces.tests-workspace.path)/output/.konflux/catalog/test-operator/catalog.json"
+
+              echo "Verifying catalog file..."
+              if [[ ! -f "${CATALOG_FILE}" ]]; then
+                echo "❌ Catalog file not found"
+                exit 1
+              fi
+
+              echo "Catalog content:"
+              cat "${CATALOG_FILE}"
+
+              # Define expected images as JSON array (tagged, not digests)
+              EXPECTED='["registry.example.com/test/operator-bundle:v1.0.0","registry.example.com/test/operator:v1.0.0"]'
+
+              # Extract actual images and compare with expected (order-independent)
+              ACTUAL=$(jq -c '[.. | objects | select(has("image")) | .image] | sort' "${CATALOG_FILE}")
+              EXPECTED_SORTED=$(echo "${EXPECTED}" | jq -c 'sort')
+
+              echo "Expected images: ${EXPECTED_SORTED}"
+              echo "Actual images:   ${ACTUAL}"
+
+              if [[ "${ACTUAL}" == "${EXPECTED_SORTED}" ]]; then
+                echo "✅ All images match exactly - tags preserved, no digests added"
+              else
+                echo "❌ Images do not match - conversion may have occurred or images modified"
+                exit 1
+              fi
+      workspaces:
+        - name: tests-workspace
+          workspace: tests-workspace
+      runAfter:
+        - run-task-with-conversion-disabled
