@@ -1,0 +1,223 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: github-sarif-upload
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: docker
+spec:
+  description: Downloads SARIF artifacts from container images and uploads them to GitHub using CodeQL CLI, making them visible in the Security tab.
+  params:
+    - name: GITHUB_REPOSITORY
+      description: GitHub repository in format 'owner/repo'
+      type: string
+    - name: GITHUB_REF
+      description: Git reference (branch or tag) for the scan results
+      type: string
+    - name: GITHUB_SHA
+      description: Git commit SHA for the scan results
+      type: string
+    - name: image-url
+      description: Image URL containing SARIF artifacts
+      type: string
+    - name: image-digest
+      description: Digest of the image containing SARIF artifacts
+      type: string
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+    computeResources:
+      limits:
+        cpu: "0.5"
+        memory: 1Gi
+      requests:
+        cpu: "0.5"
+        memory: 1Gi
+    env:
+      - name: GITHUB_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: github
+            key: token
+      - name: GITHUB_REPOSITORY
+        value: $(params.GITHUB_REPOSITORY)
+      - name: GITHUB_REF
+        value: $(params.GITHUB_REF)
+      - name: GITHUB_SHA
+        value: $(params.GITHUB_SHA)
+      - name: IMAGE_URL
+        value: $(params.image-url)
+      - name: IMAGE_DIGEST
+        value: $(params.image-digest)
+  steps:
+    - name: validate-inputs
+      image: quay.io/konflux-ci/konflux-test:v1.4.40@sha256:99eb8bcc7bcb35bdd5edea7b0ac333bbdb67586dea6b4dab92baf2b8fb32bf2c
+      workingDir: /var/workdir
+      script: |
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        echo "[$(date --utc -Ins)] Validating inputs"
+
+        # Validate GITHUB_TOKEN from secret
+        if [ -z "${GITHUB_TOKEN}" ]; then
+          echo "ERROR: GITHUB_TOKEN is required" >&2
+          exit 1
+        fi
+
+        # Validate GitHub repository format
+        if [[ ! "${GITHUB_REPOSITORY}" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]]; then
+          echo "ERROR: GITHUB_REPOSITORY must be in format 'owner/repo'" >&2
+          exit 1
+        fi
+
+        echo "[$(date --utc -Ins)] Input validation completed successfully"
+
+    - name: discover-and-pull-sarif-artifacts
+      image: quay.io/konflux-ci/oras:latest@sha256:1beeecce012c99794568f74265c065839f9703d28306a8430b667f639343a98b
+      workingDir: /var/workdir
+      script: |
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+
+        echo "[$(date --utc -Ins)] Discovering and pulling SARIF artifacts from image: ${IMAGE_URL}@${IMAGE_DIGEST}"
+
+        # Select auth for the registry
+        echo "[$(date --utc -Ins)] Selecting auth for ${IMAGE_URL}"
+        select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+
+        # Discover SARIF artifacts using oras
+        echo "[$(date --utc -Ins)] Discovering SARIF artifacts..."
+        discover_output=$(oras discover --artifact-type application/sarif+json --registry-config "${HOME}/auth.json" "${IMAGE_URL}@${IMAGE_DIGEST}" --format json)
+
+        # Debug: Print the raw output
+        echo "[$(date --utc -Ins)] Raw oras discover output:"
+        echo "${discover_output}"
+        echo ""
+
+        echo "[$(date --utc -Ins)] Parsing oras output to extract digests..."
+        # Check if manifests exist and extract digests
+        manifests_count=$(echo "${discover_output}" | yq -p=json '.manifests | length // 0')
+
+        # Create directory for the SARIF artifacts
+        mkdir -p /var/workdir/sarif-artifacts
+
+        if [ "${manifests_count}" -eq 0 ]; then
+          echo "[$(date --utc -Ins)] No manifests found in output"
+          echo "[$(date --utc -Ins)] No SARIF artifacts found in image ${IMAGE_URL}@${IMAGE_DIGEST}"
+          exit 0
+        fi
+
+        # Extract digests from JSON using yq - get all digests from manifests array
+        digests=$(echo "${discover_output}" | yq -p=json '.manifests[].digest' | grep -v '^$' | grep -v 'null' || true)
+
+        # If manifests exist but no digests extracted, this is a parsing error
+        if [ -z "${digests}" ]; then
+          echo "ERROR: Found ${manifests_count} manifests but failed to extract digests" >&2
+          echo "ERROR: This indicates a parsing failure in the oras discover output" >&2
+          exit 1
+        fi
+
+        echo "[$(date --utc -Ins)] Found digests:"
+        echo "${digests}"
+
+        # Use oras to pull artifacts
+        echo "[$(date --utc -Ins)] Pulling SARIF artifacts using oras..."
+
+        for digest in ${digests}; do
+          echo "[$(date --utc -Ins)] Pulling artifact with digest: ${digest}"
+          # Use oras to pull the artifact
+          if oras pull --no-tty --registry-config "${HOME}/auth.json" "${IMAGE_URL}@${digest}" --output /var/workdir/sarif-artifacts/; then
+            echo "[$(date --utc -Ins)] Successfully pulled artifact ${digest}"
+          else
+            echo "ERROR: Failed to pull artifact ${digest}" >&2
+            exit 1
+          fi
+        done
+
+    - name: upload-sarif
+      image: quay.io/konflux-ci/konflux-test:v1.4.40@sha256:99eb8bcc7bcb35bdd5edea7b0ac333bbdb67586dea6b4dab92baf2b8fb32bf2c
+      workingDir: /var/workdir
+      script: |
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+        # shellcheck source=/dev/null
+        . /utils.sh
+        trap 'handle_error $(results.TEST_OUTPUT.path)' EXIT
+
+        echo "[$(date --utc -Ins)] Fix permissions on Java binaries in CodeQL bundle"
+        # Only the Java binaries need to be executable.
+        if [ -d "/usr/local/bin/codeql/tools/linux64/java/bin" ]; then
+          find /usr/local/bin/codeql/tools/linux64/java/bin -type f -exec chmod +x {} \;
+          echo "[$(date --utc -Ins)] Fixed Java binary permissions"
+        fi
+
+        echo "[$(date --utc -Ins)] Starting SARIF upload to GitHub using CodeQL CLI"
+
+        # Find all SARIF files in the sarif-artifacts directory
+        sarif_files=""
+        shopt -s nullglob
+        for file in /var/workdir/sarif-artifacts/*.sarif; do
+          sarif_files="${sarif_files} $(basename "${file}")"
+        done
+        sarif_files="${sarif_files# }"
+        shopt -u nullglob
+
+        if [ -z "${sarif_files}" ]; then
+          echo "[$(date --utc -Ins)] No SARIF files found in sarif-artifacts directory, nothing to upload"
+          note="Task $(context.task.name) success: No SARIF artifacts found in image, nothing to upload"
+          TEST_OUTPUT=$(make_result_json -r SUCCESS -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        echo "[$(date --utc -Ins)] Found SARIF files:"
+        echo "${sarif_files}"
+
+        # Upload each SARIF file using CodeQL CLI with retry
+        for sarif_file in ${sarif_files}; do
+          echo "[$(date --utc -Ins)] Uploading ${sarif_file} to GitHub..."
+
+          # Build CodeQL command array
+          codeql_cmd=(
+            "/usr/local/bin/codeql/codeql"
+            "github"
+            "upload-results"
+            "--repository=${GITHUB_REPOSITORY}"
+            "--commit=${GITHUB_SHA}"
+            "--ref=${GITHUB_REF}"
+            "--sarif=/var/workdir/sarif-artifacts/${sarif_file}"
+          )
+
+          # Use CodeQL CLI to upload SARIF file with retry
+          if retry "${codeql_cmd[@]}"; then
+            echo "[$(date --utc -Ins)] Successfully uploaded ${sarif_file}"
+          else
+            echo "ERROR: Failed to upload ${sarif_file} to GitHub" >&2
+            exit 1
+          fi
+        done
+
+        echo "[$(date --utc -Ins)] SARIF upload completed successfully"
+
+        # Generate TEST_OUTPUT result
+        note="Task $(context.task.name) success: SARIF files uploaded to GitHub successfully"
+        TEST_OUTPUT=$(make_result_json -r SUCCESS -s 1 -t "$note")
+        echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
