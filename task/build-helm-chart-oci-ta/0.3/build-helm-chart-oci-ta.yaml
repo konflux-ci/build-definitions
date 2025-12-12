@@ -72,6 +72,12 @@ spec:
         instead of computing a version from git metadata.
       type: string
       default: ""
+    - name: APP_VERSION
+      description: >-
+        Optional appVersion override. When set, this value is used directly
+        instead of defaulting to COMMIT_SHA.
+      type: string
+      default: ""
   results:
     - name: IMAGE_DIGEST
       description: Digest of the OCI-Artifact just built
@@ -123,6 +129,8 @@ spec:
           value: $(params.IMAGE_MAPPINGS)
         - name: CHART_VERSION
           value: $(params.CHART_VERSION)
+        - name: APP_VERSION
+          value: $(params.APP_VERSION)
       args:
         - "$(params.VALUES_FILES[*])"
       script: |
@@ -278,7 +286,15 @@ spec:
           helm dependency build .
         fi
 
-        helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
+        # Determine appVersion
+        if [ -n "$APP_VERSION" ]; then
+          echo "Using provided appVersion: $APP_VERSION"
+          app_version="$APP_VERSION"
+        else
+          app_version="$COMMIT_SHA"
+        fi
+
+        helm package . --version "$chart_version" --app-version "$app_version"
 
         # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
         # need to provide it with just one option
