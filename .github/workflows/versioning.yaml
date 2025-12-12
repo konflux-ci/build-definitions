@@ -5,25 +5,28 @@
 # Please consider sending a PR upstream instead of editing the file directly.
 # See the SHARED-CI.md document in this repo for more details.
 
-name: Validate PR - kustomize manifests
+name: Check versioning
 'on':
   pull_request:
     branches: [main]
-  merge_group:
-    types: [checks_requested]
 jobs:
-  kustomize-build:
-    name: Check Kustomize Build of Task
+  check:
+    name: Check versioning
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - name: Install oc
+        with:
+          fetch-depth: 0
+
+      - name: Check versioning
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
+          #!/bin/bash
           set -euo pipefail
-          url=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.17/openshift-client-linux.tar.gz
-          if ! which oc; then
-            curl --fail --no-progress-meter -L "$url" | gzip -cd | sudo -- tar -x -C /usr/bin oc
+
+          if ! hack/versioning.py check --base-ref "$BASE_REF"; then
+            echo "To see the errors/warnings inline, go to the 'Files changed' view or the 'Commits' view."
+            exit 1
           fi
-      - name: Validate Manifests
-        run: hack/verify-manifests.sh
