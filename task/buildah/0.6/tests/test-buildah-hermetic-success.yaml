@@ -1,0 +1,92 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-buildah-hermetic-success
+spec:
+  description: |
+    Test the buildah task with hermetic mode for a build that doesn't need network
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: create-dockerfile
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Create a simple Dockerfile that doesn't require network access
+              mkdir -p "$(workspaces.source.path)"
+              cat > "$(workspaces.source.path)/Dockerfile" << 'EOF'
+              FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:d85040b6e3ed3628a89683f51a38c709185efc3fb552db2ad1b9180f2a6c38be
+              RUN echo "Building in hermetic mode - no network access" > /hermetic.txt
+              EOF
+
+              echo "Created Dockerfile:"
+              cat "$(workspaces.source.path)/Dockerfile"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+    - name: run-buildah
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: registry-service.kind-registry/test-buildah-hermetic:latest
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: .
+        - name: HERMETIC
+          value: "true"
+        - name: SKIP_SBOM_GENERATION
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+      runAfter:
+        - setup-source
+    - name: verify-build
+      params:
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-buildah.results.IMAGE_DIGEST)
+        - name: IMAGE_URL
+          value: $(tasks.run-buildah.results.IMAGE_URL)
+      taskSpec:
+        params:
+          - name: IMAGE_DIGEST
+          - name: IMAGE_URL
+        steps:
+          - name: check-image
+            env:
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              echo "Checking that IMAGE_DIGEST is not empty"
+              if [ -z "$IMAGE_DIGEST" ]; then
+                echo "ERROR: IMAGE_DIGEST is empty"
+                exit 1
+              fi
+              echo "IMAGE_DIGEST: $IMAGE_DIGEST"
+
+              echo "Checking that IMAGE_URL is not empty"
+              if [ -z "$IMAGE_URL" ]; then
+                echo "ERROR: IMAGE_URL is empty"
+                exit 1
+              fi
+              echo "IMAGE_URL: $IMAGE_URL"
+
+              echo "Hermetic build succeeded without network access"
+      runAfter:
+        - run-buildah
