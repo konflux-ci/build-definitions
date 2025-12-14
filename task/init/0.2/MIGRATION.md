@@ -63,3 +63,14 @@ The migration script failed to detect variations of buildah task and therefore d
 ## Action from users
 
 No action required. The migration script automatically handles all necessary changes.
+
+# Migration from 0.2.5 to 0.2.6
+
+The init task now initializes the parameters for caching.
+It fetches the parameters from `cluster-config` configmap and updates
+`enable-cache-proxy`, `no-proxy` and `http-proxy` accordingly
+
+
+## Action from users
+
+No action required.
