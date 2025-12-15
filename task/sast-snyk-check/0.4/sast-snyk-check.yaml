@@ -201,13 +201,21 @@ spec:
           echo "INFO: Scanning directory: $resolved_path"
           # We do want to expand ARGS (it can be multiple CLI flags, not just one)
           # shellcheck disable=SC2086
-          snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$resolved_path" --max-depth=1 --sarif-file-output="${resolved_path}/sast_snyk_check_out_${d//\//_}.json" 1>&2>> stdout.txt || true
+          snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$resolved_path" --max-depth=1 --sarif-file-output="${resolved_path}/sast_snyk_check_out_${d//\//_}.json" 1>&2>> stdout.txt
+          cmd_exit_code=$?
+          # Track the exit code: if any snyk command fails, preserve the failure
+          # Exit codes: 0 = success, 1 = vulnerabilities found, 2 = error, 3 = no supported files
+          if [[ "$cmd_exit_code" -ne 0 ]] && [[ "$cmd_exit_code" -ne 1 ]] && [[ "$cmd_exit_code" -ne 3 ]]; then
+            # For errors (like invalid token), set SNYK_EXIT_CODE to the error code
+            SNYK_EXIT_CODE=$cmd_exit_code
+          elif [[ "$SNYK_EXIT_CODE" -eq 0 ]] && [[ "$cmd_exit_code" -ne 0 ]]; then
+            # For other non-zero codes (1 or 3), preserve them if we haven't seen an error yet
+            SNYK_EXIT_CODE=$cmd_exit_code
+          fi
         done
 
         # Merge all SARIF outputs
         find "$SOURCE_CODE_DIR" -name "sast_snyk_check_out_*.json" -exec cat {} + > "${SOURCE_CODE_DIR}/sast_snyk_check_out.json"
-
-        SNYK_EXIT_CODE=$?
         set -e
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
