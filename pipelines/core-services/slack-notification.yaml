@@ -4,6 +4,16 @@
     name: slack-webhook-notification-team
     default: ""
 - op: add
+  path: /spec/tasks/-
+  value:
+    name: extract-slack-message
+    taskRef:
+      name: extract-slack-notification-message
+      version: "0.1"
+    params:
+    - name: pipeline-run-name
+      value: $(context.pipelineRun.name)
+- op: add
   path: /spec/finally/-
   value:
     name: slack-webhook-notification
@@ -19,6 +29,6 @@
       values: ["Failed"]
     params:
     - name: message
-      value: Tekton pipelineRun $(context.pipelineRun.name) failed
+      value: $(tasks.extract-slack-message.results.message)
     - name: key-name
       value: $(params.slack-webhook-notification-team)
