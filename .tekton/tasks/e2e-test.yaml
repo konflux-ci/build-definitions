@@ -40,7 +40,7 @@ spec:
         secretName: konflux-test-infra
   steps:
     - name: e2e-test
-      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:eceb13540ba79f11a41fafe08fc91f8cb86a86ce
+      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:2b2959579cb0b00064bee5759632c3e929025eef
       command: ["/konflux-e2e/konflux-e2e.test"]
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
@@ -59,8 +59,6 @@ spec:
       env:
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
-      - name: COMPONENT_REPO_URLS
-        value: "https://github.com/konflux-qe-bd/devfile-sample-python-basic,https://github.com/konflux-qe-bd/devfile-sample-python-basic-clone,https://github.com/konflux-qe-bd/multiarch-sample-repo,https://github.com/konflux-qe-bd/multiarch-sample-repo-clone,https://github.com/konflux-qe-bd/retrodep,https://github.com/konflux-qe-bd/pip-e2e-test,https://github.com/konflux-qe-bd/fbc-sample-repo,https://github.com/konflux-qe-bd/docker-file-from-scratch,https://github.com/konflux-qe-bd/oci-archive-test"
       - name: QUAY_E2E_ORGANIZATION
         value: redhat-appstudio-qe
       - name: E2E_APPLICATIONS_NAMESPACE
@@ -89,6 +87,8 @@ spec:
         value: "$(params.docker-build-multi-platform-oci-ta-bundle)"
       - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
         value: "$(params.fbc-builder-bundle)"
+      - name: PR_CHANGED_FILES
+        value: "$(params.changed_files)"
     - name: capture-log
       image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-$(params.revision)
       script: |
