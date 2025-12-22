@@ -260,6 +260,7 @@ spec:
   stepTemplate:
     computeResources:
       limits:
+        cpu: "1"
         memory: 4Gi
       requests:
         cpu: "1"
@@ -345,9 +346,10 @@ spec:
     - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
+        cpu: "5"
         memory: 8Gi
       requests:
-        cpu: "1"
+        cpu: "5"
         memory: 8Gi
     env:
     - name: COMMIT_SHA
@@ -1124,7 +1126,13 @@ spec:
       name: ssh
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 400m
+        memory: 4Gi
+      requests:
+        cpu: 400m
+        memory: 4Gi
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -1212,7 +1220,13 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 500m
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 4Gi
     image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     name: sbom-syft-generate
     script: |
@@ -1281,10 +1295,11 @@ spec:
     - $(params.ADDITIONAL_BASE_IMAGES[*])
     computeResources:
       limits:
-        memory: 512Mi
+        cpu: 700m
+        memory: 256Mi
       requests:
-        cpu: 100m
-        memory: 512Mi
+        cpu: 700m
+        memory: 256Mi
     image: quay.io/konflux-ci/mobster:1.1.0-1763042639@sha256:028dfcf2ac8b0404141550de17364bf049b0ddb35f45a24a075bc1f485a56c80
     name: prepare-sboms
     script: |
@@ -1371,10 +1386,11 @@ spec:
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
-        memory: 512Mi
+        cpu: 100m
+        memory: 256Mi
       requests:
         cpu: 100m
-        memory: 512Mi
+        memory: 256Mi
     image: quay.io/konflux-ci/appstudio-utils:latest@sha256:2b004dc4b55529823e8994e33df0d80e3d1de610e116f830e2b6d5d6e5539186
     name: upload-sbom
     script: |
