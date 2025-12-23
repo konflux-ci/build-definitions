@@ -1,0 +1,57 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-buildah-hermetic-failure
+  annotations:
+    test/assert-task-failure: "run-buildah"
+spec:
+  description: |
+    Test the buildah task with hermetic mode for a build that requires network
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: create-dockerfile
+            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Create a Dockerfile that tries to download from the internet
+              # This should fail in hermetic mode due to network isolation
+              mkdir -p "$(workspaces.source.path)"
+              cat > "$(workspaces.source.path)/Dockerfile" << 'EOF'
+              FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:d85040b6e3ed3628a89683f51a38c709185efc3fb552db2ad1b9180f2a6c38be
+              RUN microdnf install -y curl && \
+                  curl -O https://www.redhat.com/index.html
+              EOF
+
+              echo "Created Dockerfile that requires network:"
+              cat "$(workspaces.source.path)/Dockerfile"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+    - name: run-buildah
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: registry-service.kind-registry/test-buildah-hermetic-fail:latest
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: .
+        - name: HERMETIC
+          value: "true"
+        - name: SKIP_SBOM_GENERATION
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: tests-workspace
+      runAfter:
+        - setup-source
