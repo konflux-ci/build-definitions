@@ -1,0 +1,469 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: disk-image
+  name: build-vm-image-rootless
+spec:
+  description: "Build disk images using bootc-image-builder in rootless mode on non-root platforms. https://github.com/osbuild/bootc-image-builder/"
+  params:
+    - description: The platform to build on
+      name: PLATFORM
+      type: string
+    - default: "false"
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      name: IMAGE_APPEND_PLATFORM
+      type: string
+    - name: OUTPUT_IMAGE
+      type: string
+      description: The output manifest list that points to the OCI artifact of the zipped image
+    - name: SOURCE_ARTIFACT
+      type: string
+    - name: IMAGE_TYPE
+      type: string
+      description: The type of VM image to build, valid values are iso, qcow2, gce, vhd and raw
+    - name: BIB_CONFIG_FILE
+      default: bib.yaml
+      type: string
+      description: The config file specifying what to build and the builder to build it with
+    - name: CONFIG_TOML_FILE
+      default: ""
+      type: string
+      description: The path for the config.toml file within the source repository
+    - default: etc-pki-entitlement
+      description: Name of secret which contains the entitlement certificates
+      name: ENTITLEMENT_SECRET
+      type: string
+    - default: activation-key
+      description: Name of secret which contains subscription activation key
+      name: ACTIVATION_KEY
+      type: string
+    - name: STORAGE_DRIVER
+      description: Storage driver to configure for buildah
+      type: string
+      default: vfs
+  results:
+    - description: Digest of the manifest list just built
+      name: IMAGE_DIGEST
+    - description: Image repository where the built manifest list was pushed
+      name: IMAGE_URL
+    - description: Image reference (IMAGE_URL + IMAGE_DIGEST)
+      name: IMAGE_REFERENCE
+  stepTemplate:
+    env:
+      - name: OUTPUT_IMAGE
+        value: $(params.OUTPUT_IMAGE)
+      - name: BIB_CONFIG_FILE
+        value: $(params.BIB_CONFIG_FILE)
+      - name: CONFIG_TOML_FILE
+        value: $(params.CONFIG_TOML_FILE)
+      - name: IMAGE_TYPE
+        value: $(params.IMAGE_TYPE)
+      - name: ENTITLEMENT_SECRET
+        value: $(params.ENTITLEMENT_SECRET)
+      - name: ACTIVATION_KEY
+        value: $(params.ACTIVATION_KEY)
+      - name: STORAGE_DRIVER
+        value: $(params.STORAGE_DRIVER)
+      - name: BUILDAH_IMAGE
+        value: 'registry.access.redhat.com/ubi9/buildah:9.6-1762316214'
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
+    volumeMounts:
+      - mountPath: "/var/workdir"
+        name: workdir
+      - mountPath: "/var/lib/containers/storage"
+        name: varlibcontainers
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7d829000642752a739f7823b1981e5bcfbc70da48d473f04b624ec8bf784322b
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: validate-bib-config
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
+      script: |-
+        #!/bin/bash
+        set -o verbose
+        set -e
+        set -x
+
+        # expects a config file like the following as BIB_CONFIG_FILE
+        #
+        echo -e "BIB_CONFIG_FILE: $BIB_CONFIG_FILE"
+        # # BIB: Bootc Image Builder config
+        # bootc-builder-image: "quay.io/centos-bootc/bootc-image-builder:latest"
+        # source-image: "quay.io/centos-bootc/centos-bootc:stream9"
+        # tagged-as: registry.centos.org/bootc:stream9
+
+        # trim any leading slash.
+        BIB_CONFIG_FILE=${BIB_CONFIG_FILE#/}
+
+        BIB_IMAGE=$(yq -r .bootc-builder-image /var/workdir/source/$BIB_CONFIG_FILE)
+        SOURCE_IMAGE=$(yq -r  .source-image /var/workdir/source/$BIB_CONFIG_FILE)
+        TAGGED_AS=$(yq -r  ".tagged-as // \"${SOURCE_IMAGE}\"" /var/workdir/source/$BIB_CONFIG_FILE)
+
+        # Validate that all keys exist and are plausible pullspecs
+        valid_pullspec_characters="0-9a-zA-Z@:/"
+        if [[ ! "${BIB_IMAGE}" =~ [^$valid_pullspec_characters]  ]]; then
+          echo ".bootc-builder-image in $BIB_CONFIG_FILE doesn't match $valid_pullspec_characters"
+          exit 1
+        fi
+        if [[ ! "${SOURCE_IMAGE}" =~ [^$valid_pullspec_characters]  ]]; then
+          echo ".source-image in $BIB_CONFIG_FILE doesn't match $valid_pullspec_characters"
+          exit 1
+        fi
+        if [[ ! "${TAGGED_AS}" =~ [^$valid_pullspec_characters]  ]]; then
+          echo ".tagged-as in $BIB_CONFIG_FILE doesn't match $valid_pullspec_characters"
+          exit 1
+        fi
+
+        # write values to a file in the workspace
+        echo "declare BOOTC_BUILDER_IMAGE=${BIB_IMAGE}" > /var/workdir/vars
+        echo "declare SOURCE_IMAGE=${SOURCE_IMAGE}" >> /var/workdir/vars
+        echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
+
+    - name: build
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 250m
+          memory: 128Mi
+      script: |-
+        #!/bin/bash
+        set -o verbose
+        set -eu
+        set -x
+
+        # get values stored from previous task
+        echo "vars file"
+        cat /var/workdir/vars
+        source /var/workdir/vars
+        echo "Vars:"
+        echo BOOTC_BUILDER_IMAGE $BOOTC_BUILDER_IMAGE
+        echo SOURCE_IMAGE $SOURCE_IMAGE
+        echo TAGGED_AS $TAGGED_AS
+
+        mkdir -p ~/.ssh
+        if [ -e "/ssh/error" ]; then
+          #no server could be provisioned
+          cat /ssh/error
+          exit 1
+        elif [ -e "/ssh/otp" ]; then
+          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+          echo "" >> ~/.ssh/id_rsa
+        else
+          cp /ssh/id_rsa ~/.ssh
+        fi
+        chmod 0400 ~/.ssh/id_rsa
+        export SSH_HOST=$(cat /ssh/host)
+        export BUILD_DIR=$(cat /ssh/user-dir)
+        export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60)
+        mkdir -p scripts
+        echo "$BUILD_DIR"
+        ssh -v "${SSH_ARGS[@]}" "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement" "$BUILD_DIR/activation-key" "$BUILD_DIR/var/tmp"
+
+        if [ ! -n "${CONFIG_TOML_FILE}" ]; then
+          echo "No CONFIG_TOML_FILE specified"
+          export CONFIG_TOML_FILE=config.toml
+          if [ -f /var/workdir/source/config.toml ]; then
+            echo "Using the config.toml file found in the repository root!"
+            echo "  Remove the config.toml file or set params.CONFIG_TOML_FILE to another file to prevent using config.toml."
+          else
+            echo "No config.toml file found. Using an empty configuration."
+            touch /var/workdir/source/$CONFIG_TOML_FILE
+          fi
+        fi
+        echo "Using the following config.toml file $CONFIG_TOML_FILE:"
+        cat /var/workdir/source/$CONFIG_TOML_FILE
+
+
+        rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
+        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        # Rsync activation-key for remote registration or entitlement certificates if provided
+        if [ -e "/activation-key/org" ]; then
+          echo "Syncing activation-key for remote registration"
+          rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/activation-key/"
+        elif [ -d "/entitlement" ] && [ "$(ls -A /entitlement)" ]; then
+          echo "Syncing provided entitlement certificates"
+          rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
+        fi
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export OUTPUT_IMAGE
+        fi
+
+        ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
+        echo "ARCH: '${ARCH}'"
+
+        # form the --type arguments
+        IMAGE_TYPE_ARGUMENT=" --type $IMAGE_TYPE "
+
+        # this unquoted heredoc allows expansions for the image name
+        cat >scripts/script-build.sh <<REMOTESSHEOF
+        #!/bin/bash
+        set -e
+
+        export BUILD_DIR="$BUILD_DIR"
+        export OUTPUT_IMAGE="$OUTPUT_IMAGE"
+        export BOOTC_BUILDER_IMAGE="$BOOTC_BUILDER_IMAGE"
+        export SOURCE_IMAGE="$SOURCE_IMAGE"
+        export TAGGED_AS="$TAGGED_AS"
+        export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
+        export STORAGE_DRIVER="$STORAGE_DRIVER"
+        export BUILDAH_IMAGE="$BUILDAH_IMAGE"
+
+        REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+
+        # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
+        cat >>scripts/script-build.sh <<'REMOTESSHEOF'
+
+        echo "[$(date --utc -Ins)] Prepare system for rootless podman (architecture: $(uname -m))"
+
+        # Setup rootless podman environment
+        # Fixing group permission on /var/lib/containers (if writable)
+        if [ -w /var/lib/containers ]; then
+          chown $(id -u):$(id -g) /var/lib/containers 2>/dev/null || true
+        fi
+
+        # Configure short-name-mode to disabled
+        mkdir -p ~/.config/containers
+        if [ -f /etc/containers/registries.conf ]; then
+          cp /etc/containers/registries.conf ~/.config/containers/ 2>/dev/null || true
+        fi
+        if [ -f ~/.config/containers/registries.conf ]; then
+          sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' ~/.config/containers/registries.conf
+        fi
+
+        # Setting new namespace to run podman in rootless mode - 2^32-2
+        # This enables user namespaces for rootless containers
+        echo "$(id -u):1:4294967294" | tee -a /etc/subuid >/dev/null 2>&1 || true
+        echo "$(id -g):1:4294967294" | tee -a /etc/subgid >/dev/null 2>&1 || true
+
+        # Remove mounts.conf if it exists and we have permission
+        if [ -f /usr/share/containers/mounts.conf ] && [ -w /usr/share/containers/mounts.conf ]; then
+          rm /usr/share/containers/mounts.conf 2>/dev/null || true
+        fi
+
+        mkdir output
+        buildah_retries=3
+
+        # Register with subscription manager if activation key is provided
+        # This happens on the remote VM inside a container to ensure correct architecture-specific repos
+        # We run it in a container (as root inside container) with rootless podman
+        if [ -e "$BUILD_DIR/activation-key/org" ] && [ -e "$BUILD_DIR/activation-key/activationkey" ]; then
+          echo "Activation key found, registering with subscription manager on remote VM ($(uname -m))"
+          mkdir -p $BUILD_DIR/entitlement
+          mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/entitlement
+          mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/consumer
+
+          export RETRY_MAX_TRIES=6
+          # Run subscription-manager inside a container where we're root (rootless podman with --user=0)
+          if ! retry podman run --rm --user=0 \
+            -v $BUILD_DIR/activation-key:/activation-key:Z \
+            -v $BUILD_DIR/rhsm-tmp/etc/pki/entitlement:/etc/pki/entitlement:Z \
+            -v $BUILD_DIR/rhsm-tmp/etc/pki/consumer:/etc/pki/consumer:Z \
+            "$BUILDAH_IMAGE" \
+            /bin/bash -c 'subscription-manager register --org "$(cat /activation-key/org)" --activationkey "$(cat /activation-key/activationkey)"'
+          then
+            echo "Subscription-manager register failed on remote VM"
+            exit 1
+          fi
+          unset RETRY_MAX_TRIES
+
+          # Unregister on exit using a container
+          trap 'podman run --rm --user=0 -v $BUILD_DIR/rhsm-tmp/etc/pki/entitlement:/etc/pki/entitlement:Z -v $BUILD_DIR/rhsm-tmp/etc/pki/consumer:/etc/pki/consumer:Z "$BUILDAH_IMAGE" /bin/bash -c "subscription-manager unregister || true"' EXIT
+
+          # Copy generated certificates to entitlement directory for the build
+          if ! cp $BUILD_DIR/rhsm-tmp/etc/pki/entitlement/*.pem $BUILD_DIR/entitlement/ 2>/dev/null; then
+            echo "Warning: No entitlement certificates found after registration"
+            ls -la $BUILD_DIR/rhsm-tmp/etc/pki/entitlement/ || true
+          fi
+          echo "Entitlement certificates generated on remote VM ($(uname -m))"
+        fi
+
+        # Check if entitlement certificates are available (from activation-key or directly provided)
+        ENTITLEMENT_VOLUME=""
+        if [ -d "$BUILD_DIR/entitlement" ] && [ "$(ls -A $BUILD_DIR/entitlement)" ]; then
+          # Use entitlement certificates (generated from activation-key or directly provided)
+          ENTITLEMENT_VOLUME="-v $BUILD_DIR/entitlement:/etc/pki/entitlement:Z"
+          echo "Using entitlement certificates for the build"
+        fi
+
+        echo "PULLING BUILDER IMAGE"
+        if ! time retry podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $BOOTC_BUILDER_IMAGE
+        then
+            echo "Failed to pull image ${BOOTC_BUILDER_IMAGE} from registry"
+            exit 1
+        fi
+        echo "PULLING IMAGE"
+        if ! time retry podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" $SOURCE_IMAGE
+        then
+            echo "Failed to pull image ${SOURCE_IMAGE} from registry"
+            exit 1
+        fi
+        echo "TAGGING IMAGE"
+        time podman tag $SOURCE_IMAGE $TAGGED_AS
+        echo "RUNNING BUILD"
+        echo -e "IMAGE_TYPE_ARGUMENT = $IMAGE_TYPE_ARGUMENT"
+
+        # Use privileged mode with /var/tmp mount for bootc-image-builder
+        # This is required for rpm-ostree cache filesystem that needs SELinux attributes
+        # See: https://github.com/coreos/rpm-ostree/discussions/4648
+        time podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it \
+          --privileged \
+          --pull=newer \
+          --security-opt label=type:unconfined_t \
+          -v $BUILD_DIR/config.toml:/config.toml \
+          -v $(pwd)/output:/output \
+          -v /var/lib/containers/storage:/var/lib/containers/storage \
+          -v $BUILD_DIR/var/tmp:/var/tmp \
+          $ENTITLEMENT_VOLUME \
+          $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
+
+        time podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it \
+          --privileged \
+          --pull=newer \
+          --security-opt label=type:unconfined_t \
+          -v $BUILD_DIR/.docker:/.docker \
+          -v $(pwd)/output:/output \
+          -v /var/lib/containers/storage:/var/lib/containers/storage \
+          -v $BUILD_DIR/scripts/script-push.sh:/script-push.sh \
+          -v $BUILD_DIR/tekton-results:/tekton-results \
+          --user=0 \
+          "$BUILDAH_IMAGE" \
+          /script-push.sh
+
+        REMOTESSHEOF
+
+        # script-push.sh script runs inside podman on the ssh host
+        # this unquoted heredoc allows expansions for the image name
+        cat >scripts/script-push.sh <<REMOTESSHEOF
+        #!/bin/bash
+        set -ex
+
+        export OUTPUT_IMAGE="$OUTPUT_IMAGE"
+
+        REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        cat /usr/bin/retry | sed 1d >> scripts/script-push.sh
+
+        # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
+        cat >>scripts/script-push.sh <<'REMOTESSHEOF'
+        dnf -y install buildah skopeo pigz jq
+
+        # Build an image index of length 1 referring to an image manifest with the content
+        buildah manifest create "$OUTPUT_IMAGE"
+
+        # show contents of /output
+        ls -alR /output
+
+        if [ -f "/output/qcow2/disk.qcow2" ]; then
+          echo -e "Found qcow2 image."
+          # don't zip qcow2 images, it is already compressed.
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2.gzip $OUTPUT_IMAGE /output/qcow2/disk.qcow2
+        elif [ -f "/output/image/disk.raw" ]; then
+          echo -e "Found raw image."
+          pigz /output/image/disk.raw
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
+        elif [ -f "/output/bootiso/install.iso" ]; then
+          echo -e "Found iso image."
+          pigz /output/bootiso/install.iso
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+        elif [ -f "/output/vpc/disk.vhd" ]; then
+          echo -e "Found vhd image."
+          pigz /output/vpc/disk.vhd
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
+        elif [ -f "/output/gce/image.tar.gz" ]; then
+          echo -e "Found gce image."
+          # already compressed.
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
+        fi
+
+        buildah_retries=3
+        echo "Pushing image $OUTPUT_IMAGE to registry"
+        if ! retry buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry "$buildah_retries" --all $OUTPUT_IMAGE
+        then
+            echo "Failed to push image ${OUTPUT_IMAGE} to registry"
+            exit 1
+        fi
+
+        # At this point, we have pushed an image index of length 1 to the registry.
+        # Next, extract a reference to the image manifest and expose that, throwing away the image index.
+        IMAGE_INDEX_DIGEST=$(cat image-digest)
+        REPO=${OUTPUT_IMAGE%:*}
+        MANIFEST_DIGEST=$(buildah manifest inspect --authfile /.docker/config.json $REPO@$IMAGE_INDEX_DIGEST | jq -r '.manifests[0].digest')
+
+        # Overwrite the image index pullspec tag with the image manifest one
+        echo "Overwriting image $OUTPUT_IMAGE in registry"
+        if ! retry skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        then
+            echo "Failed to overwrite image ${OUTPUT_IMAGE} in registry"
+            exit 1
+        fi
+
+        # Finally, record all that in our results
+        echo -n "$OUTPUT_IMAGE" | tee /tekton-results/IMAGE_URL
+        echo $MANIFEST_DIGEST | tee /tekton-results/IMAGE_DIGEST
+        # Saving also these two output in one unique variable. This task is using a matrix reference.
+        # Unfortunately it seems that in Tekton, when using a matrix, each task run is executed in isolation,
+        # and result values can't be dynamically constructed or reused across matrix combinations.
+        # In order to prevent that, we are preparing in the task itself what we'll call as `IMAGE_REFERENCE`
+        # so that we can reference that safely in the pipeline.
+        IMAGE_URL_CLEANED=$(echo -n "$OUTPUT_IMAGE" | tr -d '\n')
+        echo -n "${IMAGE_URL_CLEANED}@${MANIFEST_DIGEST}" | tee /tekton-results/IMAGE_REFERENCE
+        REMOTESSHEOF
+
+
+        # make scripts executable and sync them to the cloud VM.
+        chmod +x scripts/script-build.sh
+        chmod +x scripts/script-push.sh
+        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+
+        ssh -v "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
+        rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
+
+      volumeMounts:
+        - mountPath: /ssh
+          name: ssh
+          readOnly: true
+        - mountPath: /entitlement
+          name: etc-pki-entitlement
+        - mountPath: /activation-key
+          name: activation-key
+
+  volumes:
+    - emptyDir: {}
+      name: workdir
+    - emptyDir: {}
+      name: varlibcontainers
+    - name: ssh
+      secret:
+        optional: false
+        secretName: multi-platform-ssh-$(context.taskRun.name)
+    - name: etc-pki-entitlement
+      secret:
+        optional: true
+        secretName: $(params.ENTITLEMENT_SECRET)
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
