@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: extract-slack-notification-message
+spec:
+  description: >-
+    Extracts PR information from PipelineRun annotations and generates a formatted Slack failure notification message
+  params:
+    - name: pipeline-run-name
+      description: Name of the PipelineRun (typically $(context.pipelineRun.name))
+      type: string
+  results:
+    - name: message
+      description: Formatted Slack message with details related to failed Push
+  steps:
+    - name: extract-and-format
+      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      env:
+        - name: PIPELINE_RUN_NAME
+          value: $(params.pipeline-run-name)
+        - name: GIT_PROVIDER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/git-provider']
+        - name: SHA_URL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/sha-url']
+        - name: LOG_URL
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
+        - name: URL_ORG
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/url-org']
+        - name: URL_REPOSITORY
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/url-repository']
+        - name: PULL_REQUEST
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['pipelinesascode.tekton.dev/pull-request']
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # Start with failure message
+        MESSAGE=":x: Pipeline failed"
+
+        # Add PR link if available
+        if [ -n "${PULL_REQUEST:-}" ] && [ "${PULL_REQUEST}" != "null" ]; then
+          # Determine the provider domain
+          if [ "${GIT_PROVIDER:-github}" = "gitlab" ]; then
+            PROVIDER_DOMAIN="gitlab.com"
+            PR_PATH="merge_requests"
+          else
+            PROVIDER_DOMAIN="github.com"
+            PR_PATH="pull"
+          fi
+
+          PR_URL="https://${PROVIDER_DOMAIN}/${URL_ORG}/${URL_REPOSITORY}/${PR_PATH}/${PULL_REQUEST}"
+          MESSAGE="${MESSAGE} - PR <${PR_URL}|#${PULL_REQUEST}>"
+        fi
+
+        # Add links section
+        MESSAGE="${MESSAGE}"$'\n'"Links: "
+
+        # Add commit link
+        if [ -n "${SHA_URL:-}" ]; then
+          MESSAGE="${MESSAGE}<${SHA_URL}|Commit> | "
+        fi
+
+        # Add pipeline run link
+        if [ -n "${LOG_URL:-}" ]; then
+          MESSAGE="${MESSAGE}<${LOG_URL}|Pipeline Run>"
+        else
+          MESSAGE="${MESSAGE}${PIPELINE_RUN_NAME}"
+        fi
+
+        # Write the message to the result
+        echo -n "${MESSAGE}" | tee "$(results.message.path)"
