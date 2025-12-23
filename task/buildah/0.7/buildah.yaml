@@ -238,6 +238,7 @@ spec:
     computeResources:
       limits:
         memory: 4Gi
+        cpu: '1'
       requests:
         memory: 4Gi
         cpu: '1'
@@ -312,9 +313,10 @@ spec:
     computeResources:
       limits:
         memory: 8Gi
+        cpu: 5000m
       requests:
         memory: 8Gi
-        cpu: '1'
+        cpu: 5000m
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -936,6 +938,13 @@ spec:
     workingDir: $(workspaces.source.path)
   - name: push
     image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 400m
+      requests:
+        memory: 4Gi
+        cpu: 400m
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -1021,6 +1030,13 @@ spec:
 
   - name: sbom-syft-generate
     image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 500m
+      requests:
+        memory: 4Gi
+        cpu: 500m
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
@@ -1085,10 +1101,11 @@ spec:
     image: quay.io/konflux-ci/mobster:1.1.0-1763042639@sha256:028dfcf2ac8b0404141550de17364bf049b0ddb35f45a24a075bc1f485a56c80
     computeResources:
       limits:
-        memory: 512Mi
+        memory: 256Mi
+        cpu: 700m
       requests:
-        memory: 512Mi
-        cpu: 100m
+        memory: 256Mi
+        cpu: 700m
     args:
     - --additional-base-images
     - $(params.ADDITIONAL_BASE_IMAGES[*])
@@ -1173,6 +1190,13 @@ spec:
 
   - name: upload-sbom
     image: quay.io/konflux-ci/appstudio-utils:latest@sha256:2b004dc4b55529823e8994e33df0d80e3d1de610e116f830e2b6d5d6e5539186
+    computeResources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -1210,12 +1234,6 @@ spec:
       echo
       echo "[$(date --utc -Ins)] End upload-sbom"
 
-    computeResources:
-      limits:
-        memory: 512Mi
-      requests:
-        memory: 512Mi
-        cpu: 100m
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
