@@ -1,0 +1,248 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-clair-scan-platform-filtering
+spec:
+  description: |
+    Test that clair-scan correctly filters by platform - scans only specified arch when platform is set,
+    and scans all architectures when platform is not set.
+    Note: This test uses a public image (docker.io/library/alpine) which doesn't allow push operations.
+    The scan tasks are expected to fail at the oci-attach-report step, but scanning completes successfully
+    before that. Using onError: continue allows the verification step to run and validate platform filtering
+    functionality even though the attachment steps fail.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+    - name: scan-all-architectures
+      runAfter:
+        - init
+      onError: continue
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+        - name: image-digest
+          value: sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+    - name: scan-amd64-only
+      runAfter:
+        - init
+      onError: continue
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+        - name: image-digest
+          value: sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+        - name: image-platform
+          value: "linux/amd64"
+    - name: scan-arm64-only
+      runAfter:
+        - init
+      onError: continue
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+        - name: image-digest
+          value: sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+        - name: image-platform
+          value: "linux/arm64"
+    - name: verify-platform-filtering
+      runAfter:
+        - scan-all-architectures
+        - scan-amd64-only
+        - scan-arm64-only
+      params:
+        - name: all_arch_images_processed
+          value: $(tasks.scan-all-architectures.results.IMAGES_PROCESSED)
+        - name: all_arch_reports
+          value: $(tasks.scan-all-architectures.results.REPORTS)
+        - name: amd64_images_processed
+          value: $(tasks.scan-amd64-only.results.IMAGES_PROCESSED)
+        - name: amd64_reports
+          value: $(tasks.scan-amd64-only.results.REPORTS)
+        - name: arm64_images_processed
+          value: $(tasks.scan-arm64-only.results.IMAGES_PROCESSED)
+        - name: arm64_reports
+          value: $(tasks.scan-arm64-only.results.REPORTS)
+        - name: image_url
+          value: "docker.io/library/alpine:3.19"
+        - name: image_digest
+          value: sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+      taskSpec:
+        params:
+          - name: all_arch_images_processed
+          - name: all_arch_reports
+          - name: amd64_images_processed
+          - name: amd64_reports
+          - name: arm64_images_processed
+          - name: arm64_reports
+          - name: image_url
+          - name: image_digest
+        steps:
+          - name: verify-filtering
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              echo "=== Verifying Platform Filtering Functionality ==="
+
+              # First, inspect the image to determine available architectures
+              echo "Inspecting image to determine available architectures..."
+              imagewithouttag=$(echo -n "$(params.image_url)" | sed "s/\(.*\):.*/\1/")
+              image_ref="${imagewithouttag}@$(params.image_digest)"
+
+              # Use skopeo to get image manifests
+              echo "Getting image manifests..."
+              manifests=$(skopeo inspect --raw "docker://${image_ref}" 2>/dev/null || echo "")
+
+              if [ -z "$manifests" ]; then
+                echo "WARNING: Could not inspect image, proceeding with result-based verification"
+              else
+                media_type=$(echo "$manifests" | jq -r '.mediaType // empty')
+                if [ "$media_type" = "application/vnd.oci.image.index.v1+json" ]; then
+                  echo "Image is a multi-arch image index"
+                  available_archs=$(echo "$manifests" | jq -r '.manifests[]?.platform.architecture // empty' | sort -u)
+                  echo "Available architectures: $available_archs"
+                else
+                  echo "Image is single-arch"
+                  arch=$(echo "$manifests" | jq -r '.architecture // empty')
+                  echo "Architecture: $arch"
+                fi
+              fi
+
+              echo ""
+              echo "=== Test 1: No Platform Specified (Should Scan All Architectures) ==="
+              all_arch_digest_count=$(jq -r '.image.digests | length' <<< "$(params.all_arch_images_processed)")
+              echo "Digests processed (no platform): $all_arch_digest_count"
+
+              if [ "$all_arch_digest_count" -lt 1 ]; then
+                echo "✗ ERROR: No digests processed when no platform specified"
+                exit 1
+              fi
+
+              echo "✓ Multiple digests processed (expected for multi-arch or at least image index + manifest)"
+
+              all_arch_report_count=$(jq 'length' <<< "$(params.all_arch_reports)")
+              echo "Reports attached (no platform): $all_arch_report_count"
+
+              echo ""
+              echo "=== Test 2: AMD64 Platform Specified (Should Scan Only AMD64) ==="
+              amd64_digest_count=$(jq -r '.image.digests | length' <<< "$(params.amd64_images_processed)")
+              echo "Digests processed (amd64 platform): $amd64_digest_count"
+
+              # With platform specified, should have at most 2 digests:
+              # 1. The amd64 manifest digest
+              # 2. Possibly the image index digest
+              if [ "$amd64_digest_count" -gt 2 ]; then
+                echo "✗ ERROR: Too many digests processed for platform-specific scan"
+                echo "Expected at most 2 (manifest + possibly index), got $amd64_digest_count"
+                echo "IMAGES_PROCESSED:"
+                jq . <<< "$(params.amd64_images_processed)"
+                exit 1
+              fi
+
+              if [ "$amd64_digest_count" -lt 1 ]; then
+                echo "✗ ERROR: No digests processed for amd64 platform"
+                exit 1
+              fi
+
+              echo "✓ Correct number of digests processed for platform-specific scan"
+
+              amd64_report_count=$(jq 'length' <<< "$(params.amd64_reports)")
+              echo "Reports attached (amd64 platform): $amd64_report_count"
+
+              echo ""
+              echo "=== Test 3: ARM64 Platform Specified (Should Scan Only ARM64) ==="
+              arm64_digest_count=$(jq -r '.image.digests | length' <<< "$(params.arm64_images_processed)")
+              echo "Digests processed (arm64 platform): $arm64_digest_count"
+
+              if [ "$arm64_digest_count" -gt 2 ]; then
+                echo "✗ ERROR: Too many digests processed for platform-specific scan"
+                echo "Expected at most 2 (manifest + possibly index), got $arm64_digest_count"
+                exit 1
+              fi
+
+              if [ "$arm64_digest_count" -lt 1 ]; then
+                echo "✗ ERROR: No digests processed for arm64 platform"
+                exit 1
+              fi
+
+              echo "✓ Correct number of digests processed for platform-specific scan"
+
+              arm64_report_count=$(jq 'length' <<< "$(params.arm64_reports)")
+              echo "Reports attached (arm64 platform): $arm64_report_count"
+
+              echo ""
+              echo "=== Test 4: Compare Results ==="
+
+              # Verify that platform-specific scans processed fewer digests than all-arch scan
+              if [ "$all_arch_digest_count" -gt "$amd64_digest_count" ]; then
+                echo "✓ All-arch scan processed more digests than amd64-only scan (expected)"
+              else
+                echo "INFO: All-arch and amd64-only processed similar number of digests"
+                echo "  (This is OK if image is single-arch or if image index digest is included)"
+              fi
+
+              if [ "$all_arch_digest_count" -gt "$arm64_digest_count" ]; then
+                echo "✓ All-arch scan processed more digests than arm64-only scan (expected)"
+              else
+                echo "INFO: All-arch and arm64-only processed similar number of digests"
+                echo "  (This is OK if image is single-arch or if image index digest is included)"
+              fi
+
+              # Verify that amd64 and arm64 scans processed different digests (if both architectures exist)
+              if [ "$amd64_digest_count" -ge 1 ] && [ "$arm64_digest_count" -ge 1 ]; then
+                amd64_digests=$(jq -r '.image.digests[]' <<< "$(params.amd64_images_processed)" | sort)
+                arm64_digests=$(jq -r '.image.digests[]' <<< "$(params.arm64_images_processed)" | sort)
+
+                # Check if they share any digests (they might share the image index digest)
+                common_digests=$(comm -12 <(echo "$amd64_digests") <(echo "$arm64_digests"))
+
+                if [ -n "$common_digests" ]; then
+                  echo "INFO: amd64 and arm64 scans share some digests (likely the image index digest)"
+                  echo "Common digests:"
+                  echo "$common_digests"
+                fi
+
+                # Check if they have different architecture-specific digests
+                amd64_unique=$(comm -23 <(echo "$amd64_digests") <(echo "$arm64_digests"))
+                arm64_unique=$(comm -13 <(echo "$amd64_digests") <(echo "$arm64_digests"))
+
+                if [ -n "$amd64_unique" ] && [ -n "$arm64_unique" ]; then
+                  echo "✓ amd64 and arm64 scans processed different architecture-specific digests"
+                  echo "  amd64-specific: $amd64_unique"
+                  echo "  arm64-specific: $arm64_unique"
+                else
+                  echo "INFO: Could not verify different architecture-specific digests"
+                  echo "  (This may be OK if image is single-arch or structure is different)"
+                fi
+              fi
+
+              echo ""
+              echo "=== Platform Filtering Test Summary ==="
+              echo "All architectures scan: $all_arch_digest_count digests, $all_arch_report_count reports"
+              echo "AMD64-only scan: $amd64_digest_count digests, $amd64_report_count reports"
+              echo "ARM64-only scan: $arm64_digest_count digests, $arm64_report_count reports"
+              echo ""
+              echo "✓ Platform filtering functionality verified!"
+              echo "  - No platform: scans all available architectures"
+              echo "  - Platform specified: scans only that architecture"

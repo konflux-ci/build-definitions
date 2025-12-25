@@ -1,0 +1,122 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-clair-scan-oci-attachment
+  annotations:
+    test/assert-task-failure: "scan-with-clair"
+spec:
+  description: |
+    Test that clair-scan attempts to attach reports as OCI artifacts.
+    Note: This test uses a public image (docker.io/library/alpine) which doesn't allow push operations.
+    The task is expected to fail at the oci-attach-report step, which verifies that:
+    1. Vulnerability scanning completes successfully (get-vulnerabilities step works - check logs for vulnerability data)
+       Note: Warnings about "unknown image manifest" when scanning image index digests are expected and can be ignored.
+       The task correctly scans architecture-specific manifests extracted from the image index.
+    2. The task attempts OCI attachment (oci-attach-report step runs - check logs for "Attaching" messages)
+    3. Attachment fails when push permissions are not available (expected behavior for public registries)
+    This test validates that the task correctly attempts attachment and fails gracefully when push is not allowed.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+    - name: scan-with-clair
+      runAfter:
+        - init
+      onError: continue
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "docker.io/library/alpine:3.19"
+        - name: image-digest
+          value: sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+    - name: check-result
+      runAfter:
+        - scan-with-clair
+      params:
+        - name: test-output
+          value: $(tasks.scan-with-clair.results.TEST_OUTPUT)
+        - name: scan-output
+          value: $(tasks.scan-with-clair.results.SCAN_OUTPUT)
+        - name: images-processed
+          value: $(tasks.scan-with-clair.results.IMAGES_PROCESSED)
+      taskSpec:
+        params:
+          - name: test-output
+          - name: scan-output
+          - name: images-processed
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            env:
+              - name: TEST_OUTPUT
+                value: $(params.test-output)
+              - name: SCAN_OUTPUT
+                value: $(params.scan-output)
+              - name: IMAGES_PROCESSED
+                value: $(params.images-processed)
+            script: |
+              #!/bin/bash
+              set -e
+
+              echo "Verifying clair-scan test results..."
+              echo "TEST_OUTPUT: $TEST_OUTPUT"
+              echo "SCAN_OUTPUT: $SCAN_OUTPUT"
+              echo "IMAGES_PROCESSED: $IMAGES_PROCESSED"
+
+              # Check if results are empty (task may have failed before producing results)
+              if [ -z "$TEST_OUTPUT" ] || [ "$TEST_OUTPUT" = "null" ] || [ "$TEST_OUTPUT" = "" ]; then
+                echo "WARNING: TEST_OUTPUT is empty. Task may have failed before producing results."
+                echo "This could indicate an infrastructure issue (e.g., disk space, image pull failure)."
+                echo "Expected failure should occur at oci-attach-report step after scanning completes."
+                echo "Please check the task logs to determine the actual failure point."
+                exit 1
+              fi
+
+              # Verify that TEST_OUTPUT indicates scanning completed
+              # Even though the task fails at attachment, scanning should have succeeded
+              if ! echo "$TEST_OUTPUT" | jq -e '.result == "SUCCESS" or (.note | contains("completed"))' >/dev/null 2>&1; then
+                echo "ERROR: TEST_OUTPUT does not indicate successful scanning"
+                echo "TEST_OUTPUT content: $TEST_OUTPUT"
+                echo "Expected: Task should complete scanning before failing at attachment step"
+                exit 1
+              fi
+
+              # Verify that SCAN_OUTPUT contains vulnerability data structure
+              if [ -z "$SCAN_OUTPUT" ] || [ "$SCAN_OUTPUT" = "null" ] || [ "$SCAN_OUTPUT" = "" ]; then
+                echo "ERROR: SCAN_OUTPUT is empty. Scanning may not have completed."
+                exit 1
+              fi
+
+              if ! echo "$SCAN_OUTPUT" | jq -e 'has("vulnerabilities") and has("unpatched_vulnerabilities")' >/dev/null 2>&1; then
+                echo "ERROR: SCAN_OUTPUT missing required vulnerability structure"
+                echo "SCAN_OUTPUT content: $SCAN_OUTPUT"
+                exit 1
+              fi
+
+              # Verify that IMAGES_PROCESSED contains the expected image
+              if [ -z "$IMAGES_PROCESSED" ] || [ "$IMAGES_PROCESSED" = "null" ] || [ "$IMAGES_PROCESSED" = "" ]; then
+                echo "ERROR: IMAGES_PROCESSED is empty"
+                exit 1
+              fi
+
+              if ! echo "$IMAGES_PROCESSED" | jq -e '.image.pullspec == "docker.io/library/alpine:3.19"' >/dev/null 2>&1; then
+                echo "ERROR: IMAGES_PROCESSED does not contain expected image"
+                echo "IMAGES_PROCESSED content: $IMAGES_PROCESSED"
+                exit 1
+              fi
+
+              echo "SUCCESS: All verifications passed. Scanning completed successfully before attachment failure."
