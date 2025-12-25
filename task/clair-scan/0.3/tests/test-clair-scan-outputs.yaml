@@ -1,0 +1,187 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-clair-scan-outputs
+spec:
+  description: |
+    Test the clair-scan task to verify all outputs are generated correctly
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-clair-scan:latest"
+    - name: get-test-image-digest
+      runAfter:
+        - init
+      taskSpec:
+        results:
+          - name: image-url
+            description: Test image URL
+          - name: image-digest
+            description: Test image digest
+        steps:
+          - name: get-digest
+            image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
+            computeResources:
+              limits:
+                memory: 512Mi
+              requests:
+                memory: 256Mi
+                cpu: 100m
+            securityContext:
+              capabilities:
+                add:
+                  - SETFCAP
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              # shellcheck source=/dev/null
+              . /utils.sh
+
+              # Use a well-known test image for scanning
+              TEST_IMAGE_URL="quay.io/konflux-ci/konflux-test:v1.4.39"
+
+              echo "Getting digest for test image: $TEST_IMAGE_URL"
+
+              # Get the image digest
+              IMAGE_DIGEST=$(skopeo inspect --no-tags --format='{{.Digest}}' "docker://${TEST_IMAGE_URL}")
+
+              if [ -z "$IMAGE_DIGEST" ]; then
+                echo "Error: Failed to get digest for ${TEST_IMAGE_URL}"
+                exit 1
+              fi
+
+              echo "Image digest: $IMAGE_DIGEST"
+
+              # Write to results for clair-scan task
+              echo -n "$TEST_IMAGE_URL" > "$(results.image-url.path)"
+              echo -n "$IMAGE_DIGEST" > "$(results.image-digest.path)"
+    - name: scan-with-clair
+      runAfter:
+        - get-test-image-digest
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "$(tasks.get-test-image-digest.results.image-url)"
+        - name: image-digest
+          value: "$(tasks.get-test-image-digest.results.image-digest)"
+    - name: check-results
+      runAfter:
+        - scan-with-clair
+      taskSpec:
+        steps:
+          - name: check-outputs
+            image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
+            computeResources:
+              limits:
+                memory: 512Mi
+              requests:
+                memory: 256Mi
+                cpu: 100m
+            securityContext:
+              capabilities:
+                add:
+                  - SETFCAP
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              # shellcheck source=/dev/null
+              . /utils.sh
+
+              echo "Checking clair-scan task outputs..."
+
+              # Check TEST_OUTPUT result
+              echo "=== Checking TEST_OUTPUT ==="
+              if [ ! -f "$(tasks.scan-with-clair.results.TEST_OUTPUT.path)" ]; then
+                echo "ERROR: TEST_OUTPUT result file does not exist"
+                exit 1
+              fi
+              TEST_OUTPUT=$(cat "$(tasks.scan-with-clair.results.TEST_OUTPUT.path)")
+              echo "TEST_OUTPUT: $TEST_OUTPUT"
+
+              # Verify TEST_OUTPUT is valid JSON and contains SUCCESS
+              if ! echo "$TEST_OUTPUT" | jq -e '.result == "SUCCESS"' > /dev/null 2>&1; then
+                echo "ERROR: TEST_OUTPUT does not contain SUCCESS result"
+                echo "TEST_OUTPUT content: $TEST_OUTPUT"
+                exit 1
+              fi
+
+              echo "✓ TEST_OUTPUT is valid and contains SUCCESS"
+
+              # Check SCAN_OUTPUT result
+              echo "=== Checking SCAN_OUTPUT ==="
+              if [ ! -f "$(tasks.scan-with-clair.results.SCAN_OUTPUT.path)" ]; then
+                echo "ERROR: SCAN_OUTPUT result file does not exist"
+                exit 1
+              fi
+              SCAN_OUTPUT=$(cat "$(tasks.scan-with-clair.results.SCAN_OUTPUT.path)")
+              echo "SCAN_OUTPUT: $SCAN_OUTPUT"
+
+              # Verify SCAN_OUTPUT is valid JSON with expected structure
+              if ! echo "$SCAN_OUTPUT" | jq -e '.vulnerabilities | has("critical") and has("high") and has("medium") and has("low") and has("unknown")' > /dev/null 2>&1; then
+                echo "ERROR: SCAN_OUTPUT does not have expected vulnerability structure"
+                echo "SCAN_OUTPUT content: $SCAN_OUTPUT"
+                exit 1
+              fi
+
+              if ! echo "$SCAN_OUTPUT" | jq -e '.unpatched_vulnerabilities | has("critical") and has("high") and has("medium") and has("low") and has("unknown")' > /dev/null 2>&1; then
+                echo "ERROR: SCAN_OUTPUT does not have expected unpatched_vulnerabilities structure"
+                echo "SCAN_OUTPUT content: $SCAN_OUTPUT"
+                exit 1
+              fi
+
+              echo "✓ SCAN_OUTPUT is valid and has expected structure"
+
+              # Check IMAGES_PROCESSED result
+              echo "=== Checking IMAGES_PROCESSED ==="
+              if [ ! -f "$(tasks.scan-with-clair.results.IMAGES_PROCESSED.path)" ]; then
+                echo "ERROR: IMAGES_PROCESSED result file does not exist"
+                exit 1
+              fi
+              IMAGES_PROCESSED=$(cat "$(tasks.scan-with-clair.results.IMAGES_PROCESSED.path)")
+              echo "IMAGES_PROCESSED: $IMAGES_PROCESSED"
+
+              # Verify IMAGES_PROCESSED is valid JSON with expected structure
+              if ! echo "$IMAGES_PROCESSED" | jq -e '.image | has("pullspec") and has("digests")' > /dev/null 2>&1; then
+                echo "ERROR: IMAGES_PROCESSED does not have expected structure"
+                echo "IMAGES_PROCESSED content: $IMAGES_PROCESSED"
+                exit 1
+              fi
+
+              echo "✓ IMAGES_PROCESSED is valid and has expected structure"
+
+              # Check REPORTS result
+              echo "=== Checking REPORTS ==="
+              if [ ! -f "$(tasks.scan-with-clair.results.REPORTS.path)" ]; then
+                echo "ERROR: REPORTS result file does not exist"
+                exit 1
+              fi
+              REPORTS=$(cat "$(tasks.scan-with-clair.results.REPORTS.path)")
+              echo "REPORTS: $REPORTS"
+
+              # Verify REPORTS is valid JSON (should be a mapping of digests to report digests)
+              # REPORTS can be an empty object {} if no reports were attached
+              if ! echo "$REPORTS" | jq -e 'type == "object"' > /dev/null 2>&1; then
+                echo "ERROR: REPORTS is not a valid JSON object"
+                echo "REPORTS content: $REPORTS"
+                exit 1
+              fi
+              echo "✓ REPORTS is valid JSON object"
+
+              echo ""
+              echo "========================================="
+              echo "All clair-scan outputs verified successfully!"
+              echo "========================================="
