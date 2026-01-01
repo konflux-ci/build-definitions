@@ -26,6 +26,41 @@ Given a file in the user's source directory, copy content from arbitrary urls in
 
 ## Additional info
 
+### When to use this task
+
+Use `oci-copy-large` instead of the standard `oci-copy` task when:
+- Downloading large files (multi-gigabyte) from S3-compatible storage
+- You need faster transfer speeds via parallel multipart downloads
+- Working with AI/ML model files or other large artifacts
+
+### Key differences from oci-copy
+
+| Feature | oci-copy | oci-copy-large |
+|---------|----------|----------------|
+| Download method | curl | AWS CLI with parallel multipart |
+| CPU request | default | 2 cores |
+| Memory | default | 2-4Gi |
+| S3 optimization | None | 50 concurrent requests, 64MB multipart threshold, 16MB chunks |
+
+### AWS S3 parallel downloads
+
+When AWS credentials are provided via `AWS_SECRET_NAME`, this task uses the AWS CLI with optimized settings for large file transfers:
+- **50 concurrent requests** for parallel downloads
+- **64MB multipart threshold** - files larger than this use multipart
+- **16MB chunk size** for multipart transfers
+
+### Supported S3 URL formats
+
+The task automatically detects and handles the following URL formats:
+
+| Provider | Style | Example URL |
+|----------|-------|-------------|
+| AWS | Virtual-hosted | `https://bucket.s3.us-east-1.amazonaws.com/path/to/file` |
+| AWS | Path-style | `https://s3.us-east-1.amazonaws.com/bucket/path/to/file` |
+| IBM Cloud COS | Virtual-hosted | `https://bucket.s3.us-south.cloud-object-storage.appdomain.cloud/path/to/file` |
+| IBM Cloud COS | Path-style | `https://s3.us-south.cloud-object-storage.appdomain.cloud/bucket/path/to/file` |
+| Generic S3 | Path-style | `https://s3.example.com/bucket/path/to/file` |
+
 ## oci-copy-large.yaml schema
 JSON schema for the `oci-copy-large.yaml` file.
 
