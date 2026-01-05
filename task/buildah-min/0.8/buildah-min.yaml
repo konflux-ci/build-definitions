@@ -6,7 +6,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.8.1
+    app.kubernetes.io/version: 0.8.2
     build.appstudio.redhat.com/build_type: docker
   name: buildah-min
 spec:
@@ -660,6 +660,23 @@ spec:
 
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
+
+        # In case RPMs were prefetched and this is a multi-arch build,
+        # clean up the packages that do not match the architecture being built
+        RPM_PREFETCH_DIR="/tmp/cachi2/output/deps/rpm"
+        if [ -d "$RPM_PREFETCH_DIR" ] && [ "$(find $RPM_PREFETCH_DIR | wc -l)" -gt 1 ]; then
+          echo "Removing prefetched RPMs from non-matching architectures"
+          PREFETCH_ARCH="$(uname -m)"
+          for path in "$RPM_PREFETCH_DIR"/*; do
+            if [ "$(basename "$path")" != "$PREFETCH_ARCH" ]; then
+              echo "Removing: $path"
+              rm -rf "$path"
+            else
+              echo "Keeping: $path"
+            fi
+          done
+        fi
+
         VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount

@@ -9,6 +9,16 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.8.2
+
+### Changed
+
+- The task now makes sure that only RPMs that match the architecture being built are
+  passed to the `buildah bud` command. It also removes the same packages from the
+  Hermeto SBOM to more accurately represent the build.
+  This change should be a noop for this task, but it was added here so that the
+  auto-generated `buildah-remote` task would benefit from it.
+
 ## 0.8.1
 
 ### Added
