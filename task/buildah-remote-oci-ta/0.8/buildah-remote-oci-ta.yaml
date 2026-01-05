@@ -751,6 +751,24 @@ spec:
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
+
+        # In case RPMs were prefetched and this is a multi-arch build,
+        # clean up the packages that do not match the architecture being built
+        RPM_PREFETCH_DIR="/tmp/cachi2/output/deps/rpm"
+        if [ -d "$RPM_PREFETCH_DIR" ] && [ "$(find $RPM_PREFETCH_DIR | wc -l)" -gt 1 ]; then
+          echo "Removing prefetched RPMs from non-matching architectures"
+          PREFETCH_ARCH="$(uname -m)"
+          for path in "$RPM_PREFETCH_DIR"/*; do
+            [[ -e "$path" ]] || break
+            if [ "$(basename "$path")" != "$PREFETCH_ARCH" ]; then
+              echo "Removing: $path"
+              rm -rf "${path:?}"
+            else
+              echo "Keeping: $path"
+            fi
+          done
+        fi
+
         VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount
@@ -1335,7 +1353,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/mobster:1.1.0-1768294847@sha256:ff738d9032c9885731bc96383e720ced2469649fa7148b76b58b7492c9bb82b8
+    image: quay.io/konflux-ci/mobster:1.1.0-1769517360@sha256:f8f2a0e1880754f3ae68113e61bdd17d557fe098b13be41664d9bb867ee3e933
     name: prepare-sboms
     script: |
       #!/bin/bash
