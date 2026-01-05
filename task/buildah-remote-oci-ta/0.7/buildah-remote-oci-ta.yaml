@@ -748,6 +748,67 @@ spec:
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
+
+        PREFETCH_ARCH="$(uname -m)"
+        PREFETCH_DIR="/tmp/cachi2/output"
+        RPM_PREFETCH_DIR="$PREFETCH_DIR/deps/rpm"
+
+        # In case RPMs were prefetched, clean up the ones that differ from the architecture being built
+        if [ -d "$RPM_PREFETCH_DIR" ]; then
+          echo "Removing prefetched RPMs from non-matching architectures"
+
+          for dir in $(ls "$RPM_PREFETCH_DIR"); do
+              if [ "$dir" != "$PREFETCH_ARCH" ]; then
+                  echo "Removing: $RPM_PREFETCH_DIR/$dir"
+                  rm -rf "$RPM_PREFETCH_DIR/$dir"
+              else
+                  echo "Keeping: $RPM_PREFETCH_DIR/$dir"
+              fi
+          done
+
+          echo "Removing RPM components from non-matching architectures from the Hermeto SBOM"
+
+          # Remove the components from non-matching architectures from the SBOM
+          if [ "$SBOM_TYPE" = "cyclonedx" ]; then
+            jq --arg prefetch_arch "$PREFETCH_ARCH" '.components |= map(
+            select(
+                # Keep non-RPM components
+                (.purl | startswith(\"pkg:rpm\") | not) or
+                # Keep RPM components with matching architecture and noarch
+                (.purl | test("arch=(\($prefetch_arch)|noarch)(&|$)")
+              )
+            )' "$PREFETCH_DIR/bom.json" > "$PREFETCH_DIR/filtered-bom.json"
+          elif [ "$SBOM_TYPE" = "spdx" ]; then
+            jq --arg prefetch_arch "$PREFETCH_ARCH" '
+              (
+                # Create a list of SPDXIDs to keep
+                [.packages[] | select(
+                  # Keep packages without externalRefs (e.g. DocumentRoot)
+                  (.externalRefs | length == 0) or
+                  # Keep non-RPM packages
+                  (.externalRefs[0].referenceLocator | startswith("pkg:rpm") | not) or
+                  # Keep RPM packages with matching architecture and noarch
+                  (.externalRefs[0].referenceLocator | test("arch=(\($prefetch_arch)|noarch)(&|$)"))
+                ) | .SPDXID] + ["SPDXRef-DOCUMENT"]
+              ) as $kept_ids |
+              # Filter packages
+              .packages |= map(select(.SPDXID as $id | $kept_ids | index($id))) |
+              # Filter relationships to only reference kept packages
+              .relationships |= map(
+                select(
+                  (.spdxElementId as $id | $kept_ids | index($id)) and
+                  (.relatedSpdxElement as $id | $kept_ids | index($id))
+                )
+              )
+            ' "$PREFETCH_DIR/bom.json" > "$PREFETCH_DIR/filtered-bom.json"
+          else
+            echo "Invalid SBOM type $SBOM_TYPE"
+            exit 1
+          fi
+
+          mv "$PREFETCH_DIR/filtered-bom.json" "$PREFETCH_DIR/bom.json"
+        fi
+
         VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
         # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
         # for each RUN ... line insert the cachi2.env command *after* any options like --mount
