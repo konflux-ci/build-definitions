@@ -1,0 +1,75 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-clair-scan
+spec:
+  description: |
+    Test the clair-scan task outputs with a real image scan
+  tasks:
+    - name: run-clair-scan
+      taskRef:
+        name: clair-scan
+      params:
+        - name: image-url
+          value: "quay.io/konflux-ci/konflux-test:v1.4.28"
+        - name: image-digest
+          value: "sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9"
+    - name: check-results
+      runAfter:
+        - run-clair-scan
+      params:
+        - name: TEST_OUTPUT
+          value: $(tasks.run-clair-scan.results.TEST_OUTPUT)
+        - name: SCAN_OUTPUT
+          value: $(tasks.run-clair-scan.results.SCAN_OUTPUT)
+        - name: IMAGES_PROCESSED
+          value: $(tasks.run-clair-scan.results.IMAGES_PROCESSED)
+        - name: REPORTS
+          value: $(tasks.run-clair-scan.results.REPORTS)
+      taskSpec:
+        params:
+          - name: TEST_OUTPUT
+          - name: SCAN_OUTPUT
+          - name: IMAGES_PROCESSED
+          - name: REPORTS
+        steps:
+          - name: verify-outputs
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            env:
+              - name: TEST_OUTPUT
+                value: $(params.TEST_OUTPUT)
+              - name: SCAN_OUTPUT
+                value: $(params.SCAN_OUTPUT)
+              - name: IMAGES_PROCESSED
+                value: $(params.IMAGES_PROCESSED)
+              - name: REPORTS
+                value: $(params.REPORTS)
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+
+              echo "=== Verifying TEST_OUTPUT ==="
+              echo "$TEST_OUTPUT" | jq .
+              echo "$TEST_OUTPUT" | jq -e '.result == "SUCCESS"'
+
+              echo "=== Verifying SCAN_OUTPUT ==="
+              echo "$SCAN_OUTPUT" | jq .
+              echo "$SCAN_OUTPUT" | jq -e '
+                .vulnerabilities | has("critical", "high", "medium", "low", "unknown")
+              '
+              echo "$SCAN_OUTPUT" | jq -e '
+                .unpatched_vulnerabilities | has("critical", "high", "medium", "low", "unknown")
+              '
+
+              echo "=== Verifying IMAGES_PROCESSED ==="
+              echo "$IMAGES_PROCESSED" | jq .
+              echo "$IMAGES_PROCESSED" | jq -e '
+                .image.pullspec != null and (.image.digests | length > 0)
+              '
+
+              echo "=== Verifying REPORTS ==="
+              echo "$REPORTS" | jq .
+              echo "$REPORTS" | jq -e 'type == "object"'
+
+              echo "All output validations passed!"
