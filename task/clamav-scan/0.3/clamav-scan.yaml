@@ -37,6 +37,9 @@ spec:
     - name: clamd-max-threads
       description: Maximum number of threads clamd runs.
       default: "8"
+    - name: skip-upload
+      description: If true, skips uploading the results to the image registry. Useful for read-only tests.
+      default: "false"
 
   steps:
     - name: extract-and-scan-image
@@ -75,6 +78,13 @@ spec:
 
         # Start clamd in background
         /start-clamd.sh
+
+        # Bootstrap .docker config in overridden HOME.
+        # This prevents 'oc' CLI failures in clean environments where ~/.docker does not exist.
+        if [ ! -d ~/.docker ]; then
+            mkdir -p ~/.docker
+            echo '{}' > ~/.docker/config.json
+        fi
 
         imagewithouttag=$(echo $IMAGE_URL | sed "s/\(.*\):.*/\1/" | tr -d '\n')
 
@@ -205,6 +215,8 @@ spec:
           memory: 256Mi
           cpu: 100m
       env:
+        - name: SKIP_UPLOAD
+          value: $(params.skip-upload)
         - name: IMAGE_URL
           value: $(params.image-url)
         - name: IMAGE_DIGEST
@@ -213,6 +225,12 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -e
+
+        # Skip upload if requested e.g. read-only CI tests where push access is denied
+        if [ "$SKIP_UPLOAD" == "true" ]; then
+          echo "Upload skipped by parameter."
+          exit 0
+        fi
 
         # Don't return a glob expression when no matches are found
         shopt -s nullglob

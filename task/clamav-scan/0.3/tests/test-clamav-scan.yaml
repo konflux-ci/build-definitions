@@ -1,0 +1,67 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-clamav-scan
+spec:
+  description: |
+    Verifies that the task scans the image and produces both TEST_OUTPUT and IMAGES_PROCESSED results.
+  tasks:
+    - name: run-clamav-scan
+      taskRef:
+        name: clamav-scan
+      params:
+        - name: image-url
+          value: "quay.io/konflux-ci/konflux-test:v1.4.28"
+        - name: image-digest
+          value: "sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9"
+        - name: skip-upload
+          value: "true"
+    - name: check-results
+      runAfter:
+        - run-clamav-scan
+      params:
+        - name: TEST_OUTPUT
+          value: $(tasks.run-clamav-scan.results.TEST_OUTPUT)
+        - name: IMAGES_PROCESSED
+          value: $(tasks.run-clamav-scan.results.IMAGES_PROCESSED)
+      taskSpec:
+        params:
+          - name: TEST_OUTPUT
+          - name: IMAGES_PROCESSED
+        steps:
+          - name: verify-outputs
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            env:
+              - name: TEST_OUTPUT
+                value: $(params.TEST_OUTPUT)
+              - name: IMAGES_PROCESSED
+                value: $(params.IMAGES_PROCESSED)
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+
+              echo "Verifying TEST_OUTPUT"
+              echo "$TEST_OUTPUT" | jq .
+
+              # Check for valid result status (SUCCESS or WARNING are acceptable)
+              RESULT=$(echo "$TEST_OUTPUT" | jq -r '.result')
+              if [[ "$RESULT" == "SUCCESS" || "$RESULT" == "WARNING" ]]; then
+                 echo "TEST_OUTPUT check passed. Result: $RESULT"
+              else
+                 echo "TEST_OUTPUT check failed. Result: $RESULT"
+                 exit 1
+              fi
+
+              echo "Verifying IMAGES_PROCESSED"
+              echo "$IMAGES_PROCESSED" | jq .
+
+              # Check that the JSON contains the image pullspec
+              if echo "$IMAGES_PROCESSED" | jq -e '.image.pullspec != null' > /dev/null; then
+                 echo "IMAGES_PROCESSED check passed."
+              else
+                 echo "IMAGES_PROCESSED check failed. 'image.pullspec' missing."
+                 exit 1
+              fi
+
+              echo "ALL TESTS PASSED"

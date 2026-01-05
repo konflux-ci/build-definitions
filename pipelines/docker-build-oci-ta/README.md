@@ -120,6 +120,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-arch| Image arch.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|skip-upload| If true, skips uploading the results to the image registry. Useful for read-only tests.| false| |
 ### coverity-availability-check:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
