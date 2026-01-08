@@ -51,7 +51,8 @@ spec:
       # the clair-in-ci image neither has skopeo or jq installed. Hence, we create an extra step to get the image manifest digests
       computeResources:
         limits:
-          memory: 512Mi
+          memory: 256Mi
+          cpu: 100m
         requests:
           memory: 256Mi
           cpu: 100m
@@ -92,10 +93,11 @@ spec:
       image: quay.io/konflux-ci/clair-in-ci:6064895  # explicit floating tag, daily updates, per arch call this is exempt for now for use of image digest
       computeResources:
         limits:
-          memory: 6Gi
+          memory: 7Gi
+          cpu: 800m
         requests:
-          memory: 2Gi
-          cpu: 500m
+          memory: 7Gi
+          cpu: 800m
       imagePullPolicy: Always
       env:
         - name: IMAGE_URL
@@ -183,6 +185,13 @@ spec:
         echo "$images_processed" > images-processed.json
     - name: oci-attach-report
       image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+      computeResources:
+        limits:
+          memory: 256Mi
+          cpu: 100m
+        requests:
+          memory: 256Mi
+          cpu: 100m
       workingDir: /tekton/home
       env:
         - name: IMAGE_URL
@@ -233,7 +242,8 @@ spec:
       # the cluster will set imagePullPolicy to IfNotPresent
       computeResources:
         limits:
-          memory: 2Gi
+          memory: 256Mi
+          cpu: 100m
         requests:
           memory: 256Mi
           cpu: 100m
