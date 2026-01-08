@@ -331,7 +331,6 @@ spec:
     - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
-        cpu: 4600m
         memory: 4Gi
       requests:
         cpu: 100m
@@ -946,14 +945,7 @@ spec:
       name: proxy-ca-bundle
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: 600m
-        memory: 4Gi
-      requests:
-        cpu: 600m
-        memory: 4Gi
-    env:
+  - env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
@@ -1036,14 +1028,7 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: 1100m
-        memory: 4Gi
-      requests:
-        cpu: 1100m
-        memory: 4Gi
-    image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+  - image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     name: sbom-syft-generate
     script: |
       #!/bin/bash
@@ -1107,7 +1092,6 @@ spec:
     - $(params.ADDITIONAL_BASE_IMAGES[*])
     computeResources:
       limits:
-        cpu: 100m
         memory: 256Mi
       requests:
         cpu: 10m
@@ -1194,7 +1178,6 @@ spec:
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
-        cpu: 100m
         memory: 2Gi
       requests:
         cpu: 100m
