@@ -1,0 +1,126 @@
+# yamllint disable-file
+
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
+# Inspired by https://cruft.github.io/cruft/#automating-updates-with-github-actions
+name: Update shared CI files
+'on':
+  workflow_dispatch:  # Allow to run manually
+  schedule:
+    - cron: "0 2 * * 0"  # Every Sunday at 02:00
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # cruft works better with full git history
+          fetch-depth: 0
+
+      - name: Run cruft update
+        id: update
+        run: |
+          #!/bin/bash
+          set -euo pipefail
+
+          pipx run cruft update --skip-apply-ask
+          git restore --staged .
+
+          cat << EOF > /tmp/body.md
+          [cruft] has found updates in <https://github.com/konflux-ci/task-repo-shared-ci>
+
+          [cruft]: https://cruft.github.io/cruft/
+          EOF
+
+          mapfile -t merge_conflicts < <(
+            git diff --diff-filter=M --name-only | xargs grep --files-with-matches '^<<<<<<< ours'
+          )
+          mapfile -t rejected_patches < <(
+            git ls-files --others | grep '\.rej$'
+          )
+
+          if [[ ${#merge_conflicts[@]} -gt 0 || ${#rejected_patches[@]} -gt 0 ]]
+          then
+            # If the PR is already open and this workflow encounters update problems,
+            # the next time it runs, we want to set the PR back to draft
+            echo draft=always-true >> "$GITHUB_OUTPUT"
+            cat << EOF >> /tmp/body.md
+
+          > [!CAUTION]
+          > The update resulted in merge conflicts and/or rejected patches!
+          >
+          > Please address the problems manually and then mark the PR ready for review.
+          >
+          EOF
+            # shellcheck disable=SC2016  # we don't want to expand the backticks
+            printf '> - ❌ `%s`\n' "${merge_conflicts[@]}" "${rejected_patches[@]}" >> /tmp/body.md
+          else
+            echo draft=false >> "$GITHUB_OUTPUT"
+          fi
+
+          renovate_config_exists() {
+            # https://docs.renovatebot.com/configuration-options/
+            local renovate_config_paths=(
+              renovate.json
+              renovate.json5
+              .github/renovate.json
+              .github/renovate.json5
+              .gitlab/renovate.json
+              .gitlab/renovate.json5
+              .renovaterc
+              .renovaterc.json
+              .renovaterc.json5
+            )
+
+            for file in "${renovate_config_paths[@]}"; do
+              if [[ -e "$file" ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+          if ! renovate_config_exists; then
+            echo "Renovate config file not found, skipping update" >&2
+            exit
+          fi
+
+          renovate_update_script=hack/renovate-ignore-shared-ci.sh
+
+          for conflict in "${merge_conflicts[@]}" "${rejected_patches[@]}"; do
+            if [[ "$conflict" == "$renovate_update_script" ]]; then
+              cat << EOF >> /tmp/body.md
+
+          > [!WARNING]
+          >
+          > \`$renovate_update_script\` has a merge conflict, the workflow couldn't run it.
+          > After resolving the conflict, please run the script manually.
+          EOF
+              echo "cannot run $renovate_update_script due to merge conflict, skipping" >&2
+              exit
+            fi
+          done
+
+          bash "$renovate_update_script"
+
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        id: app-token
+        with:
+          # These may already be set globally for your organization
+          # If not, see the SHARED-CI.md doc in this repo for instructions
+          app-id: ${{ secrets.SHARED_CI_UPDATER_APP_ID }}
+          private-key: ${{ secrets.SHARED_CI_UPDATER_PRIVATE_KEY }}
+
+      - name: Create pull request if needed
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          title: Update shared CI files
+          commit-message: "chore: update shared CI files"
+          body-path: /tmp/body.md
+          branch: cruft/update
+          draft: ${{ steps.update.outputs.draft }}
+          delete-branch: true

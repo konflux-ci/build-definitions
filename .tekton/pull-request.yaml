@@ -104,18 +104,6 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-      - name: task-lint-check
-        when:
-          - input: "tasks"
-            operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
-        runAfter:
-          - task-switchboard
-        taskRef:
-          name: task-lint
-        workspaces:
-          - name: shared-workspace
-            workspace: workspace
       - name: sast-unicode-check
         runAfter:
           - build-appstudio-utils-index
