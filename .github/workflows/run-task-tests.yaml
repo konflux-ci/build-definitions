@@ -99,7 +99,7 @@ jobs:
         if: steps.changed-task-dirs.outputs.any_changed == 'true'
         run: |
           cd self
-          ./.github/scripts/check_tekton_tasks_and_pipeline_yamls.sh ${{ steps.changed-task-dirs.outputs.all_changed_files }}
+          ./.github/scripts/check_task_and_pipeline_yamls.sh ${{ steps.changed-task-dirs.outputs.all_changed_files }}
 
       - name: Deploying Konflux
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
