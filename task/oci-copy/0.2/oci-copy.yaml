@@ -214,13 +214,13 @@ spec:
             echo "Using AWS CLI for download with parallel multipart transfers"
             # Configure AWS CLI for parallel multipart downloads
             mkdir -p ~/.aws
-            cat > ~/.aws/config << AWSEOF
-[default]
-s3 =
-  max_concurrent_requests = ${MAX_CONCURRENT}
-  multipart_threshold = ${MULTIPART_THRESHOLD}
-  multipart_chunksize = ${MULTIPART_CHUNKSIZE}
-AWSEOF
+            printf '%s\n' \
+              "[default]" \
+              "s3 =" \
+              "  max_concurrent_requests = ${MAX_CONCURRENT}" \
+              "  multipart_threshold = ${MULTIPART_THRESHOLD}" \
+              "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
+              > ~/.aws/config
 
             if [ -n "${endpoint_url}" ]; then
               aws s3 cp --endpoint-url "${endpoint_url}" "${s3_uri}" "${file}"
