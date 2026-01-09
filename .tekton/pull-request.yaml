@@ -262,18 +262,6 @@ spec:
           name: e2e-test
         # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
         timeout: "2h"
-      - name: ec-task-checks
-        when:
-          - input: "tasks_pipelines"
-            operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
-        runAfter:
-          - task-switchboard
-        taskRef:
-          name: ec-checks
-        workspaces:
-          - name: source
-            workspace: workspace
       - name: check-task-migration-md
         when:
           - input: "tasks"

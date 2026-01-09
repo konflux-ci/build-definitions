@@ -354,7 +354,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+    image: quay.io/acmiel-test/test:buildah-with-kbc
     name: build
     script: |
       #!/bin/bash
@@ -868,7 +868,9 @@ spec:
       declare IMAGE
 
       buildah_cmd_array=(
-          buildah build
+          konflux-build-cli image build
+          -f "$dockerfile_copy" -t "$IMAGE" --context .
+          --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
           "${LABELS[@]}"
@@ -876,7 +878,6 @@ spec:
           --tls-verify="$TLSVERIFY" --no-cache
           --ulimit nofile=4096:4096
           --http-proxy=false
-          -f "$dockerfile_copy" -t "$IMAGE" .
       )
       buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
 
@@ -892,7 +893,7 @@ spec:
 
       set_proxy
 
-      echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] Run build command"
       echo "[$(date --utc -Ins)] ${command}"
 
       unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
