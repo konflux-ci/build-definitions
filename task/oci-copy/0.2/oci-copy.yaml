@@ -36,19 +36,6 @@ spec:
       description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
       type: string
       default: spdx
-    - name: MEMORY_LIMIT
-      description: "Memory limit for the oci-copy step. Recommended: 4Gi for large artifacts."
-      type: string
-      default: "1Gi"
-    - name: MEMORY_REQUEST
-      description: "Memory request for the oci-copy step. Recommended: 2Gi for large artifacts."
-      type: string
-      default: "512Mi"
-    - name: CPU_REQUEST
-      description: "CPU request for the oci-copy step. Recommended: 1 for large artifacts."
-      type: string
-      default: "250m"
-
   results:
     - description: Digest of the artifact just pushed
       name: IMAGE_DIGEST
@@ -101,10 +88,10 @@ spec:
       image: quay.io/konflux-ci/task-runner:1.1.0@sha256:19851d9fcc05a45adbaf830fba404743e5254f71b30842be57e526fdc9c1d3c5
       computeResources:
         limits:
-          memory: $(params.MEMORY_LIMIT)
+          memory: 4Gi
         requests:
-          cpu: $(params.CPU_REQUEST)
-          memory: $(params.MEMORY_REQUEST)
+          cpu: "1"
+          memory: 2Gi
       securityContext:
         capabilities:
           add:
