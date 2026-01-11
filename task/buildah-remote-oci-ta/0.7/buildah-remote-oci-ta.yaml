@@ -368,9 +368,10 @@ spec:
     - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
+        cpu: 4600m
         memory: 8Gi
       requests:
-        cpu: "1"
+        cpu: 4600m
         memory: 8Gi
     env:
     - name: COMMIT_SHA
@@ -1154,7 +1155,13 @@ spec:
       name: ssh
       readOnly: true
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 600m
+        memory: 4Gi
+      requests:
+        cpu: 600m
+        memory: 4Gi
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -1240,7 +1247,13 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: /var/workdir
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 1100m
+        memory: 4Gi
+      requests:
+        cpu: 1100m
+        memory: 4Gi
     image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     name: sbom-syft-generate
     script: |
@@ -1311,10 +1324,11 @@ spec:
     - $(params.ADDITIONAL_BASE_IMAGES[*])
     computeResources:
       limits:
-        memory: 512Mi
+        cpu: 100m
+        memory: 256Mi
       requests:
         cpu: 100m
-        memory: 512Mi
+        memory: 256Mi
     image: quay.io/konflux-ci/mobster:1.1.0-1763042639@sha256:028dfcf2ac8b0404141550de17364bf049b0ddb35f45a24a075bc1f485a56c80
     name: prepare-sboms
     script: |
@@ -1404,10 +1418,11 @@ spec:
     workingDir: /var/workdir
   - computeResources:
       limits:
-        memory: 512Mi
+        cpu: 100m
+        memory: 256Mi
       requests:
         cpu: 100m
-        memory: 512Mi
+        memory: 256Mi
     image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
     name: upload-sbom
     script: |
