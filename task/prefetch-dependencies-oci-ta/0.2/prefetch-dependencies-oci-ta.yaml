@@ -177,8 +177,6 @@ spec:
       env:
         - name: INPUT
           value: $(params.input)
-        - name: DEV_PACKAGE_MANAGERS
-          value: $(params.dev-package-managers)
         - name: LOG_LEVEL
           value: $(params.log-level)
         - name: SBOM_TYPE
@@ -343,12 +341,6 @@ spec:
           config_flag=""
         fi
 
-        if [ "$DEV_PACKAGE_MANAGERS" = "true" ]; then
-          dev_pacman_flag=--dev-package-managers
-        else
-          dev_pacman_flag=""
-        fi
-
         # Copied from https://github.com/konflux-ci/build-definitions/blob/main/task/git-clone/0.1/git-clone.yaml
         if [ "${WORKSPACE_GIT_AUTH_BOUND}" = "true" ]; then
           if [ -f "${WORKSPACE_GIT_AUTH_PATH}/.git-credentials" ] && [ -f "${WORKSPACE_GIT_AUTH_PATH}/.gitconfig" ]; then
@@ -413,7 +405,6 @@ spec:
         INPUT=$(inject_rpm_summary_flag "$INPUT")
 
         hermeto --log-level="$LOG_LEVEL" --mode="$MODE" $config_flag fetch-deps \
-          $dev_pacman_flag \
           --source="/var/workdir/source" \
           --output="/var/workdir/cachi2/output" \
           --sbom-output-type="$SBOM_TYPE" \
