@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2.1"
+    app.kubernetes.io/version: "0.3"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -29,6 +29,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: LOG_LEVEL
+    type: string
+    description: Log level to use in the task. See golang logrus docs for available levels.
+    default: info
   stepTemplate:
     volumeMounts:
       - name: trusted-ca
@@ -36,79 +40,27 @@ spec:
         subPath: ca-bundle.crt
         readOnly: true
   steps:
-    - name: apply-additional-tags-from-parameter
+    - name: apply-additional-tags
       resources:
         limits:
           memory: 256Mi
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
+      env:
+        - name: KBC_LOG_LEVEL
+          value: $(params.LOG_LEVEL)
+      image: quay.io/konflux-ci/konflux-build-cli@sha256:a4bff739b5c0cb1c02b454c1b46ad54675f8df121efb5203fed19266a6b01639
+      command: ["konflux-build-cli", "image", "apply-tags"]
       args:
+        - --image-url
+        - $(params.IMAGE_URL)
+        - --digest
+        - $(params.IMAGE_DIGEST)
+        - --tags
         - $(params.ADDITIONAL_TAGS[*])
-      env:
-      - name: IMAGE_URL
-        value: $(params.IMAGE_URL)
-      - name: IMAGE_DIGEST
-        value: $(params.IMAGE_DIGEST)
-      script: |
-        #!/bin/bash
-
-        if [ "$#" -ne 0 ]; then
-          IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
-          for tag in "$@"; do
-            echo "Applying tag $tag"
-            skopeo copy --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
-          done
-        else
-          echo "No additional tags parameter specified"
-        fi
-
-    - name: apply-additional-tags-from-image-label
-      resources:
-        limits:
-          memory: 256Mi
-        requests:
-          memory: 256Mi
-          cpu: 100m
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
-      env:
-      - name: IMAGE_URL
-        value: $(params.IMAGE_URL)
-      - name: IMAGE_DIGEST
-        value: $(params.IMAGE_DIGEST)
-      script: |
-        #!/bin/bash
-
-        skopeo_retries=3
-        IMAGE_WITHOUT_TAG="${IMAGE_URL%:*}"
-
-        if ! raw_inspect=$(skopeo inspect --retry-times "$skopeo_retries" --raw "docker://${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"); then
-          echo "skopeo failed to inspect image: ${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
-          exit 1
-        fi
-
-        if manifest_digest=$(jq -e -r '.manifests[0].digest' <<< "$raw_inspect"); then
-            # use first image digest from index
-            CHECK_IMAGE="$IMAGE_WITHOUT_TAG@$manifest_digest"
-        else
-            # image is single manifest
-            CHECK_IMAGE="${IMAGE_WITHOUT_TAG}@${IMAGE_DIGEST}"
-        fi
-
-        ADDITIONAL_TAGS_FROM_IMAGE_LABEL=$(skopeo inspect --retry-times "$skopeo_retries" --no-tags --format '{{ index .Labels "konflux.additional-tags" }}' "docker://${CHECK_IMAGE}")
-
-        if [ -n "${ADDITIONAL_TAGS_FROM_IMAGE_LABEL}" ]; then
-          IFS=', ' read -r -a tags_array <<< "$ADDITIONAL_TAGS_FROM_IMAGE_LABEL"
-
-          for tag in "${tags_array[@]}"
-          do
-              echo "Applying tag $tag"
-              skopeo copy --retry-times "$skopeo_retries" --multi-arch index-only docker://"$IMAGE_WITHOUT_TAG@$IMAGE_DIGEST" docker://"$IMAGE_WITHOUT_TAG:$tag"
-          done
-        else
-          echo "No additional tags specified in the image labels"
-        fi
+        - --tags-from-image-label
+        - konflux.additional-tags
   volumes:
   - name: trusted-ca
     configMap:
