@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.7/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, task/sast-snyk-check/0.4/sast-snyk-check.yaml, task/sast-unicode-check/0.3/sast-unicode-check.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.7/buildah-remote.yaml, task/build-image-index/0.1/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -82,7 +82,14 @@ spec:
           - name: image-digest
             value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
         taskRef:
-          name: sast-snyk-check
+          params:
+          - name: name
+            value: sast-snyk-check
+          - name: bundle
+            value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:10d6a41c51102c07c0147f2f3d57a2180d58c0cc4af2a022862247edcde5cd54
+          - name: kind
+            value: task
+          resolver: bundles
         workspaces:
           - name: workspace
             workspace: workspace
@@ -113,7 +120,14 @@ spec:
           - name: image-url
             value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
         taskRef:
-          name: sast-unicode-check
+          params:
+          - name: name
+            value: sast-unicode-check
+          - name: bundle
+            value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.3@sha256:bc8f58d5fd484c31266f6f2ee292208066bdbd4010a171ef5a09ebc5f8a0de2d
+          - name: kind
+            value: task
+          resolver: bundles
         workspaces:
           - name: workspace
             workspace: workspace
