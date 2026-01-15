@@ -262,7 +262,8 @@ spec:
         # Remove digest from image reference
         ref="${image/@*}"
         # Remove tag from ref while allowing registry to contain a port number.
-        ref="$(image | sed 's_/\(.*\):\(.*\)_/\1_g')"
+        # shellcheck disable=SC2001
+        ref="$(echo "${ref}" | sed 's_/\(.*\):\(.*\)_/\1_g')"
 
         sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
         # The SBOM_BLOB_URL is created by `cosign attach sbom`.
