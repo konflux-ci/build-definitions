@@ -11,6 +11,7 @@ from tempfile import mkdtemp
 PIPELINE_GENERATE_INPUT_DIRS = ('./pipelines/',)
 PIPELINES_DIR = './pipelines/'
 TASKS_DIR = './task/'
+ARCHIVED_TASKS_DIR = './archived-tasks/'
 # mapping pipeline_name to directory name, in case it isn't the same
 PIPELINE_TO_DIRECTORY_MAPPING = {}
 
@@ -46,6 +47,21 @@ def iter_values(param_value):
     else:
         yield from param_value
 
+def get_task_path(task_name, task_version):
+    """Helper to find task yaml in TASKS_DIR or ARCHIVED_TASKS_DIR"""
+    
+    # Try the standard task directory
+    path = Path(TASKS_DIR).joinpath(task_name).joinpath(task_version).joinpath(f"{task_name}.yaml")
+    if path.exists():
+        return path
+    
+    # Try the archive directory
+    archive_path = Path(ARCHIVED_TASKS_DIR).joinpath(task_name).joinpath(task_version).joinpath(f"{task_name}.yaml")
+    if archive_path.exists():
+        return archive_path
+    
+    # If not found, return original path so the error message shows the standard location
+    return path
 
 def main():
     temp_dir = mkdtemp()
@@ -128,7 +144,7 @@ def main():
 
         wrong_path = 0
         for task in pipelines_info[pipeline_name]['tasks']:
-            task_path = Path(TASKS_DIR).joinpath(task['refname']).joinpath(task['refversion']).joinpath(f"{task['refname']}.yaml")
+            task_path = get_task_path(task['refname'], task['refversion'])
             if not task_path.exists():
                 wrong_path = 1
                 print(f"task definition doesn't exist: {task_path}")
@@ -139,7 +155,7 @@ def main():
 
         all_tasks = []
         for task in pipelines_info[pipeline_name]['tasks']:
-            task_path = Path(TASKS_DIR).joinpath(task['refname']).joinpath(task['refversion']).joinpath(f"{task['refname']}.yaml")
+            task_path = get_task_path(task['refname'], task['refversion'])
             with open(task_path, 'r') as f:
                 task_data = yaml.safe_load(f)
 
