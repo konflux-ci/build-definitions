@@ -314,6 +314,8 @@ spec:
         # Declare Supported architectures
         declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
 
+        skopeo_retries=3
+
         # Initialize result vars
         PFLT_PASS_COUNT=0
         PFLT_FAIL_COUNT=0
@@ -372,7 +374,7 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        image_digest=$(skopeo inspect --raw "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
+        image_digest=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
         if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi
