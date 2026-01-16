@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.3"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+  name: apply-tags
+spec:
+  description: >-
+    Applies additional tags to the built image.
+  params:
+  - name: IMAGE_URL
+    description: Image repository and tag reference of the the built image.
+    type: string
+  - name: IMAGE_DIGEST
+    description: Image digest of the built image.
+    type: string
+  - name: ADDITIONAL_TAGS
+    description: Additional tags that will be applied to the image in the registry.
+    type: array
+    default: []
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  - name: LOG_LEVEL
+    type: string
+    description: Log level to use in the task. See golang logrus docs for available levels.
+    default: info
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+    - name: apply-additional-tags
+      resources:
+        limits:
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      env:
+        - name: KBC_LOG_LEVEL
+          value: $(params.LOG_LEVEL)
+      image: quay.io/konflux-ci/konflux-build-cli@sha256:a4bff739b5c0cb1c02b454c1b46ad54675f8df121efb5203fed19266a6b01639
+      command: ["konflux-build-cli", "image", "apply-tags"]
+      args:
+        - --image-url
+        - $(params.IMAGE_URL)
+        - --digest
+        - $(params.IMAGE_DIGEST)
+        - --tags
+        - $(params.ADDITIONAL_TAGS[*])
+        - --tags-from-image-label
+        - konflux.additional-tags
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+        - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          path: ca-bundle.crt
+      optional: true

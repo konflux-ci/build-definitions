@@ -6,6 +6,7 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
+    build.appstudio.redhat.com/expires-on: 2026-02-14T00:00:00Z
   name: apply-tags
 spec:
   description: >-
@@ -43,7 +44,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
+      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:2b004dc4b55529823e8994e33df0d80e3d1de610e116f830e2b6d5d6e5539186
       args:
         - $(params.ADDITIONAL_TAGS[*])
       env:
@@ -71,7 +72,7 @@ spec:
         requests:
           memory: 256Mi
           cpu: 100m
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
+      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:2b004dc4b55529823e8994e33df0d80e3d1de610e116f830e2b6d5d6e5539186
       env:
       - name: IMAGE_URL
         value: $(params.IMAGE_URL)
