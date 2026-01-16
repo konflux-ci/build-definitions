@@ -36,6 +36,18 @@ spec:
       type: string
       description: Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'
       default: ".tekton/images-mirror-set.yaml"
+    - name: CONVERT_TAGS_TO_DIGESTS
+      type: string
+      description: Optional. Convert all image tags in the catalog output to sha256 digests. Enabled by default. Set to 'false' to disable.
+      default: "true"
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap containing the CA bundle for TLS verification.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The key in the ConfigMap containing the CA bundle.
+      default: ca-bundle.crt
   results:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code with generated
@@ -43,13 +55,24 @@ spec:
   volumes:
     - name: workdir
       emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
   stepTemplate:
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
+      - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        name: trusted-ca
+        readOnly: true
+        subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -108,8 +131,153 @@ spec:
           echo -n "false" > "$(step.results.skip_create_trusted_artifact.path)"
         - "bash"
         - $(params.OPM_ARGS[*])
+    - name: convert-image-tags-to-digests
+      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: OPM_OUTPUT_PATH_PARAM
+          value: $(params.OPM_OUTPUT_PATH)
+      when:
+        - input: "$(params.CONVERT_TAGS_TO_DIGESTS)"
+          operator: in
+          values: ["true"]
+        - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
+          operator: in
+          values: ["false"]
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        load_utils() {
+          # shellcheck source=/dev/null
+          source /utils.sh
+        }
+
+        # Main conversion function
+        convert_tags_to_digests() {
+          local -r catalog_file="${OPM_OUTPUT_PATH_PARAM}"
+
+          echo "Converting image tags to sha256 digests in '${catalog_file}'."
+
+          if [[ ! -f "${catalog_file}" ]]; then
+            echo "Error: Catalog file '${catalog_file}' not found." >&2
+            return 1
+          fi
+
+          # Extract image references from specific OLM catalog paths only:
+          # - .image (root level bundle image)
+          # - .relatedImages[].image (related images array)
+          echo "Extracting image references from catalog..."
+          local -a images=()
+          mapfile -t images < <(jq -r '.image, .relatedImages[]?.image | select(. != null)' "${catalog_file}" | sort -u)
+
+          if [[ ${#images[@]} -eq 0 ]]; then
+            echo "No images found in catalog. Nothing to convert."
+            return 0
+          fi
+
+          echo "Found ${#images[@]} unique image reference(s)."
+
+          # Map: key=original_image, value=digest_image
+          local -A image_digests_map=()
+
+          # Process each image and get its digest
+          for image in "${images[@]}"; do
+            # Fail on empty image references - indicates malformed catalog
+            if [[ -z "${image}" ]]; then
+              echo "Error: Found empty image reference in catalog. This indicates a malformed catalog entry." >&2
+              return 1
+            fi
+
+            # Parse the image URL using parse_image_url (utils.sh function)
+            local parsed_image parsed_digest parsed_tag parsed_registry_repository
+            parsed_image=$(parse_image_url "${image}")
+            parsed_digest=$(echo "$parsed_image" | jq -r '.digest')
+            parsed_tag=$(echo "$parsed_image" | jq -r '.tag')
+            parsed_registry_repository=$(echo "$parsed_image" | jq -r '.registry_repository')
+
+            # Skip images that already use digest format
+            if [[ -n "${parsed_digest}" ]]; then
+              echo "Image '${image}' already uses digest format. Skipping."
+              continue
+            fi
+
+            # Fail if image doesn't have a tag
+            # Untagged images are ambiguous and defeat the purpose of digest conversion
+            if [[ -z "${parsed_tag}" ]]; then
+              echo "Error: Image '${image}' has no tag. Cannot convert to digest." >&2
+              return 1
+            fi
+
+            echo "Processing image: ${image}"
+
+            # Get the digest using skopeo with retry wrapper
+            local digest
+            if ! digest=$(retry skopeo inspect --no-tags --format='{{.Digest}}' "docker://${image}"); then
+              echo "Error: Failed to get digest for image '${image}'." >&2
+              return 1
+            fi
+
+            if [[ -z "${digest}" ]]; then
+              echo "Error: Empty digest returned for image '${image}'." >&2
+              return 1
+            fi
+
+            # Construct the digest-based image reference
+            local image_with_digest="${parsed_registry_repository}@${digest}"
+
+            image_digests_map["${image}"]="${image_with_digest}"
+          done
+
+          # Apply all replacements
+          if [[ ${#image_digests_map[@]} -gt 0 ]]; then
+            echo ""
+            echo "Applying ${#image_digests_map[@]} replacement(s) to catalog file:"
+            for img in "${!image_digests_map[@]}"; do
+              echo "  ${img} -> ${image_digests_map[${img}]}"
+            done
+            echo ""
+
+            # Create temporary file for the catalog replacements
+            local tmp_file
+            tmp_file=$(mktemp)
+            trap 'rm -f "${tmp_file}"' RETURN
+
+            # Iterate over the map and replace each image reference
+            local old_image
+            for old_image in "${!image_digests_map[@]}"; do
+              local new_image="${image_digests_map[${old_image}]}"
+
+              # Replace in specific OLM catalog paths only:
+              # - .image (root level)
+              # - .relatedImages[].image (related images array)
+              if ! jq --arg old "${old_image}" --arg new "${new_image}" \
+                   '(if .image == $old then .image = $new else . end) |
+                    (if .relatedImages then .relatedImages = [.relatedImages[] | if .image == $old then .image = $new else . end] else . end)' \
+                   "${catalog_file}" > "${tmp_file}"; then
+                echo "Error: Failed to replace image '${old_image}' in catalog." >&2
+                return 1
+              fi
+
+              if ! mv "${tmp_file}" "${catalog_file}"; then
+                echo "Error: Failed to update catalog file." >&2
+                return 1
+              fi
+            done
+
+            echo "Successfully converted ${#image_digests_map[@]} image reference(s) to digest format."
+          else
+            echo "No images needed conversion."
+          fi
+        }
+
+        # Load utilities and run the conversion
+        load_utils
+        convert_tags_to_digests
     - name: replace-related-images-pullspec-in-file
-      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:2b1e6e5e9b28f17770476039d1c3e68166b61fefcf0d4a6359f30d044b149b65
+      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -143,7 +311,7 @@ spec:
           echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
           replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       when:
         - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
           operator: in

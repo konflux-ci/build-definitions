@@ -59,6 +59,9 @@ spec:
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
+  - default: "false"
+    description: Enable cache proxy configuration
+    name: enable-cache-proxy
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -77,6 +80,8 @@ spec:
       value: $(params.rebuild)
     - name: skip-checks
       value: $(params.skip-checks)
+    - name: enable-cache-proxy
+      value: $(params.enable-cache-proxy)
     taskRef:
       name: init
       version: "0.2"
@@ -157,7 +162,7 @@ spec:
     - build-container
     taskRef:
       name: build-image-index
-      version: "0.1"
+      version: "0.2"
     when:
     - input: $(tasks.init.results.build)
       operator: in

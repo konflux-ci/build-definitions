@@ -9,14 +9,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-images:0.7:BUILD_ARGS|
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-images:0.7:BUILD_ARGS_FILE|
-|build-image-index| Add built image into an OCI image index| true| build-image-index:0.1:ALWAYS_BUILD_INDEX|
+|build-image-index| Add built image into an OCI image index| true| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-platforms| List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.| ['linux/x86_64']| |
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.7:DOCKERFILE|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.2:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| true| build-images:0.7:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.7:IMAGE_EXPIRES_AFTER ; build-image-index:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.7:IMAGE ; build-image-index:0.1:IMAGE|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.7:IMAGE_EXPIRES_AFTER ; build-image-index:0.2:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.7:IMAGE ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.7:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-images:0.7:PREFETCH_INPUT|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
@@ -32,7 +33,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### build-image-index:0.1 task parameters
+### build-image-index:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
@@ -66,14 +67,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
-|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| |
+|HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| '$(tasks.init.results.http-proxy)'|
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_APPEND_PLATFORM| Whether to append a sanitized platform architecture on the IMAGE tag| false| 'true'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
-|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| |
+|NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| '$(tasks.init.results.no-proxy)'|
 |OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| |
 |PLATFORM| The platform to build on| None| |
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| ""| '$(params.prefetch-input)'|
@@ -135,6 +136,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
 |httpsProxy| HTTPS proxy server for SSL requests.| ""| |
+|mergeSourceDepth| Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. | ""| |
+|mergeSourceRepoUrl| URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. | ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
@@ -153,6 +156,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### init:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
 |image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
 |rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
 |skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
@@ -167,17 +171,21 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
+|mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### run-opm-command-oci-ta:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|CONVERT_TAGS_TO_DIGESTS| Optional. Convert all image tags in the catalog output to sha256 digests. Enabled by default. Set to 'false' to disable.| true| |
 |FILE_TO_UPDATE_PULLSPEC| Optional. Relative path to a file (e.g., catalog-template.yml) in which pullspecs should be updated before running opm.| ""| |
 |IDMS_PATH| Optional, path for ImageDigestMirrorSet file. It defaults to '.tekton/images-mirror-set.yaml'| .tekton/images-mirror-set.yaml| |
 |OPM_ARGS| The array of arguments to pass to the 'opm' command. (e.g., [ 'alpha', 'render-template', 'basic', 'v4.18/catalog-template.json']).| []| []|
 |OPM_OUTPUT_PATH| Relative path for the opm command's output file (e.g. 'v4.18/catalog/example-operator/catalog.json'). Relative to the root directory of given source code (Git repository).| None| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.clone-repository.results.SOURCE_ARTIFACT)'|
+|caTrustConfigMapKey| The key in the ConfigMap containing the CA bundle.| ca-bundle.crt| |
+|caTrustConfigMapName| The name of the ConfigMap containing the CA bundle for TLS verification.| trusted-ca| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts. Empty string means no expiration.| None| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).opm'|
 ### validate-fbc:0.1 task parameters
@@ -194,7 +202,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index:0.1 task results
+### build-image-index:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
@@ -206,7 +214,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
-|IMAGE_REF| Image reference of the built image| build-image-index:0.1:IMAGES|
+|IMAGE_REF| Image reference of the built image| build-image-index:0.2:IMAGES|
 |IMAGE_URL| Image repository and tag where the built image was pushed| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### deprecated-image-check:0.5 task results
@@ -230,7 +238,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| run-opm-command:0.1:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-images:0.7:COMMIT_SHA ; build-image-index:0.1:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-images:0.7:COMMIT_SHA ; build-image-index:0.2:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
@@ -239,6 +247,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-images:0.7:HTTP_PROXY|
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-images:0.7:NO_PROXY|
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|

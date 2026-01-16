@@ -48,6 +48,10 @@ spec:
   - name: sbom-type
     default: spdx
     description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
+  - name: mode
+    description: "Control how input requirement violations are handled: strict (errors) or permissive (warnings)."
+    type: string
+    default: strict
   - name: caTrustConfigMapName
     type: string
     description: The name of the ConfigMap to read CA bundle data from.
@@ -72,7 +76,7 @@ spec:
         name: shared
   steps:
   - name: sanitize-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:e8bc7ee6bb0c66f6673d1150d8dcb0b28175905c8c0ba5263b75a0a744bfc6d2
+    image: quay.io/konflux-ci/yq:latest@sha256:d007048d29fc22f9a81524173eeb9131b5b78253a4ab18f6331400c88d78ea47
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -83,7 +87,7 @@ spec:
       fi
 
   - name: prefetch-dependencies
-    image: quay.io/konflux-ci/hermeto:0.42.0@sha256:d70a615f6a6ee8d9d5802bf965aea20622d0a29ab89bef629857a20ae1cf017d
+    image: quay.io/konflux-ci/hermeto:0.45.0@sha256:39f64967e5ebc1f6bebcd468cd55c5706b3a70f39afdcb43ecb44ec2d9679eb6
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -95,6 +99,8 @@ spec:
       value: $(params.log-level)
     - name: SBOM_TYPE
       value: $(params.sbom-type)
+    - name: MODE
+      value: $(params.mode)
     - name: WORKSPACE_GIT_AUTH_BOUND
       value: $(workspaces.git-basic-auth.bound)
     - name: WORKSPACE_GIT_AUTH_PATH
@@ -339,16 +345,7 @@ spec:
 
       INPUT=$(inject_rpm_summary_flag "$INPUT")
 
-      # Some repos with go submodules would fail during prefetch dependencies task
-      # Forcing fetching tags serves as a workaround
-      export RETRY_MAX_TRIES=2
-      WORKSPACE_SOURCE="$(workspaces.source.path)/source"
-      if ! (cd "$WORKSPACE_SOURCE" && retry git fetch --tags); then
-        exit 1
-      fi
-      unset RETRY_MAX_TRIES
-
-      hermeto --log-level="$LOG_LEVEL" $config_flag fetch-deps \
+      hermeto --log-level="$LOG_LEVEL" --mode="$MODE" $config_flag fetch-deps \
       $dev_pacman_flag \
       --source="$(workspaces.source.path)/source" \
       --output="$(workspaces.source.path)/cachi2/output" \

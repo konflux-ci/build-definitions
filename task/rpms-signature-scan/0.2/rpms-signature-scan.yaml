@@ -4,7 +4,7 @@ kind: Task
 metadata:
   name: rpms-signature-scan
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.2.1"
 spec:
   description: |-
     Scans RPMs in an image and provide information about RPMs signatures.
@@ -48,7 +48,7 @@ spec:
         optional: true
   steps:
     - name: rpms-signature-scan
-      image: quay.io/konflux-ci/tools@sha256:67c43b071160b7b5a2325b645fa9ec1d3dedbfac7177105cad5f4244fc1ec828
+      image: quay.io/konflux-ci/tools@sha256:32855ac28cd967b2016e097f603abe033caa68350ee00ada75f33a8de58fb749
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -73,7 +73,7 @@ spec:
           --image-digest "${IMAGE_DIGEST}" \
           --workdir "${WORKDIR}" \
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.42@sha256:32112ba0f1b8a3944f4905be40308713c32beb6c059c42ef0bc2b5fe7947ff2f
       volumeMounts:
         - name: workdir
           mountPath: "$(params.workdir)"
@@ -88,6 +88,7 @@ spec:
         status=$(cat "${WORKDIR}"/status)
         rpms_data=$(cat "${WORKDIR}"/results)
         images_processed=$(cat "${WORKDIR}"/images_processed)
+
         if [ "$status" == "ERROR" ]; then
           note="Task $(context.task.name) failed to scan images. Refer to Tekton task output for details"
         else
@@ -95,6 +96,7 @@ spec:
         fi
 
         TEST_OUTPUT=$(make_result_json -r "$status" -t "$note")
+
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         echo "${rpms_data}" | tee "$(results.RPMS_DATA.path)"
         echo "${images_processed}" | tee "$(results.IMAGES_PROCESSED.path)"

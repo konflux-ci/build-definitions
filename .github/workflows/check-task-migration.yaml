@@ -1,3 +1,10 @@
+# yamllint disable-file
+
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
 name: Check task migrations
 "on":
   pull_request:
@@ -9,11 +16,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
       - name: Create k8s Kind Cluster
-        uses: helm/kind-action@v1.13.0
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
         with:
           cluster_name: kind
       - uses: tektoncd/actions/setup-tektoncd@main
@@ -34,6 +41,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive \
           sudo apt-get install -y --no-install-recommends \
               tzdata python3-ruamel.yaml
+          pip install git+https://github.com/konflux-ci/pipeline-migration-tool --user
 
           kubectl get all -n tekton-pipelines
           # Require name main

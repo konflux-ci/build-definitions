@@ -169,7 +169,7 @@ spec:
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
-          value: 0.1.12
+          value: 0.1.13
         - name: MODELCARD_PATH
           value: $(params.MODELCARD_PATH)
         - name: REMOVE_ORIGINALS
@@ -185,7 +185,12 @@ spec:
         fi
         pip install olot=="${OLOT_VERSION}"
 
-        olot "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+        echo REMOVE_ORIGINALS_ARG "${REMOVE_ORIGINALS_ARG[@]}"
+        echo MODELCARD_PATH "$MODELCARD_PATH"
+        echo TARGET_OCI "$TARGET_OCI"
+        echo Models: models/*
+
+        olot --verbose "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
       image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e

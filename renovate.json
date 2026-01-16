@@ -72,8 +72,7 @@
         ".tekton/tasks/ec-checks.yaml",
         "pipelines/enterprise-contract.yaml",
         "task/tkn-bundle-oci-ta/**",
-        "task/tkn-bundle/**",
-        "task/verify-enterprise-contract/**"
+        "task/tkn-bundle/**"
       ]
     },
     {
@@ -92,24 +91,13 @@
         "external-task/sast-unicode-check-oci-ta/**",
         "external-task/sast-unicode-check/**",
         "stepactions/fips-operator-check-step-action/**",
-        "task/clair-scan/**",
-        "task/clamav-scan/**",
-        "task/coverity-availability-check/**",
-        "task/deprecated-image-check/**",
         "task/fbc-fips-check-oci-ta/**",
         "task/fbc-fips-check/**",
         "task/fbc-target-index-pruning-check/**",
         "task/fips-operator-bundle-check-oci-ta/**",
         "task/fips-operator-bundle-check/**",
+        "task/github-sarif-upload/**",
         "task/run-opm-command-oci-ta/**",
-        "task/sast-coverity-check-oci-ta/**",
-        "task/sast-coverity-check/**",
-        "task/sast-shell-check-oci-ta/**",
-        "task/sast-shell-check/**",
-        "task/sast-snyk-check-oci-ta/**",
-        "task/sast-snyk-check/**",
-        "task/sast-unicode-check-oci-ta/**",
-        "task/sast-unicode-check/**",
         "task/sbom-json-check/**",
         "task/validate-fbc/**"
       ]
@@ -203,6 +191,32 @@
       ]
     },
     {
+      "groupName": "konflux-test-tasks",
+      "description": "Updated and verified in konflux-test-tasks so should be ignored here",
+      "matchFileNames": [
+        "task/clair-scan/**",
+        "task/clamav-scan/**",
+        "task/deprecated-image-check/**"
+      ],
+      "enabled": false
+    },
+    {
+      "groupName": "konflux-sast-tasks",
+      "description": "Updated and verified in konflux-sast-tasks so should be ignored here",
+      "matchFileNames": [
+        "task/coverity-availability-check/**",
+        "task/sast-coverity-check-oci-ta/**",
+        "task/sast-coverity-check/**",
+        "task/sast-shell-check-oci-ta/**",
+        "task/sast-shell-check/**",
+        "task/sast-snyk-check-oci-ta/**",
+        "task/sast-snyk-check/**",
+        "task/sast-unicode-check-oci-ta/**",
+        "task/sast-unicode-check/**"
+      ],
+      "enabled": false
+    },
+    {
       "groupName": "tekton-tools-tasks",
       "description": "Updated and verified in tekton-tools so should be ignored here",
       "matchFileNames": [
@@ -262,6 +276,13 @@
       "groupName": "ko-builder",
       "matchFileNames": [
         "task/ko-oci-ta/**"
+      ]
+    },
+    {
+      "groupName": "package-operator",
+      "matchFileNames": [
+        "task/package-operator-package-oci-ta/**",
+        "task/package-operator-package/**"
       ]
     }
   ],
@@ -340,5 +361,18 @@
       "datasourceTemplate": "docker",
       "versioningTemplate": "redhat"
     }
+  ],
+  "ignorePaths": [
+    ".github/actions/install-tkn/action.yaml",
+    ".github/resources/workspace-template.yaml",
+    ".github/scripts/test_tekton_tasks.sh",
+    ".github/workflows/check-kustomize-build.yaml",
+    ".github/workflows/check-ta.yaml",
+    ".github/workflows/check-task-migration.yaml",
+    ".github/workflows/checkton.yaml",
+    ".github/workflows/run-task-tests.yaml",
+    ".github/workflows/task-lint.yaml",
+    ".github/workflows/update-shared-ci.yaml",
+    ".github/workflows/versioning.yaml"
   ]
 }

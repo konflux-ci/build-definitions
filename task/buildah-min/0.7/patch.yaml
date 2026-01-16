@@ -11,6 +11,9 @@
 - op: replace
   path: /spec/steps/0/computeResources/requests/cpu
   value: 100m
+# Remove CPU limit from build step (inherited from base buildah.yaml)
+- op: remove
+  path: /spec/steps/0/computeResources/limits/cpu
 # push, and sbom-syft-generate steps
 - op: replace
   path: /spec/stepTemplate/computeResources/limits/memory
@@ -21,6 +24,12 @@
 - op: replace
   path: /spec/stepTemplate/computeResources/requests/cpu
   value: 100m
+# Remove computeResources from push step (so it inherits from stepTemplate)
+- op: remove
+  path: /spec/steps/1/computeResources
+# Remove computeResources from sbom-syft-generate step (so it inherits from stepTemplate)
+- op: remove
+  path: /spec/steps/2/computeResources
 # prepare-sboms step
 - op: replace
   path: /spec/steps/3/computeResources/limits/memory
@@ -31,6 +40,9 @@
 - op: replace
   path: /spec/steps/3/computeResources/requests/cpu
   value: 10m
+# Remove CPU limit from prepare-sboms step (inherited from base buildah.yaml)
+- op: remove
+  path: /spec/steps/3/computeResources/limits/cpu
 # upload-sbom step
 - op: replace
   path: /spec/steps/4/computeResources/limits/memory
@@ -41,3 +53,6 @@
 - op: replace
   path: /spec/steps/4/computeResources/requests/cpu
   value: 100m
+# Remove CPU limit from upload-sbom step (inherited from base buildah.yaml)
+- op: remove
+  path: /spec/steps/4/computeResources/limits/cpu

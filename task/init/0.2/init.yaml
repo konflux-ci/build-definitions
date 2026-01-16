@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2.3"
+    app.kubernetes.io/version: "0.2.6"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -19,13 +19,20 @@ spec:
     - name: skip-checks
       description: Skip checks against built image
       default: "false"
+    - name: enable-cache-proxy
+      description: Enable cache proxy configuration
+      default: "false"
   results:
     - name: build
       description: Defines if the image in param image-url should be built
+    - name: http-proxy
+      description: HTTP proxy URL for cache proxy (when enable-cache-proxy is true)
+    - name: no-proxy
+      description: NO_PROXY value for cache proxy (when enable-cache-proxy is true)
 
   steps:
     - name: init
-      image: registry.access.redhat.com/ubi9/skopeo:9.7-1763368371@sha256:0e03db91ca0204e1e227a0213b2831ce8a6739cb2eef6d249f63a1ead72042b3
+      image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
       computeResources:
         limits:
           memory: 256Mi
@@ -39,6 +46,8 @@ spec:
           value: $(params.rebuild)
         - name: SKIP_CHECKS
           value: $(params.skip-checks)
+        - name: ENABLE_CACHE_PROXY
+          value: $(params.enable-cache-proxy)
       script: |
         #!/bin/bash
         echo "Build Initialize: $IMAGE_URL"
@@ -46,11 +55,52 @@ spec:
 
         skopeo_retries=3
 
+        default_http_proxy="squid.caching.svc.cluster.local:3128"
+        default_no_proxy="brew.registry.redhat.io,docker.io,gcr.io,ghcr.io,images.paas.redhat.com,mirror.gcr.io,nvcr.io,quay.io,registry-proxy.engineering.redhat.com,registry.access.redhat.com,registry.ci.openshift.org,registry.fedoraproject.org,registry.redhat.io,registry.stage.redhat.io,vault.habana.ai"
+
         echo "Determine if Image Already Exists"
         # Build the image when rebuild is set to true or image does not exist
         # The image check comes last to avoid unnecessary, slow API calls
         if [ "$REBUILD" == "true" ] || [ "$SKIP_CHECKS" == "false" ] || ! skopeo inspect --retry-times "$skopeo_retries" --no-tags --raw "docker://$IMAGE_URL" &>/dev/null; then
-          echo -n "true" > $(results.build.path)
+          echo -n "true" > "$(results.build.path)"
         else
-          echo -n "false" > $(results.build.path)
+          echo -n "false" > "$(results.build.path)"
         fi
+
+        # Fetch cluster-config from konflux-info namespace
+        echo "Fetching cluster-config from konflux-info namespace..."
+        if config_map=$(oc get configmap cluster-config -n konflux-info -o json 2>/dev/null); then
+          # ConfigMap exists
+          allow_cache=$(echo "$config_map" | jq -r '.data["allow-cache-proxy"] // "true"')
+          if [ "$allow_cache" == "true" ]; then
+             http_proxy=$(echo "$config_map" | jq -r --arg default_http "$default_http_proxy" '.data["http-proxy"] // $default_http')
+             no_proxy=$(echo "$config_map" | jq -r --arg default_no "$default_no_proxy" '.data["no-proxy"] // $default_no')
+          else
+             # allow-cache-proxy is false (or any other value != true)
+             http_proxy=""
+             no_proxy=""
+          fi
+        else
+          # ConfigMap missing, use defaults
+          echo "Warning: Failed to fetch cluster-config ConfigMap. Proceeding with defaults."
+          allow_cache="true"
+          http_proxy="$default_http_proxy"
+          no_proxy="$default_no_proxy"
+        fi
+
+        # Apply ENABLE_CACHE_PROXY check (from task param) ONLY if cluster allows it
+        if [ "$allow_cache" == "true" ] && [ "$ENABLE_CACHE_PROXY" == "true" ]; then
+           # Use the resolved values
+           echo "Cache proxy enabled (cluster-enabled: $allow_cache, task-enable: $ENABLE_CACHE_PROXY)"
+        else
+           # Task param disabled OR cluster disabled
+           echo "Cache proxy disabled (cluster-enabled: $allow_cache, task-enable: $ENABLE_CACHE_PROXY)"
+           http_proxy=""
+           no_proxy=""
+        fi
+
+        echo "Setting HTTP_PROXY to $http_proxy"
+        echo -n "$http_proxy" > "$(results.http-proxy.path)"
+
+        echo "Setting NO_PROXY to $no_proxy"
+        echo -n "$no_proxy" > "$(results.no-proxy.path)"

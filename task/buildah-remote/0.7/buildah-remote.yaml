@@ -263,7 +263,7 @@ spec:
         memory: 4Gi
       requests:
         cpu: "1"
-        memory: 1Gi
+        memory: 4Gi
     env:
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
@@ -326,7 +326,7 @@ spec:
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -345,10 +345,11 @@ spec:
     - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
+        cpu: 4600m
         memory: 8Gi
       requests:
-        cpu: "1"
-        memory: 2Gi
+        cpu: 4600m
+        memory: 8Gi
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -368,7 +369,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
     name: build
     script: |-
       #!/bin/bash
@@ -762,15 +763,17 @@ spec:
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
       fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
-        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
-        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       else
-        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+        BUILD_TIMESTAMP_RFC3339=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
       fi
+
+      DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+      DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
 
       label_pairs=()
       # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
@@ -818,7 +821,7 @@ spec:
       done
 
       # Labels that we explicitly add to the image
-      [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
 
       while IFS= read -r label; do
@@ -1122,13 +1125,19 @@ spec:
       name: ssh
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources: {}
+  - computeResources:
+      limits:
+        cpu: 600m
+        memory: 4Gi
+      requests:
+        cpu: 600m
+        memory: 4Gi
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
     name: push
     script: |
       #!/bin/bash
@@ -1210,8 +1219,14 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources: {}
-    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:15ed82f0b5311a570ccb8ea02135d9776c6d61e545c51b256b3fc5b5db20ba67
+  - computeResources:
+      limits:
+        cpu: 1100m
+        memory: 4Gi
+      requests:
+        cpu: 1100m
+        memory: 4Gi
+    image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     name: sbom-syft-generate
     script: |
       #!/bin/bash
@@ -1279,7 +1294,8 @@ spec:
     - $(params.ADDITIONAL_BASE_IMAGES[*])
     computeResources:
       limits:
-        memory: 512Mi
+        cpu: 100m
+        memory: 256Mi
       requests:
         cpu: 100m
         memory: 256Mi
@@ -1369,11 +1385,12 @@ spec:
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
-        memory: 512Mi
+        cpu: 100m
+        memory: 256Mi
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:ca4a6d3ac06597ac0678e1f7b1186a0c7bf19a5b02caf9e3d2aa04d4980f80a7
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
     name: upload-sbom
     script: |
       #!/bin/bash

@@ -31,7 +31,7 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
       computeResources:
         limits:
           memory: 12Gi
@@ -179,8 +179,8 @@ spec:
               echo "Could not inspect original pullspec $bundle. Checking if there's a mirror present"
               if [ -n "${image_mirror_map}" ]; then
                 reg_and_repo=$(get_image_registry_and_repository "${bundle}")
-                mapfile -t mirrors < <(echo "${image_mirror_map}" | jq -r --arg image "${reg_and_repo}" '.[$image] // ["No mirrors found"] | .[]')
-                if [[ "${mirrors[0]}" == "No mirrors found" ]]; then
+                mapfile -t mirrors < <(get_image_mirror_list "${reg_and_repo}" "${image_mirror_map}")
+                if [[ -z "${mirrors[0]}" ]]; then
                   echo "No mirrors found in image mirror map for ${reg_and_repo}"
                 else
                   echo "Mirrors for $reg_and_repo are:"
@@ -277,12 +277,12 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 02ac30080ba6bb62d9738e5c5ad6268c73e74a20
+            value: ac78bc7b6ea4d34781a4cff44ae9647745e2e65d
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)

@@ -5,6 +5,8 @@ metadata:
     app.kubernetes.io/version: "0.1"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-01-09T00:00:00Z"
+    build.appstudio.redhat.com/expiry-message: "Please update your configuration to use the 'build-image-index' task (version 0.2)."
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "image-build, konflux"
   name: build-image-index
@@ -98,7 +100,7 @@ spec:
         mountPath: /mnt/trusted-ca
         readOnly: true
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: build
@@ -266,7 +268,7 @@ spec:
       mobster "${mobster_args[@]}"
 
   - name: upload-sbom
-    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:ca4a6d3ac06597ac0678e1f7b1186a0c7bf19a5b02caf9e3d2aa04d4980f80a7
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
     script: |
       #!/bin/bash
       set -e

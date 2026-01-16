@@ -162,7 +162,7 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: generate-container-auth
-      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+      image: quay.io/konflux-ci/oras:latest@sha256:721da6e6f0e7a60d5d1fe7c32edba5471da21bed1bd8a7c999aed9a3a9b1e940
       env:
       - name: PARAM_IMAGE_URL
         value: $(params.image-url)
@@ -219,7 +219,7 @@ spec:
           mountPath: /bundle
 
     - name: app-check
-      image: quay.io/opdev/preflight:stable@sha256:6e857a015829a53e2139b3f857816c91ff9bf0b37a44d4e473ad92f8b878c1c9
+      image: quay.io/opdev/preflight:stable@sha256:0834c74012598ac7b0b0104deb947d449accd518db745047c98d1ddfcfd8ceaf
       resources:
         limits:
           memory: 4Gi
@@ -314,6 +314,8 @@ spec:
         # Declare Supported architectures
         declare -a SUPPORTED_ARCHES=(amd64 arm64 ppc64le s390x)
 
+        skopeo_retries=3
+
         # Initialize result vars
         PFLT_PASS_COUNT=0
         PFLT_FAIL_COUNT=0
@@ -372,7 +374,7 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        image_digest=$(skopeo inspect --raw "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
+        image_digest=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
         if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi

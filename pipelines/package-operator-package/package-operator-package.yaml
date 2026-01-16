@@ -1,0 +1,381 @@
+# WARNING: This is an auto generated file, do not modify this file directly
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  labels:
+    pipelines.openshift.io/runtime: ""
+    pipelines.openshift.io/strategy: ""
+    pipelines.openshift.io/used-by: ""
+  name: package-operator-package
+spec:
+  description: |
+    Given a git repository, a reference (as in, tag or commit) and a path within the repository this pipeline will create a package-operator package.
+
+    The process of how a pko package is defined and packaged is documented [here](https://package-operator.run/docs/guides/packaging-an-application/). This task expects the package definition, will build it using `kubectl-package` and push the created package to the given OCI registry destination.
+  finally: []
+  params:
+  - description: Source Repository URL
+    name: git-url
+    type: string
+  - default: ""
+    description: Revision of the Source Repository
+    name: revision
+    type: string
+  - description: Fully Qualified Output Image
+    name: output-image
+    type: string
+  - default: .
+    description: Path to the source code of an application's component from where
+      to build image.
+    name: path-context
+    type: string
+  - default: "false"
+    description: Force rebuild image
+    name: rebuild
+    type: string
+  - default: "false"
+    description: Skip checks against built image
+    name: skip-checks
+    type: string
+  - default: "false"
+    description: Execute the build with network isolation
+    name: hermetic
+    type: string
+  - default: ""
+    description: Build dependencies to be prefetched
+    name: prefetch-input
+    type: string
+  - default: ""
+    description: Image tag expiration time, time values could be something like 1h,
+      2d, 3w for hours, days, and weeks, respectively.
+    name: image-expires-after
+    type: string
+  - default: "false"
+    description: Build a source image.
+    name: build-source-image
+    type: string
+  - default: "false"
+    description: Add built image into an OCI image index
+    name: build-image-index
+    type: string
+  - default: docker
+    description: The format for the resulting image's mediaType. Valid values are
+      oci or docker.
+    name: buildah-format
+    type: string
+  - default: "false"
+    description: Enable cache proxy configuration
+    name: enable-cache-proxy
+  results:
+  - name: IMAGE_URL
+    value: $(tasks.build-image-index.results.IMAGE_URL)
+  - name: IMAGE_DIGEST
+    value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+  - name: CHAINS-GIT_URL
+    value: $(tasks.clone-repository.results.url)
+  - name: CHAINS-GIT_COMMIT
+    value: $(tasks.clone-repository.results.commit)
+  tasks:
+  - name: init
+    params:
+    - name: image-url
+      value: $(params.output-image)
+    - name: rebuild
+      value: $(params.rebuild)
+    - name: skip-checks
+      value: $(params.skip-checks)
+    - name: enable-cache-proxy
+      value: $(params.enable-cache-proxy)
+    taskRef:
+      name: init
+      version: "0.2"
+  - name: clone-repository
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.revision)
+    runAfter:
+    - init
+    taskRef:
+      name: git-clone
+      version: "0.1"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+    workspaces:
+    - name: output
+      workspace: workspace
+    - name: basic-auth
+      workspace: git-auth
+  - name: prefetch-dependencies
+    params:
+    - name: input
+      value: $(params.prefetch-input)
+    runAfter:
+    - clone-repository
+    taskRef:
+      name: prefetch-dependencies
+      version: "0.2"
+    workspaces:
+    - name: source
+      workspace: workspace
+    - name: git-basic-auth
+      workspace: git-auth
+    - name: netrc
+      workspace: netrc
+  - name: build-container
+    params:
+    - name: SRC_PATH
+      value: $(params.path-context)
+    - name: DST_URL
+      value: $(params.output-image)
+    runAfter:
+    - prefetch-dependencies
+    taskRef:
+      name: package-operator-package
+      version: "0.1"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+    workspaces:
+    - name: package
+      workspace: workspace
+  - name: build-image-index
+    params:
+    - name: IMAGE
+      value: $(params.output-image)
+    - name: COMMIT_SHA
+      value: $(tasks.clone-repository.results.commit)
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.image-expires-after)
+    - name: ALWAYS_BUILD_INDEX
+      value: $(params.build-image-index)
+    - name: IMAGES
+      value:
+      - $(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)
+    - name: BUILDAH_FORMAT
+      value: $(params.buildah-format)
+    runAfter:
+    - build-container
+    taskRef:
+      name: build-image-index
+      version: "0.2"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+  - name: build-source-image
+    params:
+    - name: BINARY_IMAGE
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: BINARY_IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: source-build
+      version: "0.3"
+    when:
+    - input: $(tasks.init.results.build)
+      operator: in
+      values:
+      - "true"
+    - input: $(params.build-source-image)
+      operator: in
+      values:
+      - "true"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: deprecated-base-image-check
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: deprecated-image-check
+      version: "0.5"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: clair-scan
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: clair-scan
+      version: "0.3"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: ecosystem-cert-preflight-checks
+    params:
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: ecosystem-cert-preflight-checks
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-snyk-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: sast-snyk-check
+      version: "0.4"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: clamav-scan
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: clamav-scan
+      version: "0.3"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-coverity-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - coverity-availability-check
+    taskRef:
+      name: sast-coverity-check
+      version: "0.3"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    - input: $(tasks.coverity-availability-check.results.STATUS)
+      operator: in
+      values:
+      - success
+    workspaces:
+    - name: source
+      workspace: workspace
+  - name: coverity-availability-check
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: coverity-availability-check
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  - name: sast-shell-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: sast-shell-check
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: sast-unicode-check
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: sast-unicode-check
+      version: "0.3"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+    workspaces:
+    - name: workspace
+      workspace: workspace
+  - name: apply-tags
+    params:
+    - name: IMAGE_URL
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: apply-tags
+      version: "0.2"
+  - name: rpms-signature-scan
+    params:
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: rpms-signature-scan
+      version: "0.2"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+  workspaces:
+  - name: workspace
+  - name: git-auth
+    optional: true
+  - name: netrc
+    optional: true

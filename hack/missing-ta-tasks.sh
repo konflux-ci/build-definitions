@@ -1,42 +1,16 @@
 #!/usr/bin/env bash
 
+# <TEMPLATED FILE!>
+# This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.
+# Please consider sending a PR upstream instead of editing the file directly.
+# See the SHARED-CI.md document in this repo for more details.
+
 set -o errexit
 set -o nounset
 set -o pipefail
 shopt -s globstar
 
 git_root=$(git rev-parse --show-toplevel)
-policy_file="${git_root}/policies/all-tasks.yaml"
-
-tmp_files=()
-trap 'rm "${tmp_files[@]}" > /dev/null 2>&1' EXIT
-
-# Tasks that are currently missing Trusted Artifact variant
-todo=(
-  task/buildah-min/0.2/kustomization.yaml
-  task/buildah-min/0.2/buildah-min.yaml
-  task/buildah-min/0.4/kustomization.yaml
-  task/buildah-min/0.4/buildah-min.yaml
-  task/buildah-min/0.5/kustomization.yaml
-  task/buildah-min/0.5/buildah-min.yaml
-  task/buildah-min/0.6/kustomization.yaml
-  task/buildah-min/0.6/buildah-min.yaml
-  task/buildah-min/0.7/kustomization.yaml
-  task/buildah-min/0.7/buildah-min.yaml
-  task/buildah-rhtap/0.1/buildah-rhtap.yaml
-  task/download-sbom-from-url-in-attestation/0.1/download-sbom-from-url-in-attestation.yaml
-  task/gather-deploy-images/0.1/gather-deploy-images.yaml
-  task/operator-sdk-generate-bundle/0.1/operator-sdk-generate-bundle.yaml
-  task/opm-get-bundle-version/0.1/opm-get-bundle-version.yaml
-  task/opm-render-bundles/0.1/opm-render-bundles.yaml
-  task/sast-unicode-check/0.1/sast-unicode-check.yaml
-  task/slack-webhook-notification/0.1/slack-webhook-notification.yaml
-  task/summary/0.2/summary.yaml
-  task/update-infra-deployments/0.1/update-infra-deployments.yaml
-  task/upload-sbom-to-trustification/0.1/upload-sbom-to-trustification.yaml
-  task/verify-enterprise-contract/0.1/kustomization.yaml
-  task/verify-enterprise-contract/0.1/verify-enterprise-contract.yaml
-)
 
 emit() {
   kind="$1"
@@ -51,6 +25,22 @@ emit() {
 
 {
   cd "${git_root}"
+
+  IGNORE_PATHS=()
+  IGNORE_WORKSPACES=()
+  for ignorefile in .github/.ta-ignore.yaml .ta-ignore.yaml; do
+    if [[ -e "$ignorefile" ]]; then
+      echo "Using ignorefile: $ignorefile"
+
+      mapfile -t IGNORE_PATHS < <(yq -r '.paths[]?' "$ignorefile")
+      mapfile -t IGNORE_WORKSPACES < <(yq -r '.workspaces[]?' "$ignorefile")
+
+      echo "Ignored paths: ${IGNORE_PATHS[*]}"
+      echo "Ignored workspaces: ${IGNORE_WORKSPACES[*]}"
+      break
+    fi
+  done
+
   missing=0
   for task in task/**/*.yaml; do
       # archived tasks need to be skipped
@@ -60,20 +50,14 @@ emit() {
       fi
       task_file="${task}"
       case "${task}" in
-          */kustomization.yaml)
-              tmp=$(mktemp)
-              tmp_files+=("${tmp}")
-              kustomize build "${task%/kustomization.yaml}" > "${tmp}"
-              task_file="${tmp}"
-              ;;
-          */recipe.yaml | */patch.yaml)
+          */kustomization.yaml | */recipe.yaml | */patch.yaml)
               continue
               ;;
       esac
 
-      for t in "${todo[@]}"; do
-        if [[ "${t}" == "${task}" ]]; then
-          emit warning "${task}" 'TODO: Task needs a Trusted Artifacts variant created'
+      for pattern in "${IGNORE_PATHS[@]}"; do
+        # shellcheck disable=SC2053  # glob matching is intentional here
+        if [[ "${task}" == ${pattern} ]]; then
           continue 2
         fi
       done
@@ -81,13 +65,22 @@ emit() {
       # we are looking at a Task
       yq -e '.kind != "Task"' "${task_file}" > /dev/null 2>&1 && continue
 
+      is_deprecated=$(yq '.metadata?.annotations?["build.appstudio.redhat.com/expires-on"] != null' "${task_file}")
+      if [[ "${is_deprecated}" == true ]]; then
+          echo "skipping ${task} (is deprecated)"
+          continue
+      fi
+
       # path elements of the task file path
       readarray -d / paths <<< "${task}"
       # PVC non-optional workspaces used
-      readarray -t workspaces <<< "$(yq ea '[select(fileIndex == 0).spec.workspaces[] | .name] - [select(fileIndex == 1).sources[].ruleData.allowed_trusted_artifacts_workspaces[] | .] | .[] | {"x": .} | "\(.x)"' "${task_file}" "${policy_file}")"
+      workspaces=$(yq -o json '[.spec.workspaces[].name]' "${task_file}")
+      disallowed_workspaces=$(
+        jq -nc '$workspaces - $ARGS.positional' --argjson workspaces "$workspaces" --args "${IGNORE_WORKSPACES[@]}"
+      )
 
       # is the task using a workspace(s) to share files?
-      [[ "${#workspaces}" -eq 0 ]] && continue
+      [[ "$disallowed_workspaces" == '[]' ]] && continue
 
       # is there a newer version of the task
       base_task_path=("${paths[@]}")
@@ -104,14 +97,14 @@ emit() {
       paths[-2]="${paths[-2]%/}-oci-ta/"
       ta_dir="$(IFS=''; echo "${paths[*]}")"
       if [[ ! -d "${ta_dir}" ]]; then
-          emit error "${task}" "Task is using a workspace(s): ${workspaces[*]}, to share data and needs a corresponding Trusted Artifacts Task variant in ${ta_dir}"
+          emit error "${task}" "Task is using a workspace(s): ${disallowed_workspaces}, to share data and needs a corresponding Trusted Artifacts Task variant in ${ta_dir}"
           missing=$((missing + 1))
       fi
   done
 
   if [[ ${missing} -gt 0 ]]; then
     if [ "${GITHUB_ACTIONS:-false}" == "true" ]; then
-      echo '::notice title=Missing Trusted Artifact Task Variant::Found Tasks that share data via PersistantVolumeClaim volumes without a corresponding Trusted Artifacts Variant. Please create the Trusted Artifacts Variant of the Task as well'
+      echo '::notice title=Missing Trusted Artifact Task Variant::Found Tasks that share data via workspaces without a corresponding Trusted Artifacts Variant. Please create the Trusted Artifacts Variant of the Task as well'
       exit 1
     fi
   fi

@@ -23,6 +23,8 @@ spec:
       type: array
     - name: run-e2e
       type: string
+    - name: changed_files
+      type: string
   steps:
     - name: evaluate
       image: $(params.utils_image)
@@ -66,7 +68,7 @@ spec:
           # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
           # shellcheck disable=SC2086
           .tekton/scripts/determine-if-e2e-execution-needed.py --changed_files ${changed_files} | tr -d '\n' | tee "$(results.run-e2e.path)"
-
+          echo "${changed_files}" | tr -d '\n' | tee "$(results.changed_files.path)"
         else
           ec opa eval --v1-compatible --data "${rules}" --input \
           <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
@@ -77,4 +79,7 @@ spec:
           # get changes with pr_number
           # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
           .tekton/scripts/determine-if-e2e-execution-needed.py --pr_number "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
+
+          changed_files=$(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path'] | jq -r 'join(" ")')
+          echo "${changed_files}" | tr -d '\n' | tee "$(results.changed_files.path)"
         fi

@@ -1,4 +1,4 @@
-FROM quay.io/enterprise-contract/cli:latest AS ec-image
+FROM quay.io/conforma/cli:latest AS ec-image
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
     cp /usr/local/bin/ec_linux_${ARCH}.gz /tmp/ec.gz
@@ -21,7 +21,7 @@ RUN ARCH=$(uname -m) && \
     curl -L https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-${GO_ARCH} -o /usr/bin/cosign && chmod +x /usr/bin/cosign && \
     curl -L https://github.com/sigstore/rekor/releases/download/v0.5.0/rekor-cli-linux-${GO_ARCH} -o /usr/bin/rekor-cli && chmod +x /usr/bin/rekor-cli && \
     curl -L https://github.com/cli/cli/releases/download/v2.60.1/gh_2.60.1_linux_${GO_ARCH}.tar.gz | tar -xz  -C /usr/bin --wildcards "gh_*/bin/gh" --strip-components=2 --no-same-owner && \
-    curl -L https://github.com/oras-project/oras/releases/download/v1.2.1/oras_1.2.1_linux_${GO_ARCH}.tar.gz | tar -xz --no-same-owner -C /usr/bin oras
+    curl -L https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_${GO_ARCH}.tar.gz | tar -xz --no-same-owner -C /usr/bin oras
 
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \

@@ -15,6 +15,7 @@ spec:
     tag prefixed with the value of TAG_PREFIX. The value of that tag will be used as
     the version's X.Y values, and the Z value will be computed by the commit's distance
     from the tag, followed by an abbreviated SHA as build metadata.
+    If the CHART_VERSION parameter is provided, that value is used as-is and version calculation is skipped.
 
     The task also supports image substitution in the chart templates. Use the IMAGE_MAPPINGS
     parameter to specify source images to be replaced with target images and tags.
@@ -65,6 +66,18 @@ spec:
     - name: VERSION_SUFFIX
       description: A suffix to be added to the version string
       default: ""
+    - name: CHART_VERSION
+      description: >-
+        Optional chart version string. When set, this value is used directly
+        instead of computing a version from git metadata.
+      type: string
+      default: ""
+    - name: APP_VERSION
+      description: >-
+        Optional appVersion override. When set, this value is used directly
+        instead of defaulting to COMMIT_SHA.
+      type: string
+      default: ""
   results:
     - name: IMAGE_DIGEST
       description: Digest of the OCI-Artifact just built
@@ -97,7 +110,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: package-and-push
-      image: quay.io/konflux-ci/tools@sha256:67c43b071160b7b5a2325b645fa9ec1d3dedbfac7177105cad5f4244fc1ec828
+      image: quay.io/konflux-ci/tools@sha256:e408537e9092bfcbaf100a7a604be1be29edd7ee9398a0d32d206121cba38253
       workingDir: /var/workdir
       env:
         - name: IMAGE
@@ -114,6 +127,10 @@ spec:
           value: $(params.TAG_PREFIX)
         - name: IMAGE_MAPPINGS
           value: $(params.IMAGE_MAPPINGS)
+        - name: CHART_VERSION
+          value: $(params.CHART_VERSION)
+        - name: APP_VERSION
+          value: $(params.APP_VERSION)
       args:
         - "$(params.VALUES_FILES[*])"
       script: |
@@ -211,36 +228,43 @@ spec:
           echo "Image substitution completed."
         fi
 
-        # We need git tags and history to be able to compute the chart version
-        git fetch --unshallow --tags origin "$COMMIT_SHA"
+        # Create a chart version
+        # If CHART_VERSION is set, use it directly and skip git-based calculation.
+        if [ -n "$CHART_VERSION" ]; then
+          echo "Using provided chart version: $CHART_VERSION"
+          chart_version="$CHART_VERSION"
+        else
+          # We need git tags and history to be able to compute the chart version
+          git fetch --unshallow --tags origin "$COMMIT_SHA"
 
-        # Create a semver compliant chart version:
-        # We assume the existence of a git tag of the format "${TAG_PREFIX}X.Y"
-        # Suppose that TAG_PREFIX=helm- and the tag is helm-1.2,
-        # `git describe --tags` will return helm-1.2-z-W (if the tag is not on the
-        # current commit) where z is the number of commits since the appearance of
-        # the matching tag and W is an abbreviated SHA.
-        # The command below will convert that output to be semver-compatible: 1.2.z+W
-        chart_version=$(
-          git describe --tags --match="${TAG_PREFIX}*" |
-            sed -e "s/^${TAG_PREFIX}//" |
-            sed -e "0,/-/s//\./" |
-            sed -e "0,/-/s//+/"
-        )
+          # Create a semver compliant chart version:
+          # We assume the existence of a git tag of the format "${TAG_PREFIX}X.Y"
+          # Suppose that TAG_PREFIX=helm- and the tag is helm-1.2,
+          # `git describe --tags` will return helm-1.2-z-W (if the tag is not on the
+          # current commit) where z is the number of commits since the appearance of
+          # the matching tag and W is an abbreviated SHA.
+          # The command below will convert that output to be semver-compatible: 1.2.z+W
+          chart_version=$(
+            git describe --tags --match="${TAG_PREFIX}*" |
+              sed -e "s/^${TAG_PREFIX}//" |
+              sed -e "0,/-/s//\./" |
+              sed -e "0,/-/s//+/"
+          )
 
-        # If the tag is on the current commit, the command will just return the
-        # tagged version (e.g. 1.2). In that case, we'll set z to be 0: 1.2.0+<abbrev sha>
-        if [[ "$chart_version" =~ ^[^.]*\.[^.]*$ ]]; then
-          chart_version=$chart_version.0+$(git rev-parse --short HEAD)
+          # If the tag is on the current commit, the command will just return the
+          # tagged version (e.g. 1.2). In that case, we'll set z to be 0: 1.2.0+<abbrev sha>
+          if [[ "$chart_version" =~ ^[^.]*\.[^.]*$ ]]; then
+            chart_version=$chart_version.0+$(git rev-parse --short HEAD)
+          fi
+
+          # If such tag does not exist, 0.1 will be used and z will be the commits count
+          # on the current branch since the dawn of time: 0.1.z+<abbrev sha>
+          if [ -z "${chart_version}" ]; then
+            chart_version=0.1.$(git rev-list HEAD --count)+$(git rev-parse --short HEAD)
+          fi
+
+          chart_version="$chart_version$VERSION_SUFFIX"
         fi
-
-        # If such tag does not exist, 0.1 will be used and z will be the commits count
-        # on the current branch since the dawn of time: 0.1.z+<abbrev sha>
-        if [ -z "${chart_version}" ]; then
-          chart_version=0.1.$(git rev-list HEAD --count)+$(git rev-parse --short HEAD)
-        fi
-
-        chart_version="$chart_version$VERSION_SUFFIX"
 
         # Build Helm dependencies if Chart.yaml has dependencies
         if [ -f "Chart.yaml" ] && yq -e '.dependencies' Chart.yaml >/dev/null 2>&1; then
@@ -262,7 +286,15 @@ spec:
           helm dependency build .
         fi
 
-        helm package . --version "$chart_version" --app-version "$COMMIT_SHA"
+        # Determine appVersion
+        if [ -n "$APP_VERSION" ]; then
+          echo "Using provided appVersion: $APP_VERSION"
+          app_version="$APP_VERSION"
+        else
+          app_version="$COMMIT_SHA"
+        fi
+
+        helm package . --version "$chart_version" --app-version "$app_version"
 
         # Helm (ORAS) doesn't do a good job with selecting the correct auth, so
         # need to provide it with just one option

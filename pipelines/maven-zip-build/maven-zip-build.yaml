@@ -42,6 +42,9 @@ spec:
       2d, 3w for hours, days, and weeks, respectively.
     name: image-expires-after
     type: string
+  - default: "false"
+    description: Enable cache proxy configuration
+    name: enable-cache-proxy
   results:
   - name: IMAGE_URL
     value: $(tasks.build-oci-artifact.results.IMAGE_URL)
@@ -60,6 +63,8 @@ spec:
       value: $(params.rebuild)
     - name: skip-checks
       value: $(params.skip-checks)
+    - name: enable-cache-proxy
+      value: $(params.enable-cache-proxy)
     taskRef:
       name: init
       version: "0.2"

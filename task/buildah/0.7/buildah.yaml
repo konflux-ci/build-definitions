@@ -239,7 +239,7 @@ spec:
       limits:
         memory: 4Gi
       requests:
-        memory: 1Gi
+        memory: 4Gi
         cpu: '1'
     volumeMounts:
     - mountPath: /shared
@@ -307,14 +307,15 @@ spec:
       value: $(params.SKIP_INJECTIONS)
     imagePullPolicy: IfNotPresent
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
     name: build
     computeResources:
       limits:
         memory: 8Gi
+        cpu: 4600m
       requests:
-        memory: 2Gi
-        cpu: '1'
+        memory: 8Gi
+        cpu: 4600m
     env:
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
@@ -668,15 +669,17 @@ spec:
         ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
       fi
       [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
       BUILD_TIMESTAMP_RFC3339=""
       if [ -n "$BUILD_TIMESTAMP" ]; then
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
-        DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
-        DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-        ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       else
-        DEFAULT_LABELS+=("--label" "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')")
+        BUILD_TIMESTAMP_RFC3339=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
       fi
+
+      DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+      DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
 
       label_pairs=()
       # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
@@ -724,7 +727,7 @@ spec:
       done
 
       # Labels that we explicitly add to the image
-      [ -n "$BUILD_TIMESTAMP_RFC3339" ] && label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
       label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
 
       while IFS= read -r label; do
@@ -933,7 +936,14 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - name: push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 600m
+      requests:
+        memory: 4Gi
+        cpu: 600m
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
@@ -1018,7 +1028,14 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: sbom-syft-generate
-    image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.29.0@sha256:15ed82f0b5311a570ccb8ea02135d9776c6d61e545c51b256b3fc5b5db20ba67
+    image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 1100m
+      requests:
+        memory: 4Gi
+        cpu: 1100m
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
     workingDir: $(workspaces.source.path)/source
@@ -1083,7 +1100,8 @@ spec:
     image: quay.io/konflux-ci/mobster:1.1.0-1763042639@sha256:028dfcf2ac8b0404141550de17364bf049b0ddb35f45a24a075bc1f485a56c80
     computeResources:
       limits:
-        memory: 512Mi
+        memory: 256Mi
+        cpu: 100m
       requests:
         memory: 256Mi
         cpu: 100m
@@ -1170,7 +1188,14 @@ spec:
       runAsUser: 0
 
   - name: upload-sbom
-    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:ca4a6d3ac06597ac0678e1f7b1186a0c7bf19a5b02caf9e3d2aa04d4980f80a7
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:74aadac7ee0ac782216730d6a4736de6da03f9fa51124674329ad717b8141f4c
+    computeResources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+      requests:
+        memory: 256Mi
+        cpu: 100m
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -1207,13 +1232,6 @@ spec:
 
       echo
       echo "[$(date --utc -Ins)] End upload-sbom"
-
-    computeResources:
-      limits:
-        memory: 512Mi
-      requests:
-        memory: 256Mi
-        cpu: 100m
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
