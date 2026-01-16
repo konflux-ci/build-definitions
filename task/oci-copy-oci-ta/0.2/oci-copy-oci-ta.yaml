@@ -15,11 +15,10 @@ spec:
   params:
     - name: AWS_SECRET_NAME
       description: 'Name of a secret which will be made available to the build
-        to construct Authorization headers for requests to Amazon S3 using
-        v2 auth https://docs.aws.amazon.com/AmazonS3/latest/userguide/RESTAuthentication.html.
-        If specified, this will take precedence over BEARER_TOKEN_SECRET_NAME.
-        The secret must contain two keys: `aws_access_key_id` and `aws_secret_access_key`.
-        In the future, this will be reimplemented to use v4 auth: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html.'
+        for downloading from Amazon S3 or S3-compatible storage using AWS
+        CLI with parallel multipart transfers. If specified, this will take
+        precedence over BEARER_TOKEN_SECRET_NAME. The secret must contain
+        two keys: `aws_access_key_id` and `aws_secret_access_key`.'
       type: string
       default: does-not-exist
     - name: BEARER_TOKEN_SECRET_NAME
@@ -108,7 +107,7 @@ spec:
           cat "/var/workdir/vars/$varfile"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+      image: quay.io/konflux-ci/task-runner:1.1.1@sha256:c3b31a65d6e82a307f0f2f6eb5762548e655695949fd42735ec8f178142d6f14
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -134,14 +133,18 @@ spec:
               optional: true
       script: |
         #!/bin/bash
-        set -e
-        set -o pipefail
+        set -euo pipefail
+
+        # S3 transfer settings optimized for parallel multipart downloads
+        MAX_CONCURRENT=50
+        MULTIPART_THRESHOLD="64MB"
+        MULTIPART_CHUNKSIZE="16MB"
 
         download() {
-          url="$1"
-          file="$2"
-          method="GET"
+          local url="$1"
+          local file="$2"
 
+          local directory
           directory=$(dirname "${file}")
           echo "Found directory of ${file} to be ${directory}"
           if [ ! -d "${directory}" ]; then
@@ -149,72 +152,90 @@ spec:
             mkdir -p "${directory}"
           fi
 
-          curl_args=(--fail --silent --show-error)
           if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
             echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
-            # This implements v4 auth https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
-            path=$(echo "$url" | cut -d/ -f4-)
-            echo "Bucket path is $path"
-            date="$(date -u '+%Y%m%dT%H%M%SZ')"
+
+            # Extract host and path from URL
+            local host path
             host=$(echo -n "$url" | awk -F '/' '{print $3}')
-            if [[ "$host" == *.amazonaws.com ]]; then
-              # AWS Style
-              region=$(echo -n "$host" | awk -F '.' '{print $3}')
+            path=$(echo "$url" | cut -d/ -f4-)
+
+            echo "Parsing S3 URL - Host: ${host}, Path: ${path}"
+
+            local endpoint_url="" bucket="" region="" s3_uri="" key=""
+
+            if [[ "$host" == *.s3.*.amazonaws.com ]]; then
+              # AWS virtual-hosted-style: bucket.s3.region.amazonaws.com/key
+              bucket=$(echo "$host" | cut -d. -f1)
+              region=$(echo "$host" | cut -d. -f3)
+              s3_uri="s3://${bucket}/${path}"
+              echo "Detected AWS virtual-hosted style URL"
+            elif [[ "$host" == s3.*.amazonaws.com ]]; then
+              # AWS path-style: s3.region.amazonaws.com/bucket/key
+              region=$(echo "$host" | cut -d. -f2)
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              echo "Detected AWS path-style URL"
+            elif [[ "$host" == *.s3.*.cloud-object-storage.appdomain.cloud ]]; then
+              # IBM Cloud COS virtual-hosted: bucket.s3.region.cloud-object-storage.appdomain.cloud/key
+              bucket=$(echo "$host" | cut -d. -f1)
+              region=$(echo "$host" | cut -d. -f3)
+              s3_uri="s3://${bucket}/${path}"
+              endpoint_url="https://s3.${region}.cloud-object-storage.appdomain.cloud"
+              echo "Detected IBM Cloud COS virtual-hosted style URL"
+            elif [[ "$host" == s3.*.cloud-object-storage.appdomain.cloud ]]; then
+              # IBM Cloud COS path-style: s3.region.cloud-object-storage.appdomain.cloud/bucket/key
+              region=$(echo "$host" | cut -d. -f2)
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              endpoint_url="https://${host}"
+              echo "Detected IBM Cloud COS path-style URL"
+            elif [[ "$host" == *s3* ]] || [[ "$host" == *minio* ]] || [[ "$host" == *storage* ]]; then
+              # Generic S3-compatible storage: host/bucket/key
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              endpoint_url="https://${host}"
+              echo "Detected generic S3-compatible storage URL"
             else
-              # IBM Cloud style
-              region=$(echo -n "$host" | awk -F '.' '{print $2}')
+              # URL doesn't look like S3, fall back to curl
+              echo "URL doesn't match known S3 patterns, falling back to curl"
+              curl --fail --silent --show-error --location "$url" -o "$file"
+              return
             fi
 
-            # This e3b0c44 digest is digest of the empty string. No request body.
-            payload_digest=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+            echo "S3 URI: ${s3_uri}, Bucket: ${bucket}, Region: ${region:-auto}"
+            [ -n "${endpoint_url}" ] && echo "Endpoint URL: ${endpoint_url}"
 
-            # Step 1: construct canonical request
-            IFS= read -r -d '' canonical_request <<EOF || true
-        $method
-        /$path
+            if ! command -v aws &>/dev/null; then
+              echo "ERROR: AWS CLI is required for S3 downloads but was not found"
+              exit 1
+            fi
 
-        host:$host
-        x-amz-content-sha256:$payload_digest
-        x-amz-date:$date
+            echo "Using AWS CLI for download with parallel multipart transfers"
+            # Configure AWS CLI for parallel multipart downloads
+            mkdir -p ~/.aws
+            printf '%s\n' \
+              "[default]" \
+              "s3 =" \
+              "  max_concurrent_requests = ${MAX_CONCURRENT}" \
+              "  multipart_threshold = ${MULTIPART_THRESHOLD}" \
+              "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
+              >~/.aws/config
 
-        host;x-amz-content-sha256;x-amz-date
-        $payload_digest
-        EOF
-            canonical_request=$(echo -n "$canonical_request" | head -c -1) # Strip trailing newline
-            canonical_digest=$(echo -n "$canonical_request" | sha256sum | cut -d " " -f 1)
-
-            # Step 2: construct string to sign
-            IFS= read -r -d '' string_to_sign <<EOF || true
-        AWS4-HMAC-SHA256
-        $date
-        ${date%T*}/$region/s3/aws4_request
-        $canonical_digest
-        EOF
-            string_to_sign=$(echo -n "$string_to_sign" | head -c -1) # Strip trailing newline
-
-            # Step 3: derive a signing key
-            startkey="AWS4${AWS_SECRET_ACCESS_KEY}"
-            datekey=$(echo -n "${date%T*}" | openssl dgst -sha256 -hex -hmac "${startkey}" | awk '{ print $2 }' | tr -d '\n')
-            dateregionkey=$(echo -n "${region}" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${datekey}" | awk '{ print $2 }' | tr -d '\n')
-            dateregionservicekey=$(echo -n "s3" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${dateregionkey}" | awk '{ print $2 }' | tr -d '\n')
-            signingkey=$(echo -n "aws4_request" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${dateregionservicekey}" | awk '{ print $2 }' | tr -d '\n')
-
-            # Step 4: use the signing key
-            signature=$(echo -n "$string_to_sign" | openssl dgst -sha256 -hex -mac HMAC -macopt "hexkey:${signingkey}" | awk '{ print $2 }' | tr -d '\n')
-            authorization="AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${date%T*}/${region}/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}"
-
-            curl "${curl_args[@]}" \
-              -H "X-Amz-Date: ${date}" \
-              -H "X-Amz-Content-SHA256: $payload_digest" \
-              -H "Authorization: ${authorization}" \
-              --location "$url" \
-              -o "$file"
+            if [ -n "${endpoint_url}" ]; then
+              aws s3 cp --endpoint-url "${endpoint_url}" "${s3_uri}" "${file}"
+            else
+              aws s3 cp "${s3_uri}" "${file}"
+            fi
           elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
-            curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+            curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
           else
             echo "Proceeding with anonymous requests"
-            curl "${curl_args[@]}" --location "$url" -o "$file"
+            curl --fail --silent --show-error --location "$url" -o "$file"
           fi
         }
 
@@ -279,7 +300,7 @@ spec:
             fi
 
             echo "Removing local copy of $OCI_FILENAME to save space."
-            rm ${OCI_FILENAME}
+            rm "${OCI_FILENAME}"
           fi
 
           echo "Grabbing descriptor of blob from the registry"
@@ -315,10 +336,10 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
       computeResources:
         limits:
-          memory: 1Gi
+          memory: 4Gi
         requests:
-          cpu: 250m
-          memory: 512Mi
+          cpu: "1"
+          memory: 2Gi
       securityContext:
         capabilities:
           add:

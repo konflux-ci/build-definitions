@@ -72,7 +72,7 @@ spec:
         subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -132,7 +132,7 @@ spec:
         - "bash"
         - $(params.OPM_ARGS[*])
     - name: convert-image-tags-to-digests
-      image: quay.io/konflux-ci/konflux-test:v1.4.39@sha256:89cdc9d251e15d07018548137b4034669df8e9e2b171a188c8b8201d3638cb17
+      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -311,7 +311,7 @@ spec:
           echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
           replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       when:
         - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
           operator: in
