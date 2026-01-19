@@ -329,7 +329,7 @@ spec:
         echo "Merging ${MERGE_REMOTE}/${PARAM_TARGET_BRANCH} into current HEAD..."
         git config --global user.email "tekton-git-clone@tekton.dev"
         git config --global user.name "Tekton Git Clone Task"
-        git merge "${MERGE_REMOTE}/${PARAM_TARGET_BRANCH}" --no-commit --no-ff --allow-unrelated-histories
+        git merge FETCH_HEAD --no-commit --no-ff --allow-unrelated-histories
         MERGE_CHECK_EXIT_CODE="$?"
         if [ "${MERGE_CHECK_EXIT_CODE}" != "0" ]; then
           echo "ERROR: Merge conflict detected or merge failed before commit." >&2
