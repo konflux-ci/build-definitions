@@ -30,10 +30,6 @@ spec:
     name: path-context
     type: string
   - default: "false"
-    description: Force rebuild image
-    name: rebuild
-    type: string
-  - default: "false"
     description: Skip checks against built image
     name: skip-checks
     type: string
@@ -78,17 +74,11 @@ spec:
   tasks:
   - name: init
     params:
-    - name: image-url
-      value: $(params.output-image)
-    - name: rebuild
-      value: $(params.rebuild)
-    - name: skip-checks
-      value: $(params.skip-checks)
     - name: enable-cache-proxy
       value: $(params.enable-cache-proxy)
     taskRef:
       name: init
-      version: "0.2"
+      version: "0.3"
   - name: clone-repository
     params:
     - name: url
@@ -100,11 +90,6 @@ spec:
     taskRef:
       name: git-clone
       version: "0.1"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: output
       workspace: workspace
@@ -137,11 +122,6 @@ spec:
     taskRef:
       name: package-operator-package
       version: "0.1"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: package
       workspace: workspace
@@ -165,11 +145,6 @@ spec:
     taskRef:
       name: build-image-index
       version: "0.2"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
@@ -182,10 +157,6 @@ spec:
       name: source-build
       version: "0.3"
     when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     - input: $(params.build-source-image)
       operator: in
       values:

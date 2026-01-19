@@ -9,16 +9,15 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.2:BUILDAH_FORMAT|
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.2:enable-cache-proxy|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.3:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.2:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
+|output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input|
-|rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
-|skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
+|skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters
@@ -114,13 +113,10 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
-### init:0.2 task parameters
+### init:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-|image-url| Image URL for build by PipelineRun| None| '$(params.output-image)'|
-|rebuild| Rebuild the image if exists| false| '$(params.rebuild)'|
-|skip-checks| Skip checks against built image| false| '$(params.skip-checks)'|
 ### package-operator-package:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -299,10 +295,9 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| |
-### init:0.2 task results
+### init:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|build| Defines if the image in param image-url should be built| |
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
 |no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
 ### package-operator-package:0.1 task results

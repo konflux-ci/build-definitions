@@ -15,15 +15,32 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "ko"
+
+# Remove unused parameters from the template
+# $ yq ".spec.params.[].name"  pipelines/template-build/template-build.yaml | nl -v 0
+#  0	git-url
+#  1	revision
+#  2	output-image
+#  3	path-context
+#  4	dockerfile
+#  5	skip-checks
+#  6	hermetic
+#  7	prefetch-input
+#  8	image-expires-after
+#  9	build-source-image
+# 10	build-image-index
+# 11	buildah-format
+# 12	enable-cache-proxy
+
 # Remove buildah-format parameter.
 - op: remove
-  path: /spec/params/12
+  path: /spec/params/11
 # Remove build-image-index parameter.
 - op: remove
-  path: /spec/params/11
+  path: /spec/params/10
 # Remove hermetic parameter.
 - op: remove
-  path: /spec/params/7
+  path: /spec/params/6
 # Remove dockerfile parameter.
 - op: remove
   path: /spec/params/4

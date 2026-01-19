@@ -45,7 +45,7 @@
   value:
     name: IMAGE_APPEND_PLATFORM
     value: "true"
-# Remove PRIVILEGE_NESTED task param
+# Remove PRIVILEGED_NESTED task param
 - op: remove
   path: /spec/tasks/3/params/9
 
@@ -69,34 +69,34 @@
 
 # Order of pipeline parameters
 # $ kustomize build pipelines/docker-build | yq ".spec.params.[].name" | nl -v 0
-#      0  git-url
-#      1  revision
-#      2  output-image
-#      3  path-context
-#      4  dockerfile
-#      5  rebuild
-#      6  skip-checks
-#      7  hermetic
-#      8  prefetch-input
-#      9  image-expires-after
-#     10  build-source-image
-#     11  build-image-index
-#     12  buildah-format
-#     13  enable-cache-proxy
-#     14  build-args
-#     15  build-args-file
-#     16  privileged-nested
+#  0	git-url
+#  1	revision
+#  2	output-image
+#  3	path-context
+#  4	dockerfile
+#  5	skip-checks
+#  6	hermetic
+#  7	prefetch-input
+#  8	image-expires-after
+#  9	build-source-image
+# 10	build-image-index
+# 11	buildah-format
+# 12	enable-cache-proxy
+# 13	build-args
+# 14	build-args-file
+# 15	privileged-nested
+
 
 # Remove privilege-nested pipeline param
 - op: remove
-  path: /spec/params/16
+  path: /spec/params/15
 # We want to always build OCI images by default
 - op: replace
-  path: /spec/params/12/default  # buildah-format
+  path: /spec/params/11/default  # buildah-format
   value: "oci"
 # We want to always build the image index by default
 - op: replace
-  path: /spec/params/11/default  # build-image-index
+  path: /spec/params/10/default  # build-image-index
   value: "true"
 
 # Add a pipeline definition parameter to customize the build platforms
