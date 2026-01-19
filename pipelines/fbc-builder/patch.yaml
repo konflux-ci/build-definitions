@@ -17,30 +17,30 @@
     "pipelines.openshift.io/strategy": "fbc"
 # Customize parameters
 # $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.params.[].name" | nl -v 0
-#      0  git-url
-#      1  revision
-#      2  output-image
-#      3  path-context
-#      4  dockerfile
-#      5  rebuild
-#      6  skip-checks
-#      7  hermetic
-#      8  prefetch-input
-#      9  image-expires-after
-#     10  build-source-image
-#     11  build-image-index
-#     12  buildah-format
-#     13  enable-cache-proxy
-#     14  build-args
-#     15  build-args-file
-#     16  privileged-nested
-#     17  build-platforms
+#  0	git-url
+#  1	revision
+#  2	output-image
+#  3	path-context
+#  4	dockerfile
+#  5	skip-checks
+#  6	hermetic
+#  7	prefetch-input
+#  8	image-expires-after
+#  9	build-source-image
+# 10	build-image-index
+# 11	buildah-format
+# 12	enable-cache-proxy
+# 13	build-args
+# 14	build-args-file
+# 15	privileged-nested
+# 16	build-platforms
+
 - op: remove
-  path: /spec/params/16  # privileged-nested
+  path: /spec/params/15  # privileged-nested
 - op: remove
-  path: /spec/params/12  # buildah-format - FBC is always OCI
+  path: /spec/params/11  # buildah-format - FBC is always OCI
 - op: replace
-  path: /spec/params/7/default  # hermetic
+  path: /spec/params/6/default  # hermetic
   value: "true"
 
 # Remove params

@@ -64,21 +64,21 @@
 
 # Remove buildah format, it's not applicable for tekton-bundles
 # $ kustomize build pipelines/template-build/ | yq ".spec.params.[].name" | nl -v 0
-#      0  git-url
-#      1  revision
-#      2  output-image
-#      3  path-context
-#      4  dockerfile
-#      5  rebuild
-#      6  skip-checks
-#      7  hermetic
-#      8  prefetch-input
-#      9  image-expires-after
-#     10  build-source-image
-#     11  build-image-index
-#     12  buildah-format
+#  0	git-url
+#  1	revision
+#  2	output-image
+#  3	path-context
+#  4	dockerfile
+#  5	skip-checks
+#  6	hermetic
+#  7	prefetch-input
+#  8	image-expires-after
+#  9	build-source-image
+# 10	build-image-index
+# 11	buildah-format
+# 12	enable-cache-proxy
 - op: remove
-  path: /spec/params/12  # buildah-format
+  path: /spec/params/11  # buildah-format
 # Remove build-index-image task params
 # $ yq ".spec.tasks.4.params.[].name" pipelines/template-build/template-build.yaml | nl -v 0
 #      0	IMAGE

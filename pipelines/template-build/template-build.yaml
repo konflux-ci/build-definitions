@@ -29,10 +29,6 @@ spec:
       name: dockerfile
       type: string
       default: Dockerfile
-    - description: Force rebuild image
-      name: rebuild
-      type: string
-      default: "false"
     - description: Skip checks against built image
       name: skip-checks
       type: string
@@ -68,23 +64,13 @@ spec:
   tasks:
     - name: init
       params:
-        - name: image-url
-          value: "$(params.output-image)"
-        - name: rebuild
-          value: "$(params.rebuild)"
-        - name: skip-checks
-          value: "$(params.skip-checks)"
         - name: enable-cache-proxy
           value: "$(params.enable-cache-proxy)"
       taskRef:
         name: init
         # A pointer for referencing the correct version of task in the built pipeline bundles.
-        version: "0.2"
+        version: "0.3"
     - name: clone-repository
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values: ["true"]
       runAfter:
         - init
       params:
@@ -117,10 +103,6 @@ spec:
         - name: netrc
           workspace: netrc
     - name: build-container
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values: ["true"]
       runAfter:
         - prefetch-dependencies
       taskRef:
@@ -129,10 +111,6 @@ spec:
         - name: source
           workspace: workspace
     - name: build-image-index
-      when:
-      - input: $(tasks.init.results.build)
-        operator: in
-        values: ["true"]
       runAfter:
         - build-container
       taskRef:
@@ -154,9 +132,6 @@ spec:
         value: "$(params.buildah-format)"
     - name: build-source-image
       when:
-        - input: $(tasks.init.results.build)
-          operator: in
-          values: ["true"]
         - input: $(params.build-source-image)
           operator: in
           values: ["true"]
