@@ -17,30 +17,29 @@
     "pipelines.openshift.io/strategy": "fbc"
 # Customize parameters
 # $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.params.[].name" | nl -v 0
-#      0  git-url
-#      1  revision
-#      2  output-image
-#      3  path-context
-#      4  dockerfile
-#      5  rebuild
-#      6  skip-checks
-#      7  hermetic
-#      8  prefetch-input
-#      9  image-expires-after
-#     10  build-source-image
-#     11  build-image-index
-#     12  buildah-format
-#     13  enable-cache-proxy
-#     14  build-args
-#     15  build-args-file
-#     16  privileged-nested
-#     17  build-platforms
+#  0	git-url
+#  1	revision
+#  2	output-image
+#  3	path-context
+#  4	dockerfile
+#  5	hermetic
+#  6	prefetch-input
+#  7	image-expires-after
+#  8	build-source-image
+#  9	build-image-index
+# 10	buildah-format
+# 11	enable-cache-proxy
+# 12	build-args
+# 13	build-args-file
+# 14	privileged-nested
+# 15	build-platforms
+
 - op: remove
-  path: /spec/params/16  # privileged-nested
+  path: /spec/params/14  # privileged-nested
 - op: remove
-  path: /spec/params/12  # buildah-format - FBC is always OCI
+  path: /spec/params/10  # buildah-format - FBC is always OCI
 - op: replace
-  path: /spec/params/7/default  # hermetic
+  path: /spec/params/5/default  # hermetic
   value: "true"
 
 # Remove params
@@ -156,10 +155,6 @@
   path: /spec/tasks/-
   value:
     name: validate-fbc
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values: ["false"]
     runAfter:
       - build-image-index
     taskRef:
@@ -174,10 +169,6 @@
   path: /spec/tasks/-
   value:
     name: fbc-target-index-pruning-check
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values: ["false"]
     runAfter:
       - validate-fbc
     taskRef:
@@ -196,10 +187,6 @@
   path: /spec/tasks/-
   value:
     name: fbc-fips-check-oci-ta
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values: ["false"]
     runAfter:
       - build-image-index
     taskRef:
