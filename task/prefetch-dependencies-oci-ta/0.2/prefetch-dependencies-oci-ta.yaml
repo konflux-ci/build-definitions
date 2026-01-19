@@ -377,7 +377,7 @@ spec:
 
           echo "Registering with Red Hat subscription manager."
           export RETRY_MAX_TRIES=6
-          if ! retry subscription-manager register --org "${RHSM_ORG}" --activationkey "${RHSM_ACT_KEY}"; then
+          if ! retry subscription-manager register --force --org "${RHSM_ORG}" --activationkey "${RHSM_ACT_KEY}"; then
             echo "Subscription-manager register failed"
             exit 1
           fi
