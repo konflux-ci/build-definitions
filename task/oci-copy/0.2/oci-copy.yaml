@@ -445,7 +445,7 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
+      image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:ff738d9032c9885731bc96383e720ced2469649fa7148b76b58b7492c9bb82b8
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -471,7 +471,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
+      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}
