@@ -20,6 +20,14 @@ jobs:
             curl --fail --no-progress-meter -L "$url" | gzip -cd | sudo -- tar -x -C /usr/bin oc
           fi
 
+      - name: Install tkn
+        run: |
+          set -euo pipefail
+          url=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/pipelines/latest/tkn-linux-amd64.tar.gz
+          if ! which tkn; then
+            curl --fail --no-progress-meter -L "$url" | gzip -cd | sudo -- tar -x -C /usr/bin tkn
+          fi
+
       - name: Check pipeline READMEs
         run: |
           #!/bin/bash

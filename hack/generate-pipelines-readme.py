@@ -12,6 +12,7 @@ PIPELINE_GENERATE_INPUT_DIRS = ('./pipelines/',)
 PIPELINES_DIR = './pipelines/'
 TASKS_DIR = './task/'
 ARCHIVED_TASKS_DIR = './archived-tasks/'
+EXTERNAL_TASKS_DIR = './external-task/'
 # mapping pipeline_name to directory name, in case it isn't the same
 PIPELINE_TO_DIRECTORY_MAPPING = {}
 
@@ -62,6 +63,24 @@ def get_task_path(task_name, task_version):
     
     # If not found, return original path so the error message shows the standard location
     return path
+
+
+def get_external_task(task_name, task_version):
+    """Helper to retrieve task bundle yaml for external task"""
+    path = Path(EXTERNAL_TASKS_DIR).joinpath(task_name).joinpath(task_version).joinpath(f"{task_name}.yaml")
+    if not path.exists():
+        return None
+
+    with open(path, "r") as f:
+        bundle_url = yaml.safe_load(f)["task_bundle"]
+
+    get_bundle_cmd = ["tkn", "bundle", "list", bundle_url, "task", "-o", "yaml"]
+    bundle_yaml, _, failed = run(get_bundle_cmd)
+    if failed:
+        return None
+
+    return yaml.safe_load(bundle_yaml)
+
 
 def main():
     temp_dir = mkdtemp()
@@ -145,7 +164,7 @@ def main():
         wrong_path = 0
         for task in pipelines_info[pipeline_name]['tasks']:
             task_path = get_task_path(task['refname'], task['refversion'])
-            if not task_path.exists():
+            if not task_path.exists() and not get_external_task(task['refname'], task['refversion']):
                 wrong_path = 1
                 print(f"task definition doesn't exist: {task_path}")
 
@@ -156,8 +175,11 @@ def main():
         all_tasks = []
         for task in pipelines_info[pipeline_name]['tasks']:
             task_path = get_task_path(task['refname'], task['refversion'])
-            with open(task_path, 'r') as f:
-                task_data = yaml.safe_load(f)
+            if task_path.exists():
+                with open(task_path, 'r') as f:
+                    task_data = yaml.safe_load(f)
+            else:
+                task_data = get_external_task(task['refname'], task['refversion'])
 
             task_info = {}
             task_info['name'] = task_data['metadata']['name']
