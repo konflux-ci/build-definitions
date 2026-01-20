@@ -44,7 +44,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -291,12 +291,12 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: ac78bc7b6ea4d34781a4cff44ae9647745e2e65d
+            value: 3594e0579300eb661bcc7e502fd49419a7137da2
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
         resolver: git
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
