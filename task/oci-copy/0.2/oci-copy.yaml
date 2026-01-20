@@ -9,7 +9,9 @@ metadata:
     build.appstudio.redhat.com/build_type: oci-copy
   name: oci-copy
 spec:
-  description: Given a file in the user's source directory, copy content from arbitrary urls into the OCI registry.
+  description: |-
+    Copy content from arbitrary urls into the OCI registry. Downloads and pushes files in parallel
+    (PARALLEL_JOBS, default 8). Requires disk space for concurrent downloads (e.g., 8 x 10GB = 80GB).
   params:
     - description: Reference of the image we will push
       name: IMAGE
@@ -36,6 +38,10 @@ spec:
       description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
       type: string
       default: spdx
+    - name: PARALLEL_JOBS
+      description: "Number of files to download/push in parallel."
+      type: string
+      default: "8"
   results:
     - description: Digest of the artifact just pushed
       name: IMAGE_DIGEST
@@ -53,9 +59,11 @@ spec:
         value: $(params.IMAGE)
       - name: SBOM_TYPE
         value: $(params.SBOM_TYPE)
+      - name: PARALLEL_JOBS
+        value: $(params.PARALLEL_JOBS)
   steps:
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         set -eu
@@ -123,6 +131,20 @@ spec:
         MAX_CONCURRENT=50
         MULTIPART_THRESHOLD="64MB"
         MULTIPART_CHUNKSIZE="16MB"
+
+        # Use NVMe-backed emptyDir for downloads (faster than workspace PVC)
+        DOWNLOAD_DIR="/var/lib/containers/downloads"
+        mkdir -p "$DOWNLOAD_DIR"
+
+        # Configure AWS CLI once (avoid race condition in parallel downloads)
+        mkdir -p ~/.aws
+        printf '%s\n' \
+          "[default]" \
+          "s3 =" \
+          "  max_concurrent_requests = ${MAX_CONCURRENT}" \
+          "  multipart_threshold = ${MULTIPART_THRESHOLD}" \
+          "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
+          > ~/.aws/config
 
         download() {
           local url="$1"
@@ -199,26 +221,15 @@ spec:
             fi
 
             echo "Using AWS CLI for download with parallel multipart transfers"
-            # Configure AWS CLI for parallel multipart downloads
-            mkdir -p ~/.aws
-            printf '%s\n' \
-              "[default]" \
-              "s3 =" \
-              "  max_concurrent_requests = ${MAX_CONCURRENT}" \
-              "  multipart_threshold = ${MULTIPART_THRESHOLD}" \
-              "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
-              > ~/.aws/config
-
             if [ -n "${endpoint_url}" ]; then
-              aws s3 cp --endpoint-url "${endpoint_url}" "${s3_uri}" "${file}"
+              aws s3 cp --only-show-errors --endpoint-url "${endpoint_url}" "${s3_uri}" "${file}"
             else
-              aws s3 cp "${s3_uri}" "${file}"
+              aws s3 cp --only-show-errors "${s3_uri}" "${file}"
             fi
           elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
             curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
           else
-            echo "Proceeding with anonymous requests"
             curl --fail --silent --show-error --location "$url" -o "$file"
           fi
         }
@@ -262,50 +273,156 @@ spec:
           exit 1
         fi
 
-        for varfile in "$(workspaces.source.path)"/vars/*; do
-          echo "Reading $varfile"
-          # shellcheck source=/dev/null
-          source $varfile
+        # Validate PARALLEL_JOBS
+        if ! [[ "$PARALLEL_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+          echo "ERROR: PARALLEL_JOBS must be a positive integer, got: $PARALLEL_JOBS"
+          exit 1
+        fi
 
-          echo "Checking to see if blob $OCI_ARTIFACT_DIGEST exists"
-          if [[ $(oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}") ]]; then
-            echo "Blob for ${OCI_FILENAME} already exists in the registry at ${REPO}@sha256:${OCI_ARTIFACT_DIGEST}. Skipping download."
-          else
-            echo "Blob for ${OCI_FILENAME} does not yet exist in the registry at ${REPO}@sha256:${OCI_ARTIFACT_DIGEST}."
-            echo "Downloading $OCI_SOURCE to $OCI_FILENAME"
-            download "$OCI_SOURCE" "$OCI_FILENAME"
+        # Collect all varfiles
+        shopt -s nullglob
+        ALL_VARFILES=("$(workspaces.source.path)"/vars/*)
+        shopt -u nullglob
+        TOTAL=${#ALL_VARFILES[@]}
+        
+        if [ $TOTAL -eq 0 ]; then
+          echo "No artifacts to process"
+        else
+          echo "Processing $TOTAL files in batches of $PARALLEL_JOBS"
+        fi
 
-            echo "Confirming that digest of $OCI_FILENAME matches expected $OCI_ARTIFACT_DIGEST"
-            echo "$OCI_ARTIFACT_DIGEST $OCI_FILENAME" | sha256sum --check
-
-            echo "Pushing blob of $OCI_FILENAME of type $OCI_ARTIFACT_TYPE"
-            if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "${OCI_FILENAME}"
-            then
-              echo "Failed to push blob of $OCI_FILENAME to registry"
-              exit 1
+        for ((batch=0; batch<TOTAL; batch+=PARALLEL_JOBS)); do
+          BATCH_END=$((batch + PARALLEL_JOBS))
+          [ $BATCH_END -gt $TOTAL ] && BATCH_END=$TOTAL
+          
+          echo "=== Batch $((batch/PARALLEL_JOBS + 1)): files $batch-$((BATCH_END-1)) ==="
+          
+          # Check which files need processing (parallel existence checks)
+          declare -a TO_PROCESS=()
+          declare -a CHECK_RESULTS=()
+          PIDS=()
+          for ((i=batch; i<BATCH_END; i++)); do
+            (
+              source "${ALL_VARFILES[$i]}"
+              if oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" &>/dev/null; then
+                exit 0  # exists
+              else
+                exit 1  # missing
+              fi
+            ) &
+            PIDS+=($!)
+            CHECK_RESULTS+=($i)
+          done
+          
+          for idx in "${!PIDS[@]}"; do
+            i="${CHECK_RESULTS[$idx]}"
+            source "${ALL_VARFILES[$i]}"
+            if wait "${PIDS[$idx]}"; then
+              echo "Blob ${OCI_FILENAME} exists, skipping"
+            else
+              TO_PROCESS+=("${ALL_VARFILES[$i]}")
             fi
-
-            echo "Removing local copy of $OCI_FILENAME to save space."
-            rm "${OCI_FILENAME}"
+          done
+          
+          # Phase 1: Parallel downloads
+          if [ ${#TO_PROCESS[@]} -gt 0 ]; then
+            echo "--- Downloading ${#TO_PROCESS[@]} files ---"
+            declare -A PID_TO_FILE=()
+            for varfile in "${TO_PROCESS[@]}"; do
+            (
+              source "$varfile"
+              DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+              echo "[DL] Downloading ${OCI_FILENAME}..."
+              if ! download "$OCI_SOURCE" "$DLPATH"; then
+                echo "[DL] ERROR: Failed to download ${OCI_FILENAME}"
+                exit 1
+              fi
+              if ! echo "$OCI_ARTIFACT_DIGEST  $DLPATH" | sha256sum --check --quiet; then
+                echo "[DL] ERROR: Checksum mismatch for ${OCI_FILENAME}"
+                exit 1
+              fi
+              echo "[DL] Downloaded ${OCI_FILENAME} [OK]"
+            ) &
+              PID_TO_FILE[$!]="$varfile"
+            done
+            FAILED=0
+            for pid in "${!PID_TO_FILE[@]}"; do
+              if ! wait "$pid"; then
+                source "${PID_TO_FILE[$pid]}"
+                echo "ERROR: Download failed for ${OCI_FILENAME}"
+                FAILED=1
+              fi
+            done
+            [ $FAILED -eq 1 ] && exit 1
+            
+            # Phase 2: Parallel pushes
+            echo "--- Pushing ${#TO_PROCESS[@]} files ---"
+            PID_TO_FILE=()
+            for varfile in "${TO_PROCESS[@]}"; do
+              (
+                source "$varfile"
+                DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+                echo "[PUSH] Pushing ${OCI_FILENAME}..."
+                if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "$DLPATH"; then
+                  echo "[PUSH] ERROR: Failed to push ${OCI_FILENAME}"
+                  exit 1
+                fi
+                echo "[PUSH] Pushed ${OCI_FILENAME} [OK]"
+              ) &
+              PID_TO_FILE[$!]="$varfile"
+            done
+            FAILED=0
+            for pid in "${!PID_TO_FILE[@]}"; do
+              if ! wait "$pid"; then
+                source "${PID_TO_FILE[$pid]}"
+                echo "ERROR: Push failed for ${OCI_FILENAME}"
+                FAILED=1
+              fi
+            done
+            [ $FAILED -eq 1 ] && exit 1
+            
+            # Cleanup
+            for varfile in "${TO_PROCESS[@]}"; do
+              source "$varfile"
+              rm -f "${DOWNLOAD_DIR}/${OCI_FILENAME}"
+            done
           fi
-
-          echo "Grabbing descriptor of blob from the registry"
-          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > descriptor.json
-          then
-            echo "Failed to fetch blob ${REPO}@sha256:${OCI_ARTIFACT_DIGEST} from registry"
-            exit 1
-          fi
-
-          echo "Setting mediaType to ${OCI_ARTIFACT_TYPE}"
-          yq -oj -i '.mediaType = "'${OCI_ARTIFACT_TYPE}'"' descriptor.json
-
-          echo "Inserting org.opencontainers.image.title = ${OCI_FILENAME} annotation"
-          yq -oj -i '.annotations."org.opencontainers.image.title" = "'${OCI_FILENAME}'"' descriptor.json
-
-          echo "Appending blob descriptor for ${OCI_FILENAME} to the overall artifact manifest for ${IMAGE}"
-          yq -oj -i ".layers += $(cat descriptor.json)" artifact-manifest.json
-
-          echo "Done with ${OCI_FILENAME}."
+          
+          # Fetch descriptors in parallel
+          echo "--- Fetching descriptors ---"
+          declare -A PID_TO_FILE=()
+          for ((i=batch; i<BATCH_END; i++)); do
+            (
+              source "${ALL_VARFILES[$i]}"
+              echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
+              if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "${DOWNLOAD_DIR}/desc_${i}.json" 2>&1; then
+                echo "[DESC] ERROR: Failed to fetch descriptor for ${OCI_FILENAME}"
+                cat "${DOWNLOAD_DIR}/desc_${i}.json" 2>/dev/null || true
+                exit 1
+              fi
+              OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "${DOWNLOAD_DIR}/desc_${i}.json"
+              OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "${DOWNLOAD_DIR}/desc_${i}.json"
+              echo "[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]"
+            ) &
+            PID_TO_FILE[$!]="${ALL_VARFILES[$i]}"
+          done
+          FAILED=0
+          for pid in "${!PID_TO_FILE[@]}"; do
+            if ! wait "$pid"; then
+              source "${PID_TO_FILE[$pid]}"
+              echo "ERROR: Descriptor fetch failed for ${OCI_FILENAME}"
+              FAILED=1
+            fi
+          done
+          [ $FAILED -eq 1 ] && exit 1
+          
+          # Append to manifest (sequential - file writes not parallelizable)
+          for ((i=batch; i<BATCH_END; i++)); do
+            yq -oj -i ".layers += $(cat "${DOWNLOAD_DIR}/desc_${i}.json")" artifact-manifest.json
+            rm -f "${DOWNLOAD_DIR}/desc_${i}.json"
+          done
+          
+          unset TO_PROCESS PIDS PID_TO_FILE CHECK_RESULTS FAILED
         done
 
         echo "Pushing complete artifact manifest to ${IMAGE}"
@@ -328,7 +445,7 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster:1.1.0-1768294847@sha256:ff738d9032c9885731bc96383e720ced2469649fa7148b76b58b7492c9bb82b8
+      image: quay.io/konflux-ci/mobster:1.1.0-1762282332@sha256:17d208056137237e0c9619216a93c111b97a3d2214bf7ab7907856c344beac65
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -354,7 +471,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
+      image: quay.io/konflux-ci/yq:latest@sha256:5ec48a4b1e7489e74547113688a36517fa1cce0d90fd26055b08b970cfafbacc
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}

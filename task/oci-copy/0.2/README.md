@@ -1,6 +1,6 @@
 # oci-copy task
 
-Given a file in the user's source directory, copy content from arbitrary urls into the OCI registry.
+Copy content from arbitrary urls into the OCI registry. Downloads and pushes files in parallel for faster throughput.
 
 ## Parameters
 |name|description|default value|required|
@@ -10,9 +10,7 @@ Given a file in the user's source directory, copy content from arbitrary urls in
 |BEARER_TOKEN_SECRET_NAME|Name of a secret which will be made available to the build as an Authorization header. Note, the token will be sent to all servers found in the oci-copy.yaml file. If you do not wish to send the token to all servers, different taskruns and therefore different oci artifacts must be used.|does-not-exist|false|
 |AWS_SECRET_NAME|Name of a secret for downloading from Amazon S3 or S3-compatible storage using AWS CLI with parallel multipart transfers. Takes precedence over BEARER_TOKEN_SECRET_NAME. Required keys: `aws_access_key_id` and `aws_secret_access_key`.|does-not-exist|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx.|spdx|false|
-|MEMORY_LIMIT|Memory limit for the oci-copy step. Recommended: 4Gi for large artifacts.|1Gi|false|
-|MEMORY_REQUEST|Memory request for the oci-copy step. Recommended: 2Gi for large artifacts.|512Mi|false|
-|CPU_REQUEST|CPU request for the oci-copy step. Recommended: 1 for large artifacts.|250m|false|
+|PARALLEL_JOBS|Number of files to download/push in parallel. Requires disk space for concurrent downloads (e.g., 8 files x 10GB = 80GB).|8|false|
 
 ## Results
 |name|description|
@@ -38,17 +36,15 @@ S3 transfer settings are optimized for parallel multipart downloads:
 - **multipart_threshold**: 64MB
 - **multipart_chunksize**: 16MB
 
-For large artifacts (multi-GB), increase the resource allocation:
+For large artifacts (multi-GB), you may want to adjust parallelism based on available disk space:
 
 ```yaml
 params:
-  - name: MEMORY_LIMIT
-    value: "4Gi"
-  - name: MEMORY_REQUEST
-    value: "2Gi"
-  - name: CPU_REQUEST
-    value: "1"
+  - name: PARALLEL_JOBS
+    value: "8"  # Reduce if disk space is limited (8 x max_file_size)
 ```
+
+**Disk space requirement**: `PARALLEL_JOBS × max_file_size`. Default of 8 with 10GB files needs ~80GB.
 
 ### Supported S3 URL formats
 
