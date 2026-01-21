@@ -284,7 +284,7 @@ spec:
         ALL_VARFILES=("$(workspaces.source.path)"/vars/*)
         shopt -u nullglob
         TOTAL=${#ALL_VARFILES[@]}
-        
+
         if [ "$TOTAL" -eq 0 ]; then
           echo "No artifacts to process"
         else
@@ -294,9 +294,9 @@ spec:
         for ((batch=0; batch<TOTAL; batch+=PARALLEL_JOBS)); do
           BATCH_END=$((batch + PARALLEL_JOBS))
           [ "$BATCH_END" -gt "$TOTAL" ] && BATCH_END=$TOTAL
-          
+
           echo "=== Batch $((batch/PARALLEL_JOBS + 1)): files $batch-$((BATCH_END-1)) ==="
-          
+
           # Check which files need processing (parallel existence checks)
           declare -a TO_PROCESS=()
           declare -a CHECK_RESULTS=()
@@ -314,7 +314,7 @@ spec:
             PIDS+=("$!")
             CHECK_RESULTS+=("$i")
           done
-          
+
           for idx in "${!PIDS[@]}"; do
             i="${CHECK_RESULTS[$idx]}"
             # shellcheck source=/dev/null
@@ -325,7 +325,7 @@ spec:
               TO_PROCESS+=("${ALL_VARFILES[$i]}")
             fi
           done
-          
+
           # Phase 1: Parallel downloads
           if [ ${#TO_PROCESS[@]} -gt 0 ]; then
             echo "--- Downloading ${#TO_PROCESS[@]} files ---"
@@ -358,7 +358,7 @@ spec:
               fi
             done
             [ $FAILED -eq 1 ] && exit 1
-            
+
             # Phase 2: Parallel pushes
             echo "--- Pushing ${#TO_PROCESS[@]} files ---"
             PID_TO_FILE=()
@@ -386,7 +386,7 @@ spec:
               fi
             done
             [ $FAILED -eq 1 ] && exit 1
-            
+
             # Cleanup
             for varfile in "${TO_PROCESS[@]}"; do
               # shellcheck source=/dev/null
@@ -394,7 +394,7 @@ spec:
               rm -f "${DOWNLOAD_DIR}/${OCI_FILENAME}"
             done
           fi
-          
+
           # Fetch descriptors in parallel
           echo "--- Fetching descriptors ---"
           declare -A PID_TO_FILE=()
@@ -424,13 +424,13 @@ spec:
             fi
           done
           [ $FAILED -eq 1 ] && exit 1
-          
+
           # Append to manifest (sequential - file writes not parallelizable)
           for ((i=batch; i<BATCH_END; i++)); do
             yq -oj -i ".layers += $(cat "${DOWNLOAD_DIR}/desc_${i}.json")" artifact-manifest.json
             rm -f "${DOWNLOAD_DIR}/desc_${i}.json"
           done
-          
+
           unset TO_PROCESS PIDS PID_TO_FILE CHECK_RESULTS FAILED
         done
 
