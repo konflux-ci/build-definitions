@@ -1,27 +1,6 @@
 # prefetch-dependencies-oci-ta task
 
-Task that uses Hermeto to prefetch build dependencies. The fetched dependencies and the
-application source code are stored as a trusted artifact in the provided OCI repository.
-For additional info on Hermeto, see docs at
-https://hermetoproject.github.io/hermeto/#basic-usage
-
-## Configuration
-
-Config file must be passed as a YAML string. For all available config options please check
-[available configuration parameters] page.
-
-Example of setting timeouts:
-
-```yaml
-params:
-  - name: config-file-content
-    value: |
-      ---
-      requests_timeout: 300
-      subprocess_timeout: 3600
-```
-
-[available configuration parameters]: https://hermetoproject.github.io/hermeto/#available-configuration-parameters
+Task that prefetches project dependencies for hermetic build.
 
 ## Parameters
 |name|description|default value|required|

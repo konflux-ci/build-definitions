@@ -1,7 +1,6 @@
 # prefetch-dependencies task
 
-Task that uses a prefetch CLI tool to prefetch build dependencies.
-See docs at https://github.com/hermetoproject/hermeto#basic-usage.
+Task that prefetches dependencies for hermetic build.
 
 ## Configuration
 

@@ -8,27 +8,7 @@ metadata:
     tekton.dev/tags: "image-build, konflux"
   name: prefetch-dependencies
 spec:
-  description: |-
-    Task that uses a prefetch CLI tool to prefetch build dependencies.
-    See docs at https://github.com/hermetoproject/hermeto#basic-usage.
-
-    ## Configuration
-
-    Config file must be passed as a YAML string. For all available config options please check
-    [available configuration parameters] page.
-
-    Example of setting timeouts:
-
-    ```yaml
-    params:
-      - name: config-file-content
-        value: |
-          ---
-          requests_timeout: 300
-          subprocess_timeout: 3600
-    ```
-
-    [available configuration parameters]: https://github.com/hermetoproject/hermeto?tab=readme-ov-file#available-configuration-parameters
+  description: Task that prefetches project dependencies for hermetic build.
   params:
   - description: Configures project packages that will have their dependencies prefetched.
     name: input
