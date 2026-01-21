@@ -219,26 +219,28 @@ spec:
         ]]; then\n  echo \"ERROR: PARALLEL_JOBS must be a positive integer,
         got: $PARALLEL_JOBS\"\n  exit 1\nfi\n\n# Collect all varfiles\nshopt
         -s nullglob\nALL_VARFILES=(\"/var/workdir\"/vars/*)\nshopt -u nullglob\nTOTAL=${#ALL_VARFILES[@]}\n\nif
-        [ $TOTAL -eq 0 ]; then\n  echo \"No artifacts to process\"\nelse\n
+        [ \"$TOTAL\" -eq 0 ]; then\n  echo \"No artifacts to process\"\nelse\n
         \ echo \"Processing $TOTAL files in batches of $PARALLEL_JOBS\"\nfi\n\nfor
         ((batch = 0; batch < TOTAL; batch += PARALLEL_JOBS)); do\n  BATCH_END=$((batch
-        + PARALLEL_JOBS))\n  [ $BATCH_END -gt $TOTAL ] && BATCH_END=$TOTAL\n\n
+        + PARALLEL_JOBS))\n  [ \"$BATCH_END\" -gt \"$TOTAL\" ] && BATCH_END=$TOTAL\n\n
         \ echo \"=== Batch $((batch / PARALLEL_JOBS + 1)): files $batch-$((BATCH_END
         - 1)) ===\"\n\n  # Check which files need processing (parallel existence
         checks)\n  declare -a TO_PROCESS=()\n  declare -a CHECK_RESULTS=()\n
-        \ PIDS=()\n  for ((i = batch; i < BATCH_END; i++)); do\n    ( \n      source
-        \"${ALL_VARFILES[$i]}\"\n      if oras blob fetch --registry-config
-        auth.json --descriptor \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\" &>/dev/null;
-        then\n        exit 0 # exists\n      else\n        exit 1 # missing\n
-        \     fi\n    ) &\n    PIDS+=($!)\n    CHECK_RESULTS+=($i)\n  done\n\n
-        \ for idx in \"${!PIDS[@]}\"; do\n    i=\"${CHECK_RESULTS[$idx]}\"\n
-        \   source \"${ALL_VARFILES[$i]}\"\n    if wait \"${PIDS[$idx]}\";
-        then\n      echo \"Blob ${OCI_FILENAME} exists, skipping\"\n    else\n
-        \     TO_PROCESS+=(\"${ALL_VARFILES[$i]}\")\n    fi\n  done\n\n  #
-        Phase 1: Parallel downloads\n  if [ ${#TO_PROCESS[@]} -gt 0 ]; then\n
-        \   echo \"--- Downloading ${#TO_PROCESS[@]} files ---\"\n    declare
-        -A PID_TO_FILE=()\n    for varfile in \"${TO_PROCESS[@]}\"; do\n      (
-        \n        source \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
+        \ PIDS=()\n  for ((i = batch; i < BATCH_END; i++)); do\n    ( \n      #
+        shellcheck source=/dev/null\n      source \"${ALL_VARFILES[$i]}\"\n
+        \     if oras blob fetch --registry-config auth.json --descriptor
+        \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\" &>/dev/null; then\n        exit
+        0 # exists\n      else\n        exit 1 # missing\n      fi\n    )
+        &\n    PIDS+=(\"$!\")\n    CHECK_RESULTS+=(\"$i\")\n  done\n\n  for
+        idx in \"${!PIDS[@]}\"; do\n    i=\"${CHECK_RESULTS[$idx]}\"\n    #
+        shellcheck source=/dev/null\n    source \"${ALL_VARFILES[$i]}\"\n
+        \   if wait \"${PIDS[$idx]}\"; then\n      echo \"Blob ${OCI_FILENAME}
+        exists, skipping\"\n    else\n      TO_PROCESS+=(\"${ALL_VARFILES[$i]}\")\n
+        \   fi\n  done\n\n  # Phase 1: Parallel downloads\n  if [ ${#TO_PROCESS[@]}
+        -gt 0 ]; then\n    echo \"--- Downloading ${#TO_PROCESS[@]} files
+        ---\"\n    declare -A PID_TO_FILE=()\n    for varfile in \"${TO_PROCESS[@]}\";
+        do\n      ( \n        # shellcheck source=/dev/null\n        source
+        \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
         \       echo \"[DL] Downloading ${OCI_FILENAME}...\"\n        if !
         download \"$OCI_SOURCE\" \"$DLPATH\"; then\n          echo \"[DL]
         ERROR: Failed to download ${OCI_FILENAME}\"\n          exit 1\n        fi\n
@@ -247,28 +249,31 @@ spec:
         ${OCI_FILENAME}\"\n          exit 1\n        fi\n        echo \"[DL]
         Downloaded ${OCI_FILENAME} [OK]\"\n      ) &\n      PID_TO_FILE[$!]=\"$varfile\"\n
         \   done\n    FAILED=0\n    for pid in \"${!PID_TO_FILE[@]}\"; do\n
-        \     if ! wait \"$pid\"; then\n        source \"${PID_TO_FILE[$pid]}\"\n
-        \       echo \"ERROR: Download failed for ${OCI_FILENAME}\"\n        FAILED=1\n
-        \     fi\n    done\n    [ $FAILED -eq 1 ] && exit 1\n\n    # Phase
-        2: Parallel pushes\n    echo \"--- Pushing ${#TO_PROCESS[@]} files
-        ---\"\n    PID_TO_FILE=()\n    for varfile in \"${TO_PROCESS[@]}\";
-        do\n      ( \n        source \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
+        \     if ! wait \"$pid\"; then\n        # shellcheck source=/dev/null\n
+        \       source \"${PID_TO_FILE[$pid]}\"\n        echo \"ERROR: Download
+        failed for ${OCI_FILENAME}\"\n        FAILED=1\n      fi\n    done\n
+        \   [ $FAILED -eq 1 ] && exit 1\n\n    # Phase 2: Parallel pushes\n
+        \   echo \"--- Pushing ${#TO_PROCESS[@]} files ---\"\n    PID_TO_FILE=()\n
+        \   for varfile in \"${TO_PROCESS[@]}\"; do\n      ( \n        # shellcheck
+        source=/dev/null\n        source \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
         \       echo \"[PUSH] Pushing ${OCI_FILENAME}...\"\n        if ! retry
         oras blob push --registry-config auth.json \"${REPO}\" --media-type
         \"${OCI_ARTIFACT_TYPE}\" \"$DLPATH\"; then\n          echo \"[PUSH]
         ERROR: Failed to push ${OCI_FILENAME}\"\n          exit 1\n        fi\n
         \       echo \"[PUSH] Pushed ${OCI_FILENAME} [OK]\"\n      ) &\n      PID_TO_FILE[$!]=\"$varfile\"\n
         \   done\n    FAILED=0\n    for pid in \"${!PID_TO_FILE[@]}\"; do\n
-        \     if ! wait \"$pid\"; then\n        source \"${PID_TO_FILE[$pid]}\"\n
-        \       echo \"ERROR: Push failed for ${OCI_FILENAME}\"\n        FAILED=1\n
-        \     fi\n    done\n    [ $FAILED -eq 1 ] && exit 1\n\n    # Cleanup\n
-        \   for varfile in \"${TO_PROCESS[@]}\"; do\n      source \"$varfile\"\n
-        \     rm -f \"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n    done\n  fi\n\n
-        \ # Fetch descriptors in parallel\n  echo \"--- Fetching descriptors
-        ---\"\n  declare -A PID_TO_FILE=()\n  for ((i = batch; i < BATCH_END;
-        i++)); do\n    ( \n      source \"${ALL_VARFILES[$i]}\"\n      echo
-        \"[DESC] Fetching descriptor for ${OCI_FILENAME}...\"\n      if !
-        retry oras blob fetch --registry-config auth.json --descriptor \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\"
+        \     if ! wait \"$pid\"; then\n        # shellcheck source=/dev/null\n
+        \       source \"${PID_TO_FILE[$pid]}\"\n        echo \"ERROR: Push
+        failed for ${OCI_FILENAME}\"\n        FAILED=1\n      fi\n    done\n
+        \   [ $FAILED -eq 1 ] && exit 1\n\n    # Cleanup\n    for varfile
+        in \"${TO_PROCESS[@]}\"; do\n      # shellcheck source=/dev/null\n
+        \     source \"$varfile\"\n      rm -f \"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
+        \   done\n  fi\n\n  # Fetch descriptors in parallel\n  echo \"---
+        Fetching descriptors ---\"\n  declare -A PID_TO_FILE=()\n  for ((i
+        = batch; i < BATCH_END; i++)); do\n    ( \n      # shellcheck source=/dev/null\n
+        \     source \"${ALL_VARFILES[$i]}\"\n      echo \"[DESC] Fetching
+        descriptor for ${OCI_FILENAME}...\"\n      if ! retry oras blob fetch
+        --registry-config auth.json --descriptor \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\"
         >\"${DOWNLOAD_DIR}/desc_${i}.json\" 2>&1; then\n        echo \"[DESC]
         ERROR: Failed to fetch descriptor for ${OCI_FILENAME}\"\n        cat
         \"${DOWNLOAD_DIR}/desc_${i}.json\" 2>/dev/null || true\n        exit
@@ -279,21 +284,22 @@ spec:
         \"[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]\"\n    ) &\n
         \   PID_TO_FILE[$!]=\"${ALL_VARFILES[$i]}\"\n  done\n  FAILED=0\n
         \ for pid in \"${!PID_TO_FILE[@]}\"; do\n    if ! wait \"$pid\"; then\n
-        \     source \"${PID_TO_FILE[$pid]}\"\n      echo \"ERROR: Descriptor
-        fetch failed for ${OCI_FILENAME}\"\n      FAILED=1\n    fi\n  done\n
-        \ [ $FAILED -eq 1 ] && exit 1\n\n  # Append to manifest (sequential
-        - file writes not parallelizable)\n  for ((i = batch; i < BATCH_END;
-        i++)); do\n    yq -oj -i \".layers += $(cat \"${DOWNLOAD_DIR}/desc_${i}.json\")\"
-        artifact-manifest.json\n    rm -f \"${DOWNLOAD_DIR}/desc_${i}.json\"\n
-        \ done\n\n  unset TO_PROCESS PIDS PID_TO_FILE CHECK_RESULTS FAILED\ndone\n\necho
-        \"Pushing complete artifact manifest to ${IMAGE}\"\nif ! retry oras
-        manifest push --registry-config auth.json \"${IMAGE}\" artifact-manifest.json;
-        then\n  echo \"Failed to push complete artifact manifest to ${IMAGE}\"\n
-        \ exit 1\nfi\n\nif ! RESULTING_DIGEST=$(retry oras resolve --registry-config
-        auth.json \"${IMAGE}\"); then\n  echo \"Failed to get digest for ${IMAGE}
-        from registry\"\n  exit 1\nfi\necho -n \"$RESULTING_DIGEST\" | tee
-        \"$(results.IMAGE_DIGEST.path)\"\necho -n \"$IMAGE\" | tee \"$(results.IMAGE_URL.path)\"\necho
-        -n \"${IMAGE}@${RESULTING_DIGEST}\" >\"$(results.IMAGE_REF.path)\"\n"
+        \     # shellcheck source=/dev/null\n      source \"${PID_TO_FILE[$pid]}\"\n
+        \     echo \"ERROR: Descriptor fetch failed for ${OCI_FILENAME}\"\n
+        \     FAILED=1\n    fi\n  done\n  [ $FAILED -eq 1 ] && exit 1\n\n
+        \ # Append to manifest (sequential - file writes not parallelizable)\n
+        \ for ((i = batch; i < BATCH_END; i++)); do\n    yq -oj -i \".layers
+        += $(cat \"${DOWNLOAD_DIR}/desc_${i}.json\")\" artifact-manifest.json\n
+        \   rm -f \"${DOWNLOAD_DIR}/desc_${i}.json\"\n  done\n\n  unset TO_PROCESS
+        PIDS PID_TO_FILE CHECK_RESULTS FAILED\ndone\n\necho \"Pushing complete
+        artifact manifest to ${IMAGE}\"\nif ! retry oras manifest push --registry-config
+        auth.json \"${IMAGE}\" artifact-manifest.json; then\n  echo \"Failed
+        to push complete artifact manifest to ${IMAGE}\"\n  exit 1\nfi\n\nif
+        ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json
+        \"${IMAGE}\"); then\n  echo \"Failed to get digest for ${IMAGE} from
+        registry\"\n  exit 1\nfi\necho -n \"$RESULTING_DIGEST\" | tee \"$(results.IMAGE_DIGEST.path)\"\necho
+        -n \"$IMAGE\" | tee \"$(results.IMAGE_URL.path)\"\necho -n \"${IMAGE}@${RESULTING_DIGEST}\"
+        >\"$(results.IMAGE_REF.path)\"\n"
       computeResources:
         limits:
           memory: 4Gi

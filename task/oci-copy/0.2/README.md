@@ -41,7 +41,7 @@ For large artifacts (multi-GB), you may want to adjust parallelism based on avai
 ```yaml
 params:
   - name: PARALLEL_JOBS
-    value: "8"  # Reduce if disk space is limited (8 x max_file_size)
+    value: "8"   # Reduce if disk space is limited (8 x max_file_size)
 ```
 
 **Disk space requirement**: `PARALLEL_JOBS × max_file_size`. Default of 8 with 10GB files needs ~80GB.
