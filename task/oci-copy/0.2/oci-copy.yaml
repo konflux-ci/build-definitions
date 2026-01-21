@@ -146,6 +146,59 @@ spec:
           "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
           > ~/.aws/config
 
+        # Worker function: check if blob exists in registry
+        check_blob_exists() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" &>/dev/null
+        }
+
+        # Worker function: download and verify a file
+        download_file() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          local dlpath="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+          echo "[DL] Downloading ${OCI_FILENAME}..."
+          if ! download "$OCI_SOURCE" "$dlpath"; then
+            echo "[DL] ERROR: Failed to download ${OCI_FILENAME}"; exit 1
+          fi
+          if ! echo "$OCI_ARTIFACT_DIGEST  $dlpath" | sha256sum --check --quiet; then
+            echo "[DL] ERROR: Checksum mismatch for ${OCI_FILENAME}"; exit 1
+          fi
+          echo "[DL] Downloaded ${OCI_FILENAME} [OK]"
+        }
+
+        # Worker function: push blob to registry
+        push_file() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          local dlpath="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+          echo "[PUSH] Pushing ${OCI_FILENAME}..."
+          if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "$dlpath"; then
+            echo "[PUSH] ERROR: Failed to push ${OCI_FILENAME}"; exit 1
+          fi
+          echo "[PUSH] Pushed ${OCI_FILENAME} [OK]"
+        }
+
+        # Worker function: fetch and annotate descriptor
+        fetch_descriptor() {
+          local varfile="$1"
+          local idx="$2"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
+          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "${DOWNLOAD_DIR}/desc_${idx}.json" 2>&1; then
+            echo "[DESC] ERROR: Failed to fetch descriptor for ${OCI_FILENAME}"
+            cat "${DOWNLOAD_DIR}/desc_${idx}.json" 2>/dev/null || true; exit 1
+          fi
+          OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "${DOWNLOAD_DIR}/desc_${idx}.json"
+          OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "${DOWNLOAD_DIR}/desc_${idx}.json"
+          echo "[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]"
+        }
+
         download() {
           local url="$1"
           local file="$2"
@@ -302,15 +355,7 @@ spec:
           declare -a CHECK_RESULTS=()
           PIDS=()
           for ((i=batch; i<BATCH_END; i++)); do
-            (
-              # shellcheck source=/dev/null
-              source "${ALL_VARFILES[$i]}"
-              if oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" &>/dev/null; then
-                exit 0  # exists
-              else
-                exit 1  # missing
-              fi
-            ) &
+            ( check_blob_exists "${ALL_VARFILES[$i]}" ) &
             PIDS+=("$!")
             CHECK_RESULTS+=("$i")
           done
@@ -331,21 +376,7 @@ spec:
             echo "--- Downloading ${#TO_PROCESS[@]} files ---"
             declare -A PID_TO_FILE=()
             for varfile in "${TO_PROCESS[@]}"; do
-              (
-                # shellcheck source=/dev/null
-                source "$varfile"
-              DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
-              echo "[DL] Downloading ${OCI_FILENAME}..."
-              if ! download "$OCI_SOURCE" "$DLPATH"; then
-                echo "[DL] ERROR: Failed to download ${OCI_FILENAME}"
-                exit 1
-              fi
-              if ! echo "$OCI_ARTIFACT_DIGEST  $DLPATH" | sha256sum --check --quiet; then
-                echo "[DL] ERROR: Checksum mismatch for ${OCI_FILENAME}"
-                exit 1
-              fi
-              echo "[DL] Downloaded ${OCI_FILENAME} [OK]"
-            ) &
+              ( download_file "$varfile" ) &
               PID_TO_FILE[$!]="$varfile"
             done
             FAILED=0
@@ -363,17 +394,7 @@ spec:
             echo "--- Pushing ${#TO_PROCESS[@]} files ---"
             PID_TO_FILE=()
             for varfile in "${TO_PROCESS[@]}"; do
-              (
-                # shellcheck source=/dev/null
-                source "$varfile"
-                DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
-                echo "[PUSH] Pushing ${OCI_FILENAME}..."
-                if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "$DLPATH"; then
-                  echo "[PUSH] ERROR: Failed to push ${OCI_FILENAME}"
-                  exit 1
-                fi
-                echo "[PUSH] Pushed ${OCI_FILENAME} [OK]"
-              ) &
+              ( push_file "$varfile" ) &
               PID_TO_FILE[$!]="$varfile"
             done
             FAILED=0
@@ -399,19 +420,7 @@ spec:
           echo "--- Fetching descriptors ---"
           declare -A PID_TO_FILE=()
           for ((i=batch; i<BATCH_END; i++)); do
-            (
-              # shellcheck source=/dev/null
-              source "${ALL_VARFILES[$i]}"
-              echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
-              if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "${DOWNLOAD_DIR}/desc_${i}.json" 2>&1; then
-                echo "[DESC] ERROR: Failed to fetch descriptor for ${OCI_FILENAME}"
-                cat "${DOWNLOAD_DIR}/desc_${i}.json" 2>/dev/null || true
-                exit 1
-              fi
-              OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "${DOWNLOAD_DIR}/desc_${i}.json"
-              OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "${DOWNLOAD_DIR}/desc_${i}.json"
-              echo "[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]"
-            ) &
+            ( fetch_descriptor "${ALL_VARFILES[$i]}" "$i" ) &
             PID_TO_FILE[$!]="${ALL_VARFILES[$i]}"
           done
           FAILED=0
