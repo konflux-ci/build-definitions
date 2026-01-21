@@ -285,7 +285,7 @@ spec:
         shopt -u nullglob
         TOTAL=${#ALL_VARFILES[@]}
         
-        if [ $TOTAL -eq 0 ]; then
+        if [ "$TOTAL" -eq 0 ]; then
           echo "No artifacts to process"
         else
           echo "Processing $TOTAL files in batches of $PARALLEL_JOBS"
@@ -293,7 +293,7 @@ spec:
 
         for ((batch=0; batch<TOTAL; batch+=PARALLEL_JOBS)); do
           BATCH_END=$((batch + PARALLEL_JOBS))
-          [ $BATCH_END -gt $TOTAL ] && BATCH_END=$TOTAL
+          [ "$BATCH_END" -gt "$TOTAL" ] && BATCH_END=$TOTAL
           
           echo "=== Batch $((batch/PARALLEL_JOBS + 1)): files $batch-$((BATCH_END-1)) ==="
           
@@ -303,6 +303,7 @@ spec:
           PIDS=()
           for ((i=batch; i<BATCH_END; i++)); do
             (
+              # shellcheck source=/dev/null
               source "${ALL_VARFILES[$i]}"
               if oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" &>/dev/null; then
                 exit 0  # exists
@@ -310,12 +311,13 @@ spec:
                 exit 1  # missing
               fi
             ) &
-            PIDS+=($!)
-            CHECK_RESULTS+=($i)
+            PIDS+=("$!")
+            CHECK_RESULTS+=("$i")
           done
           
           for idx in "${!PIDS[@]}"; do
             i="${CHECK_RESULTS[$idx]}"
+            # shellcheck source=/dev/null
             source "${ALL_VARFILES[$i]}"
             if wait "${PIDS[$idx]}"; then
               echo "Blob ${OCI_FILENAME} exists, skipping"
@@ -329,8 +331,9 @@ spec:
             echo "--- Downloading ${#TO_PROCESS[@]} files ---"
             declare -A PID_TO_FILE=()
             for varfile in "${TO_PROCESS[@]}"; do
-            (
-              source "$varfile"
+              (
+                # shellcheck source=/dev/null
+                source "$varfile"
               DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
               echo "[DL] Downloading ${OCI_FILENAME}..."
               if ! download "$OCI_SOURCE" "$DLPATH"; then
@@ -348,6 +351,7 @@ spec:
             FAILED=0
             for pid in "${!PID_TO_FILE[@]}"; do
               if ! wait "$pid"; then
+                # shellcheck source=/dev/null
                 source "${PID_TO_FILE[$pid]}"
                 echo "ERROR: Download failed for ${OCI_FILENAME}"
                 FAILED=1
@@ -360,6 +364,7 @@ spec:
             PID_TO_FILE=()
             for varfile in "${TO_PROCESS[@]}"; do
               (
+                # shellcheck source=/dev/null
                 source "$varfile"
                 DLPATH="${DOWNLOAD_DIR}/${OCI_FILENAME}"
                 echo "[PUSH] Pushing ${OCI_FILENAME}..."
@@ -374,6 +379,7 @@ spec:
             FAILED=0
             for pid in "${!PID_TO_FILE[@]}"; do
               if ! wait "$pid"; then
+                # shellcheck source=/dev/null
                 source "${PID_TO_FILE[$pid]}"
                 echo "ERROR: Push failed for ${OCI_FILENAME}"
                 FAILED=1
@@ -383,6 +389,7 @@ spec:
             
             # Cleanup
             for varfile in "${TO_PROCESS[@]}"; do
+              # shellcheck source=/dev/null
               source "$varfile"
               rm -f "${DOWNLOAD_DIR}/${OCI_FILENAME}"
             done
@@ -393,6 +400,7 @@ spec:
           declare -A PID_TO_FILE=()
           for ((i=batch; i<BATCH_END; i++)); do
             (
+              # shellcheck source=/dev/null
               source "${ALL_VARFILES[$i]}"
               echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
               if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "${DOWNLOAD_DIR}/desc_${i}.json" 2>&1; then
@@ -409,6 +417,7 @@ spec:
           FAILED=0
           for pid in "${!PID_TO_FILE[@]}"; do
             if ! wait "$pid"; then
+              # shellcheck source=/dev/null
               source "${PID_TO_FILE[$pid]}"
               echo "ERROR: Descriptor fetch failed for ${OCI_FILENAME}"
               FAILED=1
