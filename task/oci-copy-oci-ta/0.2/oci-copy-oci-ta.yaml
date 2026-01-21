@@ -138,168 +138,342 @@ spec:
               key: aws_secret_access_key
               name: $(params.AWS_SECRET_NAME)
               optional: true
-      script: "#!/bin/bash\nset -euo pipefail\n\n# S3 transfer settings optimized
-        for parallel multipart downloads\nMAX_CONCURRENT=50\nMULTIPART_THRESHOLD=\"64MB\"\nMULTIPART_CHUNKSIZE=\"16MB\"\n\n#
-        Use NVMe-backed emptyDir for downloads (faster than workspace PVC)\nDOWNLOAD_DIR=\"/var/lib/containers/downloads\"\nmkdir
-        -p \"$DOWNLOAD_DIR\"\n\n# Configure AWS CLI once (avoid race condition
-        in parallel downloads)\nmkdir -p ~/.aws\nprintf '%s\\n' \\\n  \"[default]\"
-        \\\n  \"s3 =\" \\\n  \"  max_concurrent_requests = ${MAX_CONCURRENT}\"
-        \\\n  \"  multipart_threshold = ${MULTIPART_THRESHOLD}\" \\\n  \"
-        \ multipart_chunksize = ${MULTIPART_CHUNKSIZE}\" \\\n  >~/.aws/config\n\ndownload()
-        {\n  local url=\"$1\"\n  local file=\"$2\"\n\n  local directory\n
-        \ directory=$(dirname \"${file}\")\n  echo \"Found directory of ${file}
-        to be ${directory}\"\n  if [ ! -d \"${directory}\" ]; then\n    echo
-        \"Found that directory ${directory} does not exist. Creating.\"\n
-        \   mkdir -p \"${directory}\"\n  fi\n\n  if [ -n \"${AWS_ACCESS_KEY_ID:-}\"
-        ] && [ -n \"${AWS_SECRET_ACCESS_KEY:-}\" ]; then\n    echo \"Found
-        both aws credentials secret with both aws_access_key_id and aws_secret_access_key.
-        Assuming S3 bucket\"\n\n    # Extract host and path from URL\n    local
-        host path\n    host=$(echo -n \"$url\" | awk -F '/' '{print $3}')\n
-        \   path=$(echo \"$url\" | cut -d/ -f4-)\n\n    echo \"Parsing S3
-        URL - Host: ${host}, Path: ${path}\"\n\n    local endpoint_url=\"\"
-        bucket=\"\" region=\"\" s3_uri=\"\" key=\"\"\n\n    if [[ \"$host\"
-        == *.s3.*.amazonaws.com ]]; then\n      # AWS virtual-hosted-style:
-        bucket.s3.region.amazonaws.com/key\n      bucket=$(echo \"$host\"
-        | cut -d. -f1)\n      region=$(echo \"$host\" | cut -d. -f3)\n      s3_uri=\"s3://${bucket}/${path}\"\n
-        \     echo \"Detected AWS virtual-hosted style URL\"\n    elif [[
-        \"$host\" == s3.*.amazonaws.com ]]; then\n      # AWS path-style:
-        s3.region.amazonaws.com/bucket/key\n      region=$(echo \"$host\"
-        | cut -d. -f2)\n      bucket=$(echo \"$path\" | cut -d/ -f1)\n      key=$(echo
-        \"$path\" | cut -d/ -f2-)\n      s3_uri=\"s3://${bucket}/${key}\"\n
-        \     echo \"Detected AWS path-style URL\"\n    elif [[ \"$host\"
-        == *.s3.*.cloud-object-storage.appdomain.cloud ]]; then\n      # IBM
-        Cloud COS virtual-hosted: bucket.s3.region.cloud-object-storage.appdomain.cloud/key\n
-        \     bucket=$(echo \"$host\" | cut -d. -f1)\n      region=$(echo
-        \"$host\" | cut -d. -f3)\n      s3_uri=\"s3://${bucket}/${path}\"\n
-        \     endpoint_url=\"https://s3.${region}.cloud-object-storage.appdomain.cloud\"\n
-        \     echo \"Detected IBM Cloud COS virtual-hosted style URL\"\n    elif
-        [[ \"$host\" == s3.*.cloud-object-storage.appdomain.cloud ]]; then\n
-        \     # IBM Cloud COS path-style: s3.region.cloud-object-storage.appdomain.cloud/bucket/key\n
-        \     region=$(echo \"$host\" | cut -d. -f2)\n      bucket=$(echo
-        \"$path\" | cut -d/ -f1)\n      key=$(echo \"$path\" | cut -d/ -f2-)\n
-        \     s3_uri=\"s3://${bucket}/${key}\"\n      endpoint_url=\"https://${host}\"\n
-        \     echo \"Detected IBM Cloud COS path-style URL\"\n    elif [[
-        \"$host\" == *s3* ]] || [[ \"$host\" == *minio* ]] || [[ \"$host\"
-        == *storage* ]]; then\n      # Generic S3-compatible storage: host/bucket/key\n
-        \     bucket=$(echo \"$path\" | cut -d/ -f1)\n      key=$(echo \"$path\"
-        | cut -d/ -f2-)\n      s3_uri=\"s3://${bucket}/${key}\"\n      endpoint_url=\"https://${host}\"\n
-        \     echo \"Detected generic S3-compatible storage URL\"\n    else\n
-        \     # URL doesn't look like S3, fall back to curl\n      echo \"URL
-        doesn't match known S3 patterns, falling back to curl\"\n      curl
-        --fail --silent --show-error --location \"$url\" -o \"$file\"\n      return\n
-        \   fi\n\n    echo \"S3 URI: ${s3_uri}, Bucket: ${bucket}, Region:
-        ${region:-auto}\"\n    [ -n \"${endpoint_url}\" ] && echo \"Endpoint
-        URL: ${endpoint_url}\"\n\n    if ! command -v aws &>/dev/null; then\n
-        \     echo \"ERROR: AWS CLI is required for S3 downloads but was not
-        found\"\n      exit 1\n    fi\n\n    echo \"Using AWS CLI for download
-        with parallel multipart transfers\"\n    if [ -n \"${endpoint_url}\"
-        ]; then\n      aws s3 cp --only-show-errors --endpoint-url \"${endpoint_url}\"
-        \"${s3_uri}\" \"${file}\"\n    else\n      aws s3 cp --only-show-errors
-        \"${s3_uri}\" \"${file}\"\n    fi\n  elif [ -n \"${BEARER_TOKEN:-}\"
-        ]; then\n    echo \"Found bearer token. Using it for authentication.\"\n
-        \   curl --fail --silent --show-error -H \"Authorization: Bearer ${BEARER_TOKEN}\"
-        --location \"$url\" -o \"$file\"\n  else\n    curl --fail --silent
-        --show-error --location \"$url\" -o \"$file\"\n  fi\n}\n\nset -u\n\necho
-        \"Selecting auth for $IMAGE\"\nselect-oci-auth $IMAGE >auth.json\n\necho
-        \"Extracting artifact_type\"\nARTIFACT_TYPE=$(cat \"$(pwd)/source/$OCI_COPY_FILE\"
-        | yq '.artifact_type')\n\nREPO=${IMAGE%:*}\necho \"Found that ${REPO}
-        is the repository for ${IMAGE}\"\n\ncat >artifact-manifest.json <<EOL\n{\n
-        \ \"schemaVersion\": 2,\n  \"mediaType\": \"application/vnd.oci.image.manifest.v1+json\",\n
-        \ \"artifactType\": \"${ARTIFACT_TYPE}\",\n  \"config\": {\n    \"mediaType\":
-        \"application/vnd.oci.empty.v1+json\",\n    \"digest\": \"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\n
-        \   \"size\": 2,\n    \"data\": \"e30=\"\n  },\n  \"layers\": [],\n
-        \ \"annotations\": {\n    \"org.opencontainers.image.created\": \"$(date
-        -u +%Y-%m-%dT%H:%M:%SZ)\"\n  }\n}\nEOL\n\necho \"Ensuring that the
-        empty blob exists, for the image manifest config.\"\nif ! echo -n
-        \"{}\" | retry oras blob push \\\n  --registry-config auth.json \\\n
-        \ ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
-        \\\n  --media-type application/vnd.oci.empty.v1+json --size 2 -; then\n
-        \ echo \"Failed to push empty blob to registry\"\n  exit 1\nfi\n\n#
-        Validate PARALLEL_JOBS\nif ! [[ \"$PARALLEL_JOBS\" =~ ^[1-9][0-9]*$
-        ]]; then\n  echo \"ERROR: PARALLEL_JOBS must be a positive integer,
-        got: $PARALLEL_JOBS\"\n  exit 1\nfi\n\n# Collect all varfiles\nshopt
-        -s nullglob\nALL_VARFILES=(\"/var/workdir\"/vars/*)\nshopt -u nullglob\nTOTAL=${#ALL_VARFILES[@]}\n\nif
-        [ \"$TOTAL\" -eq 0 ]; then\n  echo \"No artifacts to process\"\nelse\n
-        \ echo \"Processing $TOTAL files in batches of $PARALLEL_JOBS\"\nfi\n\nfor
-        ((batch = 0; batch < TOTAL; batch += PARALLEL_JOBS)); do\n  BATCH_END=$((batch
-        + PARALLEL_JOBS))\n  [ \"$BATCH_END\" -gt \"$TOTAL\" ] && BATCH_END=$TOTAL\n\n
-        \ echo \"=== Batch $((batch / PARALLEL_JOBS + 1)): files $batch-$((BATCH_END
-        - 1)) ===\"\n\n  # Check which files need processing (parallel existence
-        checks)\n  declare -a TO_PROCESS=()\n  declare -a CHECK_RESULTS=()\n
-        \ PIDS=()\n  for ((i = batch; i < BATCH_END; i++)); do\n    ( \n      #
-        shellcheck source=/dev/null\n      source \"${ALL_VARFILES[$i]}\"\n
-        \     if oras blob fetch --registry-config auth.json --descriptor
-        \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\" &>/dev/null; then\n        exit
-        0 # exists\n      else\n        exit 1 # missing\n      fi\n    )
-        &\n    PIDS+=(\"$!\")\n    CHECK_RESULTS+=(\"$i\")\n  done\n\n  for
-        idx in \"${!PIDS[@]}\"; do\n    i=\"${CHECK_RESULTS[$idx]}\"\n    #
-        shellcheck source=/dev/null\n    source \"${ALL_VARFILES[$i]}\"\n
-        \   if wait \"${PIDS[$idx]}\"; then\n      echo \"Blob ${OCI_FILENAME}
-        exists, skipping\"\n    else\n      TO_PROCESS+=(\"${ALL_VARFILES[$i]}\")\n
-        \   fi\n  done\n\n  # Phase 1: Parallel downloads\n  if [ ${#TO_PROCESS[@]}
-        -gt 0 ]; then\n    echo \"--- Downloading ${#TO_PROCESS[@]} files
-        ---\"\n    declare -A PID_TO_FILE=()\n    for varfile in \"${TO_PROCESS[@]}\";
-        do\n      ( \n        # shellcheck source=/dev/null\n        source
-        \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
-        \       echo \"[DL] Downloading ${OCI_FILENAME}...\"\n        if !
-        download \"$OCI_SOURCE\" \"$DLPATH\"; then\n          echo \"[DL]
-        ERROR: Failed to download ${OCI_FILENAME}\"\n          exit 1\n        fi\n
-        \       if ! echo \"$OCI_ARTIFACT_DIGEST  $DLPATH\" | sha256sum --check
-        --quiet; then\n          echo \"[DL] ERROR: Checksum mismatch for
-        ${OCI_FILENAME}\"\n          exit 1\n        fi\n        echo \"[DL]
-        Downloaded ${OCI_FILENAME} [OK]\"\n      ) &\n      PID_TO_FILE[$!]=\"$varfile\"\n
-        \   done\n    FAILED=0\n    for pid in \"${!PID_TO_FILE[@]}\"; do\n
-        \     if ! wait \"$pid\"; then\n        # shellcheck source=/dev/null\n
-        \       source \"${PID_TO_FILE[$pid]}\"\n        echo \"ERROR: Download
-        failed for ${OCI_FILENAME}\"\n        FAILED=1\n      fi\n    done\n
-        \   [ $FAILED -eq 1 ] && exit 1\n\n    # Phase 2: Parallel pushes\n
-        \   echo \"--- Pushing ${#TO_PROCESS[@]} files ---\"\n    PID_TO_FILE=()\n
-        \   for varfile in \"${TO_PROCESS[@]}\"; do\n      ( \n        # shellcheck
-        source=/dev/null\n        source \"$varfile\"\n        DLPATH=\"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
-        \       echo \"[PUSH] Pushing ${OCI_FILENAME}...\"\n        if ! retry
-        oras blob push --registry-config auth.json \"${REPO}\" --media-type
-        \"${OCI_ARTIFACT_TYPE}\" \"$DLPATH\"; then\n          echo \"[PUSH]
-        ERROR: Failed to push ${OCI_FILENAME}\"\n          exit 1\n        fi\n
-        \       echo \"[PUSH] Pushed ${OCI_FILENAME} [OK]\"\n      ) &\n      PID_TO_FILE[$!]=\"$varfile\"\n
-        \   done\n    FAILED=0\n    for pid in \"${!PID_TO_FILE[@]}\"; do\n
-        \     if ! wait \"$pid\"; then\n        # shellcheck source=/dev/null\n
-        \       source \"${PID_TO_FILE[$pid]}\"\n        echo \"ERROR: Push
-        failed for ${OCI_FILENAME}\"\n        FAILED=1\n      fi\n    done\n
-        \   [ $FAILED -eq 1 ] && exit 1\n\n    # Cleanup\n    for varfile
-        in \"${TO_PROCESS[@]}\"; do\n      # shellcheck source=/dev/null\n
-        \     source \"$varfile\"\n      rm -f \"${DOWNLOAD_DIR}/${OCI_FILENAME}\"\n
-        \   done\n  fi\n\n  # Fetch descriptors in parallel\n  echo \"---
-        Fetching descriptors ---\"\n  declare -A PID_TO_FILE=()\n  for ((i
-        = batch; i < BATCH_END; i++)); do\n    ( \n      # shellcheck source=/dev/null\n
-        \     source \"${ALL_VARFILES[$i]}\"\n      echo \"[DESC] Fetching
-        descriptor for ${OCI_FILENAME}...\"\n      if ! retry oras blob fetch
-        --registry-config auth.json --descriptor \"${REPO}@sha256:${OCI_ARTIFACT_DIGEST}\"
-        >\"${DOWNLOAD_DIR}/desc_${i}.json\" 2>&1; then\n        echo \"[DESC]
-        ERROR: Failed to fetch descriptor for ${OCI_FILENAME}\"\n        cat
-        \"${DOWNLOAD_DIR}/desc_${i}.json\" 2>/dev/null || true\n        exit
-        1\n      fi\n      OCI_ARTIFACT_TYPE=\"$OCI_ARTIFACT_TYPE\" yq -oj
-        -i '.mediaType = env(OCI_ARTIFACT_TYPE)' \"${DOWNLOAD_DIR}/desc_${i}.json\"\n
-        \     OCI_FILENAME=\"$OCI_FILENAME\" yq -oj -i '.annotations.\"org.opencontainers.image.title\"
-        = env(OCI_FILENAME)' \"${DOWNLOAD_DIR}/desc_${i}.json\"\n      echo
-        \"[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]\"\n    ) &\n
-        \   PID_TO_FILE[$!]=\"${ALL_VARFILES[$i]}\"\n  done\n  FAILED=0\n
-        \ for pid in \"${!PID_TO_FILE[@]}\"; do\n    if ! wait \"$pid\"; then\n
-        \     # shellcheck source=/dev/null\n      source \"${PID_TO_FILE[$pid]}\"\n
-        \     echo \"ERROR: Descriptor fetch failed for ${OCI_FILENAME}\"\n
-        \     FAILED=1\n    fi\n  done\n  [ $FAILED -eq 1 ] && exit 1\n\n
-        \ # Append to manifest (sequential - file writes not parallelizable)\n
-        \ for ((i = batch; i < BATCH_END; i++)); do\n    yq -oj -i \".layers
-        += $(cat \"${DOWNLOAD_DIR}/desc_${i}.json\")\" artifact-manifest.json\n
-        \   rm -f \"${DOWNLOAD_DIR}/desc_${i}.json\"\n  done\n\n  unset TO_PROCESS
-        PIDS PID_TO_FILE CHECK_RESULTS FAILED\ndone\n\necho \"Pushing complete
-        artifact manifest to ${IMAGE}\"\nif ! retry oras manifest push --registry-config
-        auth.json \"${IMAGE}\" artifact-manifest.json; then\n  echo \"Failed
-        to push complete artifact manifest to ${IMAGE}\"\n  exit 1\nfi\n\nif
-        ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json
-        \"${IMAGE}\"); then\n  echo \"Failed to get digest for ${IMAGE} from
-        registry\"\n  exit 1\nfi\necho -n \"$RESULTING_DIGEST\" | tee \"$(results.IMAGE_DIGEST.path)\"\necho
-        -n \"$IMAGE\" | tee \"$(results.IMAGE_URL.path)\"\necho -n \"${IMAGE}@${RESULTING_DIGEST}\"
-        >\"$(results.IMAGE_REF.path)\"\n"
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        # S3 transfer settings optimized for parallel multipart downloads
+        MAX_CONCURRENT=50
+        MULTIPART_THRESHOLD="64MB"
+        MULTIPART_CHUNKSIZE="16MB"
+
+        # Use NVMe-backed emptyDir for downloads (faster than workspace PVC)
+        DOWNLOAD_DIR="/var/lib/containers/downloads"
+        mkdir -p "$DOWNLOAD_DIR"
+
+        # Configure AWS CLI once (avoid race condition in parallel downloads)
+        mkdir -p ~/.aws
+        printf '%s\n' \
+          "[default]" \
+          "s3 =" \
+          "  max_concurrent_requests = ${MAX_CONCURRENT}" \
+          "  multipart_threshold = ${MULTIPART_THRESHOLD}" \
+          "  multipart_chunksize = ${MULTIPART_CHUNKSIZE}" \
+          >~/.aws/config
+
+        # Worker function: check if blob exists in registry
+        check_blob_exists() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" &>/dev/null
+        }
+
+        # Worker function: download and verify a file
+        download_file() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          local dlpath="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+          echo "[DL] Downloading ${OCI_FILENAME}..."
+          if ! download "$OCI_SOURCE" "$dlpath"; then
+            echo "[DL] ERROR: Failed to download ${OCI_FILENAME}"
+            exit 1
+          fi
+          if ! echo "$OCI_ARTIFACT_DIGEST  $dlpath" | sha256sum --check --quiet; then
+            echo "[DL] ERROR: Checksum mismatch for ${OCI_FILENAME}"
+            exit 1
+          fi
+          echo "[DL] Downloaded ${OCI_FILENAME} [OK]"
+        }
+
+        # Worker function: push blob to registry
+        push_file() {
+          local varfile="$1"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          local dlpath="${DOWNLOAD_DIR}/${OCI_FILENAME}"
+          echo "[PUSH] Pushing ${OCI_FILENAME}..."
+          if ! retry oras blob push --registry-config auth.json "${REPO}" --media-type "${OCI_ARTIFACT_TYPE}" "$dlpath"; then
+            echo "[PUSH] ERROR: Failed to push ${OCI_FILENAME}"
+            exit 1
+          fi
+          echo "[PUSH] Pushed ${OCI_FILENAME} [OK]"
+        }
+
+        # Worker function: fetch and annotate descriptor
+        fetch_descriptor() {
+          local varfile="$1"
+          local idx="$2"
+          # shellcheck source=/dev/null
+          source "$varfile"
+          echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
+          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" >"${DOWNLOAD_DIR}/desc_${idx}.json" 2>&1; then
+            echo "[DESC] ERROR: Failed to fetch descriptor for ${OCI_FILENAME}"
+            cat "${DOWNLOAD_DIR}/desc_${idx}.json" 2>/dev/null || true
+            exit 1
+          fi
+          OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "${DOWNLOAD_DIR}/desc_${idx}.json"
+          OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "${DOWNLOAD_DIR}/desc_${idx}.json"
+          echo "[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]"
+        }
+
+        download() {
+          local url="$1"
+          local file="$2"
+
+          local directory
+          directory=$(dirname "${file}")
+          echo "Found directory of ${file} to be ${directory}"
+          if [ ! -d "${directory}" ]; then
+            echo "Found that directory ${directory} does not exist. Creating."
+            mkdir -p "${directory}"
+          fi
+
+          if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "Found both aws credentials secret with both aws_access_key_id and aws_secret_access_key. Assuming S3 bucket"
+
+            # Extract host and path from URL
+            local host path
+            host=$(echo -n "$url" | awk -F '/' '{print $3}')
+            path=$(echo "$url" | cut -d/ -f4-)
+
+            echo "Parsing S3 URL - Host: ${host}, Path: ${path}"
+
+            local endpoint_url="" bucket="" region="" s3_uri="" key=""
+
+            if [[ "$host" == *.s3.*.amazonaws.com ]]; then
+              # AWS virtual-hosted-style: bucket.s3.region.amazonaws.com/key
+              bucket=$(echo "$host" | cut -d. -f1)
+              region=$(echo "$host" | cut -d. -f3)
+              s3_uri="s3://${bucket}/${path}"
+              echo "Detected AWS virtual-hosted style URL"
+            elif [[ "$host" == s3.*.amazonaws.com ]]; then
+              # AWS path-style: s3.region.amazonaws.com/bucket/key
+              region=$(echo "$host" | cut -d. -f2)
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              echo "Detected AWS path-style URL"
+            elif [[ "$host" == *.s3.*.cloud-object-storage.appdomain.cloud ]]; then
+              # IBM Cloud COS virtual-hosted: bucket.s3.region.cloud-object-storage.appdomain.cloud/key
+              bucket=$(echo "$host" | cut -d. -f1)
+              region=$(echo "$host" | cut -d. -f3)
+              s3_uri="s3://${bucket}/${path}"
+              endpoint_url="https://s3.${region}.cloud-object-storage.appdomain.cloud"
+              echo "Detected IBM Cloud COS virtual-hosted style URL"
+            elif [[ "$host" == s3.*.cloud-object-storage.appdomain.cloud ]]; then
+              # IBM Cloud COS path-style: s3.region.cloud-object-storage.appdomain.cloud/bucket/key
+              region=$(echo "$host" | cut -d. -f2)
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              endpoint_url="https://${host}"
+              echo "Detected IBM Cloud COS path-style URL"
+            elif [[ "$host" == *s3* ]] || [[ "$host" == *minio* ]] || [[ "$host" == *storage* ]]; then
+              # Generic S3-compatible storage: host/bucket/key
+              bucket=$(echo "$path" | cut -d/ -f1)
+              key=$(echo "$path" | cut -d/ -f2-)
+              s3_uri="s3://${bucket}/${key}"
+              endpoint_url="https://${host}"
+              echo "Detected generic S3-compatible storage URL"
+            else
+              # URL doesn't look like S3, fall back to curl
+              echo "URL doesn't match known S3 patterns, falling back to curl"
+              curl --fail --silent --show-error --location "$url" -o "$file"
+              return
+            fi
+
+            echo "S3 URI: ${s3_uri}, Bucket: ${bucket}, Region: ${region:-auto}"
+            [ -n "${endpoint_url}" ] && echo "Endpoint URL: ${endpoint_url}"
+
+            if ! command -v aws &>/dev/null; then
+              echo "ERROR: AWS CLI is required for S3 downloads but was not found"
+              exit 1
+            fi
+
+            echo "Using AWS CLI for download with parallel multipart transfers"
+            if [ -n "${endpoint_url}" ]; then
+              aws s3 cp --only-show-errors --endpoint-url "${endpoint_url}" "${s3_uri}" "${file}"
+            else
+              aws s3 cp --only-show-errors "${s3_uri}" "${file}"
+            fi
+          elif [ -n "${BEARER_TOKEN:-}" ]; then
+            echo "Found bearer token. Using it for authentication."
+            curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+          else
+            curl --fail --silent --show-error --location "$url" -o "$file"
+          fi
+        }
+
+        set -u
+
+        echo "Selecting auth for $IMAGE"
+        select-oci-auth $IMAGE >auth.json
+
+        echo "Extracting artifact_type"
+        ARTIFACT_TYPE=$(cat "$(pwd)/source/$OCI_COPY_FILE" | yq '.artifact_type')
+
+        REPO=${IMAGE%:*}
+        echo "Found that ${REPO} is the repository for ${IMAGE}"
+
+        cat >artifact-manifest.json <<EOL
+        {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "artifactType": "${ARTIFACT_TYPE}",
+          "config": {
+            "mediaType": "application/vnd.oci.empty.v1+json",
+            "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "size": 2,
+            "data": "e30="
+          },
+          "layers": [],
+          "annotations": {
+            "org.opencontainers.image.created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+        }
+        EOL
+
+        echo "Ensuring that the empty blob exists, for the image manifest config."
+        if ! echo -n "{}" | retry oras blob push \
+          --registry-config auth.json \
+          ${REPO}@sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a \
+          --media-type application/vnd.oci.empty.v1+json --size 2 -; then
+          echo "Failed to push empty blob to registry"
+          exit 1
+        fi
+
+        # Validate PARALLEL_JOBS
+        if ! [[ "$PARALLEL_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+          echo "ERROR: PARALLEL_JOBS must be a positive integer, got: $PARALLEL_JOBS"
+          exit 1
+        fi
+
+        # Collect all varfiles
+        shopt -s nullglob
+        ALL_VARFILES=("/var/workdir"/vars/*)
+        shopt -u nullglob
+        TOTAL=${#ALL_VARFILES[@]}
+
+        if [ "$TOTAL" -eq 0 ]; then
+          echo "No artifacts to process"
+        else
+          echo "Processing $TOTAL files in batches of $PARALLEL_JOBS"
+        fi
+
+        for ((batch = 0; batch < TOTAL; batch += PARALLEL_JOBS)); do
+          BATCH_END=$((batch + PARALLEL_JOBS))
+          [ "$BATCH_END" -gt "$TOTAL" ] && BATCH_END=$TOTAL
+
+          echo "=== Batch $((batch / PARALLEL_JOBS + 1)): files $batch-$((BATCH_END - 1)) ==="
+
+          # Check which files need processing (parallel existence checks)
+          declare -a TO_PROCESS=()
+          declare -a CHECK_RESULTS=()
+          PIDS=()
+          for ((i = batch; i < BATCH_END; i++)); do
+            (check_blob_exists "${ALL_VARFILES[$i]}") &
+            PIDS+=("$!")
+            CHECK_RESULTS+=("$i")
+          done
+
+          for idx in "${!PIDS[@]}"; do
+            i="${CHECK_RESULTS[$idx]}"
+            # shellcheck source=/dev/null
+            source "${ALL_VARFILES[$i]}"
+            if wait "${PIDS[$idx]}"; then
+              echo "Blob ${OCI_FILENAME} exists, skipping"
+            else
+              TO_PROCESS+=("${ALL_VARFILES[$i]}")
+            fi
+          done
+
+          # Phase 1: Parallel downloads
+          if [ ${#TO_PROCESS[@]} -gt 0 ]; then
+            echo "--- Downloading ${#TO_PROCESS[@]} files ---"
+            declare -A PID_TO_FILE=()
+            for varfile in "${TO_PROCESS[@]}"; do
+              (download_file "$varfile") &
+              PID_TO_FILE[$!]="$varfile"
+            done
+            FAILED=0
+            for pid in "${!PID_TO_FILE[@]}"; do
+              if ! wait "$pid"; then
+                # shellcheck source=/dev/null
+                source "${PID_TO_FILE[$pid]}"
+                echo "ERROR: Download failed for ${OCI_FILENAME}"
+                FAILED=1
+              fi
+            done
+            [ $FAILED -eq 1 ] && exit 1
+
+            # Phase 2: Parallel pushes
+            echo "--- Pushing ${#TO_PROCESS[@]} files ---"
+            PID_TO_FILE=()
+            for varfile in "${TO_PROCESS[@]}"; do
+              (push_file "$varfile") &
+              PID_TO_FILE[$!]="$varfile"
+            done
+            FAILED=0
+            for pid in "${!PID_TO_FILE[@]}"; do
+              if ! wait "$pid"; then
+                # shellcheck source=/dev/null
+                source "${PID_TO_FILE[$pid]}"
+                echo "ERROR: Push failed for ${OCI_FILENAME}"
+                FAILED=1
+              fi
+            done
+            [ $FAILED -eq 1 ] && exit 1
+
+            # Cleanup
+            for varfile in "${TO_PROCESS[@]}"; do
+              # shellcheck source=/dev/null
+              source "$varfile"
+              rm -f "${DOWNLOAD_DIR}/${OCI_FILENAME}"
+            done
+          fi
+
+          # Fetch descriptors in parallel
+          echo "--- Fetching descriptors ---"
+          declare -A PID_TO_FILE=()
+          for ((i = batch; i < BATCH_END; i++)); do
+            (fetch_descriptor "${ALL_VARFILES[$i]}" "$i") &
+            PID_TO_FILE[$!]="${ALL_VARFILES[$i]}"
+          done
+          FAILED=0
+          for pid in "${!PID_TO_FILE[@]}"; do
+            if ! wait "$pid"; then
+              # shellcheck source=/dev/null
+              source "${PID_TO_FILE[$pid]}"
+              echo "ERROR: Descriptor fetch failed for ${OCI_FILENAME}"
+              FAILED=1
+            fi
+          done
+          [ $FAILED -eq 1 ] && exit 1
+
+          # Append to manifest (sequential - file writes not parallelizable)
+          for ((i = batch; i < BATCH_END; i++)); do
+            yq -oj -i ".layers += $(cat "${DOWNLOAD_DIR}/desc_${i}.json")" artifact-manifest.json
+            rm -f "${DOWNLOAD_DIR}/desc_${i}.json"
+          done
+
+          unset TO_PROCESS PIDS PID_TO_FILE CHECK_RESULTS FAILED
+        done
+
+        echo "Pushing complete artifact manifest to ${IMAGE}"
+        if ! retry oras manifest push --registry-config auth.json "${IMAGE}" artifact-manifest.json; then
+          echo "Failed to push complete artifact manifest to ${IMAGE}"
+          exit 1
+        fi
+
+        if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}"); then
+          echo "Failed to get digest for ${IMAGE} from registry"
+          exit 1
+        fi
+        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
       computeResources:
         limits:
           memory: 4Gi
