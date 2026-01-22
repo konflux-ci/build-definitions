@@ -68,7 +68,7 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/oras:latest@sha256:30e6f592c68ed433e0950123df4e185cdb1ada25f41b30ca1cb4e5b3ca929b1b
+            image: quay.io/konflux-ci/oras:latest@sha256:b281fef6ecf8b0322b061654dd5016c99090ce775d676afb06dad6d7399a7d3c
             workingDir: $(workspaces.tests-workspace.path)
             args:
               - push
@@ -87,7 +87,7 @@ spec:
               echo "Share location of the mocked model"
               echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7263233979258cf8abd8a5fd968671c0f3c461f30e6041c5efc0bc25d9bc973d
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
             args:
               - create
               - --store
