@@ -4,8 +4,8 @@ Task that prefetches dependencies for hermetic build.
 
 ## Configuration
 
-Config file must be passed as a YAML string. For all available config options please check
-[available configuration parameters] page.
+Config file must be passed as a YAML string. For all available config options please check Hermeto
+[settings](https://hermetoproject.github.io/hermeto/#settings) documentation.
 
 Example of setting timeouts:
 
@@ -14,11 +14,10 @@ params:
   - name: config-file-content
     value: |
       ---
-      requests_timeout: 300
-      subprocess_timeout: 3600
+      http:
+        connect_timeout: 60
+        read_timeout: 3600
 ```
-
-[available configuration parameters]: https://github.com/hermetoproject/hermeto?tab=readme-ov-file#available-configuration-parameters
 
 ## Parameters
 |name|description|default value|required|
