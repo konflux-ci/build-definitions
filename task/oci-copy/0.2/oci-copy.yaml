@@ -133,7 +133,7 @@ spec:
         MULTIPART_CHUNKSIZE="16MB"
 
         # Use NVMe-backed emptyDir for downloads (faster than workspace PVC)
-        DOWNLOAD_DIR="/var/lib/containers/downloads"
+        export DOWNLOAD_DIR="/var/lib/containers/downloads"
         mkdir -p "$DOWNLOAD_DIR"
 
         # Configure AWS CLI once (avoid race condition in parallel downloads)
@@ -189,13 +189,18 @@ spec:
           local idx="$2"
           # shellcheck source=/dev/null
           source "$varfile"
+          local desc_file="${DOWNLOAD_DIR}/desc_${idx}.json"
           echo "[DESC] Fetching descriptor for ${OCI_FILENAME}..."
-          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "${DOWNLOAD_DIR}/desc_${idx}.json" 2>&1; then
+          if ! retry oras blob fetch --registry-config auth.json --descriptor "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" > "$desc_file"; then
             echo "[DESC] ERROR: Failed to fetch descriptor for ${OCI_FILENAME}"
-            cat "${DOWNLOAD_DIR}/desc_${idx}.json" 2>/dev/null || true; exit 1
+            exit 1
           fi
-          OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "${DOWNLOAD_DIR}/desc_${idx}.json"
-          OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "${DOWNLOAD_DIR}/desc_${idx}.json"
+          if [ ! -s "$desc_file" ]; then
+            echo "[DESC] ERROR: Empty descriptor file for ${OCI_FILENAME}"
+            exit 1
+          fi
+          OCI_ARTIFACT_TYPE="$OCI_ARTIFACT_TYPE" yq -oj -i '.mediaType = env(OCI_ARTIFACT_TYPE)' "$desc_file"
+          OCI_FILENAME="$OCI_FILENAME" yq -oj -i '.annotations."org.opencontainers.image.title" = env(OCI_FILENAME)' "$desc_file"
           echo "[DESC] Fetched descriptor for ${OCI_FILENAME} [OK]"
         }
 
@@ -295,7 +300,7 @@ spec:
         echo "Extracting artifact_type"
         ARTIFACT_TYPE=$(cat "$(pwd)/source/$OCI_COPY_FILE" | yq '.artifact_type')
 
-        REPO=${IMAGE%:*}
+        export REPO=${IMAGE%:*}
         echo "Found that ${REPO} is the repository for ${IMAGE}"
 
         cat >artifact-manifest.json <<EOL
