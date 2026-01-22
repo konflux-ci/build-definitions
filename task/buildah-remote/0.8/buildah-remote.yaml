@@ -326,7 +326,7 @@ spec:
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+      value: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -351,6 +351,8 @@ spec:
         cpu: 4600m
         memory: 8Gi
     env:
+    - name: HOME
+      value: /root
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: SOURCE_URL
@@ -369,7 +371,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     name: build
     script: |-
       #!/bin/bash
@@ -1065,6 +1067,7 @@ spec:
           -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
           -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
+          -e HOME="${HOME@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \
           -e DOCKERFILE="${DOCKERFILE@Q}" \
@@ -1085,6 +1088,7 @@ spec:
           -v "${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z" \
           -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
           -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
+          -v /var/lib/containers \
           "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
           --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
@@ -1133,11 +1137,13 @@ spec:
         cpu: 600m
         memory: 4Gi
     env:
+    - name: HOME
+      value: /root
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     name: push
     script: |
       #!/bin/bash

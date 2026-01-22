@@ -387,7 +387,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -412,6 +412,8 @@ spec:
           name: proxy-ca-bundle
           readOnly: true
       env:
+        - name: HOME
+          value: /root
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
         - name: SOURCE_URL
@@ -1018,7 +1020,7 @@ spec:
           add:
             - SETFCAP
     - name: push
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -1027,6 +1029,8 @@ spec:
           name: trusted-ca
           readOnly: true
       env:
+        - name: HOME
+          value: /root
         - name: BUILDAH_FORMAT
           value: $(params.BUILDAH_FORMAT)
         - name: TASKRUN_NAME

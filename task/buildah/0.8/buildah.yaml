@@ -307,7 +307,7 @@ spec:
       value: $(params.SKIP_INJECTIONS)
     imagePullPolicy: IfNotPresent
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     name: build
     computeResources:
       limits:
@@ -317,6 +317,8 @@ spec:
         memory: 8Gi
         cpu: 4600m
     env:
+    - name: HOME
+      value: /root
     - name: COMMIT_SHA
       value: $(params.COMMIT_SHA)
     - name: SOURCE_URL
@@ -935,8 +937,9 @@ spec:
       mountPath: /mnt/proxy-ca-bundle
       readOnly: true
     workingDir: $(workspaces.source.path)
+
   - name: push
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     computeResources:
       limits:
         memory: 4Gi
@@ -945,6 +948,8 @@ spec:
         memory: 4Gi
         cpu: 600m
     env:
+    - name: HOME
+      value: /root
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
