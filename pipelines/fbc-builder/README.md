@@ -7,19 +7,19 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-images:0.7:BUILD_ARGS|
-|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-images:0.7:BUILD_ARGS_FILE|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-images:0.8:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-images:0.8:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| true| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-platforms| List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.| ['linux/x86_64']| |
 |build-source-image| Build a source image.| false| |
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.7:DOCKERFILE|
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.8:DOCKERFILE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.2:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|hermetic| Execute the build with network isolation| true| build-images:0.7:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.7:IMAGE_EXPIRES_AFTER ; build-image-index:0.2:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.7:IMAGE ; build-image-index:0.2:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.7:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-images:0.7:PREFETCH_INPUT|
+|hermetic| Execute the build with network isolation| true| build-images:0.8:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-images:0.8:IMAGE_EXPIRES_AFTER ; build-image-index:0.2:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| init:0.2:image-url ; clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-images:0.8:IMAGE ; build-image-index:0.2:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.8:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input ; build-images:0.8:PREFETCH_INPUT|
 |rebuild| Force rebuild image| false| init:0.2:rebuild|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| init:0.2:skip-checks|
@@ -48,7 +48,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### buildah-remote-oci-ta:0.7 task parameters
+### buildah-remote-oci-ta:0.8 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -211,7 +211,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.3:IMAGE_URL ; validate-fbc:0.1:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### buildah-remote-oci-ta:0.7 task results
+### buildah-remote-oci-ta:0.8 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
@@ -239,22 +239,22 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| run-opm-command:0.1:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-images:0.7:COMMIT_SHA ; build-image-index:0.2:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-images:0.8:COMMIT_SHA ; build-image-index:0.2:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
-|url| The precise URL that was fetched by this Task.| build-images:0.7:SOURCE_URL|
+|url| The precise URL that was fetched by this Task.| build-images:0.8:SOURCE_URL|
 ### init:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |build| Defines if the image in param image-url should be built| |
-|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-images:0.7:HTTP_PROXY|
-|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-images:0.7:NO_PROXY|
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-images:0.8:HTTP_PROXY|
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-images:0.8:NO_PROXY|
 ### prefetch-dependencies-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.7:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.7:SOURCE_ARTIFACT ; fbc-fips-check-oci-ta:0.1:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.8:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-images:0.8:SOURCE_ARTIFACT ; fbc-fips-check-oci-ta:0.1:SOURCE_ARTIFACT|
 ### run-opm-command-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
