@@ -274,6 +274,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		ret += "\n  echo \"[$(date --utc -Ins)] Build via ssh\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/scripts:/scripts:Z\" \\\n"
+		podmanArgs += "    -v /var/lib/containers \\\n"
 		podmanArgs += "    \"${PRIVILEGED_NESTED_FLAGS[@]@Q}\" \\\n"
 		ret += "\n  # shellcheck disable=SC2086"
 		ret += "\n  # Please note: all variables below the first ssh line must be quoted with ${var@Q}!"
