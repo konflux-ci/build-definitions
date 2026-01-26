@@ -70,7 +70,7 @@ spec:
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
-        value: 'registry.access.redhat.com/ubi9/buildah:9.7-1768206262'
+        value: 'registry.access.redhat.com/ubi9/buildah:9.7-1769429893'
       - name: PLATFORM
         value: $(params.PLATFORM)
       - name: IMAGE_APPEND_PLATFORM
@@ -87,7 +87,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
+      image: quay.io/konflux-ci/yq:latest@sha256:d41dc95bca693854c811910695665a4336134f11af0d0d6041ed70e4d44df6e6
       script: |-
         #!/bin/bash
         set -o verbose
@@ -130,7 +130,7 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:5c5eb4117983b324f932f144aa2c2df7ed508174928a423d8551c4e11f30fbd9
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
       computeResources:
         limits:
           memory: 512Mi
