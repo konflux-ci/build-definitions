@@ -36,6 +36,13 @@ spec:
   steps:
     - name: request-space
       image: registry.redhat.io/openshift4/ose-cli:4.13@sha256:73df37794ffff7de1101016c23dc623e4990810390ebdabcbbfa065214352c7c
+      computeResources:
+        limits:
+	  memory: 256Mi
+	  cpu: 100m
+	requests:
+	  memory: 256Mi
+	  cpu: 100m
       env:
         - name: NAMESPACE
           value: $(context.taskRun.namespace)
