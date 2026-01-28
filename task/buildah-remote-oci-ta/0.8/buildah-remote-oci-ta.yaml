@@ -775,6 +775,8 @@ spec:
         PREFETCH_ARCH="$(uname -m)"
         echo "$PREFETCH_ARCH" >/shared/prefetch-arch
 
+        echo "Prefetched content will be made available"
+
         cp -r "/var/workdir/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
 
@@ -801,7 +803,6 @@ spec:
           -e 'H;1h;$!d;x' \
           -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
           "$dockerfile_copy"
-        echo "Prefetched content will be made available"
 
         prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
         if [ -f "$prefetched_repo_for_my_arch" ]; then
