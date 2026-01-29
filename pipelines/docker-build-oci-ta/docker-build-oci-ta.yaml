@@ -36,14 +36,6 @@ spec:
     name: dockerfile
     type: string
   - default: "false"
-    description: Force rebuild image
-    name: rebuild
-    type: string
-  - default: "false"
-    description: Skip checks against built image
-    name: skip-checks
-    type: string
-  - default: "false"
     description: Execute the build with network isolation
     name: hermetic
     type: string
@@ -97,17 +89,11 @@ spec:
   tasks:
   - name: init
     params:
-    - name: image-url
-      value: $(params.output-image)
-    - name: rebuild
-      value: $(params.rebuild)
-    - name: skip-checks
-      value: $(params.skip-checks)
     - name: enable-cache-proxy
       value: $(params.enable-cache-proxy)
     taskRef:
       name: init
-      version: "0.2"
+      version: "0.3"
   - name: clone-repository
     params:
     - name: url
@@ -123,11 +109,6 @@ spec:
     taskRef:
       name: git-clone-oci-ta
       version: "0.1"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: basic-auth
       workspace: git-auth
@@ -191,11 +172,6 @@ spec:
     taskRef:
       name: buildah-oci-ta
       version: "0.8"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces: []
   - name: build-image-index
     params:
@@ -217,11 +193,6 @@ spec:
     taskRef:
       name: build-image-index
       version: "0.2"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
@@ -238,10 +209,6 @@ spec:
       name: source-build-oci-ta
       version: "0.3"
     when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     - input: $(params.build-source-image)
       operator: in
       values:
@@ -258,11 +225,6 @@ spec:
     taskRef:
       name: deprecated-image-check
       version: "0.5"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: clair-scan
     params:
     - name: image-digest
@@ -274,11 +236,6 @@ spec:
     taskRef:
       name: clair-scan
       version: "0.3"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: ecosystem-cert-preflight-checks
     params:
     - name: image-url
@@ -288,11 +245,6 @@ spec:
     taskRef:
       name: ecosystem-cert-preflight-checks
       version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: sast-snyk-check
     params:
     - name: image-digest
@@ -308,11 +260,6 @@ spec:
     taskRef:
       name: sast-snyk-check-oci-ta
       version: "0.4"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     workspaces: []
   - name: clamav-scan
     params:
@@ -325,11 +272,6 @@ spec:
     taskRef:
       name: clamav-scan
       version: "0.3"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: sast-coverity-check
     params:
     - name: image-digest
@@ -365,10 +307,6 @@ spec:
       name: sast-coverity-check-oci-ta
       version: "0.3"
     when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     - input: $(tasks.coverity-availability-check.results.STATUS)
       operator: in
       values:
@@ -380,11 +318,6 @@ spec:
     taskRef:
       name: coverity-availability-check
       version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: sast-shell-check
     params:
     - name: image-digest
@@ -400,11 +333,6 @@ spec:
     taskRef:
       name: sast-shell-check-oci-ta
       version: "0.1"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     workspaces: []
   - name: sast-unicode-check
     params:
@@ -421,11 +349,6 @@ spec:
     taskRef:
       name: sast-unicode-check-oci-ta
       version: "0.4"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     workspaces: []
   - name: apply-tags
     params:
@@ -467,11 +390,6 @@ spec:
     taskRef:
       name: rpms-signature-scan
       version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   workspaces:
   - name: git-auth
     optional: true

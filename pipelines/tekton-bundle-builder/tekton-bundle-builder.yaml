@@ -31,14 +31,6 @@ spec:
     name: dockerfile
     type: string
   - default: "false"
-    description: Force rebuild image
-    name: rebuild
-    type: string
-  - default: "false"
-    description: Skip checks against built image
-    name: skip-checks
-    type: string
-  - default: "false"
     description: Execute the build with network isolation
     name: hermetic
     type: string
@@ -74,17 +66,11 @@ spec:
   tasks:
   - name: init
     params:
-    - name: image-url
-      value: $(params.output-image)
-    - name: rebuild
-      value: $(params.rebuild)
-    - name: skip-checks
-      value: $(params.skip-checks)
     - name: enable-cache-proxy
       value: $(params.enable-cache-proxy)
     taskRef:
       name: init
-      version: "0.2"
+      version: "0.3"
   - name: clone-repository
     params:
     - name: url
@@ -96,11 +82,6 @@ spec:
     taskRef:
       name: git-clone
       version: "0.1"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: output
       workspace: workspace
@@ -137,11 +118,6 @@ spec:
     taskRef:
       name: tkn-bundle
       version: "0.2"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: source
       workspace: workspace
@@ -163,11 +139,6 @@ spec:
     taskRef:
       name: build-image-index
       version: "0.2"
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
   - name: sast-shell-check
     params:
     - name: image-digest
@@ -179,11 +150,6 @@ spec:
     taskRef:
       name: sast-shell-check
       version: "0.1"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     workspaces:
     - name: workspace
       workspace: workspace
@@ -198,11 +164,6 @@ spec:
     taskRef:
       name: sast-unicode-check
       version: "0.4"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
     workspaces:
     - name: workspace
       workspace: workspace
