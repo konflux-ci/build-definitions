@@ -237,9 +237,10 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
+        cpu: '1'
       requests:
-        memory: 4Gi
+        memory: 2Gi
         cpu: '1'
     volumeMounts:
     - mountPath: /shared
@@ -311,11 +312,11 @@ spec:
     name: build
     computeResources:
       limits:
-        memory: 8Gi
-        cpu: 4600m
+        memory: 4Gi
+        cpu: '2'
       requests:
-        memory: 8Gi
-        cpu: 4600m
+        memory: 4Gi
+        cpu: '2'
     env:
     - name: HOME
       value: /root
@@ -942,10 +943,10 @@ spec:
     image: quay.io/konflux-ci/buildah-task:latest@sha256:bfd26f371245bd229c7524670a13001eaf14ee1e8e887dbd948d35a2f781e41a
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
         cpu: 600m
       requests:
-        memory: 4Gi
+        memory: 2Gi
         cpu: 600m
     env:
     - name: HOME
@@ -1036,10 +1037,10 @@ spec:
     image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
         cpu: 1100m
       requests:
-        memory: 4Gi
+        memory: 2Gi
         cpu: 1100m
     # Respect Syft configuration if the user has it in the root of their repository
     # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
