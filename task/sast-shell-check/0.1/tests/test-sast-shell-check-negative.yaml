@@ -1,0 +1,197 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-sast-shell-check-negative
+spec:
+  description: |
+    Negative test for sast-shell-check task. Creates shell scripts with
+    intentional shellcheck violations and verifies the task succeeds while
+    reporting the errors in TEST_OUTPUT and SARIF results.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: init
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: task/init/0.2/init.yaml
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-shell-check:latest"
+    - name: create-test-files
+      runAfter:
+        - init
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      taskSpec:
+        workspaces:
+          - name: workspace
+        steps:
+          - name: create-bad-shell-scripts
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+
+              SOURCE_DIR="$(workspaces.workspace.path)/source"
+              mkdir -p "$SOURCE_DIR"
+
+              # Create a shell script with SC2086 - unquoted variable expansion
+              # Use block redirect to avoid SC2129
+              # Use escaped dollar signs to write literal $ without triggering SC2016
+              {
+                echo '#!/bin/bash'
+                echo "file_name=\"my file.txt\""
+                echo '# This should trigger SC2086 unquoted variable'
+                echo "cat \$file_name"
+              } > "$SOURCE_DIR/unquoted-vars.sh"
+
+              # Create a shell script with SC2006 - legacy backtick command substitution
+              {
+                echo '#!/bin/bash'
+                echo '# This should trigger SC2006 legacy backticks'
+                # shellcheck disable=SC2016  # intentionally using single quotes for literal backticks
+                printf 'result=`date +%%Y-%%m-%%d`\n'
+                # shellcheck disable=SC2016  # intentionally using single quotes for literal text
+                echo 'echo "$result"'
+              } > "$SOURCE_DIR/backticks.sh"
+
+              # Create a shell script with SC2046 - unquoted command substitution
+              {
+                echo '#!/bin/bash'
+                echo '# This should trigger SC2046 unquoted command substitution'
+                # shellcheck disable=SC2016  # intentionally using single quotes for literal command substitution
+                printf 'rm $(find /tmp -name "*.tmp")\n'
+              } > "$SOURCE_DIR/unquoted-cmd.sh"
+
+              # Create a shell script with SC2164 - cd without error check
+              {
+                echo '#!/bin/bash'
+                echo '# This should trigger SC2164 cd without error check'
+                echo 'cd /some/directory'
+                echo 'rm -rf *'
+              } > "$SOURCE_DIR/cd-no-check.sh"
+
+              chmod +x "$SOURCE_DIR"/*.sh
+
+              echo "Created test files with intentional shellcheck violations:"
+              ls -la "$SOURCE_DIR"
+              echo ""
+              echo "File contents:"
+              for f in "$SOURCE_DIR"/*.sh; do
+                echo "=== $f ==="
+                cat "$f"
+                echo ""
+              done
+    - name: scan-with-shellcheck
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      runAfter:
+        - create-test-files
+      taskRef:
+        name: sast-shell-check
+      params:
+        - name: image-url
+          value: "quay.io/redhat-user-workloads/sast-tests-tenant/tests/tests-sast-shell-check:latest"
+        # Disable KFP filtering for this test to ensure we see all findings
+        - name: KFP_GIT_URL
+          value: ""
+        # Disable IMP_FINDINGS_ONLY to catch all violations
+        - name: IMP_FINDINGS_ONLY
+          value: "false"
+    - name: check-result
+      runAfter:
+        - scan-with-shellcheck
+      workspaces:
+        - name: workspace
+          workspace: tests-workspace
+      params:
+        - name: test-output
+          value: $(tasks.scan-with-shellcheck.results.TEST_OUTPUT)
+      taskSpec:
+        params:
+          - name: test-output
+        workspaces:
+          - name: workspace
+        steps:
+          - name: verify-test-output
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            env:
+              - name: TEST_OUTPUT
+                value: $(params.test-output)
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+
+              echo "Verifying TEST_OUTPUT result..."
+              echo "TEST_OUTPUT: $TEST_OUTPUT"
+
+              # Per ADR-0014: Task should succeed even when finding problems
+              # Verify the result is SUCCESS (not ERROR or FAILURE)
+              if ! echo "$TEST_OUTPUT" | jq -e '.result == "SUCCESS"' > /dev/null; then
+                echo "FAIL: Expected TEST_OUTPUT.result to be SUCCESS"
+                echo "$TEST_OUTPUT" | jq '.'
+                exit 1
+              fi
+
+              echo "PASS: TEST_OUTPUT shows SUCCESS as expected"
+          - name: verify-sarif-findings
+            image: quay.io/konflux-ci/konflux-test:v1.4.28@sha256:4a5423e125fc28db800421422d9933290dc4b62a22401d74cd3348c03107a5d9
+            script: |
+              #!/usr/bin/env bash
+              set -eu
+
+              SARIF_FILE="$(workspaces.workspace.path)/hacbs/sast-shell-check/shellcheck-results.sarif"
+
+              echo "Verifying SARIF file contains expected findings..."
+
+              if [[ ! -f "$SARIF_FILE" ]]; then
+                echo "FAIL: SARIF file not found at $SARIF_FILE"
+                exit 1
+              fi
+
+              echo "SARIF file contents:"
+              cat "$SARIF_FILE"
+              echo ""
+
+              # Verify we have shellcheck findings using csgrep
+              echo "Extracting findings statistics..."
+              csgrep --mode=evtstat "$SARIF_FILE"
+
+              echo ""
+              echo "Verifying shellcheck found violations..."
+
+              # Count the number of results in the SARIF file
+              results_count=$(jq '[.runs[].results[]] | length' "$SARIF_FILE")
+
+              if [[ "$results_count" -gt 0 ]]; then
+                echo "✓ Found $results_count shellcheck violation(s) in SARIF"
+
+                # List what was found
+                echo ""
+                echo "Violations found:"
+                grep -o 'SC[0-9]\{4\}' "$SARIF_FILE" | sort | uniq | while read -r code; do
+                  echo "  - $code"
+                done
+
+                # Per ADR-0014: The key verification is that the task succeeded
+                # even though it found problems. We verify that by checking:
+                # 1. TEST_OUTPUT shows SUCCESS (verified in previous step)
+                # 2. SARIF file contains findings (verified here)
+
+                echo ""
+                echo "PASS: Task succeeded while reporting shellcheck violations"
+                echo "This confirms ADR-0014 compliance: scanning tasks succeed even when finding problems"
+              else
+                echo "FAIL: No shellcheck violations found in SARIF"
+                echo "Expected to find violations in the intentionally bad shell scripts"
+                exit 1
+              fi
