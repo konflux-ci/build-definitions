@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.8"
+    app.kubernetes.io/version: 0.8.1
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -87,6 +87,10 @@ spec:
       description: Name of secret which contains the entitlement certificates
       type: string
       default: etc-pki-entitlement
+    - name: ENV_VARS
+      description: Array of --env values ("env=value" strings)
+      type: array
+      default: []
     - name: HERMETIC
       description: Determines if build will be executed without network access.
       type: string
@@ -391,6 +395,8 @@ spec:
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
+        - --env
+        - $(params.ENV_VARS[*])
         - --labels
         - $(params.LABELS[*])
         - --annotations
@@ -550,6 +556,7 @@ spec:
         echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
 
         build_args=()
+        env_vars=()
         if [ -n "${BUILD_ARGS_FILE}" ]; then
           # Parse BUILD_ARGS_FILE ourselves because dockerfile-json doesn't support it
           echo "Parsing ARGs from $BUILD_ARGS_FILE"
@@ -587,6 +594,14 @@ spec:
               shift
             done
             ;;
+          --env)
+            shift
+            # Collect env entries of the form KEY=value
+            while [[ $# -gt 0 && $1 != --* ]]; do
+              env_vars+=("$1")
+              shift
+            done
+            ;;
           --labels)
             shift
             while [[ $# -gt 0 && $1 != --* ]]; do
@@ -613,6 +628,11 @@ spec:
           BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
         done
 
+        ENV_FLAGS=()
+        for env_var in "${env_vars[@]}"; do
+          ENV_FLAGS+=("--env=$env_var")
+        done
+
         # Dockerfile-json cannot parse Buildah's host variables, we have to pass them manually
         BUILDAH_INFO=$(buildah info)
         BUILDAH_OS=$(jq -r '.host.os' <<<"$BUILDAH_INFO")
@@ -633,6 +653,7 @@ spec:
         done
 
         DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
+        DOCKERFILE_ARG_FLAGS+=("${ENV_FLAGS[@]}")
 
         dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
         BASE_IMAGES=$(
@@ -668,6 +689,7 @@ spec:
         fi
 
         BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+        BUILDAH_ARGS+=("${ENV_FLAGS[@]}")
 
         # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
         # TODO remove the option once all hosts were updated
