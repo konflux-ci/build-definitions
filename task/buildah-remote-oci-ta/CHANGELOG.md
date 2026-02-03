@@ -9,6 +9,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.8.1
+
+### Added
+
+- The buildah task now supports injecting ENV variables into the dockerfile
+  through the `ENV_VARS` array parameter.
+
 ## 0.8
 
 ### Changed

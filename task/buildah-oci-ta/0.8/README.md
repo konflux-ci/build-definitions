@@ -23,6 +23,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|true|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
+|ENV_VARS|Array of --env values ("env=value" strings)|[]|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|

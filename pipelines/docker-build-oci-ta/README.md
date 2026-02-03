@@ -68,6 +68,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CONTEXTUALIZE_SBOM| Determines if SBOM will be contextualized.| true| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
+|ENV_VARS| Array of --env values ("env=value" strings)| []| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
 |HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| '$(tasks.init.results.http-proxy)'|
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
