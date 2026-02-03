@@ -1,12 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
+  name: prefetch-dependencies
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
   labels:
     app.kubernetes.io/version: "0.2"
-  annotations:
-    tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "image-build, konflux"
-  name: prefetch-dependencies
 spec:
   description: Task that prefetches project dependencies for hermetic build.
   params:
