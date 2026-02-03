@@ -42,6 +42,8 @@ spec:
     - name: TOTAL_IMAGES
       description: Total number of unique images
       type: string
+    - name: TEST_OUTPUT
+      description: Tekton task test output
   volumes:
     - name: workdir
       emptyDir: {}
@@ -56,9 +58,8 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
 
-    # Reuse original get-unique-related-images step with minimal modifications
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -125,6 +126,7 @@ spec:
           note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
         echo "Packages in FBC fragment: ${fragment_pkg_names}"
@@ -144,6 +146,7 @@ spec:
           note="Task $(context.task.name) failed: Could not get package names from the target index."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
 
@@ -176,6 +179,7 @@ spec:
             note="Task $(context.task.name) failed: Could not get unreleased bundle images from the fragment. Make sure you have ImagePullCredentials for registry.redhat.io"
             echo "${note}"
             TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
             exit 0
           fi
 
@@ -223,6 +227,7 @@ spec:
               note="Task $(context.task.name) failed: Could not render unreleased bundle image: ${bundle}. Make sure the image is accessible or a mirror is provided for the same in images-mirror-set.yaml"
               echo "${note}"
               TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
+              echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
               exit 0
             fi
             subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["operators.openshift.io/valid-subscription"] != null)) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
@@ -263,6 +268,17 @@ spec:
           echo "No related images found. Skipping check."
           exit 0
         fi
+
+        # If the image is an Image Index, also add the Image Index digest to the list.
+        if [[ "${digests_processed[*]}" != *"$IMAGE_DIGEST"* ]]; then
+          digests_processed+=("\"$IMAGE_DIGEST\"")
+        fi
+        digests_processed_string=$(
+          IFS=,
+          echo "${digests_processed[*]}"
+        )
+
+        echo "${images_processed_template/\[%s]/[$digests_processed_string]}" >"/tekton/home/images_processed.txt"
       computeResources:
         limits:
           cpu: "1"
@@ -308,7 +324,7 @@ spec:
         # Write TOTAL_IMAGES result
         echo "${num_images}" > "$(results.TOTAL_IMAGES.path)"
 
-        if [ ${num_images} -eq 0 ]; then
+        if [ "${num_images}" -eq 0 ]; then
           echo "No images to split"
           for ((i=0; i<NUM_BUCKETS; i++)); do
             touch "/var/workdir/buckets/bucket-${i}.txt"
@@ -320,7 +336,7 @@ spec:
 
         # Initialize empty buckets
         for ((i=0; i<NUM_BUCKETS; i++)); do
-          > "/var/workdir/buckets/bucket-${i}.txt"
+          : > "/var/workdir/buckets/bucket-${i}.txt"
         done
 
         echo "Load balancing: distributing big images to different buckets"
@@ -381,6 +397,7 @@ spec:
         export -f fetch_size
         export image_mirror_map
 
+        # shellcheck disable=SC2016
         readarray -t sized_images < <(printf '%s\n' "${images[@]}" | xargs -P "${SIZE_FETCH_PARALLEL}" -I {} bash -c 'fetch_size "$@" "$1"' _ {} "$image_mirror_map")
 
         # Report size fetching results
@@ -399,7 +416,7 @@ spec:
         # Greedy algorithm: assign each image to lightest bucket
         declare -a weights
         for ((i=0; i<NUM_BUCKETS; i++)); do
-          weights[$i]=0
+          weights[i]=0
         done
 
         for item in "${sorted[@]}"; do
@@ -418,7 +435,7 @@ spec:
 
           # Assign to lightest bucket
           echo "${img}" >> "/var/workdir/buckets/bucket-${min_bucket}.txt"
-          weights[$min_bucket]=$((weights[$min_bucket] + size))
+          weights[min_bucket]=$((weights[min_bucket] + size))
         done
 
         # Report
@@ -426,7 +443,7 @@ spec:
         echo "Bucket distribution:"
         for ((i=0; i<NUM_BUCKETS; i++)); do
           count=$(wc -l < "/var/workdir/buckets/bucket-${i}.txt")
-          weight_mb=$((weights[$i] / 1024 / 1024))
+          weight_mb=$((weights[i] / 1024 / 1024))
           echo "  Bucket ${i}: ${count} images, ${weight_mb} MB"
         done
 
