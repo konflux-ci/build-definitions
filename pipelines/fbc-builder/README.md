@@ -119,6 +119,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |MAX_PARALLEL| Maximum number of images to process in parallel| 8| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-mirror-set-path| Path to the image mirror set file.| .tekton/images-mirror-set.yaml| |
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### fbc-target-index-pruning-check:0.1 task parameters
 |name|description|default value|already set by|

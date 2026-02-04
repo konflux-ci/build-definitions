@@ -1,6 +1,6 @@
 # fbc-fips-check task
 
-The fbc-fips-check task uses the check-payload tool to verify if an unreleased operator bundle in an FBC fragment image is FIPS compliant. It only scans operator bundle images which either claim to be FIPS compliant by setting the `features.operators.openshift.io/fips-compliant` label to `"true"` on the bundle image or require one of `OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform` subscriptions to run the operator on an Openshift cluster. This task extracts relatedImages from all unreleased operator bundle images from your FBC fragment and scans them. In the context of FBC fragment, an unreleased operator bundle image is the one that isn't currently present in the Red Hat production Index Image (`registry.redhat.io/redhat/redhat-operator-index`). It is necessary for relatedImages pullspecs to be pullable at build time of the FBC fragment. In order to resolve them, this task expects a ImageDigestMirrorSet file located at .tekton/images-mirror-set.yaml of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
+The fbc-fips-check task uses the check-payload tool to verify if an unreleased operator bundle in an FBC fragment image is FIPS compliant. It only scans operator bundle images which either claim to be FIPS compliant by setting the `features.operators.openshift.io/fips-compliant` label to `"true"` on the bundle image or require one of `OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform` subscriptions to run the operator on an Openshift cluster. This task extracts relatedImages from all unreleased operator bundle images from your FBC fragment and scans them. In the context of FBC fragment, an unreleased operator bundle image is the one that isn't currently present in the Red Hat production Index Image (`registry.redhat.io/redhat/redhat-operator-index`). It is necessary for relatedImages pullspecs to be pullable at build time of the FBC fragment. In order to resolve them, this task expects an ImageDigestMirrorSet file at the path given by `image-mirror-set-path` (default: `.tekton/images-mirror-set.yaml`) of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
 
 ## Parameters
 |name|description|default value|required|
@@ -8,6 +8,7 @@ The fbc-fips-check task uses the check-payload tool to verify if an unreleased o
 |image-digest|Image digest to scan.||true|
 |image-url|Image URL.||true|
 |MAX_PARALLEL|Maximum number of images to process in parallel|"8"|false|
+|image-mirror-set-path|Path to the image mirror-set file|.tekton/images-mirror-set.yaml|false|
 
 ## Results
 |name|description|
