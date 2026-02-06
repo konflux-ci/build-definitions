@@ -15,7 +15,7 @@ spec:
     label to `"true"` on the bundle image or require one of `OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform`
     subscriptions to run the operator on an Openshift cluster.
     This task extracts relatedImages from all unreleased operator bundle images from your FBC fragment and scans them. In the context of FBC fragment, an unreleased operator bundle image is the one that isn't currently present in the Red Hat production Index Image (`registry.redhat.io/redhat/redhat-operator-index`). It is necessary for relatedImages pullspecs to be pullable at build time of the FBC fragment.
-    In order to resolve them, this task expects a ImageDigestMirrorSet file located at .tekton/images-mirror-set.yaml of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
+    In order to resolve them, this task expects an ImageDigestMirrorSet file at the path given by `image-mirror-set-path` (default: `.tekton/images-mirror-set.yaml`) of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
   params:
     - name: image-digest
       description: Image digest to scan.
@@ -24,6 +24,10 @@ spec:
     - name: MAX_PARALLEL
       description: Maximum number of images to process in parallel
       default: "8"
+    - name: image-mirror-set-path
+      description: Path to the image mirror set file.
+      type: string
+      default: ".tekton/images-mirror-set.yaml"
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
@@ -46,6 +50,8 @@ spec:
           value: $(params.image-digest)
         - name: SOURCE_CODE_DIR
           value: $(workspaces.workspace.path)
+        - name: IMAGE_MIRROR_SET_PATH
+          value: $(params.image-mirror-set-path)
       securityContext:
         capabilities:
           add:
@@ -63,7 +69,7 @@ spec:
         rendered_target_index_file=/tmp/opm-render-target-index.json
 
         image_mirror_map=""
-        mirror_set="${SOURCE_CODE_DIR}/source/.tekton/images-mirror-set.yaml"
+        mirror_set="${SOURCE_CODE_DIR}/source/${IMAGE_MIRROR_SET_PATH}"
         if [[ -f "${mirror_set}" ]]; then
           mirror_set_yaml=$(cat "${mirror_set}")
           image_mirror_map=$(process_image_digest_mirror_set "${mirror_set_yaml}")
