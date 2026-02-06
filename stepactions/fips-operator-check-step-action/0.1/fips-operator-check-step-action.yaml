@@ -113,6 +113,12 @@ spec:
         echo "Version label is ${version_label}"
         echo "Release label is ${release_label}"
 
+        # Sanitize component_label to prevent directory path issues
+        # Replace problematic characters (/ \ : * ? " < > | and whitespace) with hyphens
+        sanitized_component_label=$(echo "${component_label}" | tr '/\\:*?"<>|[:space:]' '-')
+        echo "Sanitized component label for path usage: ${component_label} -> ${sanitized_component_label}"
+        component_label="${sanitized_component_label}"
+
         if [ -z "${component_label}" ]; then
           echo -e "Error: Unable to scan image: Could not get com.redhat.component label for ${related_image}\n"
           echo "1" >> "${counter_dir}/error"
