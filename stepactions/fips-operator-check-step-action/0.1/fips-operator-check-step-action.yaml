@@ -135,8 +135,20 @@ spec:
         fi
         echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for conversion to OCI format"
 
+        # Fetch the first available architecture so that the skopeo copy does not fail if the default arch is not available
+        first_arch=$(retry skopeo inspect --raw "docker://${sanitized_related_image}" | jq -r '.manifests[0].platform.architecture // empty')
+
+        # Ensure an architecture was discovered
+        if [[ -z "${first_arch}" ]]; then
+          echo -e "Error: Could not determine architecture for image ${sanitized_related_image}. Manifest may be empty or invalid.\n"
+          echo "1" >> "${counter_dir}/error"
+          return
+        fi
+
+        echo "Selected architecture :  [${first_arch}] "
+
         # Convert image to OCI format since umoci can only handle the OCI format
-        if ! retry skopeo copy --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest"; then
+        if ! retry skopeo copy --override-arch "${first_arch}" --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest"; then
           echo -e "Error: Unable to scan image: Could not convert image ${related_image} to OCI format\n"
           # Clean up any partial OCI image artifacts to prevent resource accumulation
           cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
