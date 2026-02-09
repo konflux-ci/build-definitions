@@ -47,10 +47,6 @@ spec:
         Public key used to verify signatures. Must be a valid k8s cosign
         reference, e.g. k8s://my-space/my-secret where my-secret contains
         the expected cosign.pub attribute.
-    - name: TIMEOUT
-      type: string
-      description: Timeout setting for `ec validate`.
-      default: "5m0s"
     - name: WORKERS
       type: string
       description: Number of parallel workers to use for policy evaluation.
@@ -102,8 +98,6 @@ spec:
           value: "$(params.PUBLIC_KEY)"
         - name: IGNORE_REKOR
           value: "true"
-        - name: TIMEOUT
-          value: "$(params.TIMEOUT)"
         - name: WORKERS
           value: "$(params.WORKERS)"
         - name: CA_TRUST_CONFIGMAP_NAME
