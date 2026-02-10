@@ -1023,8 +1023,86 @@ spec:
         echo -n "${IMAGE}@"
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
-
       echo
+
+      # detect if keyless signing is required
+      SIGNING_CONFIG='{}'
+      KFLX_CONFIG_PATH='/tmp/konflux_config.json'
+      if ! RETRY_STOP_IF_STDERR_MATCHES='configmaps "cluster-config" not found' retry kubectl get configmap cluster-config -n konflux-info -o json >"${KFLX_CONFIG_PATH}"
+      then
+        echo "Failed to fetch konflux cluster-config, default values will be used" >&2
+      else
+        SIGNING_CONFIG="$(cat ${KFLX_CONFIG_PATH})"
+      fi
+
+      # configmap key -> variable name mapping
+      declare -A SIGNING_KEY_MAP=(
+        [defaultOIDCIssuer]=SIGSTORE_OIDC_ISSUER
+        [rekorInternalUrl]=REKOR_URL
+        [fulcioInternalUrl]=SIGSTORE_FULCIO_URL
+        [tufInternalUrl]=TUF_URL
+      )
+
+      missing=""
+      configured=0
+      for key in "${!SIGNING_KEY_MAP[@]}"; do
+        val=$(echo "${SIGNING_CONFIG}" | jq -r ".data.${key} // empty")
+        if [ -z "${val}" ]; then
+          missing="${missing:+${missing}, }${key}"
+        else
+          declare "${SIGNING_KEY_MAP[$key]}=${val}"
+          configured=$((configured + 1))
+        fi
+      done
+
+      if [ "${configured}" -eq "${#SIGNING_KEY_MAP[@]}" ]; then
+        echo "Keyless signing is enabled"
+
+        # Save signing config for upload-sbom step
+        for key in "${!SIGNING_KEY_MAP[@]}"; do
+          envvar="${SIGNING_KEY_MAP[$key]}"
+          printf '%s=%q\n' "${envvar}" "${!envvar}"
+        done > /shared/signing-config.env
+
+        echo "Using Rekor URL: ${REKOR_URL}"
+        echo "Using Fulcio URL: ${SIGSTORE_FULCIO_URL}"
+        echo "Using OIDC issuer: ${SIGSTORE_OIDC_ISSUER}"
+
+        echo "Initializing TUF root from ${TUF_URL}"
+        if ! retry cosign initialize --root "${TUF_URL}/root.json" --mirror "${TUF_URL}"
+        then
+          echo "Failed to initialize TUF root" >&2
+          exit 1
+        fi
+
+        # env var consumed by cosign
+        SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
+        export SIGSTORE_ID_TOKEN
+
+        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
+
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REF}" > /tmp/auth/config.json
+        export DOCKER_CONFIG=/tmp/auth
+
+        echo "[$(date --utc -Ins)] Sign image"
+        echo "Signing image ${IMAGE_REF} using keyless signing"
+        if ! retry cosign sign -y \
+          --rekor-url="${REKOR_URL}" \
+          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+          "${IMAGE_REF}"
+        then
+          echo "Failed to sign image" >&2
+          exit 1
+        fi
+      elif [ "${configured}" -eq 0 ]; then
+        echo "Keyless signing is disabled (none of ${missing} are configured in the konflux-info/cluster-config configmap)"
+      else
+        echo "ERROR: Incomplete keyless signing configuration in konflux-info/cluster-config configmap. Missing: ${missing}" >&2
+        exit 1
+      fi
+
       echo "[$(date --utc -Ins)] End push"
 
     securityContext:
@@ -1037,6 +1115,9 @@ spec:
       name: varlibcontainers
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
+      readOnly: true
+    - name: oidc-token
+      mountPath: /var/run/sigstore/cosign
       readOnly: true
     workingDir: $(workspaces.source.path)
 
@@ -1247,11 +1328,51 @@ spec:
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
 
+      if [ -f "/shared/signing-config.env" ]; then
+        # shellcheck source=/dev/null
+        source /shared/signing-config.env
+
+        echo "Initializing TUF root from ${TUF_URL}"
+        if ! retry cosign initialize --root "${TUF_URL}/root.json" --mirror "${TUF_URL}"
+        then
+          echo "Failed to initialize TUF root" >&2
+          exit 1
+        fi
+
+        # env var consumed by cosign
+        SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
+        export SIGSTORE_ID_TOKEN
+
+        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
+
+        ATT_SBOM_TYPE="${SBOM_TYPE}"
+        if [ "${ATT_SBOM_TYPE}" = "spdx" ]; then
+          # for format cossistency with cyclonedx format, we want to use spdxjson instad of spdx
+          # spdx export data as rawstring, we want structured json as cyclonedx
+          ATT_SBOM_TYPE="spdxjson"
+        fi
+
+        echo "[$(date --utc -Ins)] Sign SBOM"
+        echo "Signing and attaching SBOM to ${IMAGE_REF} using keyless signing"
+        if ! retry cosign attest -y --type "${ATT_SBOM_TYPE}" --predicate sbom.json \
+          --rekor-url="${REKOR_URL}" \
+          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+          "${IMAGE_REF}"
+        then
+          echo "Failed to sign SBOM" >&2
+          exit 1
+        fi
+      fi
+
       echo
       echo "[$(date --utc -Ins)] End upload-sbom"
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
+      readOnly: true
+    - name: oidc-token
+      mountPath: /var/run/sigstore/cosign
       readOnly: true
     workingDir: $(workspaces.source.path)
 
@@ -1286,6 +1407,13 @@ spec:
       - key: $(params.PROXY_CA_TRUST_CONFIG_MAP_KEY)
         path: ca-bundle.crt
       optional: true
+  - name: oidc-token
+    projected:
+      sources:
+      - serviceAccountToken:
+          audience: sigstore
+          expirationSeconds: 600
+          path: oidc-token
   workspaces:
   - name: source
     description: Workspace containing the source code to build.
