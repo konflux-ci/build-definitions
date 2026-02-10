@@ -737,6 +737,10 @@ spec:
       echo "[$(date --utc -Ins)] Setup prefetched"
 
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
+        # Identify the current arch to filter the prefetched content
+        PREFETCH_ARCH="$(uname -m)"
+        echo "$PREFETCH_ARCH" > /shared/prefetch-arch
+
         cp -r "$(workspaces.source.path)/cachi2" /tmp/
         chmod -R go+rwX /tmp/cachi2
         VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
@@ -1400,6 +1404,10 @@ spec:
 
       if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
         mobster_args+=(--contextualize)
+      fi
+
+      if [ -f "/shared/prefetch-arch" ]; then
+        mobster_args+=(--arch "$(cat /shared/prefetch-arch)")
       fi
 
       mobster "${mobster_args[@]}"
