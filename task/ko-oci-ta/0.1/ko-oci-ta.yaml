@@ -141,7 +141,7 @@ spec:
 
         labels="architecture=$(uname -m),vcs-type=git,build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
         [ -n "${COMMIT_SHA}" ] && labels+=",vcs-ref=${COMMIT_SHA}"
-        [ -n "${IMAGE_EXPIRES_AFTER}" ] && labels+=",quay.expires-after=${IMAGE_EXPIRES_AFTER})"
+        [ -n "${IMAGE_EXPIRES_AFTER}" ] && labels+=",quay.expires-after=${IMAGE_EXPIRES_AFTER}"
 
         args=("${IMAGE_NAMING_STRATEGY}" -t "${TASKRUN_NAME}" --image-label "${labels}" --sbom=none)
         [ -n "${TAG}" ] && args+=(-t "${TAG}")
