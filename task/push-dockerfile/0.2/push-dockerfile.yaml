@@ -42,6 +42,10 @@ spec:
     type: string
     description: The name of the key in the ConfigMap that contains the CA bundle data.
     default: ca-bundle.crt
+  - name: LOG_LEVEL
+    type: string
+    description: Log level to use in the task. See golang logrus docs for available levels.
+    default: info
   results:
   - name: IMAGE_REF
     description: Digest-pinned image reference to the Dockerfile image.
@@ -53,95 +57,35 @@ spec:
       readOnly: true
   steps:
   - name: push
-    image: quay.io/konflux-ci/oras:latest@sha256:2fdb02259e6d197b95e9d757f474e51a1c7412abc54e6901393a00a238bbeb27
+    image: quay.io/konflux-ci/konflux-build-cli@sha256:cbac25972803b3349737b042a9e22da7d748e3bcf98a737baf702b43e0ce0dae
     workingDir: $(workspaces.workspace.path)
     env:
-    - name: IMAGE
-      value: $(params.IMAGE)
-    - name: IMAGE_DIGEST
-      value: $(params.IMAGE_DIGEST)
-    - name: TAG_SUFFIX
-      value: $(params.TAG_SUFFIX)
-    - name: DOCKERFILE
-      value: $(params.DOCKERFILE)
-    - name: CONTEXT
-      value: $(params.CONTEXT)
-    - name: ARTIFACT_TYPE
-      value: $(params.ARTIFACT_TYPE)
-    - name: IMAGE_REF_RESULT
-      value: $(results.IMAGE_REF.path)
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
     computeResources:
       limits:
         memory: 256Mi
       requests:
         cpu: 100m
         memory: 256Mi
-    script: |
-      set -eu
-      set -o pipefail
-
-      SOURCE_CODE_DIR=source
-
-      echo "[$(date --utc -Ins)] Validate context path"
-
-      if [ -z "$CONTEXT" ]; then
-        echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
-        CONTEXT="."
-      fi
-
-      source_dir_path=$(realpath "$SOURCE_CODE_DIR")
-      context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
-
-      case "$context_dir_path" in
-        "$source_dir_path" | "$source_dir_path/"*)
-          # path is valid, do nothing
-          ;;
-        *)
-          echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
-          echo "Source path: $source_dir_path" >&2
-          echo "Resolved path: $context_dir_path" >&2
-          exit 1
-          ;;
-      esac
-
-      # Same discovery logic used in buildah task
-      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
-      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
-      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
-        echo "Fetch Dockerfile from $DOCKERFILE"
-        dockerfile_path=$(mktemp --suffix=-dockerfile)
-        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ $http_code != 200 ]; then
-          echo "No Dockerfile is fetched. Server responds $http_code"
-          exit 1
-        fi
-      else
-        echo "Cannot find Dockerfile $DOCKERFILE"
-        exit 1
-      fi
-
-      echo "Selecting auth for $IMAGE"
-      auth_json=$(mktemp)
-      select-oci-auth $IMAGE >"$auth_json"
-
-      dockerfile_image=${IMAGE%:*}:${IMAGE_DIGEST/:/-}${TAG_SUFFIX}
-
-      dockerfile_for_upload_path=/tmp/Dockerfile
-      cp "$dockerfile_path" "$dockerfile_for_upload_path"
-      cd "$(dirname $dockerfile_for_upload_path)"
-      echo "Pushing Dockerfile to registry"
-      if ! retry oras push --no-tty \
-        --format json \
-        --registry-config "$auth_json" \
-        --artifact-type "$ARTIFACT_TYPE" \
-        "$dockerfile_image" "$(basename $dockerfile_for_upload_path)" \
-        | yq '.reference' | tr -d '\r\n' >"$IMAGE_REF_RESULT"
-      then
-        echo "Failed to push Dockerfile to registry"
-        exit 1
-      fi
+    command: ["konflux-build-cli", "image", "push-containerfile"]
+    args:
+    - --source
+    - source
+    - --context
+    - "$(params.CONTEXT)"
+    - --dockerfile
+    - "$(params.DOCKERFILE)"
+    - --image-url
+    - $(params.IMAGE)
+    - --image-digest
+    - $(params.IMAGE_DIGEST)
+    - --artifact-type
+    - $(params.ARTIFACT_TYPE)
+    - --tag-suffix
+    - $(params.TAG_SUFFIX)
+    - --result-path-image-ref
+    - $(results.IMAGE_REF.path)
 
   workspaces:
   - name: workspace
