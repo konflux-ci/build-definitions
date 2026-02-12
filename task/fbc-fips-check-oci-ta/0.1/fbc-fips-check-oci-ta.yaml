@@ -44,7 +44,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
+      image: quay.io/konflux-ci/konflux-test:v1.4.47@sha256:baa60a08e86ab24476750bc010c29318e62ab4c921f5408f83f176dc10fcc079
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -105,9 +105,9 @@ spec:
           TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
           exit 0
         fi
-        rendered_fbc_image=$(cat "${rendered_fbc_image_file}")
-        echo "Getting package names in FBC fragment"
-        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image}"); then
+
+        echo "Getting package names in FBC fragment from catalog file."
+        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog_file "${rendered_fbc_image_file}"); then
           note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -126,8 +126,8 @@ spec:
           exit 0
         fi
 
-        rendered_ti=$(cat "${rendered_target_index_file}")
-        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_ti}"); then
+        echo "Getting package names in target index from catalog file."
+        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog_file "${rendered_target_index_file}"); then
           note="Task $(context.task.name) failed: Could not get package names from the target index."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
