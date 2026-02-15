@@ -353,6 +353,8 @@ def _new_changelog_content(version: str, added_what: str) -> str:
         f"""\
         # Changelog
 
+        <!-- Format guidelines: https://keepachangelog.com/en/1.1.0/#how -->
+
         ## Unreleased
 
         <!--
