@@ -11,6 +11,14 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.8.3
+
+### Fixed
+
+- Platform build arguments (BUILDPLATFORM, TARGETPLATFORM) now correctly include CPU variant
+  for ARM architectures (e.g., `linux/arm/v7` or `linux/arm64/v8` instead of just `linux/arm`
+  or `linux/arm64`).
+
 ## 0.8.2
 
 ### Changed
