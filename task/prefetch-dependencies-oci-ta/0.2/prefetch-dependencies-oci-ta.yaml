@@ -76,8 +76,6 @@ spec:
         secretName: $(params.ACTIVATION_KEY)
     - name: config
       emptyDir: {}
-    - name: shared
-      emptyDir: {}
     - name: trusted-ca
       configMap:
         items:
@@ -107,8 +105,6 @@ spec:
     volumeMounts:
       - mountPath: /mnt/config
         name: config
-      - mountPath: /shared
-        name: shared
       - mountPath: /var/workdir
         name: workdir
   steps:
