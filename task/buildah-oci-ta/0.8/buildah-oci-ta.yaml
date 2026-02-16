@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.8.2
+    app.kubernetes.io/version: 0.8.3
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -623,25 +623,7 @@ spec:
           ENV_FLAGS+=("--env=$env_var")
         done
 
-        # Dockerfile-json cannot parse Buildah's host variables, we have to pass them manually
-        BUILDAH_INFO=$(buildah info)
-        BUILDAH_OS=$(jq -r '.host.os' <<<"$BUILDAH_INFO")
-        BUILDAH_ARCH=$(jq -r '.host.arch' <<<"$BUILDAH_INFO")
-        BUILDAH_VARIANT=$(jq -r '.host.variant' <<<"$BUILDAH_INFO")
-        BUILDAH_PLATFORM="${BUILDAH_OS}/${BUILDAH_ARCH}"
-
         DOCKERFILE_ARG_FLAGS=()
-
-        # Reference for variables:
-        # https://docs.docker.com/build/building/variables/#pre-defined-build-arguments
-        PREFIXES=('BUILD' 'TARGET')
-        for PREFIX in "${PREFIXES[@]}"; do
-          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}PLATFORM=${BUILDAH_PLATFORM}")
-          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}OS=${BUILDAH_OS}")
-          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}ARCH=${BUILDAH_ARCH}")
-          DOCKERFILE_ARG_FLAGS+=("--build-arg=${PREFIX}VARIANT=${BUILDAH_VARIANT}")
-        done
-
         DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
         DOCKERFILE_ARG_FLAGS+=("${ENV_FLAGS[@]}")
 
