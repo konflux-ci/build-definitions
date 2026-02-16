@@ -557,16 +557,6 @@ spec:
 
         build_args=()
         env_vars=()
-        if [ -n "${BUILD_ARGS_FILE}" ]; then
-          # Parse BUILD_ARGS_FILE ourselves because dockerfile-json doesn't support it
-          echo "Parsing ARGs from $BUILD_ARGS_FILE"
-          mapfile -t build_args < <(
-            # https://www.mankier.com/1/buildah-build#--build-arg-file
-            # delete lines that start with #
-            # delete blank lines
-            sed -e '/^#/d' -e '/^\s*$/d' "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}"
-          )
-        fi
 
         LABELS=()
         ANNOTATIONS=()
@@ -655,6 +645,10 @@ spec:
         DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
         DOCKERFILE_ARG_FLAGS+=("${ENV_FLAGS[@]}")
 
+        if [ -n "${BUILD_ARGS_FILE}" ]; then
+          DOCKERFILE_ARG_FLAGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
+        fi
+
         dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
         BASE_IMAGES=$(
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
@@ -690,6 +684,10 @@ spec:
 
         BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
         BUILDAH_ARGS+=("${ENV_FLAGS[@]}")
+
+        if [ -n "${BUILD_ARGS_FILE}" ]; then
+          BUILDAH_ARGS+=("--build-arg-file=$(realpath "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")")
+        fi
 
         # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
         # TODO remove the option once all hosts were updated
