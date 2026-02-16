@@ -188,7 +188,7 @@ spec:
           exit 0
         fi
     - name: extract-and-validate
-      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      image: <TODO>
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir/extract-and-validate
@@ -471,6 +471,7 @@ spec:
         # Get the new related images that are being added so that we can check them for validity
         echo "Rendering target index and finding unreleased related images."
         status=0
+        echo "Running command: get_unreleased_fbc_related_images -i ${image_with_digest}"
         related_images=$(get_unreleased_fbc_related_images -i "$image_with_digest") || status=$?
         if [ $status -ne 0 ]; then
           get_unreleased_fbc_related_images -i "$image_with_digest"
