@@ -52,8 +52,6 @@ spec:
     volumeMounts:
       - name: config
         mountPath: /mnt/config
-      - mountPath: /shared
-        name: shared
   steps:
   - name: sanitize-config-file-with-yq
     image: quay.io/konflux-ci/yq:latest@sha256:466005c667e6e9ea19fd4738275f71a13f89382f6233c581d5e952a41ccb3b42
@@ -346,8 +344,6 @@ spec:
       performing http(s) requests.
     optional: true
   volumes:
-    - name: shared
-      emptyDir: {}
     - name: activation-key
       secret:
         optional: true
