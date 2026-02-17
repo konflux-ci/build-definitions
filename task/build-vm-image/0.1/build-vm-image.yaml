@@ -166,7 +166,7 @@ spec:
         chmod 0400 ~/.ssh/id_rsa
         export SSH_HOST=$(cat /ssh/host)
         export BUILD_DIR=$(cat /ssh/user-dir)
-        export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60)
+        export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ~/.ssh/id_rsa)
         mkdir -p scripts
         echo "$BUILD_DIR"
         ssh -v "${SSH_ARGS[@]}" "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/tekton-results" "$BUILD_DIR/entitlement" "$BUILD_DIR/activation-key"
@@ -186,15 +186,15 @@ spec:
         cat /var/workdir/source/$CONFIG_TOML_FILE
 
 
-        rsync -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
-        rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         # Rsync activation-key for remote registration or entitlement certificates if provided
         if [ -e "/activation-key/org" ]; then
           echo "Syncing activation-key for remote registration"
-          rsync -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/activation-key/"
+          rsync -e "ssh ${SSH_ARGS[*]}" -ra /activation-key/ "$SSH_HOST:$BUILD_DIR/activation-key/"
         elif [ -d "/entitlement" ] && [ "$(ls -A /entitlement)" ]; then
           echo "Syncing provided entitlement certificates"
-          rsync -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
+          rsync -e "ssh ${SSH_ARGS[*]}" -ra /entitlement/ "$SSH_HOST:$BUILD_DIR/entitlement/"
         fi
 
         if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
@@ -399,11 +399,11 @@ spec:
         # make scripts executable and sync them to the cloud VM.
         chmod +x scripts/script-build.sh
         chmod +x scripts/script-push.sh
-        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-        rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra scripts "$SSH_HOST:$BUILD_DIR"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
 
         ssh -v "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
-        rsync -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
 
       volumeMounts:
         - mountPath: /ssh
