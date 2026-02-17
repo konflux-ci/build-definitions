@@ -65,9 +65,9 @@ spec:
         COMMIT_SHA="${PARAM_REVISION}"
 
         # Extract repository information
-        REPO_HOST=$(echo "$REPO_URL" | awk -F/ '{print $3}')
-        REPO_OWNER=$(echo "$REPO_URL" | awk -F/ '{print $4}')
-        REPO_NAME=$(echo "$REPO_URL" | awk -F/ '{print $5}' | sed 's/\.git$//')
+        REPO_HOST=$(echo -n "$REPO_URL" | awk -F/ '{print $3}')
+        REPO_OWNER=$(echo -n "$REPO_URL" | awk -F/ '{print $4}')
+        REPO_NAME=$(echo -n "$REPO_URL" | awk -F/ '{print $5}' | sed 's/\.git$//')
 
         # Check for token in workspace and set appropriate environment variable
         if [ "${WORKSPACE_BASIC_AUTH_DIRECTORY_BOUND}" = "true" ]; then
@@ -136,10 +136,10 @@ spec:
             # Parse the VSA to extract the SLSA level
             # VSA note contains two JSON objects - the second one has the actual VSA
             # Extract and decode the payload, then parse verifiedLevels field
-            VSA_JSON=$(echo "$VSA_NOTE" | tail -1)
-            PAYLOAD_B64=$(echo "$VSA_JSON" | grep -o '"payload":"[^"]*"' | sed 's/"payload":"//;s/"$//')
-            DECODED_PAYLOAD=$(echo "$PAYLOAD_B64" | base64 -d 2>/dev/null || echo "")
-            EXTRACTED_LEVEL=$(echo "$DECODED_PAYLOAD" | \
+            VSA_JSON=$(echo -n "$VSA_NOTE" | tail -1)
+            PAYLOAD_B64=$(echo -n "$VSA_JSON" | grep -o '"payload":"[^"]*"' | sed 's/"payload":"//;s/"$//')
+            DECODED_PAYLOAD=$(echo -n "$PAYLOAD_B64" | base64 -d 2>/dev/null || echo "")
+            EXTRACTED_LEVEL=$(echo -n "$DECODED_PAYLOAD" | \
               grep -o '"verifiedLevels":\["[^"]*"' | \
               sed 's/"verifiedLevels":\["\([^"]*\)"/\1/')
 
@@ -176,8 +176,8 @@ spec:
         )
 
         # Write results
-        echo "$ACHIEVED_LEVEL" >"$(results.SLSA_SOURCE_LEVEL_ACHIEVED.path)"
-        echo "$TEST_OUTPUT" >"$(results.TEST_OUTPUT.path)"
+        echo -n "$ACHIEVED_LEVEL" >"$(results.SLSA_SOURCE_LEVEL_ACHIEVED.path)"
+        echo -n "$TEST_OUTPUT" >"$(results.TEST_OUTPUT.path)"
 
         echo "=== SLSA Verification Summary ==="
         echo "Result: $VERIFICATION_RESULT"
