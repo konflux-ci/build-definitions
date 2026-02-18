@@ -100,7 +100,7 @@ spec:
 
         # Get package names from fragment
         echo "Rendering FBC fragment: ${image_and_digest}"
-        rendered_fbc_image_file=$(render_opm -t "${image_and_digest}" --file"
+        rendered_fbc_image_file=$(render_opm -t "${image_and_digest}" --file)
         if [[ ! -f "${rendered_fbc_image_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the FBC fragment image: ${image_and_digest}"
           echo "${note}"
@@ -119,7 +119,7 @@ spec:
 
         # Get package names from target index
         echo "Rendering target index: ${target_index_url}"
-        rendered_target_index_file=$(render_opm -t "${target_index_url}" --file)"
+        rendered_target_index_file=$(render_opm -t "${target_index_url}" --file)
         if [[ ! -f "${rendered_target_index_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
           echo "${note}"
