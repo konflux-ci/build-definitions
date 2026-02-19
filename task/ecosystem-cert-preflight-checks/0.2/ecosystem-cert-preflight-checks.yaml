@@ -58,6 +58,11 @@ spec:
           description: |
             The process that sets the artifact type. Informational.
             Values from: introspection, parameter.
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
       env:
       - name: PARAM_ARTIFACT_TYPE
         value: $(params.artifact-type)
