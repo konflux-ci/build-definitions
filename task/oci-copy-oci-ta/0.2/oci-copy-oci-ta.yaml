@@ -84,7 +84,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
+      image: quay.io/konflux-ci/yq:latest@sha256:466005c667e6e9ea19fd4738275f71a13f89382f6233c581d5e952a41ccb3b42
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -114,7 +114,7 @@ spec:
           cat "/var/workdir/vars/$varfile"
         done
     - name: oci-copy
-      image: quay.io/konflux-ci/task-runner:1.1.1@sha256:c3b31a65d6e82a307f0f2f6eb5762548e655695949fd42735ec8f178142d6f14
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -514,7 +514,7 @@ spec:
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:eb5b7311cff72c42f1d816fcf4f565829f58bbbd4c51503ed390b8f4e7a3fe89
+      image: quay.io/konflux-ci/yq:latest@sha256:466005c667e6e9ea19fd4738275f71a13f89382f6233c581d5e952a41ccb3b42
       workingDir: /var/workdir
       script: |
         #!/bin/bash
