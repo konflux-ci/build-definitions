@@ -1,12 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
+  name: prefetch-dependencies
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
   labels:
     app.kubernetes.io/version: "0.2"
-  annotations:
-    tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "image-build, konflux"
-  name: prefetch-dependencies
 spec:
   description: Task that prefetches project dependencies for hermetic build.
   params:
@@ -52,8 +52,6 @@ spec:
     volumeMounts:
       - name: config
         mountPath: /mnt/config
-      - mountPath: /shared
-        name: shared
   steps:
   - name: sanitize-config-file-with-yq
     image: quay.io/konflux-ci/yq:latest@sha256:e9363580cd87f73b2655d8dded6bcdc1ffc735a402cbe4b1aa1b127363c371bc
@@ -346,10 +344,6 @@ spec:
       performing http(s) requests.
     optional: true
   volumes:
-    - name: shared
-      emptyDir: {}
-    - name: etc-pki-entitlement
-      emptyDir: {}
     - name: activation-key
       secret:
         optional: true
