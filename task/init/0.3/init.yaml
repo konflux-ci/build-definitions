@@ -19,10 +19,9 @@ spec:
       description: HTTP proxy URL for cache proxy (when enable-cache-proxy is true)
     - name: no-proxy
       description: NO_PROXY value for cache proxy (when enable-cache-proxy is true)
-
   steps:
     - name: init
-      image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+      image: quay.io/susdas/kbc:latest
       computeResources:
         limits:
           memory: 256Mi
@@ -31,48 +30,9 @@ spec:
           memory: 256Mi
           cpu: 100m
       env:
-        - name: ENABLE_CACHE_PROXY
-          value: $(params.enable-cache-proxy)
-      script: |
-        #!/bin/bash
-
-        default_http_proxy="squid.caching.svc.cluster.local:3128"
-        default_no_proxy="brew.registry.redhat.io,docker.io,gcr.io,ghcr.io,images.paas.redhat.com,mirror.gcr.io,nvcr.io,quay.io,registry-proxy.engineering.redhat.com,registry.access.redhat.com,registry.ci.openshift.org,registry.fedoraproject.org,registry.redhat.io,registry.stage.redhat.io,vault.habana.ai"
-
-        # Fetch cluster-config from konflux-info namespace
-        echo "Fetching cluster-config from konflux-info namespace..."
-        if config_map=$(oc get configmap cluster-config -n konflux-info -o json 2>/dev/null); then
-          # ConfigMap exists
-          allow_cache=$(echo "$config_map" | jq -r '.data["allow-cache-proxy"] // "true"')
-          if [ "$allow_cache" == "true" ]; then
-             http_proxy=$(echo "$config_map" | jq -r --arg default_http "$default_http_proxy" '.data["http-proxy"] // $default_http')
-             no_proxy=$(echo "$config_map" | jq -r --arg default_no "$default_no_proxy" '.data["no-proxy"] // $default_no')
-          else
-             # allow-cache-proxy is false (or any other value != true)
-             http_proxy=""
-             no_proxy=""
-          fi
-        else
-          # ConfigMap missing, use defaults
-          echo "Warning: Failed to fetch cluster-config ConfigMap. Proceeding with defaults."
-          allow_cache="true"
-          http_proxy="$default_http_proxy"
-          no_proxy="$default_no_proxy"
-        fi
-
-        # Apply ENABLE_CACHE_PROXY check (from task param) ONLY if cluster allows it
-        if [ "$allow_cache" == "true" ] && [ "$ENABLE_CACHE_PROXY" == "true" ]; then
-           # Use the resolved values
-           echo "Cache proxy enabled (cluster-enabled: $allow_cache, task-enable: $ENABLE_CACHE_PROXY)"
-        else
-           # Task param disabled OR cluster disabled
-           echo "Cache proxy disabled (cluster-enabled: $allow_cache, task-enable: $ENABLE_CACHE_PROXY)"
-           http_proxy=""
-           no_proxy=""
-        fi
-
-        echo "Setting HTTP_PROXY to $http_proxy"
-        echo -n "$http_proxy" > "$(results.http-proxy.path)"
-
-        echo "Setting NO_PROXY to $no_proxy"
-        echo -n "$no_proxy" > "$(results.no-proxy.path)"
+        - name: KBC_LOG_LEVEL
+          value: "info"
+      command: ["konflux-build-cli", "config", "cache-proxy"]
+      args:
+        - --enable
+        - $(params.enable-cache-proxy)
