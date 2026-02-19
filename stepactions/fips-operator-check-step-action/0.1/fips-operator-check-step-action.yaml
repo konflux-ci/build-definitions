@@ -136,7 +136,12 @@ spec:
         echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for conversion to OCI format"
 
         # Fetch the first available architecture so that the skopeo copy does not fail if the default arch is not available
-        first_arch=$(retry skopeo inspect --raw "docker://${sanitized_related_image}" | jq -r '.manifests[0].platform.architecture // empty')
+        first_arch=$(skopeo inspect --raw "docker://${sanitized_related_image}" | jq -r '.manifests[0].platform.architecture // empty')
+
+        # If it's a single-arch image fallback to standard inspect
+        if [[ -z "${first_arch}" ]]; then
+          first_arch=$(skopeo inspect "docker://${sanitized_related_image}" | jq -r '.Architecture // empty')
+        fi
 
         # Ensure an architecture was discovered
         if [[ -z "${first_arch}" ]]; then
@@ -145,7 +150,7 @@ spec:
           return
         fi
 
-        echo "Selected architecture :  [${first_arch}] "
+        echo "Selected architecture: [${first_arch}]"
 
         # Convert image to OCI format since umoci can only handle the OCI format
         if ! retry skopeo copy --override-arch "${first_arch}" --remove-signatures "docker://${sanitized_related_image}" "oci:///tekton/home/${image_num}-${component_label}-${version_label}-${release_label}:latest"; then
