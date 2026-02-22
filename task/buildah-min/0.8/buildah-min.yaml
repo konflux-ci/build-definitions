@@ -849,7 +849,7 @@ spec:
           VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
         fi
 
-      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >> null; then
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" > /dev/null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
@@ -979,7 +979,7 @@ spec:
     name: push
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
 
       echo "[$(date --utc -Ins)] Update CA trust"
 
@@ -1013,7 +1013,7 @@ spec:
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
-        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+        echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
         exit 1
       fi
 
@@ -1028,7 +1028,7 @@ spec:
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then
-        echo "Failed to push sbom image to $IMAGE"
+        echo "Failed to push image to $IMAGE"
         exit 1
       fi
 
