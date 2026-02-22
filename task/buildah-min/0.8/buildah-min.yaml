@@ -849,7 +849,7 @@ spec:
           VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
         fi
 
-      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >> null; then
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" > /dev/null 2>&1; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"
