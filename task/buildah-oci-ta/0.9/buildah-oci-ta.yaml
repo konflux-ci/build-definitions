@@ -849,7 +849,7 @@ spec:
 
         printf '%s\n' "${label_pairs[@]}" | jq -Rn '
           [ inputs | select(length>0) ]
-        | map( split("=") | {(.[0]): (.[1] // "")} )
+        | map( split("=") | {(.[0]): (.[1:] | join("="))} )
           | add' >"image_labels.json"
 
         jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
@@ -1058,7 +1058,7 @@ spec:
           value: $(context.taskRun.name)
       script: |
         #!/bin/bash
-        set -e
+        set -euo pipefail
 
         echo "[$(date --utc -Ins)] Update CA trust"
 
@@ -1091,7 +1091,7 @@ spec:
           --tls-verify="$TLSVERIFY" \
           "$IMAGE" \
           "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-          echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+          echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
           exit 1
         fi
 
@@ -1105,7 +1105,7 @@ spec:
           --tls-verify="$TLSVERIFY" \
           --digestfile "/var/workdir/image-digest" "$IMAGE" \
           "docker://$IMAGE"; then
-          echo "Failed to push sbom image to $IMAGE"
+          echo "Failed to push image to $IMAGE"
           exit 1
         fi
 
