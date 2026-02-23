@@ -1,0 +1,43 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: resolve-snapshot
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.21.0"
+    tekton.dev/tags: konflux
+spec:
+  description: |
+    Resolves the SNAPSHOT param to ApplicationSnapshot spec JSON. Accepts either
+    the full spec JSON (pass-through) or the name of an ApplicationSnapshot
+    resource in the pipeline run's namespace (fetched in-cluster). Used by the
+    enterprise-contract pipeline to support ITS annotation
+    test.appstudio.openshift.io/snapshot-param-as-name.
+  params:
+    - name: SNAPSHOT
+      description: |
+        Either the ApplicationSnapshot spec JSON string, or the name of an
+        ApplicationSnapshot resource in the pipeline run's namespace.
+      type: string
+  results:
+    - name: SNAPSHOT_JSON
+      description: The ApplicationSnapshot spec as JSON (for use as IMAGES input to verify-enterprise-contract).
+      type: string
+  steps:
+    - name: resolve
+      image: quay.io/konflux-ci/konflux-test:latest
+      env:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if [[ "${SNAPSHOT}" == \{* ]]; then
+          # Already spec JSON: pass through
+          printf '%s' "${SNAPSHOT}" > "$(results.SNAPSHOT_JSON.path)"
+        else
+          # Treat as snapshot name: fetch spec from cluster
+          oc get snapshot/"${SNAPSHOT}" -o json | jq -c .spec > "$(results.SNAPSHOT_JSON.path)"
+        fi

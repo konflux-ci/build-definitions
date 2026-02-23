@@ -13,8 +13,10 @@ spec:
     - name: SNAPSHOT
       type: string
       description: |
-        Spec section of an ApplicationSnapshot resource. Not all fields of the
-        resource are required. A minimal example:
+        Either the ApplicationSnapshot spec as JSON, or the name of an
+        ApplicationSnapshot resource in the pipeline run's namespace (for use
+        with ITS annotation test.appstudio.openshift.io/snapshot-param-as-name).
+        When spec JSON, not all fields are required. A minimal example:
           {
             "components": [
               {
@@ -84,12 +86,18 @@ spec:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
   tasks:
+    - name: resolve-snapshot
+      params:
+        - name: SNAPSHOT
+          value: "$(params.SNAPSHOT)"
+      taskRef:
+        name: resolve-snapshot
     - name: verify
       params:
         - name: POLICY_CONFIGURATION
           value: "$(params.POLICY_CONFIGURATION)"
         - name: IMAGES
-          value: "$(params.SNAPSHOT)"
+          value: "$(tasks.resolve-snapshot.results.SNAPSHOT_JSON)"
         - name: SSL_CERT_DIR
           value: "$(params.SSL_CERT_DIR)"
         - name: STRICT
