@@ -15,9 +15,3 @@ If that's not something you ever plan to do, consider removing this section.
 
 - Removed deprecated `dev-package-managers` parameter.
 - Switched from bash implementation to Konflux Build CLI.
-
-## 0.2
-
-### Added
-
-- Started tracking changes in this file.
