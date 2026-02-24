@@ -35,7 +35,7 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       computeResources:
         limits:
           memory: 12Gi
@@ -65,8 +65,6 @@ spec:
         unique_related_images=()
         digests_processed=()
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
-        rendered_fbc_image_file=/tmp/fbc-fragment-opm-render.json
-        rendered_target_index_file=/tmp/opm-render-target-index.json
 
         image_mirror_map=""
         mirror_set="${SOURCE_CODE_DIR}/source/${IMAGE_MIRROR_SET_PATH}"
@@ -102,16 +100,15 @@ spec:
 
         # Get package names from fragment
         echo "Rendering FBC fragment: ${image_and_digest}"
-        render_opm -t "${image_and_digest}" > "${rendered_fbc_image_file}"
+        rendered_fbc_image_file=$(render_opm -t "${image_and_digest}" --file)
         if [[ ! -f "${rendered_fbc_image_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the FBC fragment image: ${image_and_digest}"
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
           exit 0
         fi
-        rendered_fbc_image=$(cat "${rendered_fbc_image_file}")
         echo "Getting package names in FBC fragment"
-        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image}"); then
+        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image_file}" --file); then
           note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -122,7 +119,7 @@ spec:
 
         # Get package names from target index
         echo "Rendering target index: ${target_index_url}"
-        render_opm -t "${target_index_url}" > "${rendered_target_index_file}"
+        rendered_target_index_file=$(render_opm -t "${target_index_url}" --file)
         if [[ ! -f "${rendered_target_index_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
           echo "${note}"
@@ -130,8 +127,7 @@ spec:
           exit 0
         fi
 
-        rendered_ti=$(cat "${rendered_target_index_file}")
-        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_ti}"); then
+        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_target_index_file}" --file); then
           note="Task $(context.task.name) failed: Could not get package names from the target index."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -288,7 +284,7 @@ spec:
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)

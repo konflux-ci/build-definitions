@@ -71,7 +71,7 @@ spec:
           exit 1
         fi
     - name: run-pruning-check
-      image: quay.io/redhat-appstudio/konflux-test:v1.4.31@sha256:a7cae9e96663e277a3904d0c78630508ddb6cc8eebaa912a840bd20f68dcaad1
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir
@@ -110,8 +110,6 @@ spec:
         fi
 
         rendered_fbc_image=/shared/catalog.json
-        rendered_target_index=/tmp/opm-render-target-index.json
-
         if [[ ! -f "${rendered_fbc_image}" ]]; then
           note="Task $(context.task.name) failed: Rendered FBC fragment does not exist: ${rendered_fbc_image}"
           echo "${note}"
@@ -123,7 +121,7 @@ spec:
         ocp_version=$(get_ocp_version_from_fbc_fragment "${IMAGE_URL}")
         target_index_pullspec="${TARGET_INDEX}:${ocp_version}"
         echo "Rendering target index: ${target_index_pullspec}"
-        render_opm -t "${target_index_pullspec}" > "${rendered_target_index}"
+        rendered_target_index=$(render_opm -t "${target_index_pullspec}" --file)
         if [[ ! -f "${rendered_target_index}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
           echo "${note}"
