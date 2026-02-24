@@ -23,7 +23,6 @@ params:
 |name|description|default value|required|
 |---|---|---|---|
 |input|Configures project packages that will have their dependencies prefetched.||true|
-|dev-package-managers|Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. |false|false|
 |log-level|Set prefetch tool log level (debug, info, warning, error)|info|false|
 |config-file-content|Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! |""|false|
 |sbom-type|Select the SBOM format to generate. Valid values: spdx, cyclonedx.|spdx|false|
