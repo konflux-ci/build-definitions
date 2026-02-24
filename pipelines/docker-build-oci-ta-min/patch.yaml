@@ -1,0 +1,88 @@
+---
+- op: add
+  path: /spec/description
+  value: |
+    This pipeline is ideal for building demo container images from a Containerfile while maintaining trust after pipeline customization.
+
+    This version of pipeline has minimal resource requests set, it's good for demonstrating and testing.
+
+    _Uses `buildah` to create a container image leveraging [trusted artifacts](https://konflux-ci.dev/architecture/ADR/0036-trusted-artifacts.html). It also optionally creates a source image and runs some build-time tests. Information is shared between tasks using OCI artifacts instead of PVCs. EC will pass the [`trusted_task.trusted`](https://conforma.dev/docs/policy/packages/release_trusted_task.html#trusted_task__trusted) policy as long as all data used to build the artifact is generated from trusted tasks.
+    This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-oci-ta?tab=tags)_
+- op: replace
+  path: /metadata/name
+  value: docker-build-oci-ta-min
+- op: replace
+  path: /metadata/labels
+  value:
+    "pipelines.openshift.io/used-by": "build-cloud"
+    "pipelines.openshift.io/runtime": "generic"
+    "pipelines.openshift.io/strategy": "docker"
+# Order of Tasks from the base docker-build-oci-ta Pipeline:
+# $ kustomize build pipelines/docker-build-oci-ta | yq .spec.tasks.[].name | nl -v 0
+#  0	init
+#  1	clone-repository
+#  2	prefetch-dependencies
+#  3	build-container
+#  4	build-image-index
+#  5	build-source-image
+#  6	deprecated-base-image-check
+#  7	clair-scan
+#  8	ecosystem-cert-preflight-checks
+#  9	sast-snyk-check
+# 10	clamav-scan
+# 11	sast-coverity-check
+# 12	coverity-availability-check
+# 13	sast-shell-check
+# 14	sast-unicode-check
+# 15	apply-tags
+# 16	push-dockerfile
+# 17	rpms-signature-scan
+
+# init: has minimal requirements already
+
+# clone-repository
+- op: test
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta
+- op: replace
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta-min
+
+# prefetch-dependencies
+- op: test
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta
+- op: replace
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta-min
+
+# build-container
+- op: test
+  path: /spec/tasks/3/taskRef/name
+  value: buildah-oci-ta
+- op: replace
+  path: /spec/tasks/3/taskRef/name
+  value: buildah-oci-ta-min
+
+# Remove unwanted steps (in reverse order)
+
+# coverity-availability-check
+- op: test
+  path: /spec/tasks/12/taskRef/name
+  value: coverity-availability-check
+- op: remove
+  path: /spec/tasks/12
+
+# sast-coverity-check
+- op: test
+  path: /spec/tasks/11/taskRef/name
+  value: sast-coverity-check-oci-ta
+- op: remove
+  path: /spec/tasks/11
+
+# sast-snyk-check
+- op: test
+  path: /spec/tasks/9/taskRef/name
+  value: sast-snyk-check-oci-ta
+- op: remove
+  path: /spec/tasks/9
