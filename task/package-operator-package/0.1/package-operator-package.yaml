@@ -23,6 +23,10 @@ spec:
     - name: DST_URL
       description: URL where to push the generated pko package to.
       type: string
+    - name: LABELS
+      description: Additional key=value labels to add to the OCI image.
+      type: array
+      default: []
   results:
     - name: IMAGE_DIGEST
       description: Digest of the package just built
@@ -57,13 +61,30 @@ spec:
         value: $(params.DST_URL)
       - name: SRC_PATH
         value: $(params.SRC_PATH)
+    args:
+      - --labels
+      - $(params.LABELS[*])
     script: |
       #!/bin/bash
       set -eu -o pipefail
 
       cd "$SRC_PATH"
 
-      digest=$(kubectl-package build --tag "$DST_URL" --push . --output-format digest)
+      label_args=()
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --labels)
+            shift
+            while [[ $# -gt 0 && $1 != --* ]]; do
+              label_args+=(--label "$1")
+              shift
+            done
+            ;;
+          *) shift ;;
+        esac
+      done
+
+      digest=$(kubectl-package build --tag "$DST_URL" --push "${label_args[@]}" . --output-format digest)
       echo -n "$digest" > "$(results.IMAGE_DIGEST.path)"
       echo -n "$DST_URL" > "$(results.IMAGE_URL.path)"
       echo -n "$DST_URL@$digest" > "$(results.IMAGE_REF.path)"

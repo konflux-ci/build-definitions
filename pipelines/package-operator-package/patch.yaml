@@ -14,12 +14,22 @@
     name: package-operator-package
     version: "0.1"
 - op: add
+  path: /spec/params/-
+  value:
+    name: labels
+    description: Additional key=value labels to add to the OCI image.
+    type: array
+    default: []
+- op: add
   path: /spec/tasks/3/params
   value:
   - name: SRC_PATH
     value: $(params.path-context)
   - name: DST_URL
     value: $(params.output-image)
+  - name: LABELS
+    value:
+      - $(params.labels[*])
 - op: replace
   path: /spec/tasks/3/workspaces
   value:
