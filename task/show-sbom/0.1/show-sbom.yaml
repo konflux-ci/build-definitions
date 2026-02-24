@@ -46,8 +46,8 @@ spec:
     - name: PLATFORM
       value: $(params.PLATFORM)
     script: |
-     #!/bin/bash
-     set -euo pipefail
+      #!/bin/bash
+      set -euo pipefail
       download_sbom_with_retry() {
         local extra_args=("$@")
 
@@ -67,7 +67,7 @@ spec:
         fi
       }
 
-      RAW_OUTPUT=$(skopeo inspect --no-tags --raw docker://${IMAGE_URL})
+      RAW_OUTPUT=$(skopeo inspect --no-tags --raw "docker://${IMAGE_URL}")
       if [[ "$(jq 'has("manifests")' <<< "$RAW_OUTPUT")" == "true" ]] ; then
         # Multi arch
         ARCHES=$(jq -r '.manifests[].platform.architecture' <<< "$RAW_OUTPUT")
