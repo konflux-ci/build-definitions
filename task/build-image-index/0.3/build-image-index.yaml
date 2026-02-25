@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.3"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -19,17 +19,9 @@ spec:
     description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
     type: string
     default: "true"
-  - name: COMMIT_SHA
-    description: The commit the image is built from.
-    type: string
-    default: ""
   - name: IMAGES
     description: List of Image Manifests to be referenced by the Image Index
     type: array
-  - name: IMAGE_EXPIRES_AFTER
-    description: Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
-    type: string
-    default: ""
   - name: ALWAYS_BUILD_INDEX
     description: Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.
     type: string
@@ -81,8 +73,6 @@ spec:
     env:
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
-    - name: COMMIT_SHA
-      value: $(params.COMMIT_SHA)
     - name: IMAGE
       value: $(params.IMAGE)
     - name: TLSVERIFY
