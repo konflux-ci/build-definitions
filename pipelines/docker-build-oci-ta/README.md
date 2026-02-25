@@ -90,7 +90,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| '$(tasks.clone-repository.results.commit-timestamp)'|
 |SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
@@ -376,8 +376,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.8:COMMIT_SHA ; build-image-index:0.2:COMMIT_SHA ; sast-coverity-check:0.3:COMMIT_SHA|
-|commit-timestamp| The commit timestamp of the checkout| |
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.8:COMMIT_SHA ; build-container:0.8:SOURCE_DATE_EPOCH ; build-image-index:0.2:COMMIT_SHA ; sast-coverity-check:0.3:COMMIT_SHA|
+|commit-timestamp| The commit timestamp of the checkout| build-container:0.8:SOURCE_DATE_EPOCH|
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| build-container:0.8:SOURCE_URL|

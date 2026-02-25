@@ -56,7 +56,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ADD_CAPABILITIES| Comma separated list of extra capabilities to add when running 'buildah build'| ""| |
 |ANNOTATIONS| Additional key=value annotations that should be applied to the image| []| |
 |ANNOTATIONS_FILE| Path to a file with additional key=value annotations that should be applied to the image| ""| |
-|BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| |
+|BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
 |BUILD_ARGS| Array of --build-arg values ("arg=value" strings)| []| '['$(params.build-args[*])']'|
 |BUILD_ARGS_FILE| Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file| ""| '$(params.build-args-file)'|
 |BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.| ""| |
