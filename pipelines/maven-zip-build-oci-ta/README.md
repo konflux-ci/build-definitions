@@ -9,9 +9,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.3:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
-|prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.2:input|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
+|prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
 
@@ -63,7 +63,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### prefetch-dependencies-oci-ta:0.2 task parameters
+### prefetch-dependencies-oci-ta:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -200,7 +200,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.2:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
@@ -211,7 +211,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
 |no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
-### prefetch-dependencies-oci-ta:0.2 task results
+### prefetch-dependencies-oci-ta:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-oci-artifact:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.4:CACHI2_ARTIFACT ; sast-coverity-check:0.3:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
@@ -236,8 +236,8 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.2:netrc|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.3:netrc|
 |workspace| |False| |
 ## Available workspaces from tasks
 ### git-clone-oci-ta:0.1 task workspaces
@@ -245,7 +245,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies-oci-ta:0.2 task workspaces
+### prefetch-dependencies-oci-ta:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|

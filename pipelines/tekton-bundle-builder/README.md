@@ -12,7 +12,7 @@
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.2:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| build-container:0.2:IMAGE ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision ; build-container:0.2:REVISION|
 |skip-checks| Skip checks against built image| false| |
 
@@ -72,7 +72,7 @@
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### prefetch-dependencies:0.2 task parameters
+### prefetch-dependencies:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -166,9 +166,9 @@
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.3:netrc|
+|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.3:source ; build-container:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -176,7 +176,7 @@
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |output| The git repo will be cloned onto the volume backing this Workspace.| False| workspace|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies:0.2 task workspaces
+### prefetch-dependencies:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
