@@ -1,12 +1,9 @@
-# Migration from 0.7 to 0.8
+# Migration from 0.8 to 0.9
 
-In version 0.8:
-
-- The buildah image that runs the task now uses
-  [konflux-ci/task-runner](https://github.com/konflux-ci/task-runner) as the base
-  image and gets both the `buildah` binary and the relevant configuration from there.
-  - This updates the `buildah` version from 1.41.5 to 1.42.2
+Support for Dockerfile downloading in Konflux Build Pipeline is removed.
 
 ## Action from users
 
-No action needed. This update is expected to be backwards-compatible.
+If your builds download Dockerfile from an url,
+commit the Dockerfile into your source repository
+and provide the Dockerfile path (relative to the git repository root) in `dockerfile` parameter.
