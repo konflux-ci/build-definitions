@@ -115,6 +115,7 @@
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
 |REVISION| Revision| None| '$(params.revision)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
+|STEPS_IMAGE_STEP_NAMES| Optional comma- or space-separated step names to control which steps are updated with STEPS_IMAGE. If names are prefixed with ! then all steps except those are updated. Otherwise only the listed steps are updated. If empty, all step images are updated.| ""| |
 |URL| Source code Git URL| None| '$(params.git-url)'|
 
 ## Results
