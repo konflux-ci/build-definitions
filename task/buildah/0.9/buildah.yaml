@@ -1,0 +1,1304 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.8.3"
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, konflux"
+  name: buildah
+spec:
+  description: |-
+    Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
+    In addition, it generates a SBOM file, injects the SBOM file into final container image and pushes the SBOM file as separate image using cosign tool.
+    When prefetch-dependencies task is activated it is using its artifacts to run build in hermetic environment.
+  params:
+  - description: Reference of the image buildah will produce.
+    name: IMAGE
+    type: string
+  - default: ./Dockerfile
+    description: Path to the Dockerfile to build.
+    name: DOCKERFILE
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - default: "true"
+    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
+    name: TLSVERIFY
+    type: string
+  - default: "false"
+    description: Determines if build will be executed without network access.
+    name: HERMETIC
+    type: string
+  - default: ""
+    description: In case it is not empty, the prefetched content should be made available to the build.
+    name: PREFETCH_INPUT
+    type: string
+  - default: ""
+    description: Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
+    name: IMAGE_EXPIRES_AFTER
+    type: string
+  - name: COMMIT_SHA
+    description: The image is built from this commit.
+    type: string
+    default: ""
+  - name: YUM_REPOS_D_SRC
+    description: Path in the git repository in which yum repository files are stored
+    default: repos.d
+  - name: YUM_REPOS_D_FETCHED
+    description: Path in source workspace where dynamically-fetched repos are present
+    default: fetched.repos.d
+  - name: YUM_REPOS_D_TARGET
+    description: Target path on the container in which yum repository files should be made available
+    default: /etc/yum.repos.d
+  - name: TARGET_STAGE
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
+    type: string
+    default: ""
+  - name: ENTITLEMENT_SECRET
+    description: Name of secret which contains the entitlement certificates
+    type: string
+    default: "etc-pki-entitlement"
+  - name: ACTIVATION_KEY
+    default: activation-key
+    description: Name of secret which contains subscription activation key
+    type: string
+  - name: ADDITIONAL_SECRET
+    description: Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
+    type: string
+    default: "does-not-exist"
+  - name: BUILD_ARGS
+    description: Array of --build-arg values ("arg=value" strings)
+    type: array
+    default: []
+  - name: ENV_VARS
+    description: Array of --env values ("env=value" strings)
+    type: array
+    default: []
+  - name: BUILD_ARGS_FILE
+    description: Path to a file with build arguments, see https://www.mankier.com/1/buildah-build#--build-arg-file
+    type: string
+    default: ""
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  - name: ICM_KEEP_COMPAT_LOCATION
+    description: Whether to keep compatibility location at /root/buildinfo/ for ICM injection
+    type: string
+    default: "true"
+  - name: ADD_CAPABILITIES
+    description: Comma separated list of extra capabilities to add when running 'buildah build'
+    type: string
+    default: ""
+  - name: SQUASH
+    description: Squash all new and previous layers added as a part of this build, as per --squash
+    type: string
+    default: "false"
+  - name: STORAGE_DRIVER
+    description: Storage driver to configure for buildah
+    type: string
+    default: overlay
+  - name: SKIP_UNUSED_STAGES
+    description: Whether to skip stages in Containerfile that seem unused by subsequent stages
+    type: string
+    default: "true"
+  - name: LABELS
+    description: Additional key=value labels that should be applied to the image
+    type: array
+    default: []
+  - name: ANNOTATIONS
+    description: Additional key=value annotations that should be applied to the image
+    type: array
+    default: []
+  - name: ANNOTATIONS_FILE
+    description: Path to a file with additional key=value annotations that should be applied to the image
+    type: string
+    default: ""
+  - name: PRIVILEGED_NESTED
+    description: Whether to enable privileged mode, should be used only with remote VMs
+    type: string
+    default: "false"
+  - name: SKIP_SBOM_GENERATION
+    description: Skip SBOM-related operations. This will likely cause EC policies to fail if enabled
+    type: string
+    default: "false"
+  - name: SBOM_TYPE
+    description: >-
+      Select the SBOM format to generate. Valid values: spdx, cyclonedx.
+      Note: the SBOM from the prefetch task - if there is one - must be in the same format.
+    type: string
+    default: spdx
+  - name: SBOM_SYFT_SELECT_CATALOGERS
+    description: >-
+      Extra option to customize Syft's default catalogers when generating SBOMs.
+      The value corresponds to Syft's CLI flag --select-catalogers. The details
+      about available catalogers can be found here:
+      https://github.com/anchore/syft/wiki/Package-Cataloger-Selection
+    type: string
+    default: ""
+  - name: SBOM_SOURCE_SCAN_ENABLED
+    description: >-
+      Flag to enable or disable SBOM generation from source code. The scanner
+      of the source code is enabled only for non-hermetic builds and can be disabled if
+      the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false
+      positives on source code scanning.
+    type: string
+    default: "true"
+  - name: BUILDAH_FORMAT
+    description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
+    type: string
+    default: oci
+  - name: ADDITIONAL_BASE_IMAGES
+    description: |-
+      Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
+    type: array
+    default: []
+  - name: WORKINGDIR_MOUNT
+    description: >-
+      Mount the current working directory into the build using
+      --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the
+      context directory for the build (see the CONTEXT param).
+    type: string
+    default: ""
+  - name: INHERIT_BASE_IMAGE_LABELS
+    description: Determines if the image inherits the base image labels.
+    type: string
+    default: "true"
+  - name: HTTP_PROXY
+    description: >-
+      HTTP/HTTPS proxy to use for the buildah pull and build operations.
+      Will not be passed through to the container during the build process.
+    type: string
+    default: ""
+  - name: NO_PROXY
+    description: Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.
+    type: string
+    default: ""
+  - name: PROXY_CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read proxy CA bundle data from.
+    default: caching-ca-bundle
+  - name: PROXY_CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the proxy CA bundle data.
+    default: ca-bundle.crt
+  - name: BUILD_TIMESTAMP
+    description: Defines the single build time for all buildah builds in seconds
+      since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.
+    type: string
+    default: ""
+  - name: SOURCE_URL
+    description: The image is built from this URL.
+    type: string
+    default: ""
+  - name: CONTEXTUALIZE_SBOM
+    description: Determines if SBOM will be contextualized.
+    type: string
+    default: "true"
+  - name: SBOM_SKIP_VALIDATION
+    description: Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.
+    type: string
+    default: "true"
+  - name: OMIT_HISTORY
+    description: Omit build history information from the resulting image. Improves
+      reproducibility by excluding timestamps and layer metadata.
+    type: string
+    default: "false"
+  - name: SOURCE_DATE_EPOCH
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+      Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with
+      BUILD_TIMESTAMP.
+    type: string
+    default: ""
+  - name: REWRITE_TIMESTAMP
+    description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does
+      nothing if SOURCE_DATE_EPOCH is not defined.
+    type: string
+    default: "false"
+  - name: SKIP_INJECTIONS
+    description: Don't inject a content-sets.json or a labels.json file. This
+      requires that the canonical Containerfile takes care of this itself.
+    type: string
+    default: "false"
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository and tag where the built image was pushed
+    name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
+  - name: SBOM_BLOB_URL
+    description: Reference of SBOM blob digest to enable digest-based verification from provenance
+    type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        memory: 4Gi
+      requests:
+        memory: 4Gi
+        cpu: '1'
+    volumeMounts:
+    - mountPath: /shared
+      name: shared
+    env:
+    - name: STORAGE_DRIVER
+      value: $(params.STORAGE_DRIVER)
+    - name: HERMETIC
+      value: $(params.HERMETIC)
+    - name: SOURCE_CODE_DIR
+      value: source
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.IMAGE_EXPIRES_AFTER)
+    - name: YUM_REPOS_D_SRC
+      value: $(params.YUM_REPOS_D_SRC)
+    - name: YUM_REPOS_D_FETCHED
+      value: $(params.YUM_REPOS_D_FETCHED)
+    - name: YUM_REPOS_D_TARGET
+      value: $(params.YUM_REPOS_D_TARGET)
+    - name: TARGET_STAGE
+      value: $(params.TARGET_STAGE)
+    - name: ENTITLEMENT_SECRET
+      value: $(params.ENTITLEMENT_SECRET)
+    - name: ACTIVATION_KEY
+      value: $(params.ACTIVATION_KEY)
+    - name: ADDITIONAL_SECRET
+      value: $(params.ADDITIONAL_SECRET)
+    - name: BUILD_ARGS_FILE
+      value: $(params.BUILD_ARGS_FILE)
+    - name: ADD_CAPABILITIES
+      value: $(params.ADD_CAPABILITIES)
+    - name: SQUASH
+      value: $(params.SQUASH)
+    - name: SKIP_UNUSED_STAGES
+      value: $(params.SKIP_UNUSED_STAGES)
+    - name: PRIVILEGED_NESTED
+      value: $(params.PRIVILEGED_NESTED)
+    - name: SKIP_SBOM_GENERATION
+      value: $(params.SKIP_SBOM_GENERATION)
+    - name: SBOM_TYPE
+      value: $(params.SBOM_TYPE)
+    - name: SBOM_SYFT_SELECT_CATALOGERS
+      value: $(params.SBOM_SYFT_SELECT_CATALOGERS)
+    - name: SBOM_SOURCE_SCAN_ENABLED
+      value: $(params.SBOM_SOURCE_SCAN_ENABLED)
+    - name: ANNOTATIONS_FILE
+      value: $(params.ANNOTATIONS_FILE)
+    - name: WORKINGDIR_MOUNT
+      value: $(params.WORKINGDIR_MOUNT)
+    - name: INHERIT_BASE_IMAGE_LABELS
+      value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: BUILD_TIMESTAMP
+      value: $(params.BUILD_TIMESTAMP)
+    - name: CONTEXTUALIZE_SBOM
+      value: $(params.CONTEXTUALIZE_SBOM)
+    - name: SBOM_SKIP_VALIDATION
+      value: $(params.SBOM_SKIP_VALIDATION)
+    - name: SKIP_INJECTIONS
+      value: $(params.SKIP_INJECTIONS)
+    imagePullPolicy: IfNotPresent
+  steps:
+  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+    name: build
+    computeResources:
+      limits:
+        memory: 8Gi
+        cpu: 4600m
+      requests:
+        memory: 8Gi
+        cpu: 4600m
+    env:
+    - name: HOME
+      value: /root
+    - name: COMMIT_SHA
+      value: $(params.COMMIT_SHA)
+    - name: SOURCE_URL
+      value: $(params.SOURCE_URL)
+    - name: DOCKERFILE
+      value: $(params.DOCKERFILE)
+    # Avoid using the HTTP_PROXY and NO_PROXY environment vars since these are recognized by many tools
+    # and can cause unexpected behavior.
+    - name: BUILDAH_HTTP_PROXY
+      value: $(params.HTTP_PROXY)
+    - name: BUILDAH_NO_PROXY
+      value: $(params.NO_PROXY)
+    - name: ICM_KEEP_COMPAT_LOCATION
+      value: $(params.ICM_KEEP_COMPAT_LOCATION)
+    - name: BUILDAH_OMIT_HISTORY
+      value: $(params.OMIT_HISTORY)
+    - name: BUILDAH_SOURCE_DATE_EPOCH
+      value: $(params.SOURCE_DATE_EPOCH)
+    - name: BUILDAH_REWRITE_TIMESTAMP
+      value: $(params.REWRITE_TIMESTAMP)
+    args:
+    - --build-args
+    - $(params.BUILD_ARGS[*])
+    - --env
+    - $(params.ENV_VARS[*])
+    - --labels
+    - $(params.LABELS[*])
+    - --annotations
+    - $(params.ANNOTATIONS[*])
+
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      function set_proxy {
+        if [ -n "${BUILDAH_HTTP_PROXY}" ]; then
+          echo "[$(date --utc -Ins)] Setting proxy to ${BUILDAH_HTTP_PROXY}"
+          export HTTP_PROXY="${BUILDAH_HTTP_PROXY}"
+          export HTTPS_PROXY="${BUILDAH_HTTP_PROXY}"
+          export ALL_PROXY="${BUILDAH_HTTP_PROXY}"
+          if [ -n "${BUILDAH_NO_PROXY}" ]; then
+            echo "[$(date --utc -Ins)] Bypassing proxy for ${BUILDAH_NO_PROXY}"
+            export NO_PROXY="${BUILDAH_NO_PROXY}"
+          fi
+        fi
+      }
+
+      function unset_proxy {
+        echo "[$(date --utc -Ins)] Unsetting proxy"
+        unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
+      }
+
+      echo "[$(date --utc -Ins)] Validate context path"
+
+      if [ -z "$CONTEXT" ]; then
+        echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
+        CONTEXT="."
+      fi
+
+      source_dir_path=$(realpath "$SOURCE_CODE_DIR")
+      context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
+
+      case "$context_dir_path" in
+        "$source_dir_path" | "$source_dir_path/"*)
+          # path is valid, do nothing
+          ;;
+        *)
+          echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
+          echo "Source path: $source_dir_path" >&2
+          echo "Resolved path: $context_dir_path" >&2
+          exit 1
+          ;;
+      esac
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      proxy_ca_bundle=/mnt/proxy-ca-bundle/ca-bundle.crt
+      update_ca_trust=false
+
+      if [ -f "$ca_bundle" ]; then
+        echo "[$(date --utc -Ins)] Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors/ca-bundle.crt
+        update_ca_trust=true
+      fi
+
+      if [ -f "$proxy_ca_bundle" ] && [ -n "${BUILDAH_HTTP_PROXY}" ]; then
+        echo "[$(date --utc -Ins)] Using mounted proxy CA bundle: $proxy_ca_bundle"
+        cp -vf $proxy_ca_bundle /etc/pki/ca-trust/source/anchors/proxy-ca-bundle.crt
+        update_ca_trust=true
+      fi
+
+      if [ "$update_ca_trust" = "true" ]; then
+        update-ca-trust
+      fi
+
+      echo "[$(date --utc -Ins)] Prepare Dockerfile"
+
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif [ -e "$DOCKERFILE" ]; then
+        # Instrumented builds (SAST) use this custom dockerfile step as their base
+        dockerfile_path="$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
+      cp "$dockerfile_path" "$dockerfile_copy"
+
+      # Inject the image content manifest into the container we are producing.
+      # This will generate the content-sets.json file and copy it by appending a COPY
+      # instruction to the Containerfile.
+      icm_opts=()
+      if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+        icm_opts+=(-c)
+      fi
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
+      fi
+
+      echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
+
+      # Fixing group permission on /var/lib/containers
+      chown root:root /var/lib/containers
+
+      sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
+
+      # Setting new namespace to run buildah - 2^32-2
+      echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
+
+      build_args=()
+      env_vars=()
+
+      LABELS=()
+      ANNOTATIONS=()
+      # Append any annotations from the specified file
+      if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
+        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          # Skip empty lines and comments
+          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            ANNOTATIONS+=("--annotation" "$line")
+          fi
+        done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+      fi
+
+      # Split `args` into two sets of arguments.
+      while [[ $# -gt 0 ]]; do
+          case $1 in
+              --build-args)
+                  shift
+                  # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
+                  # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
+                  # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE
+                  while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
+                  ;;
+              --env)
+                  shift
+                  # Collect env entries of the form KEY=value
+                  while [[ $# -gt 0 && $1 != --* ]]; do env_vars+=("$1"); shift; done
+                  ;;
+              --labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label" "$1"); shift; done
+                  ;;
+              --annotations)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do ANNOTATIONS+=("--annotation" "$1"); shift; done
+                  ;;
+              *)
+                  echo "unexpected argument: $1" >&2
+                  exit 2
+                  ;;
+          esac
+      done
+
+      BUILD_ARG_FLAGS=()
+      for build_arg in "${build_args[@]}"; do
+        BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
+      done
+
+      ENV_FLAGS=()
+      for env_var in "${env_vars[@]}"; do
+        ENV_FLAGS+=("--env=$env_var")
+      done
+
+      DOCKERFILE_ARG_FLAGS=()
+      DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
+      DOCKERFILE_ARG_FLAGS+=("${ENV_FLAGS[@]}")
+
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        DOCKERFILE_ARG_FLAGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
+      fi
+
+      dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" > /shared/parsed_dockerfile.json
+      BASE_IMAGES=$(
+          jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
+            tr -d '"' |
+            tr -d "'"
+      )
+
+      BUILDAH_ARGS=()
+      UNSHARE_ARGS=()
+
+      if [ "${HERMETIC}" == "true" ]; then
+        BUILDAH_ARGS+=("--pull=never")
+        UNSHARE_ARGS+=("--net")
+        buildah_retries=3
+
+        set_proxy
+
+        for image in $BASE_IMAGES; do
+          if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"
+          then
+            echo "Failed to pull base image ${image}"
+            exit 1
+          fi
+        done
+
+        unset_proxy
+
+        echo "Build will be executed with network isolation"
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
+      fi
+
+      BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
+      BUILDAH_ARGS+=("${ENV_FLAGS[@]}")
+
+      if [ -n "${BUILD_ARGS_FILE}" ]; then
+        BUILDAH_ARGS+=("--build-arg-file=$(realpath "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")")
+      fi
+
+      # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
+      # TODO remove the option once all hosts were updated
+      BUILDAH_ARGS+=("--security-opt=unmask=/proc/interrupts")
+
+      if [ "${PRIVILEGED_NESTED}" == "true" ]; then
+        BUILDAH_ARGS+=("--security-opt=label=disable")
+        BUILDAH_ARGS+=("--cap-add=all")
+        BUILDAH_ARGS+=("--device=/dev/fuse")
+      fi
+
+      if [ -n "${ADD_CAPABILITIES}" ]; then
+        BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
+      fi
+
+      if [ "${SQUASH}" == "true" ]; then
+        BUILDAH_ARGS+=("--squash")
+      fi
+
+      if [ "${SKIP_UNUSED_STAGES}" != "true" ] ; then
+        BUILDAH_ARGS+=("--skip-unused-stages=false")
+      fi
+
+      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
+        BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
+        BUILDAH_ARGS+=("--source-date-epoch=${BUILDAH_SOURCE_DATE_EPOCH}")
+        if [ "${BUILDAH_REWRITE_TIMESTAMP}" = "true" ]; then
+          BUILDAH_ARGS+=("--rewrite-timestamp")
+        fi
+        if [ -n "$BUILD_TIMESTAMP" ]; then
+          echo "ERROR: cannot use both BUILD_TIMESTAMP and SOURCE_DATE_EPOCH"
+          exit 1
+        fi
+        # but do set it so that we get all the labels/annotations associated with it
+        BUILD_TIMESTAMP="$BUILDAH_SOURCE_DATE_EPOCH"
+      fi
+
+      if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
+        BUILDAH_ARGS+=("--omit-history")
+      fi
+
+      VOLUME_MOUNTS=()
+
+      echo "[$(date --utc -Ins)] Setup prefetched"
+
+      if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
+        # Identify the current arch to filter the prefetched content
+        PREFETCH_ARCH="$(uname -m)"
+        echo "$PREFETCH_ARCH" > /shared/prefetch-arch
+
+        echo "Prefetched content will be made available"
+
+        cp -r "$(workspaces.source.path)/cachi2" /tmp/
+        chmod -R go+rwX /tmp/cachi2
+
+        # In case RPMs were prefetched and this is a multi-arch build,
+        # clean up the packages that do not match the architecture being built
+        RPM_PREFETCH_DIR="/tmp/cachi2/output/deps/rpm"
+        if [ -d "$RPM_PREFETCH_DIR" ] && [ "$(find $RPM_PREFETCH_DIR | wc -l)" -gt 1 ]; then
+          echo "Removing prefetched RPMs from non-matching architectures"
+          PREFETCH_ARCH="$(uname -m)"
+          for path in "$RPM_PREFETCH_DIR"/*; do
+            if [ "$(basename "$path")" != "$PREFETCH_ARCH" ]; then
+              echo "Removing: $path"
+              rm -rf "$path"
+            else
+              echo "Keeping: $path"
+            fi
+          done
+        fi
+
+        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
+        # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
+        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
+        sed -E -i \
+            -e 'H;1h;$!d;x' \
+            -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
+            "$dockerfile_copy"
+
+        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
+        if [ -f "$prefetched_repo_for_my_arch" ]; then
+          echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
+          mkdir -p "$YUM_REPOS_D_FETCHED"
+          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
+            cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
+          fi
+        fi
+      fi
+
+      # if yum repofiles stored in git, copy them to mount point outside the source dir
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        mkdir -p "${YUM_REPOS_D_FETCHED}"
+        cp -r "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}"/* "${YUM_REPOS_D_FETCHED}"
+      fi
+
+      # if anything in the repofiles mount point (either fetched or from git), mount it
+      if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
+        chmod -R go+rwX "${YUM_REPOS_D_FETCHED}"
+        mount_point=$(realpath "${YUM_REPOS_D_FETCHED}")
+        VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
+      fi
+
+      DEFAULT_LABELS=(
+        "--label" "architecture=$(uname -m)"
+        "--label" "vcs-type=git"
+      )
+      if [ -n "$COMMIT_SHA" ]; then
+        DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
+      fi
+      if [ -n "$SOURCE_URL" ]; then
+        DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
+        ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
+      fi
+      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+
+      BUILD_TIMESTAMP_RFC3339=""
+      if [ -n "$BUILD_TIMESTAMP" ]; then
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
+      else
+        BUILD_TIMESTAMP_RFC3339=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      fi
+
+      DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
+      DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+
+      label_pairs=()
+      # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
+      touch base_images_labels.json
+      if [[ "$INHERIT_BASE_IMAGE_LABELS" == "true" ]] && [[ -n "$BASE_IMAGES" ]]; then
+        FINAL_BASE_IMAGE=$(
+          # Get the base image of the final stage
+          # The final stage can refer to a previous `FROM xxx AS yyy` stage, for example 'FROM bar AS foo; ... ; FROM foo; ...'
+          # Define a function that keeps nesting recursively into the parent stages until it finds the original base image
+          # Run the find_root_stage() function on the final stage
+          # If the final stage is scratch or oci-archive, return empty
+          jq -r '.Stages as $all_stages |
+            def find_root_stage($stage):
+              if $stage.From.Stage then
+                find_root_stage($all_stages[$stage.From.Stage.Index])
+              else
+                $stage
+              end;
+
+              find_root_stage(.Stages[-1]) |
+              if .From.Scratch or (.BaseName | test("^oci-archive:")) then
+                empty
+              else
+                .BaseName
+              end' /shared/parsed_dockerfile.json |
+            tr -d '"' |
+            tr -d "'"
+        )
+        if [[ -n "$FINAL_BASE_IMAGE" ]]; then
+          set_proxy
+          buildah pull "$FINAL_BASE_IMAGE" >/dev/null` `
+          unset_proxy
+          buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
+        fi
+      fi
+
+      # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
+      LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
+
+      # Get all the default and explicit labels so that they can be written into labels.json
+      for label in "${LABELS[@]}"; do
+        if [[ "$label" != "--label" ]]; then
+          label_pairs+=("$label")
+        fi
+      done
+
+      # Labels that we explicitly add to the image
+      label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
+      label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
+
+      while IFS= read -r label; do
+        label_pairs+=("$label")
+      done < <(jq -r '.Stages[].Commands[] | select(.Name == "LABEL") | .Labels[] | "\(.Key)=\(.Value)"' /shared/parsed_dockerfile.json | sed 's/"//g')
+
+      printf '%s\n' "${label_pairs[@]}" | jq -Rn '
+        [ inputs | select(length>0) ]
+      | map( split("=") | {(.[0]): (.[1] // "")} )
+        | add' >"image_labels.json"
+
+      jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
+
+      if [ "${SKIP_INJECTIONS}" = "false" ]; then
+        echo "" >>"$dockerfile_copy"
+        # Always write labels.json to the new standard location
+        echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
+        # Conditionally write to the old location for backward compatibility
+        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
+          echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
+        fi
+      fi
+
+      # Make sure our labels.json file isn't filtered out
+      containerignore=""
+      if [ -f "$SOURCE_CODE_DIR/$CONTEXT/.containerignore" ]; then
+        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.containerignore"
+      elif [ -f "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore" ]; then
+        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+      fi
+
+      if [ -n "$containerignore" ]; then
+        ignorefile_copy=$(mktemp --tmpdir "$(basename "$containerignore").XXXXXX")
+        cp "$containerignore" "$ignorefile_copy"
+        {
+          echo ""
+          echo "!/labels.json"
+          echo "!/content-sets.json"
+        } >> "$ignorefile_copy"
+        BUILDAH_ARGS+=(--ignorefile "$ignorefile_copy")
+      fi
+
+      echo "[$(date --utc -Ins)] Register sub-man"
+
+      ACTIVATION_KEY_PATH="/activation-key"
+      ENTITLEMENT_PATH="/entitlement"
+
+      # 0. if hermetic=true, skip all subscription related stuff
+      # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+      # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
+      # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
+      # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
+      #    to buildah but don't pre-register for backwards compatibility. Mount an empty directory on
+      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included
+
+      if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
+        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
+        mkdir -p /shared/rhsm/etc/pki/entitlement
+        mkdir -p /shared/rhsm/etc/pki/consumer
+
+        VOLUME_MOUNTS+=(-v /tmp/activation-key:/activation-key \
+                        -v /shared/rhsm/etc/pki/entitlement:/etc/pki/entitlement:Z \
+                        -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
+        echo "Adding activation key to the build"
+
+        if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
+          # user is not running registration in the Containerfile: pre-register.
+          echo "Pre-registering with subscription manager."
+          export RETRY_MAX_TRIES=6
+          if ! retry subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
+          then
+            echo "Subscription-manager register failed"
+            exit 1
+          fi
+          unset RETRY_MAX_TRIES
+          trap 'subscription-manager unregister || true' EXIT
+
+          # copy generated certificates to /shared volume
+          cp /etc/pki/entitlement/*.pem /shared/rhsm/etc/pki/entitlement
+          cp /etc/pki/consumer/*.pem /shared/rhsm/etc/pki/consumer
+
+          # and then mount get /etc/rhsm/ca/redhat-uep.pem into /run/secrets/rhsm/ca
+          VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
+        fi
+
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" > /dev/null; then
+        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
+        VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
+        echo "Adding the entitlement to the build"
+      fi
+
+      if [ -n "$WORKINGDIR_MOUNT" ]; then
+        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
+          echo "WORKINGDIR_MOUNT contains ':'" >&2
+          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
+          exit 1
+        fi
+        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
+        # (we set the workdir using 'unshare -w')
+        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
+        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
+      fi
+
+      if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
+        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
+        # Instrumented builds (SAST) use this step as their base and add some other tools.
+        while read -r volume_mount; do
+          VOLUME_MOUNTS+=("--volume=$volume_mount")
+        done <<< "$ADDITIONAL_VOLUME_MOUNTS"
+      fi
+
+      echo "[$(date --utc -Ins)] Add secrets"
+
+      ADDITIONAL_SECRET_PATH="/additional-secret"
+      ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
+      if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
+        cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
+        while read -r filename; do
+          echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
+          BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
+        done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
+      fi
+
+      # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
+      declare IMAGE
+
+      buildah_cmd_array=(
+          buildah build
+          "${VOLUME_MOUNTS[@]}"
+          "${BUILDAH_ARGS[@]}"
+          "${LABELS[@]}"
+          "${ANNOTATIONS[@]}"
+          --tls-verify="$TLSVERIFY" --no-cache
+          --ulimit nofile=4096:4096
+          --http-proxy=false
+          -f "$dockerfile_copy" -t "$IMAGE" .
+      )
+      buildah_cmd=$(printf "%q " "${buildah_cmd_array[@]}")
+
+      if [ "${HERMETIC}" == "true" ]; then
+        # enabling loopback adapter enables Bazel builds to work in hermetic mode.
+        command="ip link set lo up && $buildah_cmd"
+      else
+        command="$buildah_cmd"
+      fi
+
+      # disable host subcription manager integration
+      find /usr/share/rhel/secrets -type l -exec unlink {} \;
+
+      set_proxy
+
+      echo "[$(date --utc -Ins)] Run buildah build"
+      echo "[$(date --utc -Ins)] ${command}"
+
+      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
+
+      unset_proxy
+
+      echo "[$(date --utc -Ins)] Add metadata"
+
+      # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
+      if [ -f "/tmp/cachi2/output/bom.json" ]; then
+        echo "Making copy of sbom-prefetch.json"
+        cp /tmp/cachi2/output/bom.json ./sbom-prefetch.json
+      fi
+
+      touch /shared/base_images_digests
+      echo "Recording base image digests used"
+      for image in $BASE_IMAGES; do
+        # Get the image pullspec and filter out a tag if it is not set
+        # Use head -n 1 to ensure we only get one result even if multiple images match the filter
+        base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image" | head -n 1)
+        # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
+        # if buildah did not use that particular image during build because it was skipped
+        if [ -n "$base_image_digest" ]; then
+          echo "$image $base_image_digest" | tee -a /shared/base_images_digests
+        fi
+      done
+
+      image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
+      buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+      echo "/shared/$image_name.oci" > /shared/container_path
+
+      echo "[$(date --utc -Ins)] End build"
+
+    securityContext:
+      capabilities:
+        add:
+        - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: "/entitlement"
+      name: etc-pki-entitlement
+    - mountPath: /activation-key
+      name: activation-key
+    - mountPath: "/additional-secret"
+      name: additional-secret
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    - name: proxy-ca-bundle
+      mountPath: /mnt/proxy-ca-bundle
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+
+  - name: push
+    image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 600m
+      requests:
+        memory: 4Gi
+        cpu: 600m
+    env:
+    - name: HOME
+      value: /root
+    - name: BUILDAH_FORMAT
+      value: $(params.BUILDAH_FORMAT)
+    - name: TASKRUN_NAME
+      value: $(context.taskRun.name)
+    script: |
+      #!/bin/bash
+      set -e
+
+      echo "[$(date --utc -Ins)] Update CA trust"
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      echo "[$(date --utc -Ins)] Convert image"
+
+      # While we can build images with the desired format, we will simplify any local
+      # and remote build differences by just performing any necessary conversions at
+      # push time.
+      push_format=oci
+      if [ "${BUILDAH_FORMAT}" == "docker" ]; then
+        push_format=docker
+      fi
+
+      echo "[$(date --utc -Ins)] Push image with unique tag"
+
+      buildah_retries=3
+
+      # Push to a unique tag based on the TaskRun name to avoid race conditions
+      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
+      if ! retry buildah push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        "$IMAGE" \
+        "docker://${IMAGE%:*}:${TASKRUN_NAME}"
+      then
+        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+        exit 1
+      fi
+
+      echo "[$(date --utc -Ins)] Push image with git revision"
+
+      # Push to a tag based on the git revision
+      echo "Pushing to ${IMAGE}"
+      if ! retry buildah push \
+        --format="$push_format" \
+        --retry "$buildah_retries" \
+        --tls-verify="$TLSVERIFY" \
+        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
+        "docker://$IMAGE"
+      then
+        echo "Failed to push sbom image to $IMAGE"
+        exit 1
+      fi
+
+      cat "$(workspaces.source.path)"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+      {
+        echo -n "${IMAGE}@"
+        cat "$(workspaces.source.path)/image-digest"
+      } > "$(results.IMAGE_REF.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End push"
+
+    securityContext:
+      runAsUser: 0
+      capabilities:
+        add:
+        - SETFCAP
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+
+  - name: sbom-syft-generate
+    image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+    computeResources:
+      limits:
+        memory: 4Gi
+        cpu: 1100m
+      requests:
+        memory: 4Gi
+        cpu: 1100m
+    # Respect Syft configuration if the user has it in the root of their repository
+    # (need to set the workdir, see https://github.com/anchore/syft/issues/2465)
+    workingDir: $(workspaces.source.path)/source
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+      echo "[$(date --utc -Ins)] Generate SBOM"
+
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+
+      case $SBOM_TYPE in
+        cyclonedx)
+          syft_sbom_type=cyclonedx-json@1.5 ;;
+        spdx)
+          syft_sbom_type=spdx-json@2.3 ;;
+        *)
+          echo "Invalid SBOM type: $SBOM_TYPE. Valid: cyclonedx, spdx" >&2
+          exit 1
+          ;;
+      esac
+
+      OCI_DIR="$(cat /shared/container_path)"
+
+      syft_oci_args=(
+        oci-dir:"${OCI_DIR}"
+        --output "$syft_sbom_type=$(workspaces.source.path)/sbom-image.json"
+      )
+      syft_source_args=(
+        dir:"$(workspaces.source.path)/$SOURCE_CODE_DIR/$CONTEXT"
+        --output "$syft_sbom_type=$(workspaces.source.path)/sbom-source.json"
+      )
+
+      if [ "${SBOM_SYFT_SELECT_CATALOGERS}" != "" ]; then
+        syft_oci_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+        syft_source_args+=(--select-catalogers "${SBOM_SYFT_SELECT_CATALOGERS}")
+      fi
+
+      echo "Running syft on the image"
+      syft "${syft_oci_args[@]}"
+      if [[ "${HERMETIC}" == "false" && "${SBOM_SOURCE_SCAN_ENABLED}" == "true" ]]; then
+        echo "Running syft on the source code"
+        syft "${syft_source_args[@]}"
+      else
+        echo "Skipping syft on source code."
+      fi
+
+      echo "[$(date --utc -Ins)] End sbom-syft-generate"
+    volumeMounts:
+    - mountPath: /var/lib/containers
+      name: varlibcontainers
+    - mountPath: /shared
+      name: shared
+    - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      name: trusted-ca
+      readOnly: true
+      subPath: ca-bundle.crt
+
+  - name: prepare-sboms
+    image: quay.io/konflux-ci/mobster:1.1.0-1770046049@sha256:7415f55121f5580ac79dc6e6567383574ee5f94f97736f235a141688f02e6094
+    computeResources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    args:
+    - --additional-base-images
+    - $(params.ADDITIONAL_BASE_IMAGES[*])
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "[$(date --utc -Ins)] Prepare SBOM"
+
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+
+      # Convert Tekton array params into Mobster params
+      ADDITIONAL_BASE_IMAGES=()
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+          --additional-base-images)
+            shift
+            while [[ $# -gt 0 && $1 != --* ]]; do ADDITIONAL_BASE_IMAGES+=("$1"); shift; done
+            ;;
+          *)
+            echo "unexpected argument: $1" >&2
+            exit 2
+            ;;
+        esac
+      done
+
+      IMAGE_URL="$(cat "$(results.IMAGE_URL.path)")"
+      IMAGE_DIGEST="$(cat "$(results.IMAGE_DIGEST.path)")"
+
+      echo "[$(date --utc -Ins)] Generate SBOM with mobster"
+
+      mobster_args=(
+        generate
+        --output sbom.json
+      )
+
+      # Validation is a flag for `generate`, not `oci-image`, so we need to
+      # handle it before the oci-image arguments
+      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+        echo "Skipping SBOM validation"
+        mobster_args+=(--skip-validation)
+      fi
+
+      mobster_args+=(
+        oci-image
+        --from-syft "$(workspaces.source.path)/sbom-image.json"
+        --image-pullspec "$IMAGE_URL"
+        --image-digest "$IMAGE_DIGEST"
+        --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
+        --base-image-digest-file "/shared/base_images_digests"
+      )
+
+      if [ -f "$(workspaces.source.path)/sbom-source.json" ]; then
+        mobster_args+=(--from-syft "$(workspaces.source.path)/sbom-source.json")
+      fi
+
+      if [ -f "$(workspaces.source.path)/sbom-prefetch.json" ]; then
+        mobster_args+=(--from-hermeto "$(workspaces.source.path)/sbom-prefetch.json")
+      fi
+
+      if [ -n "${TARGET_STAGE}" ]; then
+        mobster_args+=(--dockerfile-target "${TARGET_STAGE}")
+      fi
+
+      for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
+        mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
+      done
+
+      if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+        mobster_args+=(--contextualize)
+      fi
+
+      if [ -f "/shared/prefetch-arch" ]; then
+        mobster_args+=(--arch "$(cat /shared/prefetch-arch)")
+      fi
+
+      mobster "${mobster_args[@]}"
+
+      echo "[$(date --utc -Ins)] End prepare-sboms"
+    workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+
+  - name: upload-sbom
+    image: quay.io/konflux-ci/appstudio-utils:latest@sha256:be60ec7b5b4fa183815ce27f0b3d5da2c5167323e6d14e285223c183bb656ca6
+    computeResources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "[$(date --utc -Ins)] Upload SBOM"
+
+      if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
+        echo "Skipping SBOM generation"
+        exit 0
+      fi
+
+      ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$ca_bundle" ]; then
+        echo "INFO: Using mounted CA bundle: $ca_bundle"
+        cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+      echo "Pushing sbom to registry"
+      if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+      then
+          echo "Failed to push sbom to registry"
+          exit 1
+      fi
+
+      # Remove tag from IMAGE while allowing registry to contain a port number.
+      sbom_repo="${IMAGE%:*}"
+      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+      # The SBOM_BLOB_URL is created by `cosign attach sbom`.
+      echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
+
+      echo
+      echo "[$(date --utc -Ins)] End upload-sbom"
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /mnt/trusted-ca
+      readOnly: true
+    workingDir: $(workspaces.source.path)
+
+  volumes:
+  - name: varlibcontainers
+    emptyDir: {}
+  - name: shared
+    emptyDir: {}
+  - name: etc-pki-entitlement
+    secret:
+      secretName: $(params.ENTITLEMENT_SECRET)
+      optional: true
+  - name: activation-key
+    secret:
+      optional: true
+      secretName: $(params.ACTIVATION_KEY)
+  - name: additional-secret
+    secret:
+      secretName: $(params.ADDITIONAL_SECRET)
+      optional: true
+  - name: trusted-ca
+    configMap:
+      name: $(params.caTrustConfigMapName)
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      optional: true
+  - name: proxy-ca-bundle
+    configMap:
+      name: $(params.PROXY_CA_TRUST_CONFIG_MAP_NAME)
+      items:
+      - key: $(params.PROXY_CA_TRUST_CONFIG_MAP_KEY)
+        path: ca-bundle.crt
+      optional: true
+  workspaces:
+  - name: source
+    description: Workspace containing the source code to build.
