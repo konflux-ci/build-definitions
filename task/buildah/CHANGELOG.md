@@ -11,6 +11,11 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9
+
+### Removed
+- BREAKING: Support for Dockerfile downloading in Konflux Build Pipeline.
+
 ## 0.8.3
 
 ### Fixed

@@ -5,6 +5,7 @@ metadata:
     app.kubernetes.io/version: "0.1"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "image-build, appstudio"
   name: push-dockerfile
@@ -53,7 +54,7 @@ spec:
       readOnly: true
   steps:
   - name: push
-    image: quay.io/konflux-ci/oras:latest@sha256:64c669a5a51d6340590594f3387a78227f8125846675a9cefb7a58ac6c307172
+    image: quay.io/konflux-ci/oras:latest@sha256:d126f98e16bfad71aab782eb212a5be701e2cde915d294a7bd6423a4ab448705
     workingDir: $(workspaces.workspace.path)
     env:
     - name: IMAGE
