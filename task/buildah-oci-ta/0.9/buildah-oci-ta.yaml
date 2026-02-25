@@ -1134,10 +1134,24 @@ spec:
            [tufInternalUrl]=TUF_URL
         )
 
+        # fallback keys when internal URL is not available
+        declare -A SIGNING_FALLBACK_MAP=(
+           [rekorInternalUrl]=rekorExternalUrl
+           [fulcioInternalUrl]=fulcioExternalUrl
+           [tufInternalUrl]=tufExternalUrl
+        )
+
         missing=""
         configured=0
         for key in "${!SIGNING_KEY_MAP[@]}"; do
           val=$(echo "${SIGNING_CONFIG}" | jq -r ".data.${key} // empty")
+          if [ -z "${val}" ] && [ -n "${SIGNING_FALLBACK_MAP[$key]+x}" ]; then
+            fallback_key="${SIGNING_FALLBACK_MAP[$key]}"
+            val=$(echo "${SIGNING_CONFIG}" | jq -r ".data.${fallback_key} // empty")
+            if [ -n "${val}" ]; then
+              echo "Using fallback ${fallback_key} instead of ${key}"
+            fi
+          fi
           if [ -z "${val}" ]; then
             missing="${missing:+${missing}, }${key}"
           else
