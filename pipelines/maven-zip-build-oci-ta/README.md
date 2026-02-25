@@ -7,7 +7,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.3:enable-cache-proxy|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.2:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.2:ociStorage ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
@@ -59,7 +59,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
-### init:0.3 task parameters
+### init:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
@@ -206,7 +206,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| |
-### init:0.3 task results
+### init:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |

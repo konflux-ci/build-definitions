@@ -13,7 +13,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-source-image| Build a source image.| false| |
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.9:BUILDAH_FORMAT ; build-image-index:0.2:BUILDAH_FORMAT|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.9:DOCKERFILE ; sast-coverity-check:0.3:DOCKERFILE ; push-dockerfile:0.2:DOCKERFILE|
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.3:enable-cache-proxy|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.9:HERMETIC ; sast-coverity-check:0.3:HERMETIC|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.9:IMAGE_EXPIRES_AFTER ; build-image-index:0.2:IMAGE_EXPIRES_AFTER ; sast-coverity-check:0.3:IMAGE_EXPIRES_AFTER|
@@ -170,7 +170,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 |userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
 |verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
-### init:0.3 task parameters
+### init:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
@@ -365,7 +365,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
 |url| The precise URL that was fetched by this Task.| build-container:0.9:SOURCE_URL|
-### init:0.3 task results
+### init:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-container:0.9:HTTP_PROXY|
