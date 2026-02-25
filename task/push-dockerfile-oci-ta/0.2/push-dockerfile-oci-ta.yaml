@@ -4,11 +4,10 @@ kind: Task
 metadata:
   name: push-dockerfile-oci-ta
   annotations:
-    build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, appstudio
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.2"
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: Discover Dockerfile from source code and push it to registry
@@ -129,14 +128,6 @@ spec:
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
         elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
           dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
-        elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
-          echo "Fetch Dockerfile from $DOCKERFILE"
-          dockerfile_path=$(mktemp --suffix=-dockerfile)
-          http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-          if [ $http_code != 200 ]; then
-            echo "No Dockerfile is fetched. Server responds $http_code"
-            exit 1
-          fi
         else
           echo "Cannot find Dockerfile $DOCKERFILE"
           exit 1

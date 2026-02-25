@@ -1,15 +1,14 @@
+# WARNING: This is an auto generated file, do not modify this file directly
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
-    build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
-  creationTimestamp: null
   labels:
-    app.kubernetes.io/version: 0.8.3
+    app.kubernetes.io/version: "0.9"
     build.appstudio.redhat.com/build_type: docker
-  name: buildah-remote
+  name: buildah-min
 spec:
   description: |-
     Buildah task builds source code into a container image and pushes the image into container registry using buildah tool.
@@ -243,14 +242,6 @@ spec:
       that the canonical Containerfile takes care of this itself.
     name: SKIP_INJECTIONS
     type: string
-  - description: The platform to build on
-    name: PLATFORM
-    type: string
-  - default: "false"
-    description: Whether to append a sanitized platform architecture on the IMAGE
-      tag
-    name: IMAGE_APPEND_PLATFORM
-    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -265,10 +256,10 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
       requests:
-        cpu: "1"
-        memory: 4Gi
+        cpu: 100m
+        memory: 512Mi
     env:
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
@@ -330,12 +321,6 @@ spec:
       value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
-    - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
-    - name: PLATFORM
-      value: $(params.PLATFORM)
-    - name: IMAGE_APPEND_PLATFORM
-      value: $(params.IMAGE_APPEND_PLATFORM)
     imagePullPolicy: IfNotPresent
     volumeMounts:
     - mountPath: /shared
@@ -352,11 +337,10 @@ spec:
     - $(params.ANNOTATIONS[*])
     computeResources:
       limits:
-        cpu: 4600m
-        memory: 8Gi
+        memory: 4Gi
       requests:
-        cpu: 4600m
-        memory: 8Gi
+        cpu: 100m
+        memory: 1Gi
     env:
     - name: HOME
       value: /root
@@ -380,77 +364,9 @@ spec:
       value: $(params.REWRITE_TIMESTAMP)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
     name: build
-    script: |-
-      #!/bin/bash
-      set -e
-      set -o verbose
-
-      echo "[$(date --utc -Ins)] Prepare connection"
-
-      mkdir -p ~/.ssh
-      if [ -e "/ssh/error" ]; then
-        #no server could be provisioned
-        cat /ssh/error
-        exit 1
-      fi
-      export SSH_HOST=$(cat /ssh/host)
-
-      if [ "$SSH_HOST" == "localhost" ] ; then
-        IS_LOCALHOST=true
-        echo "Localhost detected; running build in cluster"
-      elif [ -e "/ssh/otp" ]; then
-        curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
-        echo "" >> ~/.ssh/id_rsa
-      else
-        cp /ssh/id_rsa ~/.ssh
-      fi
-
-      mkdir -p scripts
-
-      if ! [[ $IS_LOCALHOST ]]; then
-        echo "[$(date --utc -Ins)] Setup VM"
-
-        if [[ "$BUILDAH_HTTP_PROXY" =~ .+\.cluster\.local ]]; then
-          echo "[$(date --utc -Ins)] Ignoring cluster local proxy for remote build"
-          unset BUILDAH_HTTP_PROXY BUILDAH_NO_PROXY
-        fi
-
-        chmod 0400 ~/.ssh/id_rsa
-        export BUILD_DIR=$(cat /ssh/user-dir)
-        export SSH_ARGS="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10"
-        echo "$BUILD_DIR"
-        # shellcheck disable=SC2086
-        ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/workspaces" "${BUILD_DIR@Q}/scripts" "${BUILD_DIR@Q}/volumes"
-
-        PORT_FORWARD=""
-        PODMAN_PORT_FORWARD=""
-        if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-          PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
-          PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
-        fi
-
-        echo "[$(date --utc -Ins)] Rsync data"
-
-        rsync -razW "$(workspaces.source.path)"/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
-        rsync -razW /shared/ "$SSH_HOST:$BUILD_DIR/volumes/shared/"
-        rsync -razW /entitlement/ "$SSH_HOST:$BUILD_DIR/volumes/etc-pki-entitlement/"
-        rsync -razW /activation-key/ "$SSH_HOST:$BUILD_DIR/volumes/activation-key/"
-        rsync -razW /additional-secret/ "$SSH_HOST:$BUILD_DIR/volumes/additional-secret/"
-        rsync -razW /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
-        rsync -razW /mnt/proxy-ca-bundle/ "$SSH_HOST:$BUILD_DIR/volumes/proxy-ca-bundle/"
-        rsync -razW  "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -razW  --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
-        rsync -razW  "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
-      fi
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
-
-      cat >scripts/script-build.sh <<'REMOTESSHEOF'
+    script: |
       #!/bin/bash
       set -euo pipefail
-      cd $(workspaces.source.path)
 
       function set_proxy {
         if [ -n "${BUILDAH_HTTP_PROXY}" ]; then
@@ -523,19 +439,6 @@ spec:
       elif [ -e "$DOCKERFILE" ]; then
         # Instrumented builds (SAST) use this custom dockerfile step as their base
         dockerfile_path="$DOCKERFILE"
-      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
-        echo "Fetch Dockerfile from $DOCKERFILE"
-        dockerfile_path=$(mktemp --suffix=-Dockerfile)
-        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ "$http_code" != 200 ]; then
-          echo "No Dockerfile is fetched. Server responds $http_code"
-          exit 1
-        fi
-        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
-        if [ "$http_code" = 200 ]; then
-          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
-        fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
@@ -1032,102 +935,6 @@ spec:
       echo "/shared/$image_name.oci" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
-
-      buildah push "$IMAGE" "oci:konflux-final-image:$IMAGE"
-      echo "[$(date --utc -Ins)] End push remote"
-      REMOTESSHEOF
-      chmod +x scripts/script-build.sh
-
-      PODMAN_NVIDIA_ARGS=()
-      if [[ "$PLATFORM" == "linux-g"* ]]; then
-          PODMAN_NVIDIA_ARGS+=("--device=nvidia.com/gpu=all" "--security-opt=label=disable")
-      fi
-
-      if ! [[ $IS_LOCALHOST ]]; then
-        PRIVILEGED_NESTED_FLAGS=()
-        if [[ "${PRIVILEGED_NESTED}" == "true" ]]; then
-          # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
-          # https://github.com/coreos/rpm-ostree/discussions/4648
-          # shellcheck disable=SC2086
-          ssh $SSH_ARGS "$SSH_HOST"  mkdir -p "${BUILD_DIR@Q}/var/tmp"
-          PRIVILEGED_NESTED_FLAGS=(--privileged --mount "type=bind,source=$BUILD_DIR/var/tmp,target=/var/tmp,relabel=shared")
-        fi
-        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
-        echo "[$(date --utc -Ins)] Build via ssh"
-        # shellcheck disable=SC2086
-        # Please note: all variables below the first ssh line must be quoted with ${var@Q}!
-        # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters
-        ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
-          --tmpfs /run/secrets \
-          -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
-          -e HERMETIC="${HERMETIC@Q}" \
-          -e SOURCE_CODE_DIR="${SOURCE_CODE_DIR@Q}" \
-          -e CONTEXT="${CONTEXT@Q}" \
-          -e IMAGE="${IMAGE@Q}" \
-          -e TLSVERIFY="${TLSVERIFY@Q}" \
-          -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
-          -e YUM_REPOS_D_SRC="${YUM_REPOS_D_SRC@Q}" \
-          -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
-          -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
-          -e TARGET_STAGE="${TARGET_STAGE@Q}" \
-          -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
-          -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
-          -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
-          -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
-          -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
-          -e SQUASH="${SQUASH@Q}" \
-          -e SKIP_UNUSED_STAGES="${SKIP_UNUSED_STAGES@Q}" \
-          -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
-          -e SKIP_SBOM_GENERATION="${SKIP_SBOM_GENERATION@Q}" \
-          -e SBOM_TYPE="${SBOM_TYPE@Q}" \
-          -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \
-          -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \
-          -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
-          -e WORKINGDIR_MOUNT="${WORKINGDIR_MOUNT@Q}" \
-          -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
-          -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
-          -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
-          -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
-          -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
-          -e HOME="${HOME@Q}" \
-          -e COMMIT_SHA="${COMMIT_SHA@Q}" \
-          -e SOURCE_URL="${SOURCE_URL@Q}" \
-          -e DOCKERFILE="${DOCKERFILE@Q}" \
-          -e BUILDAH_HTTP_PROXY="${BUILDAH_HTTP_PROXY@Q}" \
-          -e BUILDAH_NO_PROXY="${BUILDAH_NO_PROXY@Q}" \
-          -e ICM_KEEP_COMPAT_LOCATION="${ICM_KEEP_COMPAT_LOCATION@Q}" \
-          -e BUILDAH_OMIT_HISTORY="${BUILDAH_OMIT_HISTORY@Q}" \
-          -e BUILDAH_SOURCE_DATE_EPOCH="${BUILDAH_SOURCE_DATE_EPOCH@Q}" \
-          -e BUILDAH_REWRITE_TIMESTAMP="${BUILDAH_REWRITE_TIMESTAMP@Q}" \
-          -v "${BUILD_DIR@Q}/workspaces/source:$(workspaces.source.path):Z" \
-          -v "${BUILD_DIR@Q}/volumes/shared:/shared:Z" \
-          -v "${BUILD_DIR@Q}/volumes/etc-pki-entitlement:/entitlement:Z" \
-          -v "${BUILD_DIR@Q}/volumes/activation-key:/activation-key:Z" \
-          -v "${BUILD_DIR@Q}/volumes/additional-secret:/additional-secret:Z" \
-          -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
-          -v "${BUILD_DIR@Q}/volumes/proxy-ca-bundle:/mnt/proxy-ca-bundle:Z" \
-          -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
-          -v "${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z" \
-          -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
-          -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
-          -v /var/lib/containers \
-          "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
-        echo "[$(date --utc -Ins)] Rsync back"
-        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/workspaces/source/" "$(workspaces.source.path)/"
-        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
-        rsync -razW --stats "$SSH_HOST:$BUILD_DIR/results/" "/tekton/results/"
-        echo "[$(date --utc -Ins)] Buildah pull"
-        buildah pull "oci:konflux-final-image:$IMAGE"
-      else
-        bash scripts/script-build.sh "$@"
-      fi
-      echo "Build on remote host $SSH_HOST finished"
-
-      echo "[$(date --utc -Ins)] Final touches"
-
-      buildah images
-      echo "[$(date --utc -Ins)] End remote"
     securityContext:
       capabilities:
         add:
@@ -1147,18 +954,8 @@ spec:
     - mountPath: /mnt/proxy-ca-bundle
       name: proxy-ca-bundle
       readOnly: true
-    - mountPath: /ssh
-      name: ssh
-      readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: 600m
-        memory: 4Gi
-      requests:
-        cpu: 600m
-        memory: 4Gi
-    env:
+  - env:
     - name: HOME
       value: /root
     - name: BUILDAH_FORMAT
@@ -1170,10 +967,6 @@ spec:
     script: |
       #!/bin/bash
       set -e
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
 
       echo "[$(date --utc -Ins)] Update CA trust"
 
@@ -1247,22 +1040,11 @@ spec:
       name: trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
-  - computeResources:
-      limits:
-        cpu: 1100m
-        memory: 4Gi
-      requests:
-        cpu: 1100m
-        memory: 4Gi
-    image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
+  - image: quay.io/konflux-ci/task-runner:0.2.0@sha256:ba65585f5c8b0a74dc51590e95961765322427d1d62ccd4eb742ff0442291985
     name: sbom-syft-generate
     script: |
       #!/bin/bash
       set -euo pipefail
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
       echo "[$(date --utc -Ins)] Generate SBOM"
 
       if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
@@ -1322,20 +1104,15 @@ spec:
     - $(params.ADDITIONAL_BASE_IMAGES[*])
     computeResources:
       limits:
-        cpu: 100m
         memory: 256Mi
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 10m
+        memory: 128Mi
     image: quay.io/konflux-ci/mobster:1.1.0-1770046049@sha256:7415f55121f5580ac79dc6e6567383574ee5f94f97736f235a141688f02e6094
     name: prepare-sboms
     script: |
       #!/bin/bash
       set -euo pipefail
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
 
       echo "[$(date --utc -Ins)] Prepare SBOM"
 
@@ -1417,20 +1194,15 @@ spec:
     workingDir: $(workspaces.source.path)
   - computeResources:
       limits:
-        cpu: 100m
-        memory: 256Mi
+        memory: 2Gi
       requests:
         cpu: 100m
-        memory: 256Mi
+        memory: 512Mi
     image: quay.io/konflux-ci/appstudio-utils:latest@sha256:be60ec7b5b4fa183815ce27f0b3d5da2c5167323e6d14e285223c183bb656ca6
     name: upload-sbom
     script: |
       #!/bin/bash
       set -euo pipefail
-      if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-        IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-        export IMAGE
-      fi
 
       echo "[$(date --utc -Ins)] Upload SBOM"
 
@@ -1500,10 +1272,6 @@ spec:
       name: $(params.PROXY_CA_TRUST_CONFIG_MAP_NAME)
       optional: true
     name: proxy-ca-bundle
-  - name: ssh
-    secret:
-      optional: false
-      secretName: multi-platform-ssh-$(context.taskRun.name)
   workspaces:
   - description: Workspace containing the source code to build.
     name: source

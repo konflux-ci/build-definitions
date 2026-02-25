@@ -2,12 +2,11 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
-    build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: 0.8.3
+    app.kubernetes.io/version: "0.9"
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -523,19 +522,6 @@ spec:
       elif [ -e "$DOCKERFILE" ]; then
         # Instrumented builds (SAST) use this custom dockerfile step as their base
         dockerfile_path="$DOCKERFILE"
-      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
-        echo "Fetch Dockerfile from $DOCKERFILE"
-        dockerfile_path=$(mktemp --suffix=-Dockerfile)
-        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
-        if [ "$http_code" != 200 ]; then
-          echo "No Dockerfile is fetched. Server responds $http_code"
-          exit 1
-        fi
-        http_code=$(curl -s -S -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
-        if [ "$http_code" = 200 ]; then
-          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
-          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
-        fi
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
