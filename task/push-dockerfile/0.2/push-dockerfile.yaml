@@ -1,0 +1,100 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.2"
+    build.appstudio.redhat.com/build_type: "docker"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, appstudio"
+  name: push-dockerfile
+spec:
+  description: |-
+    Discover Dockerfile from source code and push it to registry as an OCI artifact.
+  params:
+  - name: IMAGE
+    description: The built binary image. The Dockerfile is pushed to the same image repository alongside.
+    type: string
+  - name: IMAGE_DIGEST
+    description: The built binary image digest, which is used to construct the tag of Dockerfile image.
+    type: string
+  - name: DOCKERFILE
+    description: Path to the Dockerfile.
+    type: string
+    default: ./Dockerfile
+  - name: CONTEXT
+    description: Path to the directory to use as context.
+    type: string
+    default: .
+  - name: TAG_SUFFIX
+    description: Suffix of the Dockerfile image tag.
+    type: string
+    default: .dockerfile
+  - name: ARTIFACT_TYPE
+    description: Artifact type of the Dockerfile image.
+    type: string
+    default: application/vnd.konflux.dockerfile
+  - name: CA_TRUST_CONFIG_MAP_NAME
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: CA_TRUST_CONFIG_MAP_KEY
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  - name: LOG_LEVEL
+    type: string
+    description: Log level to use in the task. See golang logrus docs for available levels.
+    default: info
+  results:
+  - name: IMAGE_REF
+    description: Digest-pinned image reference to the Dockerfile image.
+  stepTemplate:
+    volumeMounts:
+    - name: trusted-ca
+      mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+      subPath: ca-bundle.crt
+      readOnly: true
+  steps:
+  - name: push
+    image: quay.io/konflux-ci/konflux-build-cli@sha256:cbac25972803b3349737b042a9e22da7d748e3bcf98a737baf702b43e0ce0dae
+    workingDir: $(workspaces.workspace.path)
+    env:
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    command: ["konflux-build-cli", "image", "push-containerfile"]
+    args:
+    - --source
+    - source
+    - --context
+    - "$(params.CONTEXT)"
+    - --containerfile
+    - "$(params.DOCKERFILE)"
+    - --image-url
+    - $(params.IMAGE)
+    - --image-digest
+    - $(params.IMAGE_DIGEST)
+    - --artifact-type
+    - $(params.ARTIFACT_TYPE)
+    - --tag-suffix
+    - $(params.TAG_SUFFIX)
+    - --result-path-image-ref
+    - $(results.IMAGE_REF.path)
+
+  workspaces:
+  - name: workspace
+    description: Workspace containing the source code from where the Dockerfile is discovered.
+  volumes:
+  - name: trusted-ca
+    configMap:
+      name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+      items:
+      - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+        path: ca-bundle.crt
+      optional: true
