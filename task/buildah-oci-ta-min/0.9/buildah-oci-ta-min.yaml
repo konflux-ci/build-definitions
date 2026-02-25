@@ -1057,7 +1057,7 @@ spec:
         exit 1
       fi
 
-      cat "/var/workdir"/image-digest | tee $(results.IMAGE_DIGEST.path)
+      tee "$(results.IMAGE_DIGEST.path)" <"/var/workdir"/image-digest
       echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
       {
         echo -n "${IMAGE}@"
