@@ -116,13 +116,15 @@ spec:
         - name: SOURCE_ARTIFACT
           value: $(params.SOURCE_ARTIFACT)
       script: |
+        #!/bin/bash
+
         if [ -z "${INPUT}" ]; then
           mkdir -p /var/workdir/source
           mkdir -p /var/workdir/cachi2
           echo "true" >/var/workdir/source/.skip-trusted-artifacts
           echo "true" >/var/workdir/cachi2/.skip-trusted-artifacts
-          echo -n "${SOURCE_ARTIFACT}" >$(results.SOURCE_ARTIFACT.path)
-          echo -n "" >$(results.CACHI2_ARTIFACT.path)
+          echo -n "${SOURCE_ARTIFACT}" >"$(results.SOURCE_ARTIFACT.path)"
+          echo -n "" >"$(results.CACHI2_ARTIFACT.path)"
         fi
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
