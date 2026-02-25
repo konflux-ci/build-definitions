@@ -100,7 +100,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/ko-builder:latest@sha256:f96fc368babce9ed8f0263f1970f5196218580b90c8ebb170f21e07f0656ef21
+      image: quay.io/konflux-ci/ko-builder:latest@sha256:6dd07b33afbf322122524cd0b5e69bbe4b3fa260467947e0b822dc6524744cbd
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -161,7 +161,7 @@ spec:
         echo -n "${url}" >"$(results.IMAGE_URL.path)"
         echo "Completed."
     - name: prepare-sbom
-      image: quay.io/konflux-ci/mobster@sha256:9541f5403b79b105adcad8d52d74820d259788d858bca2e9bf3f61dd505e76a8
+      image: quay.io/konflux-ci/mobster@sha256:a2feb71e321a0164820fe7171e564242c75125d8b62d213d3ba3423cf8fa678b
       args:
         - --additional-base-images
         - $(params.ADDITIONAL_BASE_IMAGES[*])
@@ -221,7 +221,7 @@ spec:
 
         echo "[$(date --utc -Ins)] End prepare-sboms"
     - name: upload-sbom
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:1b63a9d35eb05bd788e57476514bcb2d2028bdd6800073d34f0c442ef56e5141
+      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:1862e03b6f55a8b0cf68823b99ddc458b1fa36cd13808e90e5864472254f7ad0
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
