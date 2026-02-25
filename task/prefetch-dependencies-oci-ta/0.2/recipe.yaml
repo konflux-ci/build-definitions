@@ -14,13 +14,15 @@ additionalSteps:
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
     script: |
+      #!/bin/bash
+
       if [ -z "${INPUT}" ]; then
         mkdir -p /var/workdir/source
         mkdir -p /var/workdir/cachi2
         echo "true" > /var/workdir/source/.skip-trusted-artifacts
         echo "true" > /var/workdir/cachi2/.skip-trusted-artifacts
-        echo -n "${SOURCE_ARTIFACT}" > $(results.SOURCE_ARTIFACT.path)
-        echo -n "" > $(results.CACHI2_ARTIFACT.path)
+        echo -n "${SOURCE_ARTIFACT}" > "$(results.SOURCE_ARTIFACT.path)"
+        echo -n "" > "$(results.CACHI2_ARTIFACT.path)"
       fi
 description: Task that prefetches project dependencies for hermetic build.
 preferStepTemplate: true
