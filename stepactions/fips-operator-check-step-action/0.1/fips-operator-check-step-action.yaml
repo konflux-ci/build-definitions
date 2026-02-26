@@ -44,40 +44,6 @@ spec:
       counter_dir=$(mktemp -d)
       trap 'rm -rf "$counter_dir"' EXIT
 
-      # Function to get the first available platform from image manifest
-      get_first_platform() {
-        local image="$1"
-        # Try to get manifest list and extract first platform (os/architecture)
-        # For multi-arch images, this returns the first available platform
-        # For single-arch images, skopeo inspect returns the platform directly
-        local manifest_output
-        if manifest_output=$(skopeo inspect --raw "docker://${image}" 2>/dev/null); then
-          # Check if it's a manifest list (multi-arch)
-          if echo "${manifest_output}" | jq -e '.manifests' >/dev/null 2>&1; then
-            # Multi-arch image: get first platform
-            local os arch
-            os=$(echo "${manifest_output}" | jq -r '.manifests[0].platform.os // "linux"')
-            arch=$(echo "${manifest_output}" | jq -r '.manifests[0].platform.architecture // "amd64"')
-            echo "${os}/${arch}"
-          else
-            # Single-arch image: get platform from config
-            local config_output
-            if config_output=$(skopeo inspect "docker://${image}" 2>/dev/null); then
-              local os arch
-              os=$(echo "${config_output}" | jq -r '.Os // "linux"')
-              arch=$(echo "${config_output}" | jq -r '.Architecture // "amd64"')
-              echo "${os}/${arch}"
-            else
-              # Fallback to linux/amd64
-              echo "linux/amd64"
-            fi
-          fi
-        else
-          # Fallback to linux/amd64 if inspection fails
-          echo "linux/amd64"
-        fi
-      }
-
       # Function to clean up extracted image directory
       cleanup_image_artifacts() {
         local image_num="$1"
@@ -167,19 +133,18 @@ spec:
         fi
         echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for extraction"
 
-        # Detect the first available platform from the image manifest
-        platform=$(get_first_platform "${sanitized_related_image}")
-        echo "Detected platform for ${sanitized_related_image}: ${platform}"
+        # Detect the first available architecture from the image manifest
+        first_arch=$(get_first_arch "${sanitized_related_image}")
+        echo "Detected architecture for ${sanitized_related_image}: ${first_arch}"
 
         # Create destination directory for extraction
         extract_dir="/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}"
         mkdir -p "${extract_dir}"
 
         # Extract image filesystem directly using oc image extract
-        # Use --filter-by-os to specify the detected platform
         if ! retry oc image extract "${sanitized_related_image}" \
             --path=/:"${extract_dir}" \
-            --filter-by-os="${platform}" \
+            --filter-by-os=".*/${first_arch}" \
             --confirm \
             --preserve-ownership; then
           echo -e "Error: Unable to scan image: Could not extract filesystem from ${related_image}\n"
