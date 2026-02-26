@@ -550,8 +550,6 @@ build_push_tasks() {
         done <<< "$external_task_paths"
     fi
 
-    find -L task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }' | \
-
     while read -r task_dir task_name task_version
     do
         key="$task_name/$task_version"
@@ -645,7 +643,7 @@ build_push_tasks() {
         echo "info: inject task bundle to pipelines $task_bundle_with_digest" 1>&2
         real_task_name=$(yq e '.metadata.name' "$prepared_task_file")
         inject_bundle_ref_to_pipelines "$real_task_name" "$task_version" "$task_bundle_with_digest"
-    done
+    done < <(find -L task/*/* -maxdepth 0 -type d | awk -F '/' '{ print $0, $2, $3 }')
 }
 
 
