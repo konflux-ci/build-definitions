@@ -21,6 +21,10 @@ spec:
       description: Image digest to scan
     - name: image-url
       description: Image URL
+    - name: image-mirror-set-path
+      description: Path to the image mirror set file.
+      type: string
+      default: .tekton/images-mirror-set.yaml
     - name: output-image
       description: Base image URL for storing artifacts
       type: string
@@ -53,13 +57,13 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
 
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.46@sha256:c7e2099ad87d4c65284cba5df8488eae64d16ea0baff344c549ed7ca2415ebce
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -67,6 +71,8 @@ spec:
           value: $(params.image-digest)
         - name: SOURCE_CODE_DIR
           value: /var/workdir
+        - name: IMAGE_MIRROR_SET_PATH
+          value: $(params.image-mirror-set-path)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -76,11 +82,9 @@ spec:
         unique_related_images=()
         digests_processed=()
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
-        rendered_fbc_image_file=/tmp/fbc-fragment-opm-render.json
-        rendered_target_index_file=/tmp/opm-render-target-index.json
 
         image_mirror_map=""
-        mirror_set="${SOURCE_CODE_DIR}/source/.tekton/images-mirror-set.yaml"
+        mirror_set="${SOURCE_CODE_DIR}/source/${IMAGE_MIRROR_SET_PATH}"
         if [[ -f "${mirror_set}" ]]; then
           mirror_set_yaml=$(cat "${mirror_set}")
           image_mirror_map=$(process_image_digest_mirror_set "${mirror_set_yaml}")
@@ -113,16 +117,15 @@ spec:
 
         # Get package names from fragment
         echo "Rendering FBC fragment: ${image_and_digest}"
-        render_opm -t "${image_and_digest}" >"${rendered_fbc_image_file}"
+        rendered_fbc_image_file=$(render_opm -t "${image_and_digest}" --file)
         if [[ ! -f "${rendered_fbc_image_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the FBC fragment image: ${image_and_digest}"
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
           exit 0
         fi
-        rendered_fbc_image=$(cat "${rendered_fbc_image_file}")
         echo "Getting package names in FBC fragment"
-        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image}"); then
+        if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image_file}" --file); then
           note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -133,7 +136,7 @@ spec:
 
         # Get package names from target index
         echo "Rendering target index: ${target_index_url}"
-        render_opm -t "${target_index_url}" >"${rendered_target_index_file}"
+        rendered_target_index_file=$(render_opm -t "${target_index_url}" --file)
         if [[ ! -f "${rendered_target_index_file}" ]]; then
           note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
           echo "${note}"
@@ -141,8 +144,7 @@ spec:
           exit 0
         fi
 
-        rendered_ti=$(cat "${rendered_target_index_file}")
-        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_ti}"); then
+        if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_target_index_file}" --file); then
           note="Task $(context.task.name) failed: Could not get package names from the target index."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
@@ -292,7 +294,7 @@ spec:
             - SETFCAP
 
     - name: split-into-buckets
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       env:
         - name: NUM_BUCKETS
           value: $(params.NUM_BUCKETS)
@@ -458,7 +460,7 @@ spec:
         echo "Done!"
 
     - name: create-buckets-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:aa601d847eafa87747894b770eff43b47cffe2cc39059bb345ee58b378473b8f
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - create
         - --store
@@ -466,7 +468,7 @@ spec:
         - $(results.BUCKETS_ARTIFACT.path)=/var/workdir/buckets
 
     - name: generate-bucket-indices
-      image: quay.io/konflux-ci/konflux-test:v1.4.41@sha256:afea44d83043be7f528ec2cacaeb0c3b69cdafdd86a1b930957def38400f8a6c
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
       env:
         - name: NUM_BUCKETS
           value: $(params.NUM_BUCKETS)
