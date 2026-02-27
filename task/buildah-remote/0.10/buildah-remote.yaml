@@ -348,7 +348,7 @@ spec:
   - args:
     - --build-args
     - $(params.BUILD_ARGS[*])
-    - --env
+    - --envs
     - $(params.ENV_VARS[*])
     - --labels
     - $(params.LABELS[*])
@@ -552,20 +552,14 @@ spec:
       build_args=()
       env_vars=()
 
-      LABELS=()
-      ANNOTATIONS=()
-      # Append any annotations from the specified file
       if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
-        echo "Reading annotations from file: ${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
-        while IFS= read -r line || [[ -n "$line" ]]; do
-          # Skip empty lines and comments
-          if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-            ANNOTATIONS+=("--annotation" "$line")
-          fi
-        done < "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}"
+        ANNOTATIONS_FILE=$(realpath "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}")
       fi
 
-      # Split `args` into two sets of arguments.
+      # Save `args` for later
+      array_args=("$@")
+
+      # Split `args` into two multiple sets of arguments.
       while [[ $# -gt 0 ]]; do
           case $1 in
               --build-args)
@@ -575,18 +569,20 @@ spec:
                   # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE
                   while [[ $# -gt 0 && $1 != --* ]]; do build_args+=("$1"); shift; done
                   ;;
-              --env)
+              --envs)
                   shift
                   # Collect env entries of the form KEY=value
                   while [[ $# -gt 0 && $1 != --* ]]; do env_vars+=("$1"); shift; done
                   ;;
               --labels)
                   shift
-                  while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label" "$1"); shift; done
+                  # still have to skip them, no longer have to handle them
+                  while [[ $# -gt 0 && $1 != --* ]]; do shift; done
                   ;;
               --annotations)
                   shift
-                  while [[ $# -gt 0 && $1 != --* ]]; do ANNOTATIONS+=("--annotation" "$1"); shift; done
+                  # still have to skip them, no longer have to handle them
+                  while [[ $# -gt 0 && $1 != --* ]]; do shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2
@@ -622,15 +618,8 @@ spec:
 
       BUILDAH_ARGS=()
 
-      if [ -n "${TARGET_STAGE}" ]; then
-        BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
-      fi
-
-      BUILDAH_ARGS+=("${BUILD_ARG_FLAGS[@]}")
-      BUILDAH_ARGS+=("${ENV_FLAGS[@]}")
-
       if [ -n "${BUILD_ARGS_FILE}" ]; then
-        BUILDAH_ARGS+=("--build-arg-file=$(realpath "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")")
+        BUILD_ARGS_FILE=$(realpath "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
       # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
@@ -649,23 +638,6 @@ spec:
 
       if [ "${SQUASH}" == "true" ]; then
         BUILDAH_ARGS+=("--squash")
-      fi
-
-      if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
-        BUILDAH_ARGS+=("--inherit-labels=false")
-      fi
-
-      if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
-        BUILDAH_ARGS+=("--source-date-epoch=${BUILDAH_SOURCE_DATE_EPOCH}")
-        if [ "${BUILDAH_REWRITE_TIMESTAMP}" = "true" ]; then
-          BUILDAH_ARGS+=("--rewrite-timestamp")
-        fi
-        if [ -n "$BUILD_TIMESTAMP" ]; then
-          echo "ERROR: cannot use both BUILD_TIMESTAMP and SOURCE_DATE_EPOCH"
-          exit 1
-        fi
-        # but do set it so that we get all the labels/annotations associated with it
-        BUILD_TIMESTAMP="$BUILDAH_SOURCE_DATE_EPOCH"
       fi
 
       if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
@@ -691,122 +663,6 @@ spec:
       fi
       if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
         yum_repos_d_sources+=("${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}")
-      fi
-
-      DEFAULT_LABELS=(
-        "--label" "architecture=$(uname -m)"
-        "--label" "vcs-type=git"
-      )
-      if [ -n "$COMMIT_SHA" ]; then
-        DEFAULT_LABELS+=("--label" "vcs-ref=${COMMIT_SHA}" "--label" "org.opencontainers.image.revision=${COMMIT_SHA}")
-        ANNOTATIONS+=("--annotation" "org.opencontainers.image.revision=${COMMIT_SHA}")
-      fi
-      if [ -n "$SOURCE_URL" ]; then
-        DEFAULT_LABELS+=("--label" "org.opencontainers.image.source=${SOURCE_URL}")
-        ANNOTATIONS+=("--annotation" "org.opencontainers.image.source=${SOURCE_URL}")
-      fi
-      [ -n "$IMAGE_EXPIRES_AFTER" ] && DEFAULT_LABELS+=("--label" "quay.expires-after=$IMAGE_EXPIRES_AFTER")
-
-      BUILD_TIMESTAMP_RFC3339=""
-      if [ -n "$BUILD_TIMESTAMP" ]; then
-        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@$BUILD_TIMESTAMP" +'%Y-%m-%dT%H:%M:%SZ')
-      else
-        BUILD_TIMESTAMP_RFC3339=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-      fi
-
-      DEFAULT_LABELS+=("--label" "build-date=${BUILD_TIMESTAMP_RFC3339}")
-      DEFAULT_LABELS+=("--label" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-      ANNOTATIONS+=("--annotation" "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-
-      label_pairs=()
-      # If INHERIT_BASE_IMAGE_LABELS is true, get the labels from the final base image only
-      touch base_images_labels.json
-      if [[ "$INHERIT_BASE_IMAGE_LABELS" == "true" ]] && [[ -n "$BASE_IMAGES" ]]; then
-        FINAL_BASE_IMAGE=$(
-          # Get the base image of the final stage
-          # The final stage can refer to a previous `FROM xxx AS yyy` stage, for example 'FROM bar AS foo; ... ; FROM foo; ...'
-          # Define a function that keeps nesting recursively into the parent stages until it finds the original base image
-          # Run the find_root_stage() function on the final stage
-          # If the final stage is scratch or oci-archive, return empty
-          jq -r '.Stages as $all_stages |
-            def find_root_stage($stage):
-              if $stage.From.Stage then
-                find_root_stage($all_stages[$stage.From.Stage.Index])
-              else
-                $stage
-              end;
-
-              find_root_stage(.Stages[-1]) |
-              if .From.Scratch or (.BaseName | test("^oci-archive:")) then
-                empty
-              else
-                .BaseName
-              end' /shared/parsed_dockerfile.json |
-            tr -d '"' |
-            tr -d "'"
-        )
-        if [[ -n "$FINAL_BASE_IMAGE" ]]; then
-          set_proxy
-          buildah pull "$FINAL_BASE_IMAGE" >/dev/null` `
-          unset_proxy
-          buildah inspect "$FINAL_BASE_IMAGE" | jq '.OCIv1.config.Labels' >"base_images_labels.json"
-        fi
-      fi
-
-      # Concatenate defaults and explicit labels. If a label appears twice, the last one wins.
-      LABELS=("${DEFAULT_LABELS[@]}" "${LABELS[@]}")
-
-      # Get all the default and explicit labels so that they can be written into labels.json
-      for label in "${LABELS[@]}"; do
-        if [[ "$label" != "--label" ]]; then
-          label_pairs+=("$label")
-        fi
-      done
-
-      # Labels that we explicitly add to the image
-      label_pairs+=("org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}")
-      label_pairs+=("io.buildah.version=$(buildah version --json | jq -r '.version')")
-
-      while IFS= read -r label; do
-        label_pairs+=("$label")
-      done < <(jq -r '.Stages[].Commands[] | select(.Name == "LABEL") | .Labels[] | "\(.Key)=\(.Value)"' /shared/parsed_dockerfile.json | sed 's/"//g')
-
-      printf '%s\n' "${label_pairs[@]}" | jq -Rn '
-        [ inputs | select(length>0) ]
-      | map( split("=") | {(.[0]): (.[1] // "")} )
-        | add' >"image_labels.json"
-
-      jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
-
-      jq '.' "$SOURCE_CODE_DIR/$CONTEXT/labels.json"
-
-      if [ "${SKIP_INJECTIONS}" = "false" ]; then
-        echo "" >>"$dockerfile_copy"
-        # Always write labels.json to the new standard location
-        echo 'COPY labels.json /usr/share/buildinfo/labels.json' >>"$dockerfile_copy"
-        # Conditionally write to the old location for backward compatibility
-        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
-          echo 'COPY labels.json /root/buildinfo/labels.json' >>"$dockerfile_copy"
-        fi
-      fi
-
-      # Make sure our labels.json file isn't filtered out
-      containerignore=""
-      if [ -f "$SOURCE_CODE_DIR/$CONTEXT/.containerignore" ]; then
-        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.containerignore"
-      elif [ -f "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore" ]; then
-        containerignore="$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
-      fi
-
-      if [ -n "$containerignore" ]; then
-        ignorefile_copy=$(mktemp --tmpdir "$(basename "$containerignore").XXXXXX")
-        cp "$containerignore" "$ignorefile_copy"
-        {
-          echo ""
-          echo "!/labels.json"
-          echo "!/content-sets.json"
-        } >> "$ignorefile_copy"
-        BUILDAH_ARGS+=(--ignorefile "$ignorefile_copy")
       fi
 
       echo "[$(date --utc -Ins)] Register sub-man"
@@ -870,10 +726,25 @@ spec:
       declare IMAGE
 
       cmd=(
+          # TODO: lost .containerignore handling for contents-sets.json
           konflux-build-cli image build
           -f "$dockerfile_copy" -t "$IMAGE" --context "$SOURCE_CODE_DIR/$CONTEXT"
           --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
           --workdir-mount "$WORKINGDIR_MOUNT"
+          --target "$TARGET_STAGE"
+          --inherit-labels="$INHERIT_BASE_IMAGE_LABELS"
+          --source-date-epoch "$BUILDAH_SOURCE_DATE_EPOCH"
+          --rewrite-timestamp="$BUILDAH_REWRITE_TIMESTAMP"
+          --image-source "$SOURCE_URL"
+          --image-revision "$COMMIT_SHA"
+          --quay-image-expires-after "$IMAGE_EXPIRES_AFTER"
+          --build-args-file "$BUILD_ARGS_FILE"
+          --annotations-file "$ANNOTATIONS_FILE"
+          "${array_args[@]}"  # --annotations, --labels, --envs, --build-args
+          --legacy-build-timestamp "$BUILD_TIMESTAMP"
+          --add-legacy-labels
+          --include-legacy-buildinfo-path="$ICM_KEEP_COMPAT_LOCATION"
+          --skip-injections="$SKIP_INJECTIONS"
           --skip-unused-stages="$SKIP_UNUSED_STAGES"
           --hermetic="$HERMETIC"
           --image-pull-proxy "$BUILDAH_HTTP_PROXY"
@@ -887,8 +758,6 @@ spec:
           --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
-          "${LABELS[@]}"
-          "${ANNOTATIONS[@]}"
           --tls-verify="$TLSVERIFY" --no-cache
           --ulimit nofile=4096:4096
       )
