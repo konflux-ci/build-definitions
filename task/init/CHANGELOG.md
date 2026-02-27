@@ -9,6 +9,10 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.4
+
+- Task started using konflux build cli instead of bash script.
+
 ## 0.3
 
 - Remove params `image-url`, `rebuild` and `skip-checks`
