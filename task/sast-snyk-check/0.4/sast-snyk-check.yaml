@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.4"
+    app.kubernetes.io/version: "0.4.1"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
     tekton.dev/tags: "konflux"
@@ -201,13 +201,18 @@ spec:
           echo "INFO: Scanning directory: $resolved_path"
           # We do want to expand ARGS (it can be multiple CLI flags, not just one)
           # shellcheck disable=SC2086
-          snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$resolved_path" --max-depth=1 --sarif-file-output="${resolved_path}/sast_snyk_check_out_${d//\//_}.json" 1>&2>> stdout.txt || true
+          snyk code test $ARGS --severity-threshold="$SEVERITY_THRESHOLD" "$resolved_path" --max-depth=1 --sarif-file-output="${resolved_path}/sast_snyk_check_out_${d//\//_}.json" 1>&2 >>stdout.txt
+          exit_code=$?
+
+          if [ $exit_code -gt $SNYK_EXIT_CODE ]; then
+            SNYK_EXIT_CODE=$exit_code
+          fi
         done
 
         # Merge all SARIF outputs
         find "$SOURCE_CODE_DIR" -name "sast_snyk_check_out_*.json" -exec cat {} + > "${SOURCE_CODE_DIR}/sast_snyk_check_out.json"
 
-        SNYK_EXIT_CODE=$?
+
         set -e
         test_not_skipped=0
         SKIP_MSG="We found 0 supported files"
