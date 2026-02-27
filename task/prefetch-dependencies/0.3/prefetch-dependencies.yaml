@@ -1,0 +1,140 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: prefetch-dependencies
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.3"
+spec:
+  description: Task that prefetches project dependencies for hermetic build.
+  params:
+  - description: Configures project packages that will have their dependencies prefetched.
+    name: input
+  - description: Set prefetch tool log level (debug, info, warning, error)
+    name: log-level
+    default: "info"
+  - description: |
+      Pass configuration to the prefetch tool.
+      Note this needs to be passed as a YAML-formatted config dump, not as a file path!
+    name: config-file-content
+    default: ""
+  - name: sbom-type
+    default: spdx
+    description: "Select the SBOM format to generate. Valid values: spdx, cyclonedx."
+  - name: mode
+    description: "Control how input requirement violations are handled: strict (errors) or permissive (warnings)."
+    type: string
+    default: strict
+  - name: caTrustConfigMapName
+    type: string
+    description: The name of the ConfigMap to read CA bundle data from.
+    default: trusted-ca
+  - name: caTrustConfigMapKey
+    type: string
+    description: The name of the key in the ConfigMap that contains the CA bundle data.
+    default: ca-bundle.crt
+  - name: ACTIVATION_KEY
+    default: activation-key
+    description: Name of secret which contains subscription activation key
+    type: string
+
+  steps:
+    - name: prefetch-dependencies
+      image: quay.io/konflux-ci/hermeto:0.47.0@sha256:2ebf02dd0d795b0645c6d495eef05b8e87904bc5c13e82fa40e528ac0d05e010
+      volumeMounts:
+        - name: activation-key
+          mountPath: /activation-key
+        - name: config
+          mountPath: /mnt/config
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
+      env:
+        - name: KBC_LOG_LEVEL
+          value: $(params.log-level)
+        - name: KBC_PD_INPUT
+          value: $(params.input)
+        - name: KBC_PD_SOURCE_DIR
+          value: $(workspaces.source.path)/source
+        - name: KBC_PD_OUTPUT_DIR
+          value: $(workspaces.source.path)/cachi2/output
+        - name: KBC_PD_SBOM_FORMAT
+          value: $(params.sbom-type)
+        - name: KBC_PD_MODE
+          value: $(params.mode)
+        - name: KBC_PD_OUTPUT_DIR_MOUNT_POINT
+          value: /cachi2/output
+        - name: KBC_PD_ENV_FILE
+          value: $(workspaces.source.path)/cachi2/cachi2.env
+        - name: KBC_PD_GIT_AUTH_DIRECTORY
+          value: $(workspaces.git-basic-auth.path)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
+        - name: CONFIG_FILE_CONTENT
+          value: $(params.config-file-content)
+      computeResources:
+        limits:
+          # We have seen strange behavior where prefetch memory consumption is
+          # abnormally high when CPU is unlimited and that lead to the pods being
+          # OOMKilled. This was observed with golang backend only so far.
+          cpu: "1"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
+      script: |
+        #!/bin/bash
+
+        if [ -n "${WORKSPACE_NETRC_PATH}" ]; then
+          export NETRC="${WORKSPACE_NETRC_PATH}/.netrc"
+        fi
+
+        CA_BUNDLE_PATH=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$CA_BUNDLE_PATH" ]; then
+          cp -vf "$CA_BUNDLE_PATH" /etc/pki/ca-trust/source/anchors
+          update-ca-trust
+        fi
+
+        if [ -e /activation-key/org ] && [ -e /activation-key/activationkey ]; then
+          export KBC_PD_RHSM_ORG=/activation-key/org
+          export KBC_PD_RHSM_ACTIVATION_KEY=/activation-key/activationkey
+        fi
+
+        if [ -n "${CONFIG_FILE_CONTENT}" ]; then
+          echo "${CONFIG_FILE_CONTENT}" > /mnt/config/config.yaml
+          export KBC_PD_CONFIG_FILE=/mnt/config/config.yaml
+        fi
+
+        konflux-build-cli prefetch-dependencies
+
+  workspaces:
+  - name: source
+    description: Workspace with the source code, prefetch artifacts will be stored on the workspace as well
+  - name: git-basic-auth
+    description: |
+      A Workspace containing a .gitconfig and .git-credentials file or username and password.
+      These will be copied to the user's home before prefetch is run. Any
+      other files in this Workspace are ignored. It is strongly recommended
+      to bind a Secret to this Workspace over other volume types.
+    optional: true
+  - name: netrc
+    description: |
+      Workspace containing a .netrc file. Prefetch will use the credentials in this file when
+      performing http(s) requests.
+    optional: true
+  volumes:
+    - name: activation-key
+      secret:
+        optional: true
+        secretName: $(params.ACTIVATION_KEY)
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+    - name: config
+      emptyDir: {}

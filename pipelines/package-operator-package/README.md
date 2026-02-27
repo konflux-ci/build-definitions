@@ -15,7 +15,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.2:IMAGE_EXPIRES_AFTER|
 |output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
 
@@ -122,14 +122,13 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |---|---|---|---|
 |DST_URL| URL where to push the generated pko package to.| None| '$(params.output-image)'|
 |SRC_PATH| Path of the directory within the repository that contains package manifest.| None| '$(params.path-context)'|
-### prefetch-dependencies:0.2 task parameters
+### prefetch-dependencies:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | ""| |
-|dev-package-managers| Enable in-development package managers. WARNING: the behavior may change at any time without notice. Use at your own risk. | false| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
@@ -340,9 +339,9 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.3:netrc|
+|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.3:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -354,7 +353,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### prefetch-dependencies:0.2 task workspaces
+### prefetch-dependencies:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
