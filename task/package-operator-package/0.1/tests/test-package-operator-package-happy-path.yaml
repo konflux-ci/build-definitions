@@ -37,6 +37,9 @@ spec:
           value: "config/packages/test-stub"
         - name: DST_URL
           value: registry-service.kind-registry/test-stub:latest
+        - name: LABELS
+          value:
+            - "test-label=test-value"
       workspaces:
         - name: source
           workspace: tests-workspace
@@ -72,6 +75,15 @@ spec:
               cd image
               oc image extract "$(params.DST_URL)"
               [ -f package/manifest.yaml ]
+              echo "Package contents verified"
+
+              echo "Verifying OCI labels..."
+              label_value=$(skopeo inspect --tls-verify=false "docker://$(params.DST_URL)" | jq -r '.Labels["test-label"]')
+              if [ "$label_value" != "test-value" ]; then
+                echo "FAIL: expected label test-label=test-value, got test-label=$label_value"
+                exit 1
+              fi
+              echo "Labels verified"
               echo "pass"
       runAfter:
         - run-package-operator-package
