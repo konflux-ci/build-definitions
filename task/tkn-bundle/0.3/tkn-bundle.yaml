@@ -1,0 +1,378 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  labels:
+    app.kubernetes.io/version: "0.3.0"
+    build.appstudio.redhat.com/build_type: "tkn-bundle"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "image-build, konflux"
+  name: tkn-bundle
+spec:
+  description: |-
+    Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
+  params:
+  - description: Reference of the image task will produce.
+    name: IMAGE
+    type: string
+  - default: .
+    description: Path to the directory to use as context.
+    name: CONTEXT
+    type: string
+  - name: HOME
+    type: string
+    description: Value for the HOME environment variable.
+    default: /tekton/home
+  - name: STEPS_IMAGE
+    type: string
+    description: An optional image to configure task steps with in the bundle
+    default: ""
+  - name: STEPS_IMAGE_STEP_NAMES
+    type: string
+    description: >-
+      Optional comma- or space-separated step names to control which steps
+      are updated with STEPS_IMAGE. If names are prefixed with ! then all
+      steps except those are updated. Otherwise only the listed steps are
+      updated. If empty, all step images are updated.
+    default: ""
+  - name: URL
+    type: string
+    description: Source code Git URL
+  - name: REVISION
+    type: string
+    description: Revision
+  results:
+  - description: Digest of the image just built
+    name: IMAGE_DIGEST
+  - description: Image repository and tag where the built image was pushed with tag only
+    name: IMAGE_URL
+  - description: Image reference of the built image
+    name: IMAGE_REF
+  stepTemplate:
+    env:
+    - name: HOME
+      value: "$(params.HOME)"
+    - name: TASK_FILE
+      value: tekton_task_files
+    - name: SOURCE_CODE_DIR
+      value: source
+  steps:
+  - image: quay.io/konflux-ci/konflux-test:v1.4.42@sha256:32112ba0f1b8a3944f4905be40308713c32beb6c059c42ef0bc2b5fe7947ff2f
+    name: modify-task-files
+    env:
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: STEPS_IMAGE
+      value: $(params.STEPS_IMAGE)
+    - name: STEPS_IMAGE_STEP_NAMES
+      value: $(params.STEPS_IMAGE_STEP_NAMES)
+    script: |
+      #!/bin/env bash
+      set -o errexit
+      set -o pipefail
+      set -o nounset
+
+      # expand '**', and don't return glob expression when no matches found
+      shopt -s globstar nullglob
+
+      # read \$CONTEXT as an array split by comma or space into PATHS
+      IFS=', ' read -r -a PATHS <<< "$CONTEXT"
+      FILES=()
+      for path in "${PATHS[@]}"; do
+        # keeps current path expanded
+        paths=()
+        # are we negating the current path
+        neg=0
+        if [[ "${path}" == \!* ]]; then
+          neg=1
+          path="${path#\!}"
+        fi
+        if [[ -d "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}" ]]; then
+          # for directories look for any .yaml or .yml files
+          paths+=(
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yaml
+            "$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}"/**/*.yml
+          )
+        else
+          # for files add the file to the collected paths
+          paths+=("$(workspaces.source.path)/${SOURCE_CODE_DIR}/${path}")
+        fi
+        if [[ $neg == 0 ]]; then
+          # collect current paths to FILES
+          FILES+=("${paths[@]}")
+        else
+          if [[ ${#PATHS[@]} -eq 1 ]]; then
+            # single negative path provided, first include everything then
+            # subtract the negative elements
+            FILES=(
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yaml
+              "$(workspaces.source.path)/${SOURCE_CODE_DIR}"/**/*.yml
+            )
+          fi
+          for p in "${paths[@]}"; do
+            # remove any collected paths from FILES, leaves blank elements in place
+            FILES=("${FILES[@]/$p/}")
+          done
+          # remove blank elements
+          TMP=("${FILES[@]}")
+          FILES=()
+          for p in "${TMP[@]}"; do
+            [[ -n "${p}" ]] && FILES+=("${p}")
+          done
+        fi
+      done
+
+      if [[ -n "${STEPS_IMAGE}" ]]; then
+        for f in "${FILES[@]}"; do
+          if [[ -n "${STEPS_IMAGE_STEP_NAMES}" ]]; then
+            IFS=', ' read -r -a STEP_NAMES <<<"${STEPS_IMAGE_STEP_NAMES}"
+            # Validate: do not allow mixing include and exclude entries
+            has_include=0
+            has_exclude=0
+            for step_name in "${STEP_NAMES[@]}"; do
+              [[ -z "${step_name}" ]] && continue
+              if [[ "${step_name}" == \!* ]]; then
+                has_exclude=1
+              else
+                has_include=1
+              fi
+            done
+            if [[ $has_include -eq 1 && $has_exclude -eq 1 ]]; then
+              echo "ERROR: STEPS_IMAGE_STEP_NAMES cannot mix include and exclude (!) entries" >&2
+              exit 1
+            fi
+            if [[ $has_exclude -eq 1 ]]; then
+              # Exclude mode: update all steps except the excluded ones
+              EXCLUDE_NAMES=()
+              for step_name in "${STEP_NAMES[@]}"; do
+                [[ -z "${step_name}" ]] && continue
+                EXCLUDE_NAMES+=("${step_name#\!}")
+              done
+              mapfile -t ALL_NAMES < <(yq '.spec.steps[] | select(has("image")) | .name' "$f")
+              for name in "${ALL_NAMES[@]}"; do
+                excluded=0
+                for ex in "${EXCLUDE_NAMES[@]}"; do
+                  if [[ "${name}" == "${ex}" ]]; then
+                    excluded=1
+                    break
+                  fi
+                done
+                if [[ $excluded -eq 0 ]]; then
+                  STEP_NAME="${name}" yq '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+                fi
+              done
+            else
+              # Include mode: update only the named steps
+              for step_name in "${STEP_NAMES[@]}"; do
+                [[ -z "${step_name}" ]] && continue
+                if ! STEP_NAME="${step_name}" yq -e '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")))' "$f" &>/dev/null; then
+                  echo "WARNING: step '${step_name}' does not exist in task file '${f##*/}'" >&2
+                fi
+                STEP_NAME="${step_name}" yq '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+              done
+            fi
+          else
+            yq '(.spec.steps[] | select(has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+          fi
+        done
+      fi
+
+      printf "%s\n" "${FILES[@]}" > "${TASK_FILE}"
+    workingDir: $(workspaces.source.path)
+  - image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+    name: build
+    env:
+    - name: CONTEXT
+      value: $(params.CONTEXT)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: URL
+      value: $(params.URL)
+    - name: REVISION
+      value: $(params.REVISION)
+    script: |
+      #!/bin/env bash
+
+      set -o errexit
+      set -o pipefail
+      set -o nounset
+
+      LABEL_ACTUAL_TASK_VERSION=app.kubernetes.io/version
+
+      # shellcheck disable=SC2153
+      mapfile -t FILES <"${TASK_FILE}"
+      [[ ${#FILES[@]} -eq 0 ]] &&
+        echo "No YAML files matched by \"$CONTEXT\" in \"/var/workdir/${SOURCE_CODE_DIR}\", aborting the build" &&
+        exit 1
+      exec 3>&1
+
+      function escape_tkn_bundle_arg() {
+        # the arguments to `tkn bundle --annotate` need to be escaped in a curious way
+        # see https://github.com/tektoncd/cli/issues/2402 for details
+
+        local arg=$1
+        # replace single double-quotes with double double-quotes (this escapes the double-quotes)
+        local escaped_arg=${arg//\"/\"\"}
+        # wrap the whole thing in double-quotes (this escapes commas)
+        printf '"%s"' "$escaped_arg"
+      }
+
+      # Check if task is kustomized
+      # A task considered to be kustomized when a kustomization file is found in the task dir
+      is_kustomized_task() {
+        local -r task_dir=$1
+        if [[ -f "$task_dir/kustomization.yaml" || -f "$task_dir/kustomization.yml" ]] ; then
+          return 0
+        fi
+        return 1
+      }
+
+      # Generate a task from the kustomization file
+      generate_kustomized_task() {
+        local -r task_dir=$1
+        local -r prepared_task_file="$task_dir/generated-kustomized-task.yaml"
+        kubectl kustomize "$task_dir" >"$prepared_task_file"
+        echo "$prepared_task_file"
+      }
+
+      # Get task version from task definition rather than the version in the directory path.
+      # Arguments: task_file
+      # The version is output to stdout.
+      get_actual_task_version() {
+        local -r task_file=$1
+        # Ensure an empty string is output rather than string "null" if the version label is not present
+        yq ".metadata.labels.\"${LABEL_ACTUAL_TASK_VERSION}\"" "$task_file" | sed '/null/d' | tr -d '[:space:]'
+      }
+
+      # task_dir is where the task definition reside
+      # this task run for only one task file, so extracting it from the first element is enough
+      task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
+      actual_task_version=$(get_actual_task_version "${FILES[0]}")
+
+      if [[ -z "$actual_task_version" ]]; then
+        printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
+        exit 1
+      fi
+
+      # If task is kustomized, generate it and replace the FILES value with the value of the generated task
+      # All other files will be ignored.
+      if is_kustomized_task "$task_dir"; then
+        echo "Generating a kustomized task from $task_dir"
+        FILES=("$(generate_kustomized_task "$task_dir")")
+      else
+        echo "Task is not Kustomized - continue"
+      fi
+
+      # Push migration to registry if there is
+      migration_image_digest=
+      migration_image_tag=
+      migration_file_path="${task_dir}/migrations/${actual_task_version}.sh"
+      if [[ -f "$migration_file_path" ]]; then
+        sha256_checksum=$(sha256sum "$migration_file_path" | cut -d' ' -f1)
+        # Migration image tag is in form: migration-<actual task version>-<sha256sum>-<timestamp>
+        image_repo=${IMAGE%:*}  # remove tag
+        image_repo=${image_repo#*/}  # remove registry
+        tag_prefix="migration-${actual_task_version}"
+        query_params="onlyActiveTags=true&limit=5&filter_tag_name=like:${tag_prefix}-%"
+        url="https://quay.io/api/v1/repository/${image_repo}/tag/?${query_params}"
+        tags=$(curl --no-progress-meter -L "$url" | jq -r '.tags[] | .name + " " + .manifest_digest')
+        while read -r tag_name manifest_digest; do
+          if [[ -z "$tag_name" ]]; then
+            continue
+          fi
+          if grep -q -E "^${tag_prefix}-${sha256_checksum}-[0-9]+$" <<<"$tag_name"; then
+            # In case migration file is pushed more than once occasionally, only pick
+            # the last (newest) one
+            if [[ -z "$migration_image_digest" ]]; then
+              printf "Found migration image %s, whose digest is %s\n" "$tag_name" "$manifest_digest" >&2
+              migration_image_digest="$manifest_digest"
+              migration_image_tag="$tag_name"
+            fi
+          elif grep -q -E "^${tag_prefix}-[0-9a-f]{64}-[0-9]+$" <<<"$tag_name"; then
+            printf "Modifying an existing migration is not allowed. Migration %s was pushed as image %s" \
+              "${migration_file_path##*/}" "$tag_name" >&2
+            exit 1
+          fi
+        done <<<"$tags"
+        # There is no migration image yet, push it.
+        if [[ -z "$migration_image_digest" ]]; then
+          printf "Migration file %s is not found from image repository %s. Push it.\n" \
+            "${migration_file_path##*/}" "${IMAGE%:*}" >&2
+          auth_file=$(mktemp --suffix="-auth.json")
+          pushd "${migration_file_path%/*}"
+          select-oci-auth "$IMAGE" > "$auth_file"
+          tag="${tag_prefix}-${sha256_checksum}-$(date --utc +%s)"
+          migration_image="${IMAGE%:*}:${tag}"
+          manifest_file=$(mktemp --suffix="-migration-image-manifest.json")
+          retry oras push \
+            --registry-config "$auth_file" \
+            --export-manifest "$manifest_file" \
+            --annotation "dev.konflux-ci.task.is-migration=true" \
+            "$migration_image" "${migration_file_path##*/}"
+          read -r migration_image_digest _ < <(sha256sum "$manifest_file")
+          migration_image_digest="sha256:${migration_image_digest}"
+          migration_image_tag="$tag"
+          printf "Pushed migration image %s, digest %s\n" "$migration_image" "$migration_image_digest" >&2
+          popd
+        fi
+      fi
+
+      ANNOTATIONS=()
+      ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
+      ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
+      ANNOTATIONS+=("org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}")
+      ANNOTATIONS+=("org.opencontainers.image.version=${actual_task_version}")
+
+      if [ -f "${task_dir}/README.md" ]; then
+        ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
+      fi
+
+      if [ -f "${task_dir}/TROUBLESHOOTING.md" ]; then
+        ANNOTATIONS+=("dev.tekton.docs.troubleshooting=${URL}/tree/${REVISION}/${CONTEXT}/TROUBLESHOOTING.md")
+      fi
+
+      if [ -f "${task_dir}/USAGE.md" ]; then
+        ANNOTATIONS+=("dev.tekton.docs.usage=${URL}/tree/${REVISION}/${CONTEXT}/USAGE.md")
+      fi
+      description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
+      ANNOTATIONS+=("org.opencontainers.image.description=${description}")
+
+      if [[ -n "$migration_image_digest" ]]; then
+        ANNOTATIONS+=(
+          "dev.konflux-ci.task.migration.digest=${migration_image_digest}"
+          "dev.konflux-ci.task.migration.tag=${migration_image_tag}"
+        )
+      fi
+
+      echo "Added annotations:"
+      ANNOTATION_FLAGS=()
+      for annotation in "${ANNOTATIONS[@]}"; do
+        ANNOTATION_FLAGS+=("--annotate" "$(escape_tkn_bundle_arg "$annotation")")
+        echo "    - $annotation"
+      done
+
+      echo "Pushing bundle ${IMAGE} to registry"
+      # shellcheck disable=SC2046
+      if ! OUT="$(retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$IMAGE" \
+        $(printf ' -f %s' "${FILES[@]}") |
+        tee /proc/self/fd/3)"
+      then
+        echo "Failed to push bundle ${IMAGE} to registry"
+        exit 1
+      fi
+
+      digest="${OUT#*Pushed Tekton Bundle to *@}"
+      IMAGE_REF="${IMAGE}@${digest}"
+
+      echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
+      echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
+      echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
+
+      # cleanup task file
+      # shellcheck disable=SC2153
+      [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
+    securityContext:
+      runAsUser: 0
+    workingDir: $(workspaces.source.path)
+  workspaces:
+  - name: source
