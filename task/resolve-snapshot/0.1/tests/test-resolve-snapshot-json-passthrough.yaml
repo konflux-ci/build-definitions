@@ -1,0 +1,47 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-resolve-snapshot-json-passthrough
+spec:
+  description: |
+    Test resolve-snapshot task with SNAPSHOT as spec JSON (pass-through).
+    Asserts the task output equals the input JSON.
+  tasks:
+    - name: resolve-snapshot
+      taskRef:
+        name: resolve-snapshot
+      params:
+        - name: SNAPSHOT
+          value: |
+            {"components":[{"containerImage":"quay.io/example/repo:latest"}]}
+    - name: check-result
+      runAfter:
+        - resolve-snapshot
+      params:
+        - name: SNAPSHOT_JSON
+          value: $(tasks.resolve-snapshot.results.SNAPSHOT_JSON)
+      taskSpec:
+        params:
+          - name: SNAPSHOT_JSON
+        steps:
+          - name: check
+            image: quay.io/konflux-ci/konflux-test:latest
+            env:
+              - name: SNAPSHOT_JSON
+                value: $(params.SNAPSHOT_JSON)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              expected='{"components":[{"containerImage":"quay.io/example/repo:latest"}]}'
+              # Normalize whitespace for comparison (jq -c)
+              got=$(echo "${SNAPSHOT_JSON}" | jq -c .)
+
+              if [[ "$got" != "$expected" ]]; then
+                echo "FAIL: SNAPSHOT_JSON mismatch"
+                echo "Expected: $expected"
+                echo "Got: $got"
+                exit 1
+              fi
+              echo "SUCCESS: JSON pass-through works"
