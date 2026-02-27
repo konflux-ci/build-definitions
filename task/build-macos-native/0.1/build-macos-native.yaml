@@ -1,0 +1,381 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: macos-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+    build.appstudio.redhat.com/build_type: macos-native
+  name: build-macos-native
+spec:
+  description: "Build macOS native binaries and applications (.dmg, .pkg, .app, binaries, etc.)"
+  params:
+    - description: The platform to build on
+      name: PLATFORM
+      type: string
+      default: "macos/arm64"
+    - default: "false"
+      description: Whether to append a sanitized platform architecture on the IMAGE tag
+      name: IMAGE_APPEND_PLATFORM
+      type: string
+    - name: OUTPUT_IMAGE
+      type: string
+      description: The output manifest list that points to the OCI artifact
+    - name: SOURCE_ARTIFACT
+      type: string
+      description: The Trusted Artifact URI pointing to the artifact with the application source code.
+    - name: BUILD_DEPENDENCIES
+      type: string
+      default: ""
+      description: Comma-separated list of Homebrew packages to install (e.g., "node,python@3.11,cmake")
+    - name: BUILD_SCRIPT
+      type: string
+      description: Path to the build script within the source repository (e.g., "scripts/build.sh")
+    - name: OUTPUT_ARTIFACT_DIRECTORY
+      type: string
+      description: Path to the output artifact relative to source root (e.g., "dist/MyApp.dmg" or "out/binary")
+    - name: OUTPUT_ARTIFACT_NAME
+      type: string
+      description: Name of the output artifact (e.g., "MyApp-arm64.dmg")
+    - name: BUILD_SECRETS
+      type: string
+      default: ""
+      description: Name of secret containing build-time secrets (signing certs, API keys, etc.)
+    - name: STORAGE_DRIVER
+      description: Storage driver to configure for buildah
+      type: string
+      default: vfs
+  results:
+    - description: Digest of the manifest just built
+      name: IMAGE_DIGEST
+    - description: Image repository where the built manifest was pushed
+      name: IMAGE_URL
+    - description: Image reference (IMAGE_URL + IMAGE_DIGEST)
+      name: IMAGE_REFERENCE
+  stepTemplate:
+    env:
+      - name: OUTPUT_IMAGE
+        value: $(params.OUTPUT_IMAGE)
+      - name: BUILD_DEPENDENCIES
+        value: $(params.BUILD_DEPENDENCIES)
+      - name: BUILD_SCRIPT
+        value: $(params.BUILD_SCRIPT)
+      - name: OUTPUT_ARTIFACT_DIRECTORY
+        value: $(params.OUTPUT_ARTIFACT_DIRECTORY)
+      - name: OUTPUT_ARTIFACT_NAME
+        value: $(params.OUTPUT_ARTIFACT_NAME)
+      - name: STORAGE_DRIVER
+        value: $(params.STORAGE_DRIVER)
+      - name: PLATFORM
+        value: $(params.PLATFORM)
+      - name: IMAGE_APPEND_PLATFORM
+        value: $(params.IMAGE_APPEND_PLATFORM)
+    volumeMounts:
+      - mountPath: "/var/workdir"
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7d829000642752a739f7823b1981e5bcfbc70da48d473f04b624ec8bf784322b
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    - name: build
+      image: quay.io/konflux-ci/buildah-task:latest@sha256:c711eeac025a5f829d5d7bb281d7e0df380969d1e37e5329d0cb7740ff0aa301
+      computeResources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 250m
+          memory: 128Mi
+      script: |-
+        #!/bin/bash
+        set -o verbose
+        set -e
+        set -x
+
+        mkdir -p ~/.ssh
+        if [ -e "/ssh/error" ]; then
+          #no server could be provisioned
+          cat /ssh/error
+          exit 1
+        elif [ -e "/ssh/otp" ]; then
+          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa
+          echo "" >> ~/.ssh/id_rsa
+        else
+          cp /ssh/id_rsa ~/.ssh
+        fi
+        chmod 0400 ~/.ssh/id_rsa
+        SSH_HOST=$(cat /ssh/host)
+        export SSH_HOST
+        BUILD_DIR=$(cat /ssh/user-dir)
+        export BUILD_DIR
+        export SSH_ARGS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=60)
+        mkdir -p scripts
+        echo "$BUILD_DIR"
+        ssh "${SSH_ARGS[@]}" "$SSH_HOST"  mkdir -p "$BUILD_DIR/workspaces" "$BUILD_DIR/scripts" "$BUILD_DIR/tmp" "$BUILD_DIR/output" "$BUILD_DIR/secrets"
+
+        # Validate BUILD_SCRIPT exists
+        if [ ! -f "/var/workdir/source/$BUILD_SCRIPT" ]; then
+          echo "ERROR: Build script not found at: $BUILD_SCRIPT"
+          echo "Contents of source directory:"
+          ls -la /var/workdir/source/
+          exit 1
+        fi
+
+        # Sync Docker credentials
+        # rsync -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
+
+        # Sync build secrets if provided
+        if [ -d "/secrets" ] && [ "$(ls -A /secrets)" ]; then
+          echo "Syncing build secrets to remote host"
+          rsync -ra /secrets/ "$SSH_HOST:$BUILD_DIR/secrets/"
+        else
+          echo "No build secrets provided, skipping secret sync"
+        fi
+
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export OUTPUT_IMAGE
+        fi
+
+        # this unquoted heredoc allows expansions for the image name
+        cat >scripts/script-build.sh <<REMOTESSHEOF
+        #!/bin/bash
+        set -euo pipefail
+
+        export BUILD_DIR="$BUILD_DIR"
+        export OUTPUT_IMAGE="$OUTPUT_IMAGE"
+        export BUILD_DEPENDENCIES="$BUILD_DEPENDENCIES"
+        export BUILD_SCRIPT="$BUILD_SCRIPT"
+        export OUTPUT_ARTIFACT_DIRECTORY="$OUTPUT_ARTIFACT_DIRECTORY"
+        export OUTPUT_ARTIFACT_NAME="$OUTPUT_ARTIFACT_NAME"
+
+        REMOTESSHEOF
+
+        # import retry function
+        # remove line with bash
+        # shellcheck disable=SC2002
+        # cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+
+        # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
+        cat >>scripts/script-build.sh <<'REMOTESSHEOF'
+
+        # Install Homebrew if not present
+        HOMEBREW_PREFIX="$HOME/homebrew"
+        if [ ! -d "$HOMEBREW_PREFIX" ] || [ ! -f "$HOMEBREW_PREFIX/bin/brew" ]; then
+          echo "Installing Homebrew to $HOMEBREW_PREFIX"
+          mkdir -p "$HOMEBREW_PREFIX"
+          curl -L https://github.com/Homebrew/brew/tarball/master | tar xz -C "$HOMEBREW_PREFIX" --strip-components=1
+        else
+          echo "Homebrew already installed at $HOMEBREW_PREFIX"
+        fi
+
+        # Activate Homebrew
+        export PATH="$HOME/homebrew/bin:$PATH"
+        eval "$($HOME/homebrew/bin/brew shellenv)"
+
+        # Handle Node.js installation via nvm if requested
+        if echo "$BUILD_DEPENDENCIES" | grep -qE 'node|pnpm'; then
+          echo "Detected Node.js/pnpm in dependencies, using nvm..."
+
+          # Install nvm via Homebrew
+          echo "Installing nvm..."
+          brew install nvm
+
+          # Setup nvm in current shell (no need to modify .zshrc)
+          mkdir -p "$HOME/.nvm"
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$HOME/homebrew/opt/nvm/nvm.sh" ] && \. "$HOME/homebrew/opt/nvm/nvm.sh"
+          [ -s "$HOME/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "$HOME/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+
+          # Check for .nvmrc first
+          if [ -f "$BUILD_DIR/workspaces/source/.nvmrc" ]; then
+            echo "Found .nvmrc, using specified Node version"
+            cd "$BUILD_DIR/workspaces/source"
+            nvm install
+            nvm use
+            cd -
+          else
+            # Extract Node version from BUILD_DEPENDENCIES (e.g., node@22 or just node)
+            NODE_VERSION=$(echo "$BUILD_DEPENDENCIES" | tr ',' '\n' | grep '^node' | sed 's/node@//' | sed 's/^node$/22/' || true)
+            # Default to 22 if no node version found (e.g., BUILD_DEPENDENCIES only has "pnpm")
+            [ -z "$NODE_VERSION" ] && NODE_VERSION="22"
+            echo "Installing Node.js $NODE_VERSION via nvm"
+            nvm install "$NODE_VERSION"
+            nvm use "$NODE_VERSION"
+          fi
+
+          echo "Node version: $(node --version)"
+          echo "npm version: $(npm --version)"
+
+          # Install pnpm if requested
+          if echo "$BUILD_DEPENDENCIES" | grep -qE 'pnpm'; then
+            echo "Installing pnpm via npm..."
+            npm install -g pnpm
+            echo "pnpm version: $(pnpm --version)"
+          fi
+
+          # Filter out node/pnpm/npm from BUILD_DEPENDENCIES
+          BUILD_DEPENDENCIES=$(echo "$BUILD_DEPENDENCIES" | tr ',' '\n' | grep -v -E '^(node|pnpm|npm)' | paste -sd ',' - || true)
+        fi
+
+        # Install remaining Homebrew packages
+        if [ -n "$BUILD_DEPENDENCIES" ]; then
+          echo "Installing Homebrew packages: $BUILD_DEPENDENCIES"
+          PACKAGES=$(echo "$BUILD_DEPENDENCIES" | tr ',' ' ')
+          for package in $PACKAGES; do
+            echo "Installing $package..."
+            brew install "$package" || echo "Warning: Failed to install $package"
+          done
+        else
+          echo "No additional Homebrew packages to install"
+        fi
+
+        # Export build secrets as environment variables if they exist
+        if [ -d "$BUILD_DIR/secrets" ]; then
+          echo "Checking for build secrets..."
+          for secret_file in "$BUILD_DIR/secrets"/*; do
+            # Skip if no files exist (glob didn't expand)
+            [ -f "$secret_file" ] || continue
+
+            secret_name=$(basename "$secret_file")
+            secret_value=$(cat "$secret_file")
+            export "$secret_name=$secret_value"
+            echo "Exported secret: $secret_name"
+          done
+        fi
+
+        # Run the user's build script
+        cd "$BUILD_DIR/workspaces/source"
+        echo "Running build script: $BUILD_SCRIPT"
+        # We will remove ls-la command this just for debugging purposes.
+        ls -la
+        bash "$BUILD_SCRIPT"
+
+        # Verify output artifact exists
+        # if [ ! -e "$OUTPUT_ARTIFACT" ]; then
+        #   echo "ERROR: Output artifact not found at: $OUTPUT_ARTIFACT"
+        #   echo "Contents of current directory:"
+        #   ls -laR .
+        #   exit 1
+        # fi
+
+        echo "Build completed successfully. Output artifact: $OUTPUT_ARTIFACT_DIRECTORY/$OUTPUT_ARTIFACT_NAME"
+
+        # Copy output artifact to a staging area
+        mkdir -p "$BUILD_DIR/output"
+        cp -r "$BUILD_DIR/workspaces/source/$OUTPUT_ARTIFACT_DIRECTORY/$OUTPUT_ARTIFACT_NAME" "$BUILD_DIR/output/"
+
+        REMOTESSHEOF
+
+        # make script executable and sync to the macOS host
+        chmod +x scripts/script-build.sh
+        rsync -ra scripts "$SSH_HOST:$BUILD_DIR"
+        rsync -ra /var/workdir/source/ "$SSH_HOST:$BUILD_DIR/workspaces/source/"
+
+        # Run build script on macOS host
+        ssh "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
+
+        # Rsync the built artifact back to the Linux pod
+        mkdir -p /var/workdir/output
+        rsync -ra "$SSH_HOST:$BUILD_DIR/output/" /var/workdir/output/
+
+        # Package and push artifact (runs in the Linux pod, not on macOS)
+        files=("${OUTPUT_ARTIFACT_NAME}")
+        ARTIFACT_NAME="${files[0]}"
+        ARTIFACT_PATH="/var/workdir/output/$ARTIFACT_NAME"
+
+        echo "Processing artifact: $ARTIFACT_PATH"
+        ls -lh "$ARTIFACT_PATH"
+
+        # Determine architecture from PLATFORM parameter
+        ARCH=$(echo "$PLATFORM" | sed 's/.*\///')
+        echo "Architecture: $ARCH"
+
+        # Build an image manifest
+        buildah --storage-driver="$STORAGE_DRIVER" manifest create "$OUTPUT_IMAGE"
+
+        # Determine file type and handle accordingly
+        if [[ "$ARTIFACT_NAME" == *.dmg ]]; then
+          echo "Found .dmg file (already compressed)"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/vnd.apple.diskimage \
+            "$OUTPUT_IMAGE" "$ARTIFACT_PATH"
+
+        elif [[ "$ARTIFACT_NAME" == *.pkg ]]; then
+          echo "Found .pkg file (already compressed)"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/vnd.apple.installer-package \
+            "$OUTPUT_IMAGE" "$ARTIFACT_PATH"
+
+        elif [[ "$ARTIFACT_NAME" == *.app ]] || [[ -d "$ARTIFACT_PATH" && "$ARTIFACT_NAME" == *.app ]]; then
+          echo "Found .app bundle, creating tar.gz"
+          tar czf "${ARTIFACT_PATH}.tar.gz" -C /var/workdir/output "$ARTIFACT_NAME"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/vnd.apple.application.tar.gzip \
+            "$OUTPUT_IMAGE" "${ARTIFACT_PATH}.tar.gz"
+
+        elif [[ "$ARTIFACT_NAME" == *.zip ]]; then
+          echo "Found .zip file (already compressed)"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/zip \
+            "$OUTPUT_IMAGE" "$ARTIFACT_PATH"
+
+        elif [[ "$ARTIFACT_NAME" == *.tar.gz ]] || [[ "$ARTIFACT_NAME" == *.tgz ]]; then
+          echo "Found .tar.gz file (already compressed)"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/gzip \
+            "$OUTPUT_IMAGE" "$ARTIFACT_PATH"
+
+        else
+          # Unknown file type - treat as binary and compress
+          echo "Found binary/unknown file, compressing with gzip"
+          pigz -9 "$ARTIFACT_PATH"
+          buildah --storage-driver="$STORAGE_DRIVER" manifest add --arch "$ARCH" --os darwin \
+            --artifact --artifact-type application/vnd.macos.binary.gzip \
+            "$OUTPUT_IMAGE" "${ARTIFACT_PATH}.gz"
+        fi
+
+        buildah_retries=3
+        echo "Pushing image $OUTPUT_IMAGE to registry"
+        buildah --storage-driver="$STORAGE_DRIVER" manifest push --digestfile /var/workdir/image-digest --retry "$buildah_retries" --all "$OUTPUT_IMAGE" "docker://$OUTPUT_IMAGE"
+
+        # At this point, we have pushed an image index of length 1 to the registry.
+        # Next, extract a reference to the image manifest and expose that, throwing away the image index.
+        IMAGE_INDEX_DIGEST=$(cat /var/workdir/image-digest)
+        REPO=${OUTPUT_IMAGE%:*}
+        MANIFEST_DIGEST=$(buildah --storage-driver="$STORAGE_DRIVER" manifest inspect "$REPO@$IMAGE_INDEX_DIGEST" | jq -r '.manifests[0].digest')
+
+        # Overwrite the image index pullspec tag with the image manifest one -- TO-DO: can we do better?
+        # echo "Overwriting image $OUTPUT_IMAGE in registry"
+        # skopeo copy "docker://$REPO@$MANIFEST_DIGEST" "docker://$OUTPUT_IMAGE"
+
+        # Finally, record all that in our results
+        echo -n "$OUTPUT_IMAGE" | tee /tekton/results/IMAGE_URL
+        echo "$MANIFEST_DIGEST" | tee /tekton/results/IMAGE_DIGEST
+        # Saving also these two output in one unique variable. This task is using a matrix reference.
+        # Unfortunately it seems that in Tekton, when using a matrix, each task run is executed in isolation,
+        # and result values can't be dynamically constructed or reused across matrix combinations.
+        # In order to prevent that, we are preparing in the task itself what we'll call as `IMAGE_REFERENCE`
+        # so that we can reference that safely in the pipeline.
+        IMAGE_URL_CLEANED=$(echo -n "$OUTPUT_IMAGE" | tr -d '\n')
+        echo -n "${IMAGE_URL_CLEANED}@${MANIFEST_DIGEST}" | tee /tekton/results/IMAGE_REFERENCE
+
+      volumeMounts:
+        - mountPath: /ssh
+          name: ssh
+          readOnly: true
+        - mountPath: /secrets
+          name: build-secrets
+  volumes:
+    - emptyDir: {}
+      name: workdir
+    - name: ssh
+      secret:
+        optional: false
+        secretName: multi-platform-ssh-$(context.taskRun.name)
+    - name: build-secrets
+      secret:
+        optional: true
+        secretName: $(params.BUILD_SECRETS)
