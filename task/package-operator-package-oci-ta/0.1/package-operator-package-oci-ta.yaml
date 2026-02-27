@@ -59,7 +59,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:43d997ac61bef77eaee0413fe50c29b66eb4d0d32066f5bd4a83f39e4b2d9457
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -82,7 +82,7 @@ spec:
         echo -n "$DST_URL" >"$(results.IMAGE_URL.path)"
         echo -n "$DST_URL@$digest" >"$(results.IMAGE_REF.path)"
     - name: build-sbom
-      image: quay.io/konflux-ci/mobster:1.0.0-1761030771@sha256:f751b8fb47409eeef7c3235f201a5a9c137a5014cf7f1474340298101c7b1a0f
+      image: quay.io/konflux-ci/mobster:1.1.0-1772026392@sha256:a2feb71e321a0164820fe7171e564242c75125d8b62d213d3ba3423cf8fa678b
       workingDir: /var/workdir
       env:
         - name: SRC_PATH
