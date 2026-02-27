@@ -989,24 +989,13 @@ spec:
           done <<<"$ADDITIONAL_VOLUME_MOUNTS"
         fi
 
-        echo "[$(date --utc -Ins)] Add secrets"
-
-        ADDITIONAL_SECRET_PATH="/additional-secret"
-        ADDITIONAL_SECRET_TMP="/tmp/additional-secret"
-        if [ -d "$ADDITIONAL_SECRET_PATH" ]; then
-          cp -r --preserve=mode -L "$ADDITIONAL_SECRET_PATH" $ADDITIONAL_SECRET_TMP
-          while read -r filename; do
-            echo "Adding the secret ${ADDITIONAL_SECRET}/${filename} to the build, available at /run/secrets/${ADDITIONAL_SECRET}/${filename}"
-            BUILDAH_ARGS+=("--secret=id=${ADDITIONAL_SECRET}/${filename},src=$ADDITIONAL_SECRET_TMP/${filename}")
-          done < <(find $ADDITIONAL_SECRET_TMP -maxdepth 1 -type f -exec basename {} \;)
-        fi
-
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
         declare IMAGE
 
         cmd_array=(
           konflux-build-cli image build
           -f "$dockerfile_copy" -t "$IMAGE" --context .
+          --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
           --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
