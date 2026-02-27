@@ -293,7 +293,7 @@ spec:
         if [ -f "${task_dir}/USAGE.md" ]; then
           ANNOTATIONS+=("dev.tekton.docs.usage=${URL}/tree/${REVISION}/${CONTEXT}/USAGE.md")
         fi
-        description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr -d '')
+        description=$(yq '.spec.description' "${FILES[@]}" | sed '/null/d' | tr '\n' ' ' | tr -s ' ' | sed 's/^ //;s/ $//')
         ANNOTATIONS+=("org.opencontainers.image.description=${description}")
 
         if [[ -n "$migration_image_digest" ]]; then
