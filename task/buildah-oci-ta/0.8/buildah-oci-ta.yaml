@@ -856,7 +856,7 @@ spec:
 
         printf '%s\n' "${label_pairs[@]}" | jq -Rn '
           [ inputs | select(length>0) ]
-        | map( split("=") | {(.[0]): (.[1] // "")} )
+        | map( split("=") | {(.[0]): (.[1:] | join("="))} )
           | add' >"image_labels.json"
 
         jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"
