@@ -866,18 +866,6 @@ spec:
         echo "Adding the entitlement to the build"
       fi
 
-      if [ -n "$WORKINGDIR_MOUNT" ]; then
-        if [[ "$WORKINGDIR_MOUNT" == *:* ]]; then
-          echo "WORKINGDIR_MOUNT contains ':'" >&2
-          echo "Refusing to proceed in case this is an attempt to set unexpected mount options." >&2
-          exit 1
-        fi
-        # ${SOURCE_CODE_DIR}/${CONTEXT} will be the $PWD when we call 'buildah build'
-        # (we set the workdir using 'unshare -w')
-        context_dir=$(realpath "${SOURCE_CODE_DIR}/${CONTEXT}")
-        VOLUME_MOUNTS+=(--volume "$context_dir:${WORKINGDIR_MOUNT}")
-      fi
-
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
         # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
         # Instrumented builds (SAST) use this step as their base and add some other tools.
@@ -893,6 +881,7 @@ spec:
           konflux-build-cli image build
           -f "$dockerfile_copy" -t "$IMAGE" --context .
           --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
+          --workdir-mount "$WORKINGDIR_MOUNT"
           --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
