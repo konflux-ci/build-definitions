@@ -1,0 +1,175 @@
+# Task name
+- op: replace
+  path: /metadata/name
+  value: buildah-sast
+
+# Task description
+- op: replace
+  path: /spec/description
+  value: |-
+    Buildah sast task builds source code to do SAST analysis.
+
+# Replace task results
+- op: replace
+  path: /spec/results
+  value:
+    - description: Short summary of SAST scan results.
+      name: SCAN_OUTPUT
+    - description: Tekton task test output.
+      name: TEST_OUTPUT
+    - description: SAST scanning results artifact URL.
+      name: SAST_RESULT_URL
+
+###################
+# Task steps
+###################
+
+# Remove all buildah task steps except build
+- op: remove
+  path: /spec/steps/5  # upload-sbom
+- op: remove
+  path: /spec/steps/4  # inject-sbom-and-push
+- op: remove
+  path: /spec/steps/3  # prepare-sboms
+- op: remove
+  path: /spec/steps/2  # analyse-dependencies-java-sbom
+- op: remove
+  path: /spec/steps/1  # sbom-syft-generate
+
+# Tune the build step (the only one left).
+
+# Change build step image
+- op: replace
+  path: /spec/steps/0/image
+  # New image shoould be based on quay.io/konflux-ci/buildah-task:latest or have all the tooling that the original image has.
+  value: quay.io/kdudka/buildah-csutils:latest
+
+# Change build step resources
+- op: replace
+  path: /spec/steps/0/computeResources/limits/memory
+  value: 10Gi
+- op: replace
+  path: /spec/steps/0/computeResources/requests/memory
+  value: 5Gi
+
+# Additional volumes
+- op: add
+  path: /spec/steps/0/env/-
+  value:
+    name: ADDITIONAL_VOLUME_MOUNTS
+    value: |-
+      /shared:/shared
+      /usr/bin/csgcca:/usr/bin/csgcca
+      /usr/bin/cswrap:/usr/bin/cswrap
+      /usr/bin/gcc-wrapper:/usr/bin/gcc-wrapper
+      /usr/lib64/csgcca:/usr/lib64/csgcca
+      /usr/lib64/cswrap:/usr/lib64/cswrap
+      /usr/libexec/csgrep-static:/usr/libexec/csgrep-static
+
+  # Additional parameter
+- op: add
+  path: /spec/params/-
+  value:
+    name: IMAGE_URL
+    type: string
+
+# Add prepare and postprocess steps
+
+# Prepare step
+- op: add
+  path: /spec/steps/0
+  value:
+    name: prepare
+    image: quay.io/kdudka/buildah-csutils:latest
+    computeResources:
+      limits:
+        memory: 1Gi
+        cpu: '1'
+      requests:
+        memory: 0.5Gi
+        cpu: '0.5'
+    workingDir: $(workspaces.source.path)
+    env:
+      - name: DOCKERFILE
+        value: $(params.DOCKERFILE)
+    script: |
+      set -x
+
+      # Dockerfile discovery logic is copied from buildah task
+      SOURCE_CODE_DIR=source
+      if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+      elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+        dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+      elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
+        echo "Fetch Dockerfile from $DOCKERFILE"
+        dockerfile_path=$(mktemp --suffix=-Dockerfile)
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+        if [ "$http_code" != 200 ]; then
+          echo "No Dockerfile is fetched. Server responds $http_code"
+          exit 1
+        fi
+        http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path.dockerignore.tmp" "$DOCKERFILE.dockerignore")
+        if [ "$http_code" = 200 ]; then
+          echo "Fetched .dockerignore from $DOCKERFILE.dockerignore"
+          mv "$dockerfile_path.dockerignore.tmp" "$SOURCE_CODE_DIR/$CONTEXT/.dockerignore"
+        fi
+      else
+        echo "Cannot find Dockerfile $DOCKERFILE"
+        exit 1
+      fi
+
+      # pre-create directory for SAST scaning results
+      sast_dir="/shared/sast-results"
+      mkdir "${sast_dir}"
+      touch "${sast_dir}/empty.txt"
+
+      # create a wrapper script to instrument RUN lines
+      GCC_WRAPPER="$(cswrap --print-path-to-wrap)/gcc-wrapper"
+      tee /shared/cmd-wrap.sh << EOF
+      #!/bin/bash -x
+      exec env "PATH=/usr/lib64/csgcca:/usr/lib64/cswrap:\$PATH" CSGCCA_ANALYZER_BIN="${GCC_WRAPPER}" CSWRAP_TIMEOUT=30 CSWRAP_TIMEOUT_FOR=gcc "\$@"
+      EOF
+      chmod 0755 /shared/cmd-wrap.sh
+
+      # instrument all RUN lines in Dockerfile
+      cstrans-df-run --verbose /shared/cmd-wrap.sh < "$dockerfile_path" > /shared/Containerfile
+
+  # Make the buildah task use the instrumented Dockerfile
+- op: replace
+  path: /spec/steps/1/env/1/value  # steps -> build -> env -> DOCKERFILE
+  value: /shared/Containerfile
+
+# Postprocess step
+- op: add
+  path: /spec/steps/2
+  value:
+    name: postprocess
+    image: quay.io/kdudka/buildah-csutils:latest
+    computeResources:
+      limits:
+        memory: 1Gi
+        cpu: '1'
+      requests:
+        memory: 0.5Gi
+        cpu: '0.5'
+    env:
+      - name: IMAGE_URL
+        value: $(params.IMAGE_URL)
+    workingDir: $(workspaces.source.path)
+    script: |
+      set -x
+      sast_dir="/shared/sast-results"
+      ls -l "$sast_dir"
+
+      # read the collected SAST scanning results
+      UPLOAD_FILE=gcc-analyzer.sarif
+      csgrep --mode=sarif --event=^warning --remove-duplicates --file-glob "${sast_dir}/*" \
+        | tee "${UPLOAD_FILE}" | csgrep
+
+      # upload scan results
+      MEDIA_TYPE=application/sarif+json
+      echo "Selecting auth"
+      select-oci-auth "${IMAGE_URL}" > "${HOME}/auth.json"
+      echo "Attaching to ${IMAGE_URL}"
+      oras attach --no-tty --registry-config "${HOME}/auth.json" --artifact-type "${MEDIA_TYPE}" "${IMAGE_URL}" "${UPLOAD_FILE}:${MEDIA_TYPE}"
