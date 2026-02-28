@@ -150,6 +150,18 @@ Adding a new parameter with a default value does not require a task version incr
 
 ## Local development
 
+### Prerequisites
+
+Tools needed to run the generation and build scripts:
+
+- yq (must be mikefarah/yq)
+- jq
+- oc (used for `oc kustomize`)
+- Python with PyYAML installed
+- tkn (Tekton CLI)
+- podman
+- Go
+
 Build-definitions uses various mechanisms for automatically generating Tasks, Pipelines
 and other files. For example:
 
@@ -215,7 +227,7 @@ Specify the Quay repository using the `QUAY_NAMESPACE` environment variable in t
   ```
 - Shellspec tests can be run by invoking:
   ```
-  ./hack/test-shellspec.sh`
+  ./hack/test-shellspec.sh
   ```
 
 ## Testing Tasks

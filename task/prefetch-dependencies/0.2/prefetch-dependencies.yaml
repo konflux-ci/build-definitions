@@ -1,12 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
+  name: prefetch-dependencies
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
   labels:
     app.kubernetes.io/version: "0.2"
-  annotations:
-    tekton.dev/pipelines.minVersion: "0.12.1"
-    tekton.dev/tags: "image-build, konflux"
-  name: prefetch-dependencies
 spec:
   description: Task that prefetches project dependencies for hermetic build.
   params:
@@ -52,11 +52,9 @@ spec:
     volumeMounts:
       - name: config
         mountPath: /mnt/config
-      - mountPath: /shared
-        name: shared
   steps:
   - name: sanitize-config-file-with-yq
-    image: quay.io/konflux-ci/yq:latest@sha256:e9363580cd87f73b2655d8dded6bcdc1ffc735a402cbe4b1aa1b127363c371bc
+    image: quay.io/konflux-ci/yq:latest@sha256:466005c667e6e9ea19fd4738275f71a13f89382f6233c581d5e952a41ccb3b42
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]
       then
@@ -67,7 +65,7 @@ spec:
       fi
 
   - name: prefetch-dependencies
-    image: quay.io/konflux-ci/hermeto:0.46.2@sha256:449ce7c3196b89c3c44269e6a7ad146b1a7d32cead46503b11f386053187cf51
+    image: quay.io/konflux-ci/hermeto:0.47.0@sha256:2ebf02dd0d795b0645c6d495eef05b8e87904bc5c13e82fa40e528ac0d05e010
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     env:
@@ -346,10 +344,6 @@ spec:
       performing http(s) requests.
     optional: true
   volumes:
-    - name: shared
-      emptyDir: {}
-    - name: etc-pki-entitlement
-      emptyDir: {}
     - name: activation-key
       secret:
         optional: true

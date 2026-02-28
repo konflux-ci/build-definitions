@@ -76,10 +76,6 @@ spec:
         secretName: $(params.ACTIVATION_KEY)
     - name: config
       emptyDir: {}
-    - name: etc-pki-entitlement
-      emptyDir: {}
-    - name: shared
-      emptyDir: {}
     - name: trusted-ca
       configMap:
         items:
@@ -109,13 +105,11 @@ spec:
     volumeMounts:
       - mountPath: /mnt/config
         name: config
-      - mountPath: /shared
-        name: shared
       - mountPath: /var/workdir
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1770267347@sha256:759f5f42d9d6ce2a705e290b7fc549e2d2cd39312c4fa345f93c02e4abb8da95
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1771346502@sha256:c7d44146f826037f6873d99da479299b889473492d3c1ab8af86f08af04ec8a0
       env:
         - name: INPUT
           value: $(params.input)
@@ -136,7 +130,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: sanitize-config-file-with-yq
-      image: quay.io/konflux-ci/yq:latest@sha256:e9363580cd87f73b2655d8dded6bcdc1ffc735a402cbe4b1aa1b127363c371bc
+      image: quay.io/konflux-ci/yq:latest@sha256:466005c667e6e9ea19fd4738275f71a13f89382f6233c581d5e952a41ccb3b42
       script: |
         if [ -n "${CONFIG_FILE_CONTENT}" ]; then
           # we need to drop 'goproxy_url' for safety reasons until the CLI prefetch tool upstream
@@ -145,7 +139,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.46.2@sha256:449ce7c3196b89c3c44269e6a7ad146b1a7d32cead46503b11f386053187cf51
+      image: quay.io/konflux-ci/hermeto:0.47.0@sha256:2ebf02dd0d795b0645c6d495eef05b8e87904bc5c13e82fa40e528ac0d05e010
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
