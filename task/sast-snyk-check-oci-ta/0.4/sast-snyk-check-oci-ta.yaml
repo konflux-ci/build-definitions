@@ -364,6 +364,7 @@ spec:
           note="Task $(context.task.name) failed: For details, check Tekton task log."
           ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
         fi
+        echo "DEBUG: FINAL SNYK_EXIT_CODE=$SNYK_EXIT_CODE"
         echo "${TEST_OUTPUT:-${ERROR_OUTPUT}}" | tee "$(results.TEST_OUTPUT.path)"
       computeResources:
         limits:
