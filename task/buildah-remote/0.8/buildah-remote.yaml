@@ -1169,7 +1169,7 @@ spec:
     name: push
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
@@ -1207,7 +1207,7 @@ spec:
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
-        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+        echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
         exit 1
       fi
 
@@ -1222,7 +1222,7 @@ spec:
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then
-        echo "Failed to push sbom image to $IMAGE"
+        echo "Failed to push image to $IMAGE"
         exit 1
       fi
 
