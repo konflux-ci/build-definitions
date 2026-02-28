@@ -291,10 +291,7 @@ spec:
         cd "${CHECKOUT_DIR}"
         RESULT_SHA="$(git rev-parse HEAD)"
         RESULT_SHA_SHORT="$(git rev-parse --short="${PARAM_SHORT_COMMIT_LENGTH}" HEAD)"
-        EXIT_CODE="$?"
-        if [ "${EXIT_CODE}" != 0 ]; then
-          exit "${EXIT_CODE}"
-        fi
+
         if [ "${PARAM_MERGE_TARGET_BRANCH}" = "true" ]; then
           echo "Merge option enabled. Attempting to merge target branch '${PARAM_TARGET_BRANCH}' into HEAD (${RESULT_SHA})."
 
@@ -336,40 +333,33 @@ spec:
           else
             retry git fetch ${MERGE_REMOTE} "${PARAM_TARGET_BRANCH}"
           fi
-          FETCH_EXIT_CODE="$?"
-          if [ "${FETCH_EXIT_CODE}" != "0" ]; then
-            echo "ERROR: Failed to fetch target branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE}." >&2
-            exit "${FETCH_EXIT_CODE}"
-          fi
 
           echo "Merging ${MERGE_REMOTE}/${PARAM_TARGET_BRANCH} into current HEAD..."
           git config --global user.email "tekton-git-clone@tekton.dev"
           git config --global user.name "Tekton Git Clone Task"
-          git merge FETCH_HEAD --no-commit --no-ff --allow-unrelated-histories
-          MERGE_CHECK_EXIT_CODE="$?"
-          if [ "${MERGE_CHECK_EXIT_CODE}" != "0" ]; then
+
+          if ! git merge FETCH_HEAD --no-commit --no-ff --allow-unrelated-histories; then
             echo "ERROR: Merge conflict detected or merge failed before commit." >&2
             echo "--- Git Status ---"
             git status
             echo "------------------"
-            exit "${MERGE_CHECK_EXIT_CODE}"
-          else
-            # Check if there are changes that need to be merged, and if so, create a merge commit.
-            if git diff --staged --quiet; then
-              echo "No diff was found, skipping merge..." >&2
-            else
-              echo "Merge successful (no conflicts found), committing..."
-              git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE} into ${RESULT_SHA}"
-              COMMIT_EXIT_CODE="$?"
-              if [ "${COMMIT_EXIT_CODE}" != "0" ]; then
-                echo "ERROR: Failed to commit merge." >&2
-                exit "${COMMIT_EXIT_CODE}"
-              fi
-              MERGED_SHA=$(git rev-parse HEAD)
-              echo "New HEAD after merge: ${MERGED_SHA}"
-              echo "${MERGED_SHA}" >"$(results.merged_sha.path)"
-            fi
+            exit 1
           fi
+
+          # Check if there are changes staged for commit
+          if git diff --staged --quiet; then
+            echo "No diff was found, skipping merge..." >&2
+          else
+            echo "Merge successful (no conflicts found), committing..."
+            if ! git commit -m "Merge branch '${PARAM_TARGET_BRANCH}' from ${MERGE_REMOTE} into ${RESULT_SHA}"; then
+              echo "ERROR: Failed to commit merge." >&2
+              exit 1
+            fi
+            MERGED_SHA=$(git rev-parse HEAD)
+            echo "New HEAD after merge: ${MERGED_SHA}"
+            echo "${MERGED_SHA}" >"$(results.merged_sha.path)"
+          fi
+
         else
           echo "Merge option disabled. Using checked-out revision ${RESULT_SHA} directly."
         fi
