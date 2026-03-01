@@ -170,6 +170,14 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - default: ""
+    description: Compression format for image layers (e.g., gzip, zstd, zstd:chunked)
+    name: COMPRESSION_FORMAT
+    type: string
+  - default: "false"
+    description: Force recompression of all layers including base image layers
+    name: FORCE_COMPRESSION
+    type: string
   - default: []
     description: Additional base image references to include to the SBOM. Array of
       image_reference_with_digest strings
@@ -975,6 +983,14 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
+    - name: FORCE_COMPRESSION
+      value: $(params.FORCE_COMPRESSION)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
     image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
     name: push
     script: |
@@ -1000,6 +1016,16 @@ spec:
         push_format=docker
       fi
 
+      COMPRESSION_ARGS=()
+
+      if [ -n "${COMPRESSION_FORMAT}" ]; then
+        COMPRESSION_ARGS+=(--compression-format="${COMPRESSION_FORMAT}")
+      fi
+
+      if [ "${FORCE_COMPRESSION}" == "true" ]; then
+        COMPRESSION_ARGS+=(--force-compression)
+      fi
+
       echo "[$(date --utc -Ins)] Push image with unique tag"
 
       buildah_retries=3
@@ -1010,6 +1036,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1025,6 +1052,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then

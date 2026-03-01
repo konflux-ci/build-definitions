@@ -156,11 +156,20 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
     default: oci
+  - name: COMPRESSION_FORMAT
+    description: Compression format for image layers (e.g., gzip, zstd, zstd:chunked)
+    type: string
+    default: ""
+  - name: FORCE_COMPRESSION
+    description: Force recompression of all layers including base image layers
+    type: string
+    default: "false"
   - name: ADDITIONAL_BASE_IMAGES
     description: |-
       Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
     type: array
     default: []
+
   - name: WORKINGDIR_MOUNT
     description: >-
       Mount the current working directory into the build using
@@ -975,6 +984,14 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
+    - name: FORCE_COMPRESSION
+      value: $(params.FORCE_COMPRESSION)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
     script: |
       #!/bin/bash
       set -e
@@ -998,6 +1015,16 @@ spec:
         push_format=docker
       fi
 
+      COMPRESSION_ARGS=()
+
+      if [ -n "${COMPRESSION_FORMAT}" ]; then
+        COMPRESSION_ARGS+=(--compression-format="${COMPRESSION_FORMAT}")
+      fi
+
+      if [ "${FORCE_COMPRESSION}" == "true" ]; then
+        COMPRESSION_ARGS+=(--force-compression)
+      fi
+
       echo "[$(date --utc -Ins)] Push image with unique tag"
 
       buildah_retries=3
@@ -1008,6 +1035,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1023,6 +1051,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then
