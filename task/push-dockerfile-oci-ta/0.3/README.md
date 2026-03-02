@@ -12,6 +12,7 @@ Discover Dockerfile from source code and push it to registry as an OCI artifact.
 |DOCKERFILE|Path to the Dockerfile.|./Dockerfile|false|
 |IMAGE|The built binary image. The Dockerfile is pushed to the same image repository alongside.||true|
 |IMAGE_DIGEST|The built binary image digest, which is used to construct the tag of Dockerfile image.||true|
+|LOG_LEVEL|Log level to use in the task. See golang logrus docs for available levels.|info|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |TAG_SUFFIX|Suffix of the Dockerfile image tag.|.dockerfile|false|
 

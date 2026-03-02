@@ -11,6 +11,10 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3
+
+- Embedded Bash script is replaced with command `konflux-build-cli image push-containerfile`.
+
 ## 0.2
 
 ### Removed
