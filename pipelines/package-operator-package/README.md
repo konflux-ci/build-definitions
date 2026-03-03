@@ -16,7 +16,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
 |output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.2:input|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
 
@@ -124,7 +124,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |DST_URL| URL where to push the generated pko package to.| None| '$(params.output-image)'|
 |LABELS| Additional key=value labels to add to the OCI image.| []| '['$(params.labels[*])']'|
 |SRC_PATH| Path of the directory within the repository that contains package manifest.| None| '$(params.path-context)'|
-### prefetch-dependencies:0.2 task parameters
+### prefetch-dependencies:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -342,9 +342,9 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.2:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.2:netrc|
-|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.2:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.3:netrc|
+|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.3:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.4:workspace ; sast-coverity-check:0.3:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.1 task workspaces
 |name|description|optional|workspace from pipeline
@@ -356,7 +356,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### prefetch-dependencies:0.2 task workspaces
+### prefetch-dependencies:0.3 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
