@@ -88,7 +88,7 @@ spec:
         mountPath: /mnt/trusted-ca
         readOnly: true
   steps:
-  - image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+  - image: quay.io/mkosiarc_rhtap/konflux-build-cli:test@sha256:96db06b5a7ce8f15ef46183f0620c67d97d512b62482a32515ce8e1ea43e66b3
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     name: build
@@ -117,111 +117,34 @@ spec:
         update-ca-trust
       fi
 
-      if [[ $# -ne 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
-        echo "Skipping image index generation while supplying multiple image inputs is unsupported."
-        exit 2
-      fi
+      cli_args=(
+        "image" "build-image-index"
+        "--image" "$IMAGE"
+        "--tls-verify" "$TLSVERIFY"
+        "--buildah-format" "$BUILDAH_FORMAT"
+        "--always-build-index" "$ALWAYS_BUILD_INDEX"
+        "--additional-tags" "$(context.taskRun.name)"
+        "--output-manifest-path" "/index-build-data/manifest_data.json"
+      )
 
-      buildah manifest create "$IMAGE"
-      for i in $@
-      do
-        TOADD="$i"
-        TOADD_URL="$(echo "$i" | cut -d@ -f1)"
-        TOADD_DIGEST="$(echo "$i" | cut -d@ -f2)"
-        if [[ $(echo "$i" | tr -cd ":" | wc -c) == 2 ]]; then
-          #format is repository:tag@sha256:digest
-          #we need to remove the tag, and just reference the digest
-          #as tag + digest is not supported
-          TOADD_REPOSITORY="$(echo "$i" | cut -d: -f1)"
-          TOADD="${TOADD_REPOSITORY}@${TOADD_DIGEST}"
-        fi
-        if [[ "$ALWAYS_BUILD_INDEX" != "true" ]]; then
-          echo "Skipping image index generation. Returning results for $TOADD."
-          echo -n "${TOADD_URL}" > "$(results.IMAGE_URL.path)"
-          echo -n "${TOADD_DIGEST}" > "$(results.IMAGE_DIGEST.path)"
-          echo -n "${TOADD}" > "$(results.IMAGES.path)"
-          exit 0
-        fi
-
-        echo "Adding $TOADD"
-        buildah manifest add $IMAGE "docker://$TOADD" --all
+      for image in "$@"; do
+        cli_args+=("--images" "$image")
       done
 
-      echo "Validating format consistency"
-      INCOMPATIBLE_STRING="vnd.oci.image.manifest"
-      INCOMPATIBLE_NAME="oci"
-      if [ "$BUILDAH_FORMAT" == "oci" ]; then
-        INCOMPATIBLE_STRING="vnd.docker.distribution.manifest"
-        INCOMPATIBLE_NAME="docker"
-      fi
-
-      # If mismatched formats (e.g., Docker manifests within an OCI index) exist locally, 'buildah push'
-      # converts the inner manifests to match the target BUILDAH_FORMAT.
-      # This alters the digests and breaks the link to the attached SBOMs.
-      MANIFEST_MEDIA_TYPES=$(buildah manifest inspect "$IMAGE" | jq -er '.manifests[].mediaType')
-      if echo "$MANIFEST_MEDIA_TYPES" | grep -q "$INCOMPATIBLE_STRING"; then
-        echo "ERROR: Platform image contains $INCOMPATIBLE_NAME format, but index will be $BUILDAH_FORMAT"
-        echo "This will cause digest changes and break SBOM accessibility."
-        echo "Ensure all platform images are built with buildah-format: $BUILDAH_FORMAT"
+      echo "Running konflux-build-cli"
+      if ! konflux-build-cli "${cli_args[@]}" | tee /tmp/cli-output.json; then
+        echo "Failed to build image index"
         exit 1
       fi
 
-      # While the BUILDAH_FORMAT environment variable can define the push
-      # format, lets be explicit about the format that we want when we push.
-      push_format=oci
-      if [ "${BUILDAH_FORMAT}" == "docker" ]; then
-        push_format=docker
-      fi
-
-      buildah_retries=3
-
-      echo "Pushing image to registry"
-      if ! retry buildah manifest push \
-        --format="$push_format" \
-        --retry "$buildah_retries" \
-        --tls-verify="$TLSVERIFY" \
-        --digestfile image-digest \
-        "$IMAGE" \
-        "docker://$IMAGE"
-      then
-          echo "Failed to push image ${IMAGE} to registry"
-          exit 1
-      fi
-
-      echo "Pushing image to registry"
-      if ! retry buildah manifest push \
-        --format="$push_format" \
-        --retry "$buildah_retries" \
-        --tls-verify="$TLSVERIFY" \
-        --digestfile image-digest \
-        "$IMAGE" \
-        "docker://${IMAGE%:*}:$(context.taskRun.name)"
-      then
-          echo "Failed to push image ${IMAGE%:*}:$(context.taskRun.name) to registry"
-          exit 1
-      fi
-
-      INDEX_REPOSITORY="$(echo "$IMAGE" | cut -d@ -f1 | cut -d: -f1)"
-      MANIFEST_DIGESTS=$(buildah manifest inspect "$IMAGE" | jq -er ".manifests[].digest")
-      image_manifests=""
-      for i in $MANIFEST_DIGESTS
-      do
-        image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
-      done
-
-      tee "$(results.IMAGE_DIGEST.path)" < image-digest
-      echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-      {
-        echo -n "${IMAGE}@"
-        cat "image-digest"
-      } > "$(results.IMAGE_REF.path)"
-      echo -n "${image_manifests:1:-1}" > "$(results.IMAGES.path)"
-
-      # buildah manifest inspect will always give precedence to the local image.
-      # Since we built this image in the same place as we are inspecting it, we can
-      # just inspect it instead of finding the digest and inspecting the remote image.
-      buildah manifest inspect "$IMAGE" > /index-build-data/manifest_data.json
+      # Parse JSON results and write to Tekton results
+      echo "Parsing results..."
+      printf '%s' "$(jq -r '.image_digest' /tmp/cli-output.json)" > "$(results.IMAGE_DIGEST.path)"
+      printf '%s' "$(jq -r '.image_url' /tmp/cli-output.json)" > "$(results.IMAGE_URL.path)"
+      printf '%s' "$(jq -r '.image_ref' /tmp/cli-output.json)" > "$(results.IMAGE_REF.path)"
+      printf '%s' "$(jq -r '.images' /tmp/cli-output.json)" > "$(results.IMAGES.path)"
     securityContext:
+      runAsUser: 0
       capabilities:
         add:
           - SETFCAP
