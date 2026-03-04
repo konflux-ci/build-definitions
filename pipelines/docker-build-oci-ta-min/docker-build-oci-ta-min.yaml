@@ -335,24 +335,6 @@ spec:
     taskRef:
       name: apply-tags
       version: "0.3"
-  - name: push-dockerfile
-    params:
-    - name: IMAGE
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: DOCKERFILE
-      value: $(params.dockerfile)
-    - name: CONTEXT
-      value: $(params.path-context)
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: push-dockerfile-oci-ta
-      version: "0.3"
-    workspaces: []
   - name: rpms-signature-scan
     params:
     - name: image-url
