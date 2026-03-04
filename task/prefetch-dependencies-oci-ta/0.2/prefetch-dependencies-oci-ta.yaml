@@ -116,13 +116,15 @@ spec:
         - name: SOURCE_ARTIFACT
           value: $(params.SOURCE_ARTIFACT)
       script: |
+        #!/bin/bash
+
         if [ -z "${INPUT}" ]; then
           mkdir -p /var/workdir/source
           mkdir -p /var/workdir/cachi2
           echo "true" >/var/workdir/source/.skip-trusted-artifacts
           echo "true" >/var/workdir/cachi2/.skip-trusted-artifacts
-          echo -n "${SOURCE_ARTIFACT}" >$(results.SOURCE_ARTIFACT.path)
-          echo -n "" >$(results.CACHI2_ARTIFACT.path)
+          echo -n "${SOURCE_ARTIFACT}" >"$(results.SOURCE_ARTIFACT.path)"
+          echo -n "" >"$(results.CACHI2_ARTIFACT.path)"
         fi
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
@@ -139,7 +141,7 @@ spec:
           yq 'del(.goproxy_url)' <<<"${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
         fi
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.46.2@sha256:449ce7c3196b89c3c44269e6a7ad146b1a7d32cead46503b11f386053187cf51
+      image: quay.io/konflux-ci/hermeto:0.47.0@sha256:2ebf02dd0d795b0645c6d495eef05b8e87904bc5c13e82fa40e528ac0d05e010
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca

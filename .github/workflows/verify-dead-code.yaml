@@ -1,0 +1,23 @@
+name: Validate PR - verify dead code
+'on':
+  pull_request:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+jobs:
+  verify-dead-code:
+    name: Verify no dead code modifications
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install yq
+        uses: mikefarah/yq@7ccaf8e700ce99eb3f0f6cef7f5930a0b3c827cd
+        with:
+          version: 'v4.47.1'
+
+      - name: Verify no dead code modifications
+        run: ./hack/verify-dead-code.sh

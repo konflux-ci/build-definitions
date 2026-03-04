@@ -9,6 +9,7 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 |CONTEXT|Path to the directory to use as context.|.|false|
 |HOME|Value for the HOME environment variable.|/tekton/home|false|
 |STEPS_IMAGE|An optional image to configure task steps with in the bundle|""|false|
+|STEPS_IMAGE_STEP_NAMES|Optional comma- or space-separated step names to update with STEPS_IMAGE. If empty, all step images are updated.|""|false|
 |URL|Source code Git URL||true|
 |REVISION|Revision||true|
 
