@@ -299,17 +299,6 @@ spec:
       values:
       - "false"
     workspaces: []
-  - name: apply-tags
-    params:
-    - name: IMAGE_URL
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: apply-tags
-      version: "0.3"
   - name: rpms-signature-scan
     params:
     - name: image-url
