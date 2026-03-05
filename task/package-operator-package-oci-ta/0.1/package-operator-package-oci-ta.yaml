@@ -21,6 +21,10 @@ spec:
     - name: DST_URL
       description: URL where to push the generated pko package to.
       type: string
+    - name: LABELS
+      description: Additional key=value labels to add to the OCI image.
+      type: array
+      default: []
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -64,7 +68,10 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: build-pkg
-      image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:a003501@sha256:2acd8331cf101ba16a2905e38ac6767275988f64851374ddbe33f037450c9e90
+      image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:fb55c52@sha256:3ac443d3f8b69c50b84e93acf3c8eac76f3c84d00d7cde2276dcbaa8809561bf
+      args:
+        - --labels
+        - $(params.LABELS[*])
       workingDir: /var/workdir/source
       env:
         - name: DST_URL
@@ -77,7 +84,21 @@ spec:
 
         cd "$SRC_PATH"
 
-        digest=$(kubectl-package build --tag "$DST_URL" --push . --output-format digest)
+        label_args=()
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+          --labels)
+            shift
+            while [[ $# -gt 0 && $1 != --* ]]; do
+              label_args+=(--label "$1")
+              shift
+            done
+            ;;
+          *) shift ;;
+          esac
+        done
+
+        digest=$(kubectl-package build --tag "$DST_URL" --push "${label_args[@]}" . --output-format digest)
         echo -n "$digest" >"$(results.IMAGE_DIGEST.path)"
         echo -n "$DST_URL" >"$(results.IMAGE_URL.path)"
         echo -n "$DST_URL@$digest" >"$(results.IMAGE_REF.path)"
