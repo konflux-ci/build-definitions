@@ -156,6 +156,14 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
     default: oci
+  - name: COMPRESSION_FORMAT
+    description: >-
+      Compression format for image layers when pushing to the registry.
+      Valid values: gzip (default, maximum compatibility), zstd (faster decompression),
+      zstd:chunked (enables lazy/partial layer pulling on supported runtimes).
+      When set to gzip or left at default, behaviour is identical to previous versions.
+    type: string
+    default: "gzip"
   - name: ADDITIONAL_BASE_IMAGES
     description: |-
       Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
@@ -960,6 +968,8 @@ spec:
       value: /root
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
     script: |
@@ -989,12 +999,25 @@ spec:
 
       buildah_retries=3
 
+      # Build optional compression args. Empty when COMPRESSION_FORMAT=gzip (default)
+      # so existing behaviour is fully preserved with no flag changes.
+      compression_args=()
+      if [ -n "${COMPRESSION_FORMAT}" ] && [ "${COMPRESSION_FORMAT}" != "gzip" ]; then
+        compression_args+=(--compression-format="${COMPRESSION_FORMAT}")
+        # zstd and zstd:chunked need --force-compression because buildah
+        # defaults to gzip even if the format is re-specified without this flag.
+        if [[ "${COMPRESSION_FORMAT}" == "zstd"* ]]; then
+          compression_args+=(--force-compression)
+        fi
+      fi
+
       # Push to a unique tag based on the TaskRun name to avoid race conditions
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
       if ! retry buildah push \
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${compression_args[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1010,7 +1033,9 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
-        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
+        --digestfile "$(workspaces.source.path)/image-digest" \
+        "${compression_args[@]}" \
+        "$IMAGE" \
         "docker://$IMAGE"
       then
         echo "Failed to push sbom image to $IMAGE"
