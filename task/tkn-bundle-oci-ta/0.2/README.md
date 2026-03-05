@@ -11,6 +11,7 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 |REVISION|Revision||true|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |STEPS_IMAGE|An optional image to configure task steps with in the bundle|""|false|
+|STEPS_IMAGE_STEP_NAMES|Optional comma- or space-separated step names to control which steps are updated with STEPS_IMAGE. If names are prefixed with ! then all steps except those are updated. Otherwise only the listed steps are updated. If empty, all step images are updated.|""|false|
 |URL|Source code Git URL||true|
 
 ## Results

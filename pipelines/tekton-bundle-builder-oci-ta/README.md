@@ -122,6 +122,7 @@
 |REVISION| Revision| None| '$(params.revision)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
+|STEPS_IMAGE_STEP_NAMES| Optional comma- or space-separated step names to control which steps are updated with STEPS_IMAGE. If names are prefixed with ! then all steps except those are updated. Otherwise only the listed steps are updated. If empty, all step images are updated.| ""| |
 |URL| Source code Git URL| None| '$(params.git-url)'|
 
 ## Results

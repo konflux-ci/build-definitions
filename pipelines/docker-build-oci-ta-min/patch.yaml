@@ -64,7 +64,22 @@
   path: /spec/tasks/3/taskRef/name
   value: buildah-oci-ta-min
 
+# build-image-index
+- op: test
+  path: /spec/tasks/4/taskRef/name
+  value: build-image-index
+- op: replace
+  path: /spec/tasks/4/taskRef/name
+  value: build-image-index-min
+
 # Remove unwanted steps (in reverse order)
+
+# push-dockerfile
+- op: test
+  path: /spec/tasks/16/taskRef/name
+  value: push-dockerfile-oci-ta
+- op: remove
+  path: /spec/tasks/16
 
 # coverity-availability-check
 - op: test
@@ -86,3 +101,36 @@
   value: sast-snyk-check-oci-ta
 - op: remove
   path: /spec/tasks/9
+
+# build-source-image
+- op: test
+  path: /spec/tasks/5/taskRef/name
+  value: source-build-oci-ta
+- op: remove
+  path: /spec/tasks/5
+
+# Remove unused params (in reverse order)
+# kustomize build pipelines/docker-build-oci-ta | yq '.spec.params.[].name' | nl -v 0
+#      0	git-url
+#      1	revision
+#      2	output-image
+#      3	path-context
+#      4	dockerfile
+#      5	skip-checks
+#      6	hermetic
+#      7	prefetch-input
+#      8	image-expires-after
+#      9	build-source-image
+#     10	build-image-index
+#     11	buildah-format
+#     12	enable-cache-proxy
+#     13	build-args
+#     14	build-args-file
+#     15	privileged-nested
+
+# build-source-image param
+- op: test
+  path: /spec/params/9/name
+  value: build-source-image
+- op: remove
+  path: /spec/params/9
