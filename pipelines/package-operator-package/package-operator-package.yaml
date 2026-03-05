@@ -62,6 +62,10 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: []
+    description: Additional key=value labels to add to the OCI  image.
+    name: labels
+    type: array
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -117,6 +121,9 @@ spec:
       value: $(params.path-context)
     - name: DST_URL
       value: $(params.output-image)
+    - name: LABELS
+      value:
+      - $(params.labels[*])
     runAfter:
     - prefetch-dependencies
     taskRef:
