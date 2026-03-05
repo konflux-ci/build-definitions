@@ -227,20 +227,6 @@ spec:
       operator: in
       values:
       - "false"
-  - name: ecosystem-cert-preflight-checks
-    params:
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: ecosystem-cert-preflight-checks
-      version: "0.2"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: clamav-scan
     params:
     - name: image-digest
