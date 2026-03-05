@@ -3,6 +3,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
@@ -849,7 +850,7 @@ spec:
           VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
         fi
 
-      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" >> null; then
+      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" > /dev/null; then
         cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
         VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
         echo "Adding the entitlement to the build"

@@ -1,0 +1,14 @@
+---
+base: ../../buildah/0.9/buildah.yaml
+removeParams:
+  - BUILDER_IMAGE
+add:
+  - use-source
+  - use-prefetch
+removeWorkspaces:
+  - source
+useTAVolumeMount: true
+replacements:
+  workspaces.source.path: /var/workdir
+regexReplacements:
+  "/workspace(/.*)": /var/workdir$1

@@ -10,11 +10,12 @@ yq --version | grep -q mikefarah/yq || {
   exit 1
 }
 
-# These 3 need to run in this order. Not for any logical reasons, but simply
+# These 4 need to run in this order. Not for any logical reasons, but simply
 # because of the current state of dependence between the generated tasks
 # and the sources they are generated from.
 hack/build-manifests.sh
 hack/generate-ta-tasks.sh
+hack/build-manifests.sh  # for oci-ta-min variants generated from oci-ta tasks
 hack/generate-buildah-remote.sh
 
 hack/generate-pipelines-readme.py
