@@ -11,6 +11,10 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.1
+
+- Upgrade konflux-build-cli image in order to use Dockerfile as file name in artifact image.
+
 ## 0.3
 
 - Embedded Bash script is replaced with command `konflux-build-cli image push-containerfile`.
