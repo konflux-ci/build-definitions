@@ -309,25 +309,26 @@ spec:
           exit 0
         fi
 
-        # extract the opm binary for operations
-        OPM_BINARIES="$(find "${EXTRACT_DIR}" -type f -name opm)"
-        BINARIES_COUNT=$(wc -l <<< "${OPM_BINARIES}")
-        if [[ $BINARIES_COUNT -ne "1" ]]; then
-            note="Step extract-and-validate failed: Expected exactly one opm binary in base image.  For details, check Tekton task log"
-            ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
-            echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-            echo "found $BINARIES_COUNT opm binaries:"
-            echo "${OPM_BINARIES}"
-            exit 0
-        fi
-        OPM_BINARY=$(echo "${OPM_BINARIES}" | head -n 1)
-        echo "OPM_BINARY: '${OPM_BINARY}'"
-        chmod 775 "$OPM_BINARY"
+        # Get  opm version from ocp-opm mapping
+        OPM_VERSION_NAME=$(ocp_to_opm_version_mapping "$OCP_VER_FROM_BASE")
+        echo "Corrosponding opm version to use for OCP $OCP_VER_FROM_BASE: $OPM_VERSION_NAME"
 
-        # Insert the binary location to the beginning of the path
-        # so that the same binary version is used for all functions
-        mkdir -p /shared/bin/
-        mv "$OPM_BINARY" /shared/bin/opm
+        # Path to the version-specific opm binary
+        SOURCE_OPM="/usr/bin/$OPM_VERSION_NAME"
+        # Ensure that source opm version exists
+        if [[ ! -f "$SOURCE_OPM" ]]; then
+          echo "The binary $SOURCE_OPM was not found in /usr/bin."
+          echo "Available opm versions are:"
+          ls -l /usr/bin/opm*
+
+          note="Step extract-and-validate failed: Required OPM binary ($OPM_VERSION_NAME) was not found in /usr/bin. Check available versions in the task log."
+          ERROR_OUTPUT=$(make_result_json -r ERROR -t "$note")
+          echo "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          exit 0
+        fi
+
+        mkdir -p /shared/bin
+        ln -sf "$SOURCE_OPM" /shared/bin/opm
         export PATH=/shared/bin:$PATH
 
         # We have 10 total checks
