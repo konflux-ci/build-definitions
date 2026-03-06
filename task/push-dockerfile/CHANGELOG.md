@@ -11,6 +11,11 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.1
+
+### Fixed
+- Use Dockerfile as the file name in the uploaded artifact, regardless of the name of the actual file.
+
 ## 0.3
 
 - Embedded Bash script is replaced with command `konflux-build-cli image push-containerfile`.
