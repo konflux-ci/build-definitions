@@ -55,10 +55,6 @@ spec:
     name: image-expires-after
     type: string
   - default: "false"
-    description: Build a source image.
-    name: build-source-image
-    type: string
-  - default: "false"
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
@@ -197,29 +193,8 @@ spec:
     runAfter:
     - build-container
     taskRef:
-      name: build-image-index
+      name: build-image-index-min
       version: "0.2"
-  - name: build-source-image
-    params:
-    - name: BINARY_IMAGE
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: BINARY_IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-    - name: CACHI2_ARTIFACT
-      value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: source-build-oci-ta
-      version: "0.3"
-    when:
-    - input: $(params.build-source-image)
-      operator: in
-      values:
-      - "true"
-    workspaces: []
   - name: deprecated-base-image-check
     params:
     - name: IMAGE_URL
@@ -247,20 +222,6 @@ spec:
     taskRef:
       name: clair-scan
       version: "0.3"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
-  - name: ecosystem-cert-preflight-checks
-    params:
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: ecosystem-cert-preflight-checks
-      version: "0.2"
     when:
     - input: $(params.skip-checks)
       operator: in
@@ -323,35 +284,6 @@ spec:
       operator: in
       values:
       - "false"
-    workspaces: []
-  - name: apply-tags
-    params:
-    - name: IMAGE_URL
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: apply-tags
-      version: "0.3"
-  - name: push-dockerfile
-    params:
-    - name: IMAGE
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: IMAGE_DIGEST
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: DOCKERFILE
-      value: $(params.dockerfile)
-    - name: CONTEXT
-      value: $(params.path-context)
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: push-dockerfile-oci-ta
-      version: "0.3"
     workspaces: []
   - name: rpms-signature-scan
     params:

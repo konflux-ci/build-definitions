@@ -24,6 +24,8 @@ spec:
       type: string
     - name: docker-build-oci-ta-bundle
       type: string
+    - name: docker-build-oci-ta-min-bundle
+      type: string
     - name: docker-build-multi-platform-oci-ta-bundle
       type: string
     - name: fbc-builder-bundle
@@ -40,7 +42,7 @@ spec:
         secretName: konflux-test-infra
   steps:
     - name: e2e-test
-      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:b60e317c0db46b7015de71fe866392f1d0100dd9
+      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:05d04520aa88b380ed3a5a6b0c778d415f60fe9f
       command: ["/konflux-e2e/konflux-e2e.test"]
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
@@ -83,6 +85,8 @@ spec:
         value: "$(params.docker-build-bundle)"
       - name: CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE
         value: "$(params.docker-build-oci-ta-bundle)"
+      - name: CUSTOM_DOCKER_BUILD_OCI_TA_MIN_PIPELINE_BUNDLE
+        value: "$(params.docker-build-oci-ta-min-bundle)"
       - name: CUSTOM_DOCKER_BUILD_OCI_MULTI_PLATFORM_TA_PIPELINE_BUNDLE
         value: "$(params.docker-build-multi-platform-oci-ta-bundle)"
       - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
