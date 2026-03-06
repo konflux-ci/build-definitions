@@ -1,0 +1,120 @@
+---
+# Task: Worker for parallel FIPS checking (used with matrix expansion)
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fbc-fips-check-worker-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |-
+    Worker task for parallel FIPS checking. Processes images from one partition using fips-operator-check-step-action.
+    This task is designed to work with fbc-fips-prepare-oci-ta using matrix expansion on BUCKET_INDEX parameter.
+  params:
+    - name: BUCKETS_ARTIFACT
+      description: OCI reference to buckets artifact
+      type: string
+    - name: BUCKET_INDEX
+      description: Which bucket to process (0, 1, 2, ...)
+      type: string
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel within this bucket
+      type: string
+      default: "2"
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-buckets-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      args:
+        - use
+        - $(params.BUCKETS_ARTIFACT)=/var/workdir/buckets
+
+    - name: prepare-bucket-images
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
+      env:
+        - name: BUCKET_INDEX
+          value: $(params.BUCKET_INDEX)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "=========================================="
+        echo "Preparing bucket ${BUCKET_INDEX} for FIPS check"
+        echo "=========================================="
+
+        bucket_file="/var/workdir/buckets/bucket-${BUCKET_INDEX}.txt"
+
+        if [ ! -f "${bucket_file}" ]; then
+          echo "ERROR: Bucket file not found: ${bucket_file}"
+          echo "Available files:"
+          ls -la /var/workdir/buckets/ || true
+          exit 1
+        fi
+
+        # Read images from bucket file
+        readarray -t bucket_images < "${bucket_file}"
+        num_images=${#bucket_images[@]}
+
+        echo "Bucket ${BUCKET_INDEX} contains ${num_images} images"
+
+        # Prepare for fips-operator-check-step-action (space-separated)
+        mkdir -p /tekton/home
+        printf '%s ' "${bucket_images[@]}" > /tekton/home/unique_related_images.txt
+
+        # Copy metadata if available
+        if [ -f /var/workdir/buckets/target_ocp_version.txt ]; then
+          cp /var/workdir/buckets/target_ocp_version.txt /tekton/home/
+          echo "Target OCP version: $(cat /tekton/home/target_ocp_version.txt)"
+        fi
+        if [ -f /var/workdir/buckets/related-images-map.txt ]; then
+          cp /var/workdir/buckets/related-images-map.txt /tekton/home/
+        fi
+
+        echo "Ready to process ${num_images} images"
+
+    - name: fips-operator-check-step-action
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
+      computeResources:
+        limits:
+          cpu: "2"
+          memory: 12Gi
+        requests:
+          cpu: "2"
+          memory: 12Gi
+      ref:
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions
+          - name: revision
+            value: a952cddd07e464fd3b689f59b85ac9981ec68ee1
+          - name: pathInRepo
+            value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
+        resolver: git
+
+    - name: output-results
+      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
+      env:
+        - name: BUCKET_INDEX
+          value: $(params.BUCKET_INDEX)
+        - name: STEP_ACTION_OUTPUT
+          value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "Bucket ${BUCKET_INDEX} FIPS check complete"
+        echo "${STEP_ACTION_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
