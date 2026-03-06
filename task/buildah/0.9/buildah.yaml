@@ -156,6 +156,24 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
     default: oci
+  - name: COMPRESSION_FORMAT
+    description: >-
+      Compression format for image layers when pushing to the registry.
+      Valid values: gzip (default, maximum compatibility), zstd (faster decompression),
+      zstd:chunked (enables lazy/partial layer pulling on supported runtimes).
+      When set to gzip or left at default, behaviour is identical to previous versions.
+    type: string
+    default: "gzip"
+  - name: ENABLE_ZSTD_CHUNKED
+    description: >-
+      When "true", creates a manifest index after the regular push and re-pushes
+      the image with zstd:chunked compression as an additional variant under the
+      same tag. Modern runtimes (podman >= 4, containerd >= 1.7) will use the
+      zstd:chunked variant for lazy pulling; legacy clients fall back to the
+      existing gzip manifest automatically. Has no effect when COMPRESSION_FORMAT
+      is already set to zstd or zstd:chunked.
+    type: string
+    default: "false"
   - name: ADDITIONAL_BASE_IMAGES
     description: |-
       Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
@@ -960,6 +978,10 @@ spec:
       value: /root
     - name: BUILDAH_FORMAT
       value: $(params.BUILDAH_FORMAT)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
+    - name: ENABLE_ZSTD_CHUNKED
+      value: $(params.ENABLE_ZSTD_CHUNKED)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
     script: |
@@ -989,12 +1011,25 @@ spec:
 
       buildah_retries=3
 
+      # Build optional compression args. Empty when COMPRESSION_FORMAT=gzip (default)
+      # so existing behaviour is fully preserved with no flag changes.
+      compression_args=()
+      if [ -n "${COMPRESSION_FORMAT}" ] && [ "${COMPRESSION_FORMAT}" != "gzip" ]; then
+        compression_args+=(--compression-format="${COMPRESSION_FORMAT}")
+        # zstd and zstd:chunked need --force-compression because buildah
+        # defaults to gzip even if the format is re-specified without this flag.
+        if [[ "${COMPRESSION_FORMAT}" == "zstd"* ]]; then
+          compression_args+=(--force-compression)
+        fi
+      fi
+
       # Push to a unique tag based on the TaskRun name to avoid race conditions
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
       if ! retry buildah push \
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${compression_args[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1010,7 +1045,9 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
-        --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
+        --digestfile "$(workspaces.source.path)/image-digest" \
+        "${compression_args[@]}" \
+        "$IMAGE" \
         "docker://$IMAGE"
       then
         echo "Failed to push sbom image to $IMAGE"
@@ -1024,6 +1061,50 @@ spec:
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
       echo
+
+      # ── zstd:chunked manifest workflow ──────────────────────────────────────
+      # When ENABLE_ZSTD_CHUNKED=true, create a manifest index that contains:
+      #   - the already-pushed image (gzip, for legacy client compatibility)
+      #   - a re-compressed zstd:chunked variant (for lazy-pull capable runtimes)
+      # The index is pushed under the same IMAGE tag so clients auto-select the
+      # best variant. IMAGE_DIGEST and IMAGE_REF are updated to point to the
+      # index digest so downstream steps (cosign, SBOM, EC) reference the index.
+      if [ "${ENABLE_ZSTD_CHUNKED}" = "true" ] && [ "${COMPRESSION_FORMAT}" = "gzip" ]; then
+        echo "[$(date --utc -Ins)] Creating zstd:chunked manifest index"
+
+        manifest_name="konflux-zstd-manifest-${TASKRUN_NAME}"
+
+        # Create a fresh manifest list and add the gzip image we just pushed
+        buildah manifest create "${manifest_name}"
+        buildah manifest add "${manifest_name}" "docker://$IMAGE"
+
+        # Push the index — buildah will generate and upload the zstd:chunked
+        # variant automatically alongside the existing gzip manifest
+        if ! retry buildah manifest push \
+          --all \
+          --add-compression zstd:chunked \
+          --format="$push_format" \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile "$(workspaces.source.path)/image-digest-index" \
+          "${manifest_name}" \
+          "docker://$IMAGE"
+        then
+          echo "Failed to push zstd:chunked manifest index for $IMAGE" >&2
+          exit 1
+        fi
+
+        # Overwrite results with the index digest so cosign, SBOM, and EC
+        # policies all reference the manifest index, not the single-arch gzip image
+        tee "$(results.IMAGE_DIGEST.path)" < "$(workspaces.source.path)"/image-digest-index
+        {
+          echo -n "${IMAGE}@"
+          cat "$(workspaces.source.path)/image-digest-index"
+        } > "$(results.IMAGE_REF.path)"
+
+        echo "[$(date --utc -Ins)] zstd:chunked manifest index pushed: $(cat "$(workspaces.source.path)/image-digest-index")"
+      fi
+      # ── end zstd:chunked manifest workflow ──────────────────────────────────
 
       # detect if keyless signing is required
       SIGNING_CONFIG='{}'
