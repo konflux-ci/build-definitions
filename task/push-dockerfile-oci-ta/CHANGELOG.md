@@ -13,7 +13,8 @@ If that's not something you ever plan to do, consider removing this section.
 
 ## 0.3.1
 
-- Upgrade konflux-build-cli image in order to use Dockerfile as file name in artifact image.
+### Fixed
+- Use Dockerfile as the file name in the uploaded artifact, regardless of the name of the actual file.
 
 ## 0.3
 
