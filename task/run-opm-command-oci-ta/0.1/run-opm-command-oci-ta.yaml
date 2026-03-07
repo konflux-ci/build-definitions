@@ -72,12 +72,12 @@ spec:
         subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fdc2937a1aa16d5953038043f587708578ab461ae107193f679ffe0eef8b6053
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: run-opm-with-user-args
-      image: quay.io/konflux-ci/operator-sdk-builder:latest@sha256:e08de236089a3756535b5be1abacc3f465b1f5771efd8a40c7a2dae4febd67d7
+      image: quay.io/konflux-ci/operator-sdk-builder:latest@sha256:2737ff035f3a6d94e189cd31e7653998525c52f4d4db994ba1874a3a74bb4912
       workingDir: /var/workdir/source
       results:
         - name: skip_create_trusted_artifact
@@ -132,7 +132,7 @@ spec:
         - "bash"
         - $(params.OPM_ARGS[*])
     - name: convert-image-tags-to-digests
-      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      image: quay.io/konflux-ci/konflux-test:v1.4.49@sha256:74899c7a3dde27548e1ad9c665055bfef56c227251bd9224885f4bbd7addebd9
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -277,7 +277,7 @@ spec:
         load_utils
         convert_tags_to_digests
     - name: replace-related-images-pullspec-in-file
-      image: quay.io/konflux-ci/konflux-test:v1.4.44@sha256:00d5ba3ac4fadb315da2199e931c1167f2b45884d2990de39104dfa9b78117d4
+      image: quay.io/konflux-ci/konflux-test:v1.4.49@sha256:74899c7a3dde27548e1ad9c665055bfef56c227251bd9224885f4bbd7addebd9
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -311,7 +311,7 @@ spec:
           echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
           replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fdc2937a1aa16d5953038043f587708578ab461ae107193f679ffe0eef8b6053
       when:
         - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
           operator: in
