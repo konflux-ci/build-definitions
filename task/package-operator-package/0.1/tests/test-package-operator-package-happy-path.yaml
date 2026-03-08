@@ -37,6 +37,9 @@ spec:
           value: "config/packages/test-stub"
         - name: DST_URL
           value: registry-service.kind-registry/test-stub:latest
+        - name: LABELS
+          value:
+            - "test-label=test-value"
       workspaces:
         - name: source
           workspace: tests-workspace
@@ -64,7 +67,10 @@ spec:
               readOnly: true
         steps:
           - name: run-package-operator-package-test
-            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
             script: |
               #!/usr/bin/env bash
               set -eu
@@ -72,6 +78,15 @@ spec:
               cd image
               oc image extract "$(params.DST_URL)"
               [ -f package/manifest.yaml ]
+              echo "Package contents verified"
+
+              echo "Verifying OCI labels..."
+              label_value=$(skopeo inspect --tls-verify=false "docker://$(params.DST_URL)" | jq -r '.Labels["test-label"]')
+              if [ "$label_value" != "test-value" ]; then
+                echo "FAIL: expected label test-label=test-value, got test-label=$label_value"
+                exit 1
+              fi
+              echo "Labels verified"
               echo "pass"
       runAfter:
         - run-package-operator-package

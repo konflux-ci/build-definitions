@@ -10,6 +10,7 @@ and push the created package to the given OCI registry destination.
 |name|description|default value|required|
 |---|---|---|---|
 |DST_URL|URL where to push the generated pko package to.||true|
+|LABELS|Additional key=value labels to add to the OCI image.|[]|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
 |SRC_PATH|Path of the directory within the repository that contains package manifest.||true|
 
