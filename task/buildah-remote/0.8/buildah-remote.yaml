@@ -7,7 +7,7 @@ metadata:
     tekton.dev/tags: image-build, konflux
   creationTimestamp: null
   labels:
-    app.kubernetes.io/version: 0.8.3
+    app.kubernetes.io/version: 0.8.4
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -854,7 +854,7 @@ spec:
 
       printf '%s\n' "${label_pairs[@]}" | jq -Rn '
         [ inputs | select(length>0) ]
-      | map( split("=") | {(.[0]): (.[1] // "")} )
+      | map( split("=") | {(.[0]): (.[1:] | join("="))} )
         | add' >"image_labels.json"
 
       jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"

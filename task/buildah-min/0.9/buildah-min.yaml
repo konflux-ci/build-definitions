@@ -6,7 +6,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.9.1
+    app.kubernetes.io/version: 0.9.2
     build.appstudio.redhat.com/build_type: docker
   name: buildah-min
 spec:
@@ -757,7 +757,7 @@ spec:
 
       printf '%s\n' "${label_pairs[@]}" | jq -Rn '
         [ inputs | select(length>0) ]
-      | map( split("=") | {(.[0]): (.[1] // "")} )
+      | map( split("=") | {(.[0]): (.[1:] | join("="))} )
         | add' >"image_labels.json"
 
       jq -s '(.[0] // {}) * (.[1] // {})' "base_images_labels.json" "image_labels.json" >"$SOURCE_CODE_DIR/$CONTEXT/labels.json"

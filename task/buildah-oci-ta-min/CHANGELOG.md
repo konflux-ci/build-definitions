@@ -11,6 +11,12 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.1 - 2026-03-10
+
+### Fixed
+
+- Preserve label values containing equals signs in labels.json
+
 ## 0.9.0
 
 ### Added
