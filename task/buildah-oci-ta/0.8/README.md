@@ -52,6 +52,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |TLSVERIFY|Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)|true|false|
+|UNSET_LABELS|List of label names to remove from the base image. By default, common base image labels are removed so the final image does not look like the parent image. Provide your own list to override the defaults, or use an empty array to keep all base image labels.|["name","release","version","summary","description","url","maintainer","com.redhat.component","com.redhat.license_terms","io.k8s.display-name","io.k8s.description","io.openshift.tags","io.openshift.expose-services","distribution-scope","vendor"]|false|
 |WORKINGDIR_MOUNT|Mount the current working directory into the build using --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context directory for the build (see the CONTEXT param).|""|false|
 |YUM_REPOS_D_FETCHED|Path in source workspace where dynamically-fetched repos are present|fetched.repos.d|false|
 |YUM_REPOS_D_SRC|Path in the git repository in which yum repository files are stored|repos.d|false|
