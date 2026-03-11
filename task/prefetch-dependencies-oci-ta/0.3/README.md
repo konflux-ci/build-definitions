@@ -11,7 +11,7 @@ Task that prefetches project dependencies for hermetic build.
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |config-file-content|Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! |""|false|
 |input|Configures project packages that will have their dependencies prefetched.||true|
-|log-level|Set prefetch tool log level (debug, info, warning, error)|info|false|
+|log-level|Set the logging level (debug, info, warn, error, fatal).|debug|false|
 |mode|Control how input requirement violations are handled: strict (errors) or permissive (warnings).|strict|false|
 |ociArtifactExpiresAfter|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
 |ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
