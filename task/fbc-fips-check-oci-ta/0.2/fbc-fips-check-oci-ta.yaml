@@ -40,10 +40,13 @@ spec:
       default: .tekton/images-mirror-set.yaml
     - name: image-url
       description: Image URL.
-    - name: output-image
-      description: Base image URL for storing artifacts (required for matrix mode)
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
       type: string
-      default: ""
+    - name: ociArtifactExpiresAfter
+      description: Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.
+      type: string
+      default: "1d"
   results:
     - name: IMAGES_PROCESSED
       description: Images processed in the task.
@@ -314,7 +317,10 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
-        # Skip this step in inline mode (NUM_WORKERS=1)
+        # Always create buckets directory (for artifact step)
+        mkdir -p /var/workdir/buckets
+
+        # Skip bucket splitting in inline mode (NUM_WORKERS=1)
         if [ "${NUM_WORKERS}" -le 1 ]; then
           echo "Inline mode (NUM_WORKERS=${NUM_WORKERS}), skipping bucket splitting"
           exit 0
@@ -323,8 +329,6 @@ spec:
         echo "=========================================="
         echo "Splitting images into ${NUM_WORKERS} buckets"
         echo "=========================================="
-
-        mkdir -p /var/workdir/buckets
 
         # Helper function to generate bucket indices JSON
         generate_bucket_indices() {
@@ -413,13 +417,13 @@ spec:
 
                 if size=$(skopeo inspect "docker://${replaced_image}" 2>/dev/null | jq '[.LayersData[]?.Size // 0] | add // 0' 2>/dev/null); then
                   if [ "$size" -gt 0 ]; then
-                    echo "  ✓ Mirror succeeded, size: $((size / 1024 / 1024)) MB" >&2
+                    echo "  Mirror succeeded, size: $((size / 1024 / 1024)) MB" >&2
                     # Return original image reference with mirror's size
                     echo "${img}|${size}"
                     return 0
                   fi
                 fi
-                echo "  ✗ Mirror failed or returned size 0" >&2
+                echo "  Mirror failed or returned size 0" >&2
               done
             fi
           fi
@@ -471,8 +475,6 @@ spec:
           weights[min_bucket]=$((weights[min_bucket] + size))
         done
 
-        # Report
-        echo ""
         echo "Bucket distribution:"
         for ((i=0; i<NUM_WORKERS; i++)); do
           count=$(wc -l < "/var/workdir/buckets/bucket-${i}.txt")
@@ -501,29 +503,13 @@ spec:
     - name: create-buckets-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
       env:
-        - name: NUM_WORKERS
-          value: $(params.NUM_WORKERS)
-        - name: OUTPUT_IMAGE
-          value: $(params.output-image)
-        - name: BUCKETS_ARTIFACT_PATH
-          value: $(results.BUCKETS_ARTIFACT.path)
-      script: |
-        #!/usr/bin/env bash
-        set -euo pipefail
-
-        # Skip this step in inline mode (NUM_WORKERS=1)
-        if [ "${NUM_WORKERS}" -le 1 ]; then
-          echo "Inline mode (NUM_WORKERS=${NUM_WORKERS}), skipping artifact creation"
-          exit 0
-        fi
-
-        if [ -z "${OUTPUT_IMAGE}" ]; then
-          echo "ERROR: output-image parameter is required for matrix mode"
-          exit 1
-        fi
-
-        # Run the trusted artifacts create command
-        exec /usr/bin/create-archive --store "${OUTPUT_IMAGE}-fips-buckets" "${BUCKETS_ARTIFACT_PATH}=/var/workdir/buckets"
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.ociArtifactExpiresAfter)
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.BUCKETS_ARTIFACT.path)=/var/workdir/buckets
 
     - name: fips-operator-check-step-action
       params:
@@ -557,9 +543,9 @@ spec:
         #!/usr/bin/env bash
         set -euo pipefail
 
-        # In matrix mode, skip result parsing (workers handle this)
+        # Skip in matrix mode (workers handle results)
         if [ "${NUM_WORKERS}" -gt 1 ]; then
-          echo "Matrix mode (NUM_WORKERS=${NUM_WORKERS}), skipping inline result parsing"
+          echo "Matrix mode (NUM_WORKERS=${NUM_WORKERS}), skipping result parsing"
           exit 0
         fi
 

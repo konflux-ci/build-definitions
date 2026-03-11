@@ -7,7 +7,7 @@ Version 0.2 introduces dual-mode support via the `NUM_WORKERS` parameter, enabli
 - **`NUM_WORKERS` parameter**: Controls the execution mode
   - `NUM_WORKERS=1` (default): Inline mode - runs FIPS check directly in this task (same as 0.1)
   - `NUM_WORKERS>1`: Matrix mode - splits images into buckets for parallel processing with `fbc-fips-check-worker-oci-ta` tasks
-- **New parameters for matrix mode**: `SIZE_FETCH_PARALLEL`, `output-image`
+- **New parameters for matrix mode**: `SIZE_FETCH_PARALLEL`, `ociStorage`, `ociArtifactExpiresAfter`
 - **New results for matrix mode**: `BUCKETS_ARTIFACT`, `BUCKET_INDICES`, `TOTAL_IMAGES`
 
 ## Action from users
@@ -19,7 +19,7 @@ Version 0.2 introduces dual-mode support via the `NUM_WORKERS` parameter, enabli
 If you have many large images and want to speed up FIPS checking, you can enable matrix mode:
 
 1. Set `NUM_WORKERS` to the desired number of parallel workers (e.g., `"4"`)
-2. Add `output-image` parameter pointing to your output image URL
+2. Add `ociStorage` parameter pointing to your OCI storage URL
 3. Add `fbc-fips-check-worker-oci-ta` tasks with matrix expansion
 
 Example pipeline configuration for matrix mode:
@@ -34,7 +34,7 @@ Example pipeline configuration for matrix mode:
       value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: SOURCE_ARTIFACT
       value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
-    - name: output-image
+    - name: ociStorage
       value: $(params.output-image)
     - name: NUM_WORKERS
       value: "4"
