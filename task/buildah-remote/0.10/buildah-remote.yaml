@@ -241,6 +241,10 @@ spec:
       that the canonical Containerfile takes care of this itself.
     name: SKIP_INJECTIONS
     type: string
+  - default: info
+    description: Log level for the build command.
+    name: LOG_LEVEL
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -268,6 +272,8 @@ spec:
         cpu: "1"
         memory: 4Gi
     env:
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
@@ -1075,6 +1081,7 @@ spec:
         # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters
         ssh $SSH_ARGS "$SSH_HOST" $PORT_FORWARD podman  run $PODMAN_PORT_FORWARD \
           --tmpfs /run/secrets \
+          -e KBC_LOG_LEVEL="${KBC_LOG_LEVEL@Q}" \
           -e STORAGE_DRIVER="${STORAGE_DRIVER@Q}" \
           -e HERMETIC="${HERMETIC@Q}" \
           -e SOURCE_CODE_DIR="${SOURCE_CODE_DIR@Q}" \

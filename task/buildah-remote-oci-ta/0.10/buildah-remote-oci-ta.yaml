@@ -120,6 +120,10 @@ spec:
     description: Additional key=value labels that should be applied to the image
     name: LABELS
     type: array
+  - default: info
+    description: Log level for the build command.
+    name: LOG_LEVEL
+    type: string
   - default: ""
     description: Comma separated list of hosts or domains which should bypass the
       HTTP/HTTPS proxy.
@@ -303,6 +307,8 @@ spec:
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: INHERIT_BASE_IMAGE_LABELS
       value: $(params.INHERIT_BASE_IMAGE_LABELS)
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
     - name: SBOM_SKIP_VALIDATION
@@ -1122,6 +1128,7 @@ spec:
           -e IMAGE="${IMAGE@Q}" \
           -e IMAGE_EXPIRES_AFTER="${IMAGE_EXPIRES_AFTER@Q}" \
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
+          -e KBC_LOG_LEVEL="${KBC_LOG_LEVEL@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
           -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \

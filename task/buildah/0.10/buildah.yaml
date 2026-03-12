@@ -228,6 +228,10 @@ spec:
       requires that the canonical Containerfile takes care of this itself.
     type: string
     default: "false"
+  - name: LOG_LEVEL
+    description: Log level for the build command.
+    type: string
+    default: info
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -249,6 +253,8 @@ spec:
     - mountPath: /shared
       name: shared
     env:
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC

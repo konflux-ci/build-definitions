@@ -242,6 +242,10 @@ spec:
       that the canonical Containerfile takes care of this itself.
     name: SKIP_INJECTIONS
     type: string
+  - default: info
+    description: Log level for the build command.
+    name: LOG_LEVEL
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -261,6 +265,8 @@ spec:
         cpu: 100m
         memory: 512Mi
     env:
+    - name: KBC_LOG_LEVEL
+      value: $(params.LOG_LEVEL)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
     - name: HERMETIC
