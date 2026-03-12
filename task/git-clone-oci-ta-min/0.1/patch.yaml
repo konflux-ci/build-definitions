@@ -1,0 +1,20 @@
+- op: replace
+  path: /metadata/name
+  value: git-clone-oci-ta-min
+# kustomize build task/git-clone-oci-ta/0.1 | yq '.spec.steps.[].name' | nl -v 0 
+#      0	clone
+#      1	symlink-check
+#      2	create-trusted-artifact
+# create-trusted-artifact step
+- op: test
+  path: /spec/steps/2/name
+  value: create-trusted-artifact
+- op: replace
+  path: /spec/steps/2/computeResources/limits/memory
+  value: 256Mi
+- op: replace
+  path: /spec/steps/2/computeResources/requests/memory
+  value: 256Mi
+- op: replace
+  path: /spec/steps/2/computeResources/requests/cpu
+  value: 100m

@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.2.1"
+    app.kubernetes.io/version: "0.2.2"
     build.appstudio.redhat.com/build_type: "tkn-bundle"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -27,6 +27,14 @@ spec:
     type: string
     description: An optional image to configure task steps with in the bundle
     default: ""
+  - name: STEPS_IMAGE_STEP_NAMES
+    type: string
+    description: >-
+      Optional comma- or space-separated step names to control which steps
+      are updated with STEPS_IMAGE. If names are prefixed with ! then all
+      steps except those are updated. Otherwise only the listed steps are
+      updated. If empty, all step images are updated.
+    default: ""
   - name: URL
     type: string
     description: Source code Git URL
@@ -49,13 +57,15 @@ spec:
     - name: SOURCE_CODE_DIR
       value: source
   steps:
-  - image: quay.io/konflux-ci/konflux-test:v1.4.42@sha256:32112ba0f1b8a3944f4905be40308713c32beb6c059c42ef0bc2b5fe7947ff2f
+  - image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
     name: modify-task-files
     env:
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: STEPS_IMAGE
       value: $(params.STEPS_IMAGE)
+    - name: STEPS_IMAGE_STEP_NAMES
+      value: $(params.STEPS_IMAGE_STEP_NAMES)
     script: |
       #!/bin/env bash
       set -o errexit
@@ -114,7 +124,56 @@ spec:
 
       if [[ -n "${STEPS_IMAGE}" ]]; then
         for f in "${FILES[@]}"; do
-          yq '(.spec.steps[] | select(has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+          if [[ -n "${STEPS_IMAGE_STEP_NAMES}" ]]; then
+            IFS=', ' read -r -a STEP_NAMES <<<"${STEPS_IMAGE_STEP_NAMES}"
+            # Validate: do not allow mixing include and exclude entries
+            has_include=0
+            has_exclude=0
+            for step_name in "${STEP_NAMES[@]}"; do
+              [[ -z "${step_name}" ]] && continue
+              if [[ "${step_name}" == \!* ]]; then
+                has_exclude=1
+              else
+                has_include=1
+              fi
+            done
+            if [[ $has_include -eq 1 && $has_exclude -eq 1 ]]; then
+              echo "ERROR: STEPS_IMAGE_STEP_NAMES cannot mix include and exclude (!) entries" >&2
+              exit 1
+            fi
+            if [[ $has_exclude -eq 1 ]]; then
+              # Exclude mode: update all steps except the excluded ones
+              EXCLUDE_NAMES=()
+              for step_name in "${STEP_NAMES[@]}"; do
+                [[ -z "${step_name}" ]] && continue
+                EXCLUDE_NAMES+=("${step_name#\!}")
+              done
+              mapfile -t ALL_NAMES < <(yq '.spec.steps[] | select(has("image")) | .name' "$f")
+              for name in "${ALL_NAMES[@]}"; do
+                excluded=0
+                for ex in "${EXCLUDE_NAMES[@]}"; do
+                  if [[ "${name}" == "${ex}" ]]; then
+                    excluded=1
+                    break
+                  fi
+                done
+                if [[ $excluded -eq 0 ]]; then
+                  STEP_NAME="${name}" yq '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+                fi
+              done
+            else
+              # Include mode: update only the named steps
+              for step_name in "${STEP_NAMES[@]}"; do
+                [[ -z "${step_name}" ]] && continue
+                if ! STEP_NAME="${step_name}" yq -e '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")))' "$f" &>/dev/null; then
+                  echo "WARNING: step '${step_name}' does not exist in task file '${f##*/}'" >&2
+                fi
+                STEP_NAME="${step_name}" yq '(.spec.steps[] | select(.name == strenv(STEP_NAME) and has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+              done
+            fi
+          else
+            yq '(.spec.steps[] | select(has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
+          fi
         done
       fi
 

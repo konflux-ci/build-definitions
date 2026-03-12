@@ -68,7 +68,7 @@ spec:
         name: shared
 
   steps:
-  - image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+  - image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
     name: prepare
     computeResources:
       limits:
@@ -105,8 +105,10 @@ spec:
       capabilities:
         add:
           - SETFCAP
+      runAsUser: 0
+      runAsNonRoot: false
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/oras:latest@sha256:4542f5a2a046ca36653749a8985e46744a5d2d36ee10ca14409be718ce15129e
+  - image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
     name: build
     computeResources:
       limits:
@@ -146,6 +148,8 @@ spec:
       capabilities:
         add:
           - SETFCAP
+      runAsUser: 0
+      runAsNonRoot: false
     volumeMounts:
     - name: trusted-ca
       mountPath: /mnt/trusted-ca
@@ -194,7 +198,7 @@ spec:
       readOnly: true
     workingDir: $(workspaces.source.path)
   - name: upload-sbom
-    image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+    image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -234,6 +238,9 @@ spec:
       mountPath: /mnt/trusted-ca
       readOnly: true
     workingDir: $(workspaces.source.path)
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
 
   volumes:
   - name: shared

@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.1
+
+### Changed
+
+- The buildah image now uses version 1.4.1 of [konflux-ci/task-runner](https://github.com/konflux-ci/task-runner)
+  - This version pulls in version 1.42.1 of syft that ensures 'redhat' is used as the namespace for hummingbird rpms
+
 ## 0.9
 
 ### Removed

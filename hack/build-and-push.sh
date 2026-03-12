@@ -713,6 +713,7 @@ do
 
     [ "$pipeline_name" == "docker-build" ] && docker_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "docker-build-oci-ta" ] && docker_oci_ta_pipeline_bundle=$pipeline_bundle
+    [ "$pipeline_name" == "docker-build-oci-ta-min" ] && docker_oci_ta_min_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "docker-build-multi-platform-oci-ta" ] && docker_multi_platform_oci_ta_pipeline_bundle=$pipeline_bundle
     [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
     if [ "$SKIP_DEVEL_TAG" == "" ] && is_official_repo "$QUAY_NAMESPACE" && [ -z "$TEST_REPO_NAME" ]; then
@@ -726,6 +727,7 @@ if [ "$SKIP_INSTALL" == "" ]; then
 
     echo "export CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE=$docker_pipeline_bundle" >> bundle_values.env
     echo "export CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE=$docker_oci_ta_pipeline_bundle" >> bundle_values.env
+    echo "export CUSTOM_DOCKER_BUILD_OCI_TA_MIN_PIPELINE_BUNDLE=$docker_oci_ta_min_pipeline_bundle" >> bundle_values.env
     echo "export CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE=$docker_multi_platform_oci_ta_pipeline_bundle" >> bundle_values.env
     echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" >> bundle_values.env
 fi
