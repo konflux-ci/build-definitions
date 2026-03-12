@@ -415,6 +415,11 @@ spec:
         unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
       }
 
+      # These are no longer used anywhere in the task script (TODO: implement pull-proxy in kbc)
+      # They need to be called somewhere to prevent the ta-generator script from removing them
+      set_proxy
+      unset_proxy
+
       echo "[$(date --utc -Ins)] Validate context path"
 
       if [ -z "$CONTEXT" ]; then
@@ -588,49 +593,7 @@ spec:
           tr -d "'"
       )
 
-      echo "[$(date --utc -Ins)] Validate base image architectures"
-
-      host_arch=$(uname -m)
-      case "$host_arch" in
-      x86_64) oci_arch="amd64" ;;
-      aarch64) oci_arch="arm64" ;;
-      *) oci_arch="$host_arch" ;;
-      esac
-
-      set_proxy
-
-      # Pull each base image and verify its architecture matches the host, prevents building via emulation
-      # Pulled images are then reused when calling buildah build
-      buildah_retries=3
-      for image in $BASE_IMAGES; do
-        if ! retry buildah pull --retry "$buildah_retries" "$image"; then
-          echo "ERROR: Failed to pull base image ${image}" >&2
-          exit 1
-        fi
-
-        if ! image_arch=$(buildah inspect --type=image --format '{{.OCIv1.Architecture}}' "$image"); then
-          echo "ERROR: Failed to inspect base image ${image}" >&2
-          exit 1
-        fi
-
-        # If the image was an index without the correct arch, buildah pull would have already
-        # failed above. This check catches single-arch references.
-        if [ "$image_arch" != "$oci_arch" ]; then
-          echo "ERROR: Base image ${image} has architecture '${image_arch}', expected '${oci_arch}'. Use a multi-arch image reference instead of a single-architecture digest." >&2
-          exit 1
-        fi
-      done
-
-      unset_proxy
-
       BUILDAH_ARGS=()
-      UNSHARE_ARGS=()
-
-      if [ "${HERMETIC}" == "true" ]; then
-        BUILDAH_ARGS+=("--pull=never")
-        UNSHARE_ARGS+=("--net")
-        echo "Build will be executed with network isolation"
-      fi
 
       if [ -n "${TARGET_STAGE}" ]; then
         BUILDAH_ARGS+=("--target=${TARGET_STAGE}")
@@ -659,10 +622,6 @@ spec:
 
       if [ "${SQUASH}" == "true" ]; then
         BUILDAH_ARGS+=("--squash")
-      fi
-
-      if [ "${SKIP_UNUSED_STAGES}" != "true" ]; then
-        BUILDAH_ARGS+=("--skip-unused-stages=false")
       fi
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ]; then
@@ -922,11 +881,13 @@ spec:
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
       declare IMAGE
 
-      cmd_array=(
+      cmd=(
         konflux-build-cli image build
-        -f "$dockerfile_copy" -t "$IMAGE" --context .
+        -f "$dockerfile_copy" -t "$IMAGE" --context "$SOURCE_CODE_DIR/$CONTEXT"
         --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
         --workdir-mount "$WORKINGDIR_MOUNT"
+        --skip-unused-stages="$SKIP_UNUSED_STAGES"
+        --hermetic="$HERMETIC"
         --
         "${VOLUME_MOUNTS[@]}"
         "${BUILDAH_ARGS[@]}"
@@ -936,26 +897,14 @@ spec:
         --ulimit nofile=4096:4096
         --http-proxy=false
       )
-      cmd=$(printf "%q " "${cmd_array[@]}")
-
-      if [ "${HERMETIC}" == "true" ]; then
-        # enabling loopback adapter enables Bazel builds to work in hermetic mode.
-        command="ip link set lo up && $cmd"
-      else
-        command="$cmd"
-      fi
 
       # disable host subcription manager integration
       find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
-      set_proxy
-
       echo "[$(date --utc -Ins)] Run build command"
-      echo "[$(date --utc -Ins)] ${command}"
+      echo "[$(date --utc -Ins)] $(printf '%q ' "${cmd[@]}")"
 
-      unshare -Uf "${UNSHARE_ARGS[@]}" --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -w "${SOURCE_CODE_DIR}/$CONTEXT" --mount -- sh -c "$command"
-
-      unset_proxy
+      "${cmd[@]}"
 
       echo "[$(date --utc -Ins)] Add metadata"
 
