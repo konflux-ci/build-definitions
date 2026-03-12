@@ -124,6 +124,10 @@ spec:
         image
       type: array
       default: []
+    - name: LOG_LEVEL
+      description: Log level for the build command.
+      type: string
+      default: info
     - name: NO_PROXY
       description: Comma separated list of hosts or domains which should bypass
         the HTTP/HTTPS proxy.
@@ -345,6 +349,8 @@ spec:
         value: $(params.IMAGE_EXPIRES_AFTER)
       - name: INHERIT_BASE_IMAGE_LABELS
         value: $(params.INHERIT_BASE_IMAGE_LABELS)
+      - name: KBC_LOG_LEVEL
+        value: $(params.LOG_LEVEL)
       - name: PRIVILEGED_NESTED
         value: $(params.PRIVILEGED_NESTED)
       - name: SBOM_SKIP_VALIDATION
