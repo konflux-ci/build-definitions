@@ -133,7 +133,7 @@ spec:
         fi
         echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for extraction"
 
-        # Detect the first available architecture from the image manifest
+        # Fetch the first available architecture so that the skopeo copy does not fail if the default arch is not available
         first_arch=$(get_first_arch "${sanitized_related_image}")
         echo "Detected architecture for ${sanitized_related_image}: ${first_arch}"
 
@@ -159,7 +159,7 @@ spec:
 
           # Fallback: use skopeo copy + umoci unpack
           oci_dir="/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}"
-          if retry skopeo copy --remove-signatures \
+          if retry skopeo copy --override-arch "${first_arch}" --remove-signatures \
               "docker://${sanitized_related_image}" \
               "oci://${oci_dir}:latest"; then
             if retry umoci raw unpack --rootless \
