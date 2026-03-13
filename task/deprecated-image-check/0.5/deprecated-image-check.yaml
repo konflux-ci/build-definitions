@@ -84,6 +84,10 @@ spec:
             SBOM_FILE_PATH=$(echo "/tmp/sbom-$arch.json")
             arch_imageanddigest=$(echo $imagewithouttag@$arch_sha)
 
+            # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+            mkdir -p /tmp/auth && select-oci-auth "${arch_imageanddigest}" >/tmp/auth/config.json
+            export DOCKER_CONFIG=/tmp/auth
+
             # Get base images from SBOM
             cosign download sbom $arch_imageanddigest > ${SBOM_FILE_PATH}
             if [ $? -ne 0 ]; then
