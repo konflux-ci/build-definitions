@@ -139,6 +139,19 @@ spec:
           exit 1
         fi
         chmod -R g+wx models
+
+        # since several ModelCar archs are produced by different and separate pipeline runs consuming this Task,
+        # in order to achieve analogous optimization of Olot of "layers re-use across archs",
+        # we can set the model files mtime to a fixed timestamp, to achieve analogous result
+        MTIME=$(oras manifest fetch "$MODEL_IMAGE" \
+          --registry-config /model-secret/.dockerconfigjson \
+          | jq -r '.annotations["org.opencontainers.image.created"]' \
+          | tr -d 'TZ:-' \
+          | sed 's/\(..\)$/.\1/')
+        if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
+          MTIME="202601011200.00"
+        fi
+        find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       workingDir: /var/workdir
