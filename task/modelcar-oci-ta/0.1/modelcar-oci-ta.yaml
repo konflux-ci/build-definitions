@@ -56,6 +56,10 @@ spec:
       description: add --remove-originals param to olot
       type: string
       default: "false"
+    - name: MTIME
+      description: Fixed modification time to set on model files, formatted as touch -t value (YYYYMMDDhhmm.ss). Used as fallback when the OCI artifact manifest does not include a created timestamp. Setting a consistent mtime enables layer reuse across architecture builds.
+      type: string
+      default: "202601011200.00"
     - name: IMAGE_APPEND_PLATFORM
       description: Whether to append a sanitized platform architecture on the IMAGE tag
       type: string
@@ -149,7 +153,7 @@ spec:
           | tr -d 'TZ:-' \
           | sed 's/\(..\)$/.\1/')
         if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
-          MTIME="202601011200.00"
+          MTIME="$(params.MTIME)"
         fi
         find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
