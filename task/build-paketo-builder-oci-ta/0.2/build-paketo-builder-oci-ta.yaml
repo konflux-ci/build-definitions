@@ -382,7 +382,7 @@ spec:
         requests:
           cpu: 500m
           memory: 1Gi
-      image: registry.access.redhat.com/rh-syft-tech-preview/syft-rhel9:1.19.0@sha256:070ecb89de5104bb64fbf399a991a975e7d4d7e0cea0f7beb1e591b5591991c8
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       name: sbom-syft-generate
       script: |
         #!/bin/bash
@@ -408,6 +408,9 @@ spec:
 
         echo "Running syft on the image filesystem"
         syft scan oci-dir:/shared/konflux-final-image -o "$syft_sbom_type" > /var/workdir/sbom-image.json
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       volumeMounts:
         - mountPath: /shared
           name: shared
@@ -551,7 +554,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       name: upload-sbom
       script: |
         #!/bin/bash
@@ -573,6 +576,9 @@ spec:
             echo "Failed to push sbom to registry"
             exit 1
         fi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       volumeMounts:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
