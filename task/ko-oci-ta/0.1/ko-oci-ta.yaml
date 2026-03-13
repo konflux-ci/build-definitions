@@ -221,8 +221,11 @@ spec:
 
         echo "[$(date --utc -Ins)] End prepare-sboms"
     - name: upload-sbom
-      image: quay.io/konflux-ci/appstudio-utils:latest@sha256:1862e03b6f55a8b0cf68823b99ddc458b1fa36cd13808e90e5864472254f7ad0
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       workingDir: /var/workdir/source
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           name: trusted-ca
