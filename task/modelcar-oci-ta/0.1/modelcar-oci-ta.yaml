@@ -131,6 +131,9 @@ spec:
         - mountPath: /model-secret
           name: model-secret
       workingDir: /var/workdir
+      env:
+        - name: MTIME_DEFAULT
+          value: $(params.MTIME)
       script: |
         #!/bin/bash
         set -eu
@@ -153,7 +156,7 @@ spec:
           | tr -d 'TZ:-' \
           | sed 's/\(..\)$/.\1/')
         if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
-          MTIME="$(params.MTIME)"
+          MTIME="$MTIME_DEFAULT"
         fi
         find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
