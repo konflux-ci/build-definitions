@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.3"
+    app.kubernetes.io/version: "0.3.1"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -57,7 +57,7 @@ spec:
       readOnly: true
   steps:
   - name: push
-    image: quay.io/konflux-ci/konflux-build-cli@sha256:cbac25972803b3349737b042a9e22da7d748e3bcf98a737baf702b43e0ce0dae
+    image: quay.io/konflux-ci/konflux-build-cli@sha256:b5d20c85efa96affda92b32ca50590aa72231b43484637b2547e2d4c8c808fa0
     workingDir: $(workspaces.workspace.path)
     env:
     - name: KBC_LOG_LEVEL
@@ -86,6 +86,8 @@ spec:
     - $(params.TAG_SUFFIX)
     - --result-path-image-ref
     - $(results.IMAGE_REF.path)
+    - --alternative-filename
+    - Dockerfile
   workspaces:
   - name: workspace
     description: Workspace containing the source code from where the Dockerfile is discovered.

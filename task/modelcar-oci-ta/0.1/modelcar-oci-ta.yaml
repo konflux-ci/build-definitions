@@ -56,6 +56,10 @@ spec:
       description: add --remove-originals param to olot
       type: string
       default: "false"
+    - name: MTIME
+      description: Fixed modification time to set on model files, formatted as touch -t value (YYYYMMDDhhmm.ss). Used as fallback when the OCI artifact manifest does not include a created timestamp. Setting a consistent mtime enables layer reuse across architecture builds.
+      type: string
+      default: "202601011200.00"
     - name: IMAGE_APPEND_PLATFORM
       description: Whether to append a sanitized platform architecture on the IMAGE tag
       type: string
@@ -122,11 +126,14 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
-      image: quay.io/konflux-ci/oras:latest@sha256:a6ebcd58c6eebac8232cdddfdf768bd11f50d6edda29f4be5f5205777ce3bdf1
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
       workingDir: /var/workdir
+      env:
+        - name: MTIME_DEFAULT
+          value: $(params.MTIME)
       script: |
         #!/bin/bash
         set -eu
@@ -139,6 +146,19 @@ spec:
           exit 1
         fi
         chmod -R g+wx models
+
+        # since several ModelCar archs are produced by different and separate pipeline runs consuming this Task,
+        # in order to achieve analogous optimization of Olot of "layers re-use across archs",
+        # we can set the model files mtime to a fixed timestamp, to achieve analogous result
+        MTIME=$(oras manifest fetch "$MODEL_IMAGE" \
+          --registry-config /model-secret/.dockerconfigjson \
+          | jq -r '.annotations["org.opencontainers.image.created"]' \
+          | tr -d 'TZ:-' \
+          | sed 's/\(..\)$/.\1/')
+        if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
+          MTIME="$MTIME_DEFAULT"
+        fi
+        find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       workingDir: /var/workdir
@@ -166,6 +186,9 @@ spec:
 
     - name: copy-model-files
       image: registry.access.redhat.com/ubi9/python-311:9.7-1769430375
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       env:
         - name: OLOT_VERSION
@@ -193,7 +216,7 @@ spec:
         olot --verbose "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
 
     - name: push-image
-      image: quay.io/konflux-ci/oras:latest@sha256:a6ebcd58c6eebac8232cdddfdf768bd11f50d6edda29f4be5f5205777ce3bdf1
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -246,7 +269,7 @@ spec:
           --sbom-type "$SBOM_TYPE"
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -263,7 +286,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/yq:latest@sha256:d41dc95bca693854c811910695665a4336134f11af0d0d6041ed70e4d44df6e6
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
       workingDir: /var/workdir
       script: |
         #!/bin/bash

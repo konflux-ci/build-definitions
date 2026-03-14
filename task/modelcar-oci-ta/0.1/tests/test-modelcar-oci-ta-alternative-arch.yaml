@@ -45,7 +45,7 @@ spec:
               readOnly: true
         steps:
           - name: mock-source
-            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -68,15 +68,16 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/oras:latest@sha256:a6ebcd58c6eebac8232cdddfdf768bd11f50d6edda29f4be5f5205777ce3bdf1
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             workingDir: $(workspaces.tests-workspace.path)
+            command: ["oras"]
             args:
               - push
               - --no-tty
               - $(params.modelPath)
               - source/
           - name: record-model-digest
-            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -164,7 +165,10 @@ spec:
                 value: $(params.IMAGE_URL)
               - name: SBOM_BLOB_URL
                 value: $(params.SBOM_BLOB_URL)
-            image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
             script: |
               #!/usr/bin/env bash
               set -eu
