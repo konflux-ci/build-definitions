@@ -247,12 +247,6 @@ spec:
       # task_dir is where the task definition reside
       # this task run for only one task file, so extracting it from the first element is enough
       task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
-      actual_task_version=$(get_actual_task_version "${FILES[0]}")
-
-      if [[ -z "$actual_task_version" ]]; then
-        printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
-        exit 1
-      fi
 
       # If task is kustomized, generate it and replace the FILES value with the value of the generated task
       # All other files will be ignored.
@@ -261,6 +255,13 @@ spec:
         FILES=("$(generate_kustomized_task "$task_dir")")
       else
         echo "Task is not Kustomized - continue"
+      fi
+
+      actual_task_version=$(get_actual_task_version "${FILES[0]}")
+
+      if [[ -z "$actual_task_version" ]]; then
+        printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
+        exit 1
       fi
 
       # Push migration to registry if there is
