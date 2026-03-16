@@ -44,12 +44,14 @@ spec:
       counter_dir=$(mktemp -d)
       trap 'rm -rf "$counter_dir"' EXIT
 
-      # Function to clean up extracted image directory
+      # Function to clean up OCI image and extracted directory
       cleanup_image_artifacts() {
         local image_num="$1"
         local component_label="$2"
         local version_label="$3"
         local release_label="$4"
+        # Clean up OCI directory (may already be deleted by inline rm, or may not exist)
+        rm -rf "/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
         # Clean up extracted directory (may or may not exist depending on failure point)
         rm -rf "/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
       }
@@ -143,13 +145,13 @@ spec:
 
         # Extract image filesystem using oc image extract, with fallback to skopeo+umoci
         # oc image extract may fail with large images under high parallelism
-        extraction_success=0
+        extraction_success=1
         if oc image extract "${sanitized_related_image}" \
             --path=/:"${extract_dir}" \
             --filter-by-os=".*/${first_arch}" \
             --confirm \
             --preserve-ownership; then
-          extraction_success=1
+          extraction_success=0
           echo "Successfully extracted ${related_image} using oc image extract"
         else
           echo "oc image extract failed for ${related_image}, falling back to skopeo+umoci"
@@ -165,7 +167,7 @@ spec:
             if retry umoci raw unpack --rootless \
                 --image "${oci_dir}:latest" \
                 "${extract_dir}"; then
-              extraction_success=1
+              extraction_success=0
               echo "Successfully extracted ${related_image} using skopeo+umoci fallback"
             else
               echo "umoci unpack failed for ${related_image}"
@@ -177,7 +179,7 @@ spec:
           fi
         fi
 
-        if [[ $extraction_success -eq 0 ]]; then
+        if [[ "${extraction_success}" -ne 0 ]]; then
           echo -e "Error: Unable to scan image: Could not extract filesystem from ${related_image}\n"
           # Clean up any partial extracted directory to prevent resource accumulation
           cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"
