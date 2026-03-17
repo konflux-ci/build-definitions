@@ -477,47 +477,168 @@ attach_migration_file() {
     return 0
 }
 
-# Find previous bundle that has a migration and output its digest.
-find_previous_migration_bundle_digest() {
+
+# Generates task bundle with tag. The result bundle reference can be configured
+# by environment variable TEST_REPO_NAME for testing purpose.
+# Arguments: task_name, task_version
+# Task bundle reference is output to stdout.
+generate_tagged_task_bundle() {
+    local -r task_name=$1 task_version=$2
+    local -r repository=${TEST_REPO_NAME:-task-${task_name}}
+    local -r tag=${TEST_REPO_NAME:+${task_name}-}${task_version}
+    echo "quay.io/${QUAY_NAMESPACE}/${repository}:${tag}"
+}
+
+# Determine current and previous version for a given base task version.
+# If a task has versions 0.1, 0.2, 0.3, 0.4,
+# - for a given version 0.4, function returns 0.4 as current version and 0.3 as previous version.
+# - for a given version 0.1, 0.1 is returned as current version and previous version is empty.
+# Output form:
+# - empty: there is no version directory or given version does not exist.
+# - single version: it is the current version. There is single version of task.
+# - two versions: space-separated current and previous versions in sequence.
+# Arguments:
+# 1. task_name: task name, e.g. init.
+# 2. base_version: determine current and previous version based on it, e.g. 0.2.
+# Always return 0.
+determine_task_versions() {
+    local -r task_name=${1:?Missing task name}
+    local -r base_version=${2:?Missing base version}
+    # Try to list current and previous versions from task directory in ascending order.
+    # Symlinks pointing to archived versions are excluded.
+    if ! find "task/${task_name}/" -mindepth 1 -maxdepth 1 -type d -exec basename '{}' \; |
+        sort -t. -k 1,1n -k 2,2n -k 3,3n |
+        grep -B 1 -E "^${base_version}$" >/tmp/versions.txt
+    then
+        # Task version is not present in task directory.
+        # No version is output to stdout, caller will get both empty current and previous version.
+        return 0
+    fi
+    mapfile -t versions </tmp/versions.txt
+    rm /tmp/versions.txt
+    if [[ ${#versions[@]} -eq 1 ]]; then
+        printf "%s" "${versions[@]}"  # There is only current version
+        return 0
+    fi
+    local prev_version="${versions[0]}"
+    local cur_version="${versions[1]}"
+    printf "%s %s" "$cur_version" "$prev_version"
+    return 0
+}
+
+# Find target bundle for the link
+#
+# A target bundle is the first bundle appearing in an image repository which is built from version
+# that either equals to the task version or is the previous version. For exmaple of bundle tags:
+#
+# 0.2-74426bc524760567d700f9c14ec7deef02e9e57d
+# 0.2
+# 0.3-6bc524760567d700f9c14ec7deef02e9e57d7442
+# 0.3
+# 0.2-4760567d700f9c14ec7deef02e9e57d74426bc52
+# 0.1-9c14ec7deef02e9e57d74426bc524760567d700f
+# 0.1
+#
+# Then,
+# - if build new bundle of version 0.3, the target bundle is 0.3
+# - if build new bundle of version 0.4, the target bundle is 0.3
+# - if build new bundle of version 0.1, the target bundle is 0.1
+#
+# This ensures that links are correctly established both within the same version and across versions
+# after a version bump.
+#
+# Arguments:
+# 1. image_repo: namespaced image repository, e.g. konflux-ci/tekton-catalog/task-init
+# 2. task_version: task version the bundle is being built for, e.g. 0.4 or 0.2.
+#
+# Always return 0. Target bundle digest is output to stdout. If there is no target bundle, empty is
+# output to stdout.
+find_link_target_bundle() {
+    local -r image_repo=${1:?Missing image repository}
+    local -r cur_version=${2:?Missing current task version}
+    local -r prev_version=${3}
+
+    # Output image digest to stdout. If there is no specified tag in registry, empty is output to
+    # stdout.
+    query_image_digest() {
+        local -r tag_name=$1
+        local -r api_endpoint="https://quay.io/api/v1/repository/${image_repo}/tag/"
+        local -r api_url="${api_endpoint}?specificTag=${tag_name}&onlyActiveTags=true"
+        local -r tags_file=/tmp/tags.json
+        retry curl -H "Accept: application/json" --fail -sL "${api_url}" >"$tags_file"
+        jq -r '.tags[].manifest_digest // ""' <"$tags_file"
+        rm "$tags_file"
+    }
+
+    local digest=
+
+    digest=$(query_image_digest "$cur_version")
+    if [[ -n "$digest" ]]; then
+        printf "%s" "$digest"
+        return 0
+    fi
+
+    # The current version being built is a new task version and is not present in the registry yet.
+    # Continue checking previous version.
+
+    if [[ -z "$prev_version" ]]; then
+        return 0
+    fi
+    digest=$(query_image_digest "$prev_version")
+    if [[ -n "$digest" ]]; then
+        printf "%s" "$digest"
+        return 0
+    fi
+
+    printf ""
+    return 0
+}
+
+# Find previous bundle that has a migration.
+# If found, bundle image digest is output to stdout, otherwise, nothing is output.
+# Arguments:
+# 1. task_name: task name, e.g. init.
+# 2. task_version: task version, e.g. 0.2, 0.3.
+# Always returns 0.
+find_previous_bundle_that_has_migration() {
     local -r task_name=${1:?Missing task name}
     local -r task_version=${2:?Missing task version}
+    local bundle_ref=
+    local image_repo=
+    local ns_repo=
 
-    local bundle_ref
     bundle_ref=$(generate_tagged_task_bundle "$task_name" "$task_version")
-    local ns_repo=${bundle_ref%:*}  # remove tag
-    ns_repo=${ns_repo#*/}  # remove registry
-    # Retain the tag used for matching tag names
-    local -r name_pattern="${bundle_ref##*:}-"
-    unset bundle_ref
+    image_repo="${bundle_ref%:*}"  # remove tag
+    ns_repo="${image_repo#*/}"  # remove registry
 
-    local -r params="onlyActiveTags=true&filter_tag_name=like:${name_pattern}&limit=1"
-    local -r url_list_tags="https://quay.io/api/v1/repository/${ns_repo}/tag/?${params}"
+    read -r cur_version prev_version <<< "$(determine_task_versions "$task_name" "$task_version")"
 
-    local manifest_digest
-    manifest_digest=$(curl --fail -sL "$url_list_tags" | jq -r '.tags[].manifest_digest')
-    if [ -z "$manifest_digest" ]; then
-        # There is no tag yet. That would mean this is the first time to build the task bundle.
-        return 0
-    fi
-    curl --fail -sL -o /tmp/manifest.json "https://quay.io/v2/${ns_repo}/manifests/${manifest_digest}"
-
-    local has_migration
-    has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\"" </tmp/manifest.json)
-    if [ "$has_migration" == "true" ]; then
-        echo "$manifest_digest"
-        return 0
+    if [[ -z "$cur_version" ]]; then
+        printf "Task %s does not have version %s\n" "$task_name" "$task_version" >&2
+        exit 1
     fi
 
-    local prev_bundle_digest
-    prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\"" </tmp/manifest.json)
-    if [ -n "$prev_bundle_digest" ] && [ "$prev_bundle_digest" != "null" ]; then
-        # This bundle points to a previous bundle that has migration.
-        echo "$prev_bundle_digest"
-        return 0
-    fi
+    local digest=
+    local has_migration=
+    local prev_bundle_digest=
 
-    # Otherwise, output empty to indicate not point any bundle.
-    echo
+    digest=$(find_link_target_bundle "$ns_repo" "$cur_version" "$prev_version")
+    if [[ -n "$digest" ]]; then
+        retry skopeo inspect --raw "docker://${image_repo}@${digest}" >/tmp/manifest.json
+        has_migration=$(jq -r ".annotations.\"${ANNOTATION_HAS_MIGRATION}\" // \"false\"" </tmp/manifest.json)
+        prev_bundle_digest=$(jq -r ".annotations.\"${ANNOTATION_PREVIOUS_MIGRATION_BUNDLE}\" // \"\"" </tmp/manifest.json)
+        rm /tmp/manifest.json
+
+        if [ "$has_migration" == "true" ]; then
+            printf "%s" "$digest"
+            return 0
+        fi
+        if [[ -n "$prev_bundle_digest" ]]; then
+            # This bundle points to a previous bundle that has migration.
+            printf "%s" "$prev_bundle_digest"
+            return 0
+        fi
+    fi
     return 0
 }
 
@@ -620,7 +741,7 @@ build_push_tasks() {
 
         if [[ $build_new_bundle == true ]]; then
             echo "info: finding the previous task bundle that has a migration" 1>&2
-            previous_migration_bundle_digest=$(find_previous_migration_bundle_digest "$task_name" "$task_version")
+            previous_migration_bundle_digest=$(find_previous_bundle_that_has_migration "$task_name" "$task_version")
 
             echo "info: push new bundle $task_bundle" 1>&2
 
