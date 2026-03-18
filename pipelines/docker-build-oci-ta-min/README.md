@@ -205,6 +205,16 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+### tpa-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
+|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+|image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-platform| The platform which will be scanned by this task.| ""| |
+|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|skip-oci-attach-report| If true, skips uploading the results to the image registry. Useful for read-only tests.| false| |
+|tpa-url| The url of the TPA instance which will be used for scanning.| https://exhort.stage.devshift.net/api/v5/analysis| |
 
 ## Results
 |name|description|value|
@@ -218,9 +228,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.3:image-digest ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.3:image-digest ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; rpms-signature-scan:0.2:image-digest ; tpa-scan:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.3:image-url ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.3:image-url ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; rpms-signature-scan:0.2:image-url ; tpa-scan:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-oci-ta-min:0.9 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -280,6 +290,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### sast-unicode-check-oci-ta-min:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
+### tpa-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|REPORTS| Mapping of image digests to report digests| |
+|SCAN_OUTPUT| TPA scan result.| |
 |TEST_OUTPUT| Tekton task test output.| |
 
 ## Workspaces
