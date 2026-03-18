@@ -104,6 +104,27 @@
   path: /spec/tasks/14/taskRef/name
   value: sast-unicode-check-oci-ta-min
 
+# tpa-scan
+- op: add
+  path: /spec/tasks/-
+  value:
+    name: tpa-scan
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: tpa-scan
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
+
 # Remove unwanted steps (in reverse order)
 
 # push-dockerfile

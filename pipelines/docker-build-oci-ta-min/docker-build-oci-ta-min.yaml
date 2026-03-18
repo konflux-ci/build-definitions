@@ -301,6 +301,22 @@ spec:
       operator: in
       values:
       - "false"
+  - name: tpa-scan
+    params:
+    - name: image-digest
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: image-url
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    runAfter:
+    - build-image-index
+    taskRef:
+      name: tpa-scan
+      version: "0.1"
+    when:
+    - input: $(params.skip-checks)
+      operator: in
+      values:
+      - "false"
   workspaces:
   - name: git-auth
     optional: true
