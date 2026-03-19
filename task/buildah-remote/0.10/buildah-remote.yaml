@@ -459,29 +459,6 @@ spec:
       set -euo pipefail
       cd $(workspaces.source.path)
 
-      function set_proxy {
-        if [ -n "${BUILDAH_HTTP_PROXY}" ]; then
-          echo "[$(date --utc -Ins)] Setting proxy to ${BUILDAH_HTTP_PROXY}"
-          export HTTP_PROXY="${BUILDAH_HTTP_PROXY}"
-          export HTTPS_PROXY="${BUILDAH_HTTP_PROXY}"
-          export ALL_PROXY="${BUILDAH_HTTP_PROXY}"
-          if [ -n "${BUILDAH_NO_PROXY}" ]; then
-            echo "[$(date --utc -Ins)] Bypassing proxy for ${BUILDAH_NO_PROXY}"
-            export NO_PROXY="${BUILDAH_NO_PROXY}"
-          fi
-        fi
-      }
-
-      function unset_proxy {
-        echo "[$(date --utc -Ins)] Unsetting proxy"
-        unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
-      }
-
-      # These are no longer used anywhere in the task script (TODO: implement pull-proxy in kbc)
-      # They need to be called somewhere to prevent the ta-generator script from removing them
-      set_proxy
-      unset_proxy
-
       echo "[$(date --utc -Ins)] Validate context path"
 
       if [ -z "$CONTEXT" ]; then
@@ -939,6 +916,8 @@ spec:
           --workdir-mount "$WORKINGDIR_MOUNT"
           --skip-unused-stages="$SKIP_UNUSED_STAGES"
           --hermetic="$HERMETIC"
+          --image-pull-proxy "$BUILDAH_HTTP_PROXY"
+          --image-pull-noproxy "$BUILDAH_NO_PROXY"
           --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
@@ -946,7 +925,6 @@ spec:
           "${ANNOTATIONS[@]}"
           --tls-verify="$TLSVERIFY" --no-cache
           --ulimit nofile=4096:4096
-          --http-proxy=false
       )
 
       # disable host subcription manager integration
