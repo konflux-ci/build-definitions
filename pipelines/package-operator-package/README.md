@@ -132,7 +132,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | ""| |
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
-|log-level| Set the logging level (debug, info, warn, error, fatal).| debug| |
+|log-level| Set prefetch tool log level (debug, info, warning, error)| info| |
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### rpms-signature-scan:0.2 task parameters
