@@ -142,6 +142,9 @@ spec:
         #!/bin/bash
         set -euo pipefail
 
+        # Set HF_TOKEN for HuggingFace CLI authentication
+        export HF_TOKEN="${BEARER_TOKEN:-}"
+
         # S3 transfer settings optimized for parallel multipart downloads
         MAX_CONCURRENT=50
         MULTIPART_THRESHOLD="64MB"
@@ -232,6 +235,36 @@ spec:
           if [ ! -d "${directory}" ]; then
             echo "Found that directory ${directory} does not exist. Creating."
             mkdir -p "${directory}"
+          fi
+
+          if [[ "$url" == https://huggingface.co/* ]]; then
+            local hf_path="${url#https://huggingface.co/}"
+            local repo_id="$(echo "$hf_path" | cut -d/ -f1-2)"
+            local hf_file="$(echo "$hf_path" | cut -d/ -f5-)"
+            local hf_ref="$(echo "$hf_path" | cut -d/ -f4)"
+
+            local hf_cmd=""
+            if command -v hf &>/dev/null; then
+              hf_cmd="hf"
+            elif command -v huggingface-cli &>/dev/null; then
+              hf_cmd="huggingface-cli"
+            fi
+
+            if [ -n "$hf_cmd" ]; then
+              echo "Detected HuggingFace URL: repo=${repo_id} ref=${hf_ref} file=${hf_file} (using ${hf_cmd})"
+              "$hf_cmd" download "$repo_id" "$hf_file" \
+                --revision "$hf_ref" \
+                --local-dir "$(dirname "$file")"
+              return
+            fi
+
+            echo "HuggingFace URL detected but no HF CLI found, falling back to curl"
+            if [ -n "${BEARER_TOKEN:-}" ]; then
+              curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+            else
+              curl --fail --silent --show-error --location "$url" -o "$file"
+            fi
+            return
           fi
 
           if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
