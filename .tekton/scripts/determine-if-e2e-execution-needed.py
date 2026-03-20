@@ -9,13 +9,13 @@ import subprocess
 import argparse
 
 # Pipelines currently covered by e2e tests
-pipelines_covered_by_e2e = ["docker-build", "docker-build-oci-ta", "docker-build-multi-platform-oci-ta", "fbc-builder"]
+pipelines_covered_by_e2e = ["docker-build", "docker-build-oci-ta", "docker-build-oci-ta-min", "docker-build-multi-platform-oci-ta", "fbc-builder"]
 
 # Task list which are covered by e2e tests, generated dynamically 
 tasks_covered_by_e2e = []
 
 # Otherthan tasks and pipelines, related files for which e2e tests needs to be executed
-files_covered_by_e2e = [".tekton/pull-request.yaml", ".tekton/tasks/e2e-test.yaml", ".tekton/tasks/task-switchboard.yaml", ".tekton/scripts/determine-if-e2e-execution-needed.py"]
+files_covered_by_e2e = [".tekton/pull-request.yaml", ".tekton/tasks/e2e-test.yaml", ".tekton/tasks/task-switchboard.yaml", ".tekton/scripts/determine-if-e2e-execution-needed.py", "pipelines/enterprise-contract.yaml"]
 
 def add_only_unique_task_names(task_list):
     for task_name in task_list:
