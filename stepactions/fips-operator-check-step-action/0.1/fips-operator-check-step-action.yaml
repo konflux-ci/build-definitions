@@ -21,7 +21,7 @@ spec:
   results:
     - name: TEST_OUTPUT
       description: Tekton task test output.
-  image: quay.io/konflux-ci/konflux-test:v1.4.49@sha256:74899c7a3dde27548e1ad9c665055bfef56c227251bd9224885f4bbd7addebd9
+  image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
   securityContext:
     capabilities:
       add:
@@ -44,12 +44,14 @@ spec:
       counter_dir=$(mktemp -d)
       trap 'rm -rf "$counter_dir"' EXIT
 
-      # Function to clean up extracted image directory
+      # Function to clean up OCI image and extracted directory
       cleanup_image_artifacts() {
         local image_num="$1"
         local component_label="$2"
         local version_label="$3"
         local release_label="$4"
+        # Clean up OCI directory (may already be deleted by inline rm, or may not exist)
+        rm -rf "/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
         # Clean up extracted directory (may or may not exist depending on failure point)
         rm -rf "/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}" 2>/dev/null || true
       }
@@ -133,7 +135,7 @@ spec:
         fi
         echo "Successfully sanitized image reference: ${sanitized_related_image}. Using sanitized image reference for extraction"
 
-        # Detect the first available architecture from the image manifest
+        # Fetch the first available architecture so that the skopeo copy does not fail if the default arch is not available
         first_arch=$(get_first_arch "${sanitized_related_image}")
         echo "Detected architecture for ${sanitized_related_image}: ${first_arch}"
 
@@ -141,12 +143,43 @@ spec:
         extract_dir="/tekton/home/unpacked-${image_num}-${component_label}-${version_label}-${release_label}"
         mkdir -p "${extract_dir}"
 
-        # Extract image filesystem directly using oc image extract
-        if ! retry oc image extract "${sanitized_related_image}" \
+        # Extract image filesystem using oc image extract, with fallback to skopeo+umoci
+        # oc image extract may fail with large images under high parallelism
+        extraction_success=1
+        if oc image extract "${sanitized_related_image}" \
             --path=/:"${extract_dir}" \
             --filter-by-os=".*/${first_arch}" \
             --confirm \
             --preserve-ownership; then
+          extraction_success=0
+          echo "Successfully extracted ${related_image} using oc image extract"
+        else
+          echo "oc image extract failed for ${related_image}, falling back to skopeo+umoci"
+          # Clean up partial extraction before fallback
+          rm -rf "${extract_dir}" 2>/dev/null || true
+          mkdir -p "${extract_dir}"
+
+          # Fallback: use skopeo copy + umoci unpack
+          oci_dir="/tekton/home/${image_num}-${component_label}-${version_label}-${release_label}"
+          if retry skopeo copy --override-arch "${first_arch}" --remove-signatures \
+              "docker://${sanitized_related_image}" \
+              "oci://${oci_dir}:latest"; then
+            if retry umoci raw unpack --rootless \
+                --image "${oci_dir}:latest" \
+                "${extract_dir}"; then
+              extraction_success=0
+              echo "Successfully extracted ${related_image} using skopeo+umoci fallback"
+            else
+              echo "umoci unpack failed for ${related_image}"
+            fi
+            # Clean up OCI image regardless of umoci success
+            rm -rf "${oci_dir}" 2>/dev/null || true
+          else
+            echo "skopeo copy failed for ${related_image}"
+          fi
+        fi
+
+        if [[ "${extraction_success}" -ne 0 ]]; then
           echo -e "Error: Unable to scan image: Could not extract filesystem from ${related_image}\n"
           # Clean up any partial extracted directory to prevent resource accumulation
           cleanup_image_artifacts "${image_num}" "${component_label}" "${version_label}" "${release_label}"

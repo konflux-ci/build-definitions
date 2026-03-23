@@ -128,7 +128,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies-oci-ta-min
-      version: "0.2"
+      version: "0.3"
     workspaces:
     - name: git-basic-auth
       workspace: git-auth
@@ -220,7 +220,7 @@ spec:
     runAfter:
     - build-image-index
     taskRef:
-      name: clair-scan
+      name: clair-scan-min
       version: "0.3"
     when:
     - input: $(params.skip-checks)
@@ -236,7 +236,7 @@ spec:
     runAfter:
     - build-image-index
     taskRef:
-      name: clamav-scan
+      name: clamav-scan-min
       version: "0.3"
     when:
     - input: $(params.skip-checks)
@@ -256,7 +256,7 @@ spec:
     runAfter:
     - build-image-index
     taskRef:
-      name: sast-shell-check-oci-ta
+      name: sast-shell-check-oci-ta-min
       version: "0.1"
     when:
     - input: $(params.skip-checks)
@@ -277,7 +277,7 @@ spec:
     runAfter:
     - build-image-index
     taskRef:
-      name: sast-unicode-check-oci-ta
+      name: sast-unicode-check-oci-ta-min
       version: "0.4"
     when:
     - input: $(params.skip-checks)
