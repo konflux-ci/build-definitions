@@ -1,16 +1,5 @@
 # Changelog
 
-<!-- Format guidelines: https://keepachangelog.com/en/1.1.0/#how -->
-
-## Unreleased
-
-<!--
-When you make changes without bumping the version right away, document them here.
-If that's not something you ever plan to do, consider removing this section.
--->
-
-*Nothing yet.*
-
 ## 0.3
 
 ### Changed
@@ -26,8 +15,6 @@ If that's not something you ever plan to do, consider removing this section.
 
 - `COMMIT_SHA` parameter (was not used by the task implementation)
 - `IMAGE_EXPIRES_AFTER` parameter (was not used by the task implementation)
-
-## 0.2
 
 ### Added
 
