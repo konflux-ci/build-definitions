@@ -84,7 +84,19 @@ spec:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
   tasks:
+    - name: collect-keyless-params
+      taskRef:
+        resolver: bundles
+        params:
+          - name: bundle
+            value: quay.io/conforma/tekton-task:latest@sha256:1cf144b3d10444130f04f6229b3da584323c5125591c68df72aff0357cb520e4
+          - name: name
+            value: collect-keyless-params
+          - name: kind
+            value: task
     - name: verify
+      runAfter:
+        - collect-keyless-params
       params:
         - name: POLICY_CONFIGURATION
           value: "$(params.POLICY_CONFIGURATION)"
@@ -94,10 +106,25 @@ spec:
           value: "$(params.SSL_CERT_DIR)"
         - name: STRICT
           value: "$(params.STRICT)"
+
         - name: PUBLIC_KEY
+          # PUBLIC_KEY will be ignored if any of the CERTIFICATE_* params are present
           value: "$(params.PUBLIC_KEY)"
         - name: IGNORE_REKOR
+          # Set this true because Chains in default Konflux does not create Rekor entries
+          # when signing things. It will be ignored if any of the CERTIFICATE_* params
+          # because keyless verification does require Rekor.
           value: "true"
+
+        - name: CERTIFICATE_OIDC_ISSUER
+          value: "$(tasks.collect-keyless-params.results.defaultOIDCIssuer)"
+        - name: CERTIFICATE_IDENTITY
+          value: "$(tasks.collect-keyless-params.results.tektonChainsIdentity)"
+        - name: TUF_MIRROR
+          value: "$(tasks.collect-keyless-params.results.tufUrl)"
+        - name: REKOR_HOST
+          value: "$(tasks.collect-keyless-params.results.rekorUrl)"
+
         - name: WORKERS
           value: "$(params.WORKERS)"
         - name: CA_TRUST_CONFIGMAP_NAME
@@ -114,7 +141,7 @@ spec:
         resolver: bundles
         params:
           - name: bundle
-            value: quay.io/conforma/tekton-task:latest@sha256:6c589b0289fa034ba5ccb35ceefb7625d509b186c5cc5412f0045b53cf2c880a
+            value: quay.io/conforma/tekton-task:latest@sha256:1cf144b3d10444130f04f6229b3da584323c5125591c68df72aff0357cb520e4
           - name: name
             value: verify-enterprise-contract
           - name: kind
