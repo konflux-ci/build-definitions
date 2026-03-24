@@ -97,6 +97,12 @@
     value: "$(tasks.init.results.http-proxy)"
   - name: NO_PROXY
     value: "$(tasks.init.results.no-proxy)"
+  - name: SOURCE_DATE_EPOCH
+    value: "$(params.source-date-epoch)"
+  - name: OMIT_HISTORY
+    value: "$(params.omit-history)"
+  - name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"
 
 # FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
 - op: test
@@ -148,3 +154,18 @@
   value:
     name: BUILD_ARGS_FILE
     value: "$(params.build-args-file)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: SOURCE_DATE_EPOCH
+    value: "$(params.source-date-epoch)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: OMIT_HISTORY
+    value: "$(params.omit-history)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"

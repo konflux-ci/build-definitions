@@ -134,6 +134,12 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+    name: source-date-epoch
+  - default: "false"
+    description: Omit build history information from the resulting image.
+    name: omit-history
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
@@ -141,6 +147,11 @@ spec:
   - default: ""
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
+    type: string
+  - default: "false"
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
+    name: privileged-nested
     type: string
   - default: ""
     name: infra-deployment-update-script
@@ -239,6 +250,12 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
+    - name: OMIT_HISTORY
+      value: $(params.omit-history)
+    - name: REWRITE_TIMESTAMP
+      value: $(params.rewrite-timestamp)
     - name: IMAGE_APPEND_PLATFORM
       value: "true"
     runAfter:
@@ -404,6 +421,12 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
+    - name: OMIT_HISTORY
+      value: $(params.omit-history)
+    - name: REWRITE_TIMESTAMP
+      value: $(params.rewrite-timestamp)
     runAfter:
     - coverity-availability-check
     taskRef:

@@ -1,0 +1,66 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-reproducibility
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "build"
+spec:
+  description: >-
+    Verifies the reproducibility of a build by comparing two container images using diffoscope.
+  params:
+    - name: IMAGE_1
+      description: The first image url to compare.
+      type: string
+    - name: IMAGE_2
+      description: The second image url to compare.
+      type: string
+  results:
+    - name: TEST_OUTPUT
+      description: Tekton task test output.
+  steps:
+    - name: extract-images
+      image: quay.io/containers/skopeo:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        
+        echo "Extracting image 1: $(params.IMAGE_1)"
+        mkdir -p /workspace/image1
+        skopeo copy "docker://$(params.IMAGE_1)" "oci:/workspace/image1:latest"
+        
+        echo "Extracting image 2: $(params.IMAGE_2)"
+        mkdir -p /workspace/image2
+        skopeo copy "docker://$(params.IMAGE_2)" "oci:/workspace/image2:latest"
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+    - name: diffoscope-verify
+      image: ghcr.io/reproducible-builds/diffoscope:latest
+      script: |
+        #!/usr/bin/env bash
+        set -x
+        
+        echo "Comparing the two images..."
+        # diffoscope exits with 1 if differences are found, so we catch it
+        diffoscope /workspace/image1 /workspace/image2 > /workspace/diff.txt || true
+        
+        if [ -s /workspace/diff.txt ]; then
+           echo "Differences found!"
+           cat /workspace/diff.txt
+           echo "{\"result\":\"FAILURE\", \"timestamp\":\"$(date +%s)\", \"note\":\"Images are not bit-for-bit identical\", \"failures\": 1, \"successes\": 0}" > $(results.TEST_OUTPUT.path)
+           exit 1
+        else
+           echo "Success! Images are bit-for-bit identical."
+           echo "{\"result\":\"SUCCESS\", \"timestamp\":\"$(date +%s)\", \"note\":\"Images are bit-for-bit identical\", \"failures\": 0, \"successes\": 1}" > $(results.TEST_OUTPUT.path)
+           exit 0
+        fi
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+  volumes:
+    - name: workspace
+      emptyDir: {}

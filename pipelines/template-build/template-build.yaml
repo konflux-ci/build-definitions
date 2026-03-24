@@ -61,6 +61,15 @@ spec:
     - name: enable-cache-proxy
       description: Enable cache proxy configuration
       default: "false"
+    - name: source-date-epoch
+      description: Timestamp in seconds since Unix epoch for reproducible builds.
+      default: ""
+    - name: omit-history
+      description: Omit build history information from the resulting image.
+      default: "false"
+    - name: rewrite-timestamp
+      description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH.
+      default: "false"
   tasks:
     - name: init
       params:
@@ -107,6 +116,13 @@ spec:
         - prefetch-dependencies
       taskRef:
         name: $REPLACE_ME
+      params:
+        - name: SOURCE_DATE_EPOCH
+          value: "$(params.source-date-epoch)"
+        - name: OMIT_HISTORY
+          value: "$(params.omit-history)"
+        - name: REWRITE_TIMESTAMP
+          value: "$(params.rewrite-timestamp)"
       workspaces:
         - name: source
           workspace: workspace
