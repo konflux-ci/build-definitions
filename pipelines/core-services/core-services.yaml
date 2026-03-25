@@ -235,6 +235,8 @@ spec:
       value: $(tasks.clone-repository.results.url)
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
+    - name: ZSTD_IMAGES
+      value: ""
     - name: HTTP_PROXY
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
@@ -264,6 +266,8 @@ spec:
       - $(tasks.build-images.results.IMAGE_REF[*])
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
+    - name: ZSTD_IMAGES
+      value: ""
     runAfter:
     - build-images
     taskRef:
