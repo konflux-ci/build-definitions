@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# test_verify_reproducibility.sh
+# Local integration tests for the verify-reproducibility task logic.
+
 set -uo pipefail
 
 PASS=0
@@ -18,7 +21,9 @@ run_verify_step() {
   diff_out=$(mktemp)
 
   set +e
+  # Using diffoscope if available, otherwise falling back to standard diff -r
   if command -v diffoscope &>/dev/null; then
+
     diffoscope "$image1" "$image2" > "$diff_out" 2>&1
   else
     diff -rq "$image1" "$image2" > "$diff_out" 2>&1
