@@ -19,11 +19,14 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |BUILD_TIMESTAMP|Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.|""|false|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |COMMIT_SHA|The image is built from this commit.|""|false|
+|COMPRESSION_FORMAT|Compression format to use when pushing the image. Valid values: gzip (default),  zstd, zstd:chunked. When set, layers will be compressed using the specified format. |gzip|false|
+|COMPRESSION_LEVEL|Compression level to use. For zstd: 1-20, for gzip: 1-9. Higher values = better compression but slower push. |""|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|true|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |ENV_VARS|Array of --env values ("env=value" strings)|[]|false|
+|FORCE_COMPRESSION|Force recompression of all layers including base image layers|false|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
@@ -37,6 +40,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the proxy CA bundle data.|ca-bundle.crt|false|
 |PROXY_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read proxy CA bundle data from.|caching-ca-bundle|false|
+|PUSH_DUAL_VARIANTS|When enabled along with zstd compression, pushes both gzip and zstd variants. The gzip variant uses the default tag, zstd variant uses -zstd suffix. |false|false|
 |REWRITE_TIMESTAMP|Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.|false|false|
 |SBOM_SKIP_VALIDATION|Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.|true|false|
 |SBOM_SOURCE_SCAN_ENABLED|Flag to enable or disable SBOM generation from source code. The scanner of the source code is enabled only for non-hermetic builds and can be disabled if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false positives on source code scanning.|true|false|
@@ -63,8 +67,10 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |name|description|
 |---|---|
 |IMAGE_DIGEST|Digest of the image just built|
+|IMAGE_DIGEST_ZSTD|Digest of the zstd-compressed image variant|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
+|IMAGE_URL_ZSTD|Image repository and tag where the zstd-compressed image was pushed|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 
 

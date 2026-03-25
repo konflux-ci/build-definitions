@@ -170,6 +170,14 @@ spec:
       oci (default) or docker.
     name: BUILDAH_FORMAT
     type: string
+  - name: COMPRESSION_FORMAT
+    description: Compression format for image layers (e.g., gzip, zstd, zstd:chunked)
+    type: string
+    default: ""
+  - name: FORCE_COMPRESSION
+    description: Force recompression of all layers including base image layers
+    type: string
+    default: "false"
   - default: []
     description: Additional base image references to include to the SBOM. Array of
       image_reference_with_digest strings
@@ -273,6 +281,10 @@ spec:
       value: $(params.IMAGE)
     - name: TLSVERIFY
       value: $(params.TLSVERIFY)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
+    - name: FORCE_COMPRESSION
+      value: $(params.FORCE_COMPRESSION)
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.IMAGE_EXPIRES_AFTER)
     - name: YUM_REPOS_D_SRC
@@ -989,6 +1001,16 @@ spec:
 
       echo "[$(date --utc -Ins)] Push image with unique tag"
 
+      COMPRESSION_ARGS=()
+
+      if [ -n "${COMPRESSION_FORMAT}" ]; then
+        COMPRESSION_ARGS+=(--compression-format="${COMPRESSION_FORMAT}")
+      fi
+
+      if [ "${FORCE_COMPRESSION}" == "true" ]; then
+        COMPRESSION_ARGS+=(--force-compression)
+      fi
+
       buildah_retries=3
 
       # Push to a unique tag based on the TaskRun name to avoid race conditions
@@ -997,6 +1019,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1012,6 +1035,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then

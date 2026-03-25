@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.9.1"
+    app.kubernetes.io/version: "0.9.2"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -156,6 +156,28 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci (default) or docker.
     type: string
     default: oci
+  - name: COMPRESSION_FORMAT
+    description: >
+      Compression format to use when pushing the image. Valid values: gzip (default), 
+      zstd, zstd:chunked. When set, layers will be compressed using the specified format.
+    type: string
+    default: "gzip"
+  - name: COMPRESSION_LEVEL
+    description: >
+      Compression level to use. For zstd: 1-20, for gzip: 1-9.
+      Higher values = better compression but slower push.
+    type: string
+    default: ""
+  - name: PUSH_DUAL_VARIANTS
+    description: >
+      When enabled along with zstd compression, pushes both gzip and zstd variants.
+      The gzip variant uses the default tag, zstd variant uses -zstd suffix.
+    type: string
+    default: "false"
+  - name: FORCE_COMPRESSION
+    description: Force recompression of all layers including base image layers
+    type: string
+    default: "false"
   - name: ADDITIONAL_BASE_IMAGES
     description: |-
       Additional base image references to include to the SBOM. Array of image_reference_with_digest strings
@@ -238,6 +260,12 @@ spec:
   - name: SBOM_BLOB_URL
     description: Reference of SBOM blob digest to enable digest-based verification from provenance
     type: string
+  - name: IMAGE_DIGEST_ZSTD
+    description: Digest of the zstd-compressed image variant
+    type: string
+  - name: IMAGE_URL_ZSTD
+    description: Image repository and tag where the zstd-compressed image was pushed
+    type: string
   stepTemplate:
     computeResources:
       limits:
@@ -309,6 +337,16 @@ spec:
       value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
+    - name: COMPRESSION_LEVEL
+      value: $(params.COMPRESSION_LEVEL)
+    - name: FORCE_COMPRESSION
+      value: $(params.FORCE_COMPRESSION)
+    - name: PUSH_DUAL_VARIANTS
+      value: $(params.PUSH_DUAL_VARIANTS)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
     imagePullPolicy: IfNotPresent
   steps:
   - image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
@@ -962,6 +1000,10 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    - name: TLSVERIFY
+      value: $(params.TLSVERIFY)
     script: |
       #!/bin/bash
       set -e
@@ -985,6 +1027,43 @@ spec:
         push_format=docker
       fi
 
+      echo "[$(date --utc -Ins)] Set up compression"
+
+      # Validate: zstd:chunked is only supported with oci format
+      if [ "${BUILDAH_FORMAT}" == "docker" ] && [[ "${COMPRESSION_FORMAT}" == *"chunked"* ]]; then
+        echo "ERROR: zstd:chunked compression is not supported with docker format. Use BUILDAH_FORMAT=oci or change COMPRESSION_FORMAT." >&2
+        exit 1
+      fi
+
+      # Warn when PUSH_DUAL_VARIANTS=true but COMPRESSION_FORMAT is not zstd
+      if [ "${PUSH_DUAL_VARIANTS}" == "true" ] && [[ "${COMPRESSION_FORMAT}" != *"zstd"* ]]; then
+        echo "WARNING: PUSH_DUAL_VARIANTS=true has no effect unless COMPRESSION_FORMAT is zstd or zstd:chunked. Skipping dual push." >&2
+      fi
+
+      # When dual variants are requested, the main push uses gzip and the secondary push uses zstd.
+      # When dual variants are NOT requested, the main push uses the specified COMPRESSION_FORMAT.
+      GZIP_ARGS=(--compression-format=gzip)
+      COMPRESSION_ARGS=()
+
+      if [ "${PUSH_DUAL_VARIANTS}" == "true" ] && [[ "${COMPRESSION_FORMAT}" == *"zstd"* ]]; then
+        # Main push will be gzip (fallback); dual push will carry the zstd args
+        COMPRESSION_ARGS=("${GZIP_ARGS[@]}")
+      else
+        # Single-variant push: always pass the format explicitly so level has its format
+        COMPRESSION_ARGS+=(--compression-format="${COMPRESSION_FORMAT}")
+      fi
+
+      if [ -n "${COMPRESSION_LEVEL}" ]; then
+        COMPRESSION_ARGS+=(--compression-level="${COMPRESSION_LEVEL}")
+      fi
+
+      if [ "${FORCE_COMPRESSION}" == "true" ]; then
+        COMPRESSION_ARGS+=(--force-compression)
+      fi
+
+      echo "Using compression format: ${COMPRESSION_FORMAT}"
+      echo "Compression args for main push: ${COMPRESSION_ARGS[*]}"
+
       echo "[$(date --utc -Ins)] Push image with unique tag"
 
       buildah_retries=3
@@ -995,6 +1074,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
@@ -1010,6 +1090,7 @@ spec:
         --format="$push_format" \
         --retry "$buildah_retries" \
         --tls-verify="$TLSVERIFY" \
+        "${COMPRESSION_ARGS[@]}" \
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then
@@ -1024,6 +1105,44 @@ spec:
         cat "$(workspaces.source.path)/image-digest"
       } > "$(results.IMAGE_REF.path)"
       echo
+
+      # Push zstd variant if dual variants are enabled
+      if [ "${PUSH_DUAL_VARIANTS}" == "true" ] && [[ "${COMPRESSION_FORMAT}" == *"zstd"* ]]; then
+        echo "[$(date --utc -Ins)] Push zstd variant"
+
+        # Correctly construct the zstd tag: append -zstd after the tag
+        IMAGE_NAME="${IMAGE%:*}"
+        IMAGE_TAG="${IMAGE##*:}"
+        IMAGE_ZSTD="${IMAGE_NAME}:${IMAGE_TAG}-zstd"
+
+        # Build zstd-specific compression args (reuse level and force flags from params)
+        ZSTD_COMPRESSION_ARGS=(--compression-format="${COMPRESSION_FORMAT}")
+        if [ -n "${COMPRESSION_LEVEL}" ]; then
+          ZSTD_COMPRESSION_ARGS+=(--compression-level="${COMPRESSION_LEVEL}")
+        fi
+        if [ "${FORCE_COMPRESSION}" == "true" ]; then
+          ZSTD_COMPRESSION_ARGS+=(--force-compression)
+        fi
+
+        echo "Pushing zstd variant to ${IMAGE_ZSTD}"
+        echo "Zstd compression args: ${ZSTD_COMPRESSION_ARGS[*]}"
+        if retry buildah push \
+          --format="$push_format" \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile "$(workspaces.source.path)/image-digest-zstd" \
+          "${ZSTD_COMPRESSION_ARGS[@]}" \
+          "$IMAGE" \
+          "docker://${IMAGE_ZSTD}"
+        then
+          echo "Successfully pushed zstd variant to ${IMAGE_ZSTD}"
+          tee "$(results.IMAGE_DIGEST_ZSTD.path)" < "$(workspaces.source.path)"/image-digest-zstd
+          echo -n "${IMAGE_ZSTD}" | tee $(results.IMAGE_URL_ZSTD.path)
+        else
+          echo "WARNING: Failed to push zstd variant to ${IMAGE_ZSTD}, continuing with gzip only" >&2
+        fi
+      fi
+
 
       # detect if keyless signing is required
       SIGNING_CONFIG='{}'
