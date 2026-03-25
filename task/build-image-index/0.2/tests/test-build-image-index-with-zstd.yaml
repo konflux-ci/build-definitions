@@ -1,0 +1,67 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-image-index-with-zstd
+spec:
+  description: |
+    Test build-image-index task with ZSTD_IMAGES - dual compression test.
+    This verifies that when ZSTD_IMAGES is provided, both gzip and zstd:chunked
+    variants are added to the manifest with correct ordering (gzip first).
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: build-index
+      taskRef:
+        name: build-image-index
+        version: "0.2"
+      params:
+        - name: IMAGE
+          value: "localhost:5000/test-index:latest"
+        - name: TLSVERIFY
+          value: "false"
+        - name: IMAGES
+          value:
+            - "localhost:5000/test-image-amd64@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+            - "localhost:5000/test-image-arm64@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        - name: ZSTD_IMAGES
+          value: "localhost:5000/test-image-amd64-zstd@sha256:0000000000000000000000000000000000000000000000000000000000000001 localhost:5000/test-image-arm64-zstd@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        - name: ALWAYS_BUILD_INDEX
+          value: "true"
+        - name: STORAGE_DRIVER
+          value: vfs
+      workspaces:
+        - name: shared-dir
+          workspace: tests-workspace
+
+    - name: verify-result
+      taskSpec:
+        steps:
+          - name: verify-result
+            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            script: |
+              #!/usr/bin/env sh
+              set -e
+              IMAGE_REF="$(cat /workspace/image-ref.txt)"
+              echo "IMAGE_REF: $IMAGE_REF"
+              IMAGES="$(cat /workspace/images.txt)"
+              echo "IMAGES: $IMAGES"
+              if [ -z "$IMAGE_REF" ]; then
+                echo "ERROR: IMAGE_REF is empty"
+                exit 1
+              fi
+              # Verify we have 4 images (2 gzip + 2 zstd)
+              IMAGE_COUNT=$(echo "$IMAGES" | tr ',' '\n' | wc -l)
+              if [ "$IMAGE_COUNT" -ne 4 ]; then
+                echo "ERROR: Expected 4 images, got $IMAGE_COUNT"
+                exit 1
+              fi
+              echo "SUCCESS: Dual compression test passed"
+        workspaces:
+          - name: workspace
+            workspace: tests-workspace
+      params:
+        - name: IMAGE_REF
+          value: $(tasks.build-index.results.IMAGE_REF)
+      runAfter:
+        - build-index

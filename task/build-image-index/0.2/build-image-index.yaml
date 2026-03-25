@@ -26,6 +26,16 @@ spec:
   - name: IMAGES
     description: List of Image Manifests to be referenced by the Image Index
     type: array
+  - name: ZSTD_IMAGES
+    description: >-
+      Space-separated list of zstd:chunked Image Manifests to be included
+      in the Image Index alongside gzip variants. When provided, must
+      correspond 1:1 with IMAGES — each entry is the zstd:chunked variant
+      of the same platform. Entries are added AFTER all gzip entries to
+      ensure pre-2023 Docker clients always select the gzip variant first.
+      Format: repository:tag-zstd@sha256:digest
+    type: string
+    default: ""
   - name: IMAGE_EXPIRES_AFTER
     description: Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     type: string
@@ -91,6 +101,8 @@ spec:
       value: $(params.ALWAYS_BUILD_INDEX)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
+    - name: ZSTD_IMAGES
+      value: $(params.ZSTD_IMAGES)
     volumeMounts:
       - name: shared-dir
         mountPath: /index-build-data
@@ -153,9 +165,32 @@ spec:
           exit 0
         fi
 
-        echo "Adding $TOADD"
+        echo "Adding gzip variant: $TOADD"
         buildah manifest add $IMAGE "docker://$TOADD" --all
       done
+
+      # ── zstd:chunked variant assembly ─────────────────────────────────────
+      # ORDERING INVARIANT: zstd:chunked entries are added AFTER all gzip
+      # entries. Pre-2023 Docker clients take the first matching platform entry
+      # sequentially — gzip must always appear first per platform.
+      if [ -n "${ZSTD_IMAGES}" ]; then
+        echo "Adding zstd:chunked variants to manifest index"
+        for zstd_entry in ${ZSTD_IMAGES}
+        do
+          ZSTD_TOADD="$zstd_entry"
+          ZSTD_TOADD_DIGEST="$(echo "$zstd_entry" | cut -d@ -f2)"
+          if [[ $(echo "$zstd_entry" | tr -cd ":" | wc -c) == 2 ]]; then
+            # Format is repository:tag@sha256:digest — remove tag,
+            # keep digest reference only (tag + digest unsupported)
+            ZSTD_TOADD_REPOSITORY="$(echo "$zstd_entry" | cut -d: -f1)"
+            ZSTD_TOADD="${ZSTD_TOADD_REPOSITORY}@${ZSTD_TOADD_DIGEST}"
+          fi
+          echo "Adding zstd:chunked variant: $ZSTD_TOADD"
+          buildah manifest add "$IMAGE" "docker://$ZSTD_TOADD" --all
+        done
+        echo "zstd:chunked variants added to manifest index"
+      fi
+      # ──────────────────────────────────────────────────────────────────────
 
       echo "Validating format consistency"
       INCOMPATIBLE_STRING="vnd.oci.image.manifest"
@@ -218,6 +253,7 @@ spec:
       do
         image_manifests="${image_manifests} ${INDEX_REPOSITORY}@${i},"
       done
+
 
       tee "$(results.IMAGE_DIGEST.path)" < image-digest
       echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
