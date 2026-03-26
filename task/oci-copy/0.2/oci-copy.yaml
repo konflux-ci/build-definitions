@@ -231,6 +231,11 @@ spec:
             hf_file="$(echo "$hf_path" | cut -d/ -f5-)"
             local hf_ref
             hf_ref="$(echo "$hf_path" | cut -d/ -f4)"
+            local expected_filename="${file#"${DOWNLOAD_DIR}/"}"
+            if [[ "$hf_file" != "$expected_filename" ]]; then
+              echo "ERROR: HuggingFace filename '${hf_file}' does not match expected '${expected_filename}'" >&2
+              return 1
+            fi
 
             local hf_cmd=""
             if command -v hf &>/dev/null; then
