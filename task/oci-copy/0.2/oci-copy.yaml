@@ -221,9 +221,16 @@ spec:
 
           if [[ "$url" == https://huggingface.co/* ]]; then
             local hf_path="${url#https://huggingface.co/}"
-            local repo_id="$(echo "$hf_path" | cut -d/ -f1-2)"
-            local hf_file="$(echo "$hf_path" | cut -d/ -f5-)"
-            local hf_ref="$(echo "$hf_path" | cut -d/ -f4)"
+            if [[ "$(echo "$hf_path" | cut -d/ -f3)" != "resolve" ]]; then
+              echo "ERROR: Unsupported HuggingFace URL format (expected /resolve/ in path): $url" >&2
+              return 1
+            fi
+            local repo_id
+            repo_id="$(echo "$hf_path" | cut -d/ -f1-2)"
+            local hf_file
+            hf_file="$(echo "$hf_path" | cut -d/ -f5-)"
+            local hf_ref
+            hf_ref="$(echo "$hf_path" | cut -d/ -f4)"
 
             local hf_cmd=""
             if command -v hf &>/dev/null; then
