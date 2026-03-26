@@ -98,8 +98,8 @@ spec:
         limits:
           memory: 4Gi
         requests:
-          cpu: "1"
-          memory: 2Gi
+          cpu: "2"
+          memory: 4Gi
       securityContext:
         capabilities:
           add:
@@ -236,7 +236,7 @@ spec:
               echo "Detected HuggingFace URL: repo=${repo_id} ref=${hf_ref} file=${hf_file} (using ${hf_cmd})"
               "$hf_cmd" download "$repo_id" "$hf_file" \
                 --revision "$hf_ref" \
-                --local-dir "$(dirname "$file")"
+                --local-dir "${DOWNLOAD_DIR}"
               return
             fi
 
