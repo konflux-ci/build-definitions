@@ -624,17 +624,12 @@ spec:
         fi
       fi
 
-      # if yum repofiles stored in git, copy them to mount point outside the source dir
-      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
-        mkdir -p "${YUM_REPOS_D_FETCHED}"
-        cp -r "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}"/* "${YUM_REPOS_D_FETCHED}"
-      fi
-
-      # if anything in the repofiles mount point (either fetched or from git), mount it
+      yum_repos_d_sources=()
       if [ -d "${YUM_REPOS_D_FETCHED}" ]; then
-        chmod -R go+rwX "${YUM_REPOS_D_FETCHED}"
-        mount_point=$(realpath "${YUM_REPOS_D_FETCHED}")
-        VOLUME_MOUNTS+=(--volume "${mount_point}:${YUM_REPOS_D_TARGET}")
+        yum_repos_d_sources+=("${YUM_REPOS_D_FETCHED}")
+      fi
+      if [ -d "${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}" ]; then
+        yum_repos_d_sources+=("${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}")
       fi
 
       DEFAULT_LABELS=(
@@ -822,6 +817,8 @@ spec:
           --hermetic="$HERMETIC"
           --image-pull-proxy "$BUILDAH_HTTP_PROXY"
           --image-pull-noproxy "$BUILDAH_NO_PROXY"
+          --yum-repos-d-sources "${yum_repos_d_sources[@]}"
+          --yum-repos-d-target "$YUM_REPOS_D_TARGET"
           --
           "${VOLUME_MOUNTS[@]}"
           "${BUILDAH_ARGS[@]}"
