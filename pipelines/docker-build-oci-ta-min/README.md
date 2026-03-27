@@ -24,6 +24,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.9:PRIVILEGED_NESTED|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | build-container:0.9:SOURCE_DATE_EPOCH|
 
 ## Available params from tasks
 ### build-image-index-min:0.2 task parameters
@@ -82,7 +83,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| '$(params.source-date-epoch)'|
 |SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |

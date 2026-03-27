@@ -61,6 +61,9 @@ spec:
     - name: enable-cache-proxy
       description: Enable cache proxy configuration
       default: "false"
+    - name: source-date-epoch
+      description: Timestamp in seconds since Unix epoch for reproducible builds.
+      default: ""
   tasks:
     - name: init
       params:
@@ -107,6 +110,9 @@ spec:
         - prefetch-dependencies
       taskRef:
         name: $REPLACE_ME
+      params:
+        - name: SOURCE_DATE_EPOCH
+          value: "$(params.source-date-epoch)"
       workspaces:
         - name: source
           workspace: workspace

@@ -15,6 +15,7 @@
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision ; build-container:0.2:REVISION|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters

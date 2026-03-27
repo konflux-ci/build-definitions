@@ -14,6 +14,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### build-maven-zip:0.1 task parameters

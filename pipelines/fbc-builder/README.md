@@ -8,7 +8,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-images:0.9:BUILD_ARGS|
-|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-images:0.9:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| true| build-image-index:0.2:ALWAYS_BUILD_INDEX|
 |build-platforms| List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.| ['linux/x86_64']| |
 |build-source-image| Build a source image.| false| |
@@ -20,8 +19,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-images:0.9:IMAGE ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.9:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-images:0.9:PREFETCH_INPUT|
+|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| |
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | build-images:0.9:SOURCE_DATE_EPOCH|
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters
@@ -91,7 +92,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| '$(params.source-date-epoch)'|
 |SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |

@@ -134,13 +134,17 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+    name: source-date-epoch
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
     type: array
-  - default: ""
-    description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
-    name: build-args-file
+  - default: "false"
+    description: Whether to enable privileged mode, should be used only with remote
+      VMs
+    name: privileged-nested
     type: string
   - default: ""
     name: infra-deployment-update-script
@@ -239,6 +243,8 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
     - name: IMAGE_APPEND_PLATFORM
       value: "true"
     runAfter:

@@ -20,6 +20,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |preprocessing-script| Preprocessing script for source code| | |
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters

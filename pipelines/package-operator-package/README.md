@@ -19,6 +19,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters

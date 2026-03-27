@@ -68,6 +68,9 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+    name: source-date-epoch
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
@@ -167,6 +170,8 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
     - name: SOURCE_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
