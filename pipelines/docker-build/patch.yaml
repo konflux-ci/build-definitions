@@ -15,25 +15,6 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "generic"
     "pipelines.openshift.io/strategy": "docker"
-#  yq ".spec.tasks.[].name" pipelines/template-build/template-build.yaml | nl -v 0
-#      0  init
-#      1  clone-repository
-#      2  prefetch-dependencies
-#      3  build-container
-#      4  build-image-index
-#      5  build-source-image
-#      6  deprecated-base-image-check
-#      7  clair-scan
-#      8  ecosystem-cert-preflight-checks
-#      9  sast-snyk-check
-#     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
 
 # build-container
 - op: test
@@ -99,8 +80,11 @@
     value: "$(tasks.init.results.no-proxy)"
   - name: SOURCE_DATE_EPOCH
     value: "$(params.source-date-epoch)"
+  - name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"
+  - name: OMIT_HISTORY
+    value: "$(params.omit-history)"
 
-# FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
 - op: test
   path: /spec/tasks/11/name
   value: sast-coverity-check
@@ -139,6 +123,21 @@
   value:
     name: COMMIT_SHA
     value: "$(tasks.clone-repository.results.commit)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: SOURCE_DATE_EPOCH
+    value: "$(params.source-date-epoch)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"
+- op: add
+  path: /spec/tasks/11/params/-
+  value:
+    name: OMIT_HISTORY
+    value: "$(params.omit-history)"
 - op: add
   path: /spec/tasks/11/params/-
   value:

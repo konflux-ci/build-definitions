@@ -64,6 +64,12 @@ spec:
     - name: source-date-epoch
       description: Timestamp in seconds since Unix epoch for reproducible builds.
       default: ""
+    - name: rewrite-timestamp
+      description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH
+      default: "false"
+    - name: omit-history
+      description: Omit build history information from the resulting image
+      default: "false"
   tasks:
     - name: init
       params:
@@ -113,6 +119,10 @@ spec:
       params:
         - name: SOURCE_DATE_EPOCH
           value: "$(params.source-date-epoch)"
+        - name: REWRITE_TIMESTAMP
+          value: "$(params.rewrite-timestamp)"
+        - name: OMIT_HISTORY
+          value: "$(params.omit-history)"
       workspaces:
         - name: source
           workspace: workspace
