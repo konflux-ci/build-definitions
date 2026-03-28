@@ -26,6 +26,10 @@ spec:
   - name: IMAGES
     description: List of Image Manifests to be referenced by the Image Index
     type: array
+  - name: COMPRESSED_IMAGES
+    description: Optional list of additional Image Manifests, such as zstd:chunked variants, to be referenced by the Image Index
+    type: array
+    default: []
   - name: IMAGE_EXPIRES_AFTER
     description: Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
     type: string
@@ -108,7 +112,9 @@ spec:
       requests:
         memory: 4Gi
         cpu: 250m
-    args: ["$(params.IMAGES[*])"]
+    args:
+    - $(params.IMAGES[*])
+    - $(params.COMPRESSED_IMAGES[*])
     script: |
       #!/bin/bash
       # Fixing group permission on /var/lib/containers
@@ -127,7 +133,15 @@ spec:
         update-ca-trust
       fi
 
-      if [[ $# -ne 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
+      input_count=0
+      for i in "$@"
+      do
+        if [ -n "$i" ]; then
+          input_count=$((input_count + 1))
+        fi
+      done
+
+      if [[ "$input_count" -gt 1 && "$ALWAYS_BUILD_INDEX" != "true" ]]; then
         echo "Skipping image index generation while supplying multiple image inputs is unsupported."
         exit 2
       fi
@@ -135,6 +149,9 @@ spec:
       buildah manifest create "$IMAGE"
       for i in $@
       do
+        if [ -z "$i" ]; then
+          continue
+        fi
         TOADD="$i"
         TOADD_URL="$(echo "$i" | cut -d@ -f1)"
         TOADD_DIGEST="$(echo "$i" | cut -d@ -f2)"

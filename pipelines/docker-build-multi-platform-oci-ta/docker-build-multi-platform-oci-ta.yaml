@@ -60,6 +60,11 @@ spec:
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
+  - default: "true"
+    description: Add zstd:chunked image variants alongside the default gzip variants
+      when building multi-platform images.
+    name: build-zstd-chunked
+    type: string
   - default: docker
     description: The format for the resulting image's mediaType. Valid values are
       oci or docker.
@@ -184,6 +189,8 @@ spec:
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
     - name: IMAGE_APPEND_PLATFORM
       value: "true"
+    - name: ENABLE_ZSTD_CHUNKED
+      value: $(params.build-zstd-chunked)
     runAfter:
     - prefetch-dependencies
     taskRef:
@@ -203,6 +210,9 @@ spec:
     - name: IMAGES
       value:
       - $(tasks.build-images.results.IMAGE_REF[*])
+    - name: COMPRESSED_IMAGES
+      value:
+      - $(tasks.build-images.results.ZSTD_IMAGE_REF[*])
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
     runAfter:

@@ -259,6 +259,11 @@ spec:
       tag
     name: IMAGE_APPEND_PLATFORM
     type: string
+  - default: "false"
+    description: Whether to push an additional zstd:chunked variant of the image
+      alongside the default gzip variant.
+    name: ENABLE_ZSTD_CHUNKED
+    type: string
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -266,6 +271,13 @@ spec:
     name: IMAGE_REF
   - description: Image repository and tag where the built image was pushed
     name: IMAGE_URL
+  - description: Digest of the zstd:chunked image variant
+    name: ZSTD_IMAGE_DIGEST
+  - description: Image reference of the zstd:chunked image variant
+    name: ZSTD_IMAGE_REF
+  - description: Image repository and tag where the zstd:chunked image variant
+      was pushed
+    name: ZSTD_IMAGE_URL
   - description: Reference of SBOM blob digest to enable digest-based verification
       from provenance
     name: SBOM_BLOB_URL
@@ -344,6 +356,8 @@ spec:
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
       value: $(params.IMAGE_APPEND_PLATFORM)
+    - name: ENABLE_ZSTD_CHUNKED
+      value: $(params.ENABLE_ZSTD_CHUNKED)
     imagePullPolicy: IfNotPresent
     volumeMounts:
     - mountPath: /shared
@@ -1217,6 +1231,11 @@ spec:
 
       buildah_retries=3
 
+      if [ "${ENABLE_ZSTD_CHUNKED}" = "true" ] && [ "${BUILDAH_FORMAT}" != "oci" ]; then
+        echo "ERROR: ENABLE_ZSTD_CHUNKED requires BUILDAH_FORMAT=oci" >&2
+        exit 1
+      fi
+
       # Push to a unique tag based on the TaskRun name to avoid race conditions
       echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
       if ! retry buildah push \
@@ -1250,6 +1269,34 @@ spec:
         cat "/var/workdir/image-digest"
       } >"$(results.IMAGE_REF.path)"
       echo
+
+      ZSTD_IMAGE=""
+      if [ "${ENABLE_ZSTD_CHUNKED}" = "true" ]; then
+        ZSTD_IMAGE="${IMAGE%:*}:zstd-chunked-${TASKRUN_NAME}"
+        echo "[$(date --utc -Ins)] Push image with zstd:chunked compression"
+        if ! retry buildah push \
+          --compression-format="zstd:chunked" \
+          --format="$push_format" \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile "/var/workdir/zstd-image-digest" "$IMAGE" \
+          "docker://${ZSTD_IMAGE}"; then
+          echo "Failed to push zstd image to ${ZSTD_IMAGE}"
+          exit 1
+        fi
+
+        tee "$(results.ZSTD_IMAGE_DIGEST.path)" <"/var/workdir/zstd-image-digest"
+        echo -n "$ZSTD_IMAGE" | tee "$(results.ZSTD_IMAGE_URL.path)"
+        {
+          echo -n "${ZSTD_IMAGE}@"
+          cat "/var/workdir/zstd-image-digest"
+        } >"$(results.ZSTD_IMAGE_REF.path)"
+        echo
+      else
+        : >"$(results.ZSTD_IMAGE_DIGEST.path)"
+        : >"$(results.ZSTD_IMAGE_URL.path)"
+        : >"$(results.ZSTD_IMAGE_REF.path)"
+      fi
 
       # detect if keyless signing is required
       SIGNING_CONFIG='{}'
@@ -1317,22 +1364,35 @@ spec:
         SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
         export SIGSTORE_ID_TOKEN
 
-        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
+        IMAGE_REFS=()
+        for image_ref_path in "$(results.IMAGE_REF.path)" "$(results.ZSTD_IMAGE_REF.path)"; do
+          image_ref="$(cat "${image_ref_path}")"
+          if [ -n "${image_ref}" ]; then
+            IMAGE_REFS+=("${image_ref}")
+          fi
+        done
 
-        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-        mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REF}" >/tmp/auth/config.json
-        export DOCKER_CONFIG=/tmp/auth
-
-        echo "[$(date --utc -Ins)] Sign image"
-        echo "Signing image ${IMAGE_REF} using keyless signing"
-        if ! retry cosign sign -y \
-          --rekor-url="${REKOR_URL}" \
-          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
-          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
-          "${IMAGE_REF}"; then
-          echo "Failed to sign image" >&2
+        if [ "${#IMAGE_REFS[@]}" -eq 0 ]; then
+          echo "No image references available for signing" >&2
           exit 1
         fi
+
+        # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+        mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REFS[0]}" >/tmp/auth/config.json
+        export DOCKER_CONFIG=/tmp/auth
+
+        for IMAGE_REF in "${IMAGE_REFS[@]}"; do
+          echo "[$(date --utc -Ins)] Sign image"
+          echo "Signing image ${IMAGE_REF} using keyless signing"
+          if ! retry cosign sign -y \
+            --rekor-url="${REKOR_URL}" \
+            --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+            --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+            "${IMAGE_REF}"; then
+            echo "Failed to sign image" >&2
+            exit 1
+          fi
+        done
       elif [ "${configured}" -eq 0 ]; then
         echo "Keyless signing is disabled (none of ${missing} are configured in the konflux-info/cluster-config configmap)"
       else
@@ -1562,14 +1622,29 @@ spec:
         update-ca-trust
       fi
 
-      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
-      export DOCKER_CONFIG=/tmp/auth
-      echo "Pushing sbom to registry"
-      if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"; then
-        echo "Failed to push sbom to registry"
+      IMAGE_REFS=()
+      for image_ref_path in "$(results.IMAGE_REF.path)" "$(results.ZSTD_IMAGE_REF.path)"; do
+        image_ref="$(cat "${image_ref_path}")"
+        if [ -n "${image_ref}" ]; then
+          IMAGE_REFS+=("${image_ref}")
+        fi
+      done
+
+      if [ "${#IMAGE_REFS[@]}" -eq 0 ]; then
+        echo "No image references available for SBOM upload" >&2
         exit 1
       fi
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REFS[0]}" >/tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+      for IMAGE_REF in "${IMAGE_REFS[@]}"; do
+        echo "Pushing sbom to registry"
+        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "${IMAGE_REF}"; then
+          echo "Failed to push sbom to registry"
+          exit 1
+        fi
+      done
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
@@ -1591,8 +1666,6 @@ spec:
         SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
         export SIGSTORE_ID_TOKEN
 
-        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
-
         ATT_SBOM_TYPE="${SBOM_TYPE}"
         if [ "${ATT_SBOM_TYPE}" = "spdx" ]; then
           # for format cossistency with cyclonedx format, we want to use spdxjson instad of spdx
@@ -1600,16 +1673,18 @@ spec:
           ATT_SBOM_TYPE="spdxjson"
         fi
 
-        echo "[$(date --utc -Ins)] Sign SBOM"
-        echo "Signing and attaching SBOM to ${IMAGE_REF} using keyless signing"
-        if ! retry cosign attest -y --type "${ATT_SBOM_TYPE}" --predicate sbom.json \
-          --rekor-url="${REKOR_URL}" \
-          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
-          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
-          "${IMAGE_REF}"; then
-          echo "Failed to sign SBOM" >&2
-          exit 1
-        fi
+        for IMAGE_REF in "${IMAGE_REFS[@]}"; do
+          echo "[$(date --utc -Ins)] Sign SBOM"
+          echo "Signing and attaching SBOM to ${IMAGE_REF} using keyless signing"
+          if ! retry cosign attest -y --type "${ATT_SBOM_TYPE}" --predicate sbom.json \
+            --rekor-url="${REKOR_URL}" \
+            --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+            --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+            "${IMAGE_REF}"; then
+            echo "Failed to sign SBOM" >&2
+            exit 1
+          fi
+        done
       fi
 
       echo

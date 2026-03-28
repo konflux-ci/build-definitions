@@ -43,12 +43,23 @@
   value:
     name: IMAGE_APPEND_PLATFORM
     value: "true"
+- op: add
+  path: /spec/tasks/3/params/-
+  value:
+    name: ENABLE_ZSTD_CHUNKED
+    value: "$(params.build-zstd-chunked)"
 
 # build-image-index
 - op: replace
   path: /spec/tasks/4/params/4/value  # IMAGES
   value:
     - $(tasks.build-images.results.IMAGE_REF[*])
+- op: add
+  path: /spec/tasks/4/params/-
+  value:
+    name: COMPRESSED_IMAGES
+    value:
+      - $(tasks.build-images.results.ZSTD_IMAGE_REF[*])
 - op: replace
   path: /spec/tasks/4/runAfter
   value:
@@ -111,3 +122,10 @@
     type: array
     default:
       - "linux/x86_64"
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-zstd-chunked
+    description: Add zstd:chunked image variants alongside the default gzip variants when building multi-platform images.
+    type: string
+    default: "true"

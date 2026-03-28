@@ -10,6 +10,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-images:0.9:BUILD_ARGS ; sast-coverity-check:0.3:BUILD_ARGS|
 |build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-images:0.9:BUILD_ARGS_FILE ; sast-coverity-check:0.3:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| true| build-image-index:0.2:ALWAYS_BUILD_INDEX|
+|build-zstd-chunked| Add zstd:chunked image variants alongside the default gzip variants when building multi-platform images.| true| build-images:0.9:ENABLE_ZSTD_CHUNKED|
 |build-platforms| List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.| ['linux/x86_64']| |
 |build-source-image| Build a source image.| false| |
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-images:0.9:BUILDAH_FORMAT ; build-image-index:0.2:BUILDAH_FORMAT|
@@ -41,6 +42,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
 |COMMIT_SHA| The commit the image is built from.| ""| '$(tasks.clone-repository.results.commit)'|
+|COMPRESSED_IMAGES| Optional additional Image Manifests, such as zstd:chunked variants, to be referenced by the Image Index| []| |
 |IMAGE| The target image and tag where the image will be pushed to.| None| '$(params.output-image)'|
 |IMAGES| List of Image Manifests to be referenced by the Image Index| None| '['$(tasks.build-images.results.IMAGE_REF[*])']'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
@@ -74,6 +76,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
 |IMAGE| Reference of the image buildah will produce.| None| '$(params.output-image)'|
 |IMAGE_APPEND_PLATFORM| Whether to append a sanitized platform architecture on the IMAGE tag| false| 'true'|
+|ENABLE_ZSTD_CHUNKED| Whether to push an additional zstd:chunked variant of the image alongside the default gzip variant.| false| '$(params.build-zstd-chunked)'|
 |IMAGE_EXPIRES_AFTER| Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |INHERIT_BASE_IMAGE_LABELS| Determines if the image inherits the base image labels.| true| |
 |LABELS| Additional key=value labels that should be applied to the image| []| |
@@ -343,6 +346,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| build-image-index:0.2:IMAGES|
 |IMAGE_URL| Image repository and tag where the built image was pushed| |
+|ZSTD_IMAGE_DIGEST| Digest of the zstd:chunked image variant| |
+|ZSTD_IMAGE_REF| Image reference of the zstd:chunked image variant| build-image-index:0.2:COMPRESSED_IMAGES|
+|ZSTD_IMAGE_URL| Image repository and tag where the zstd:chunked image variant was pushed| |
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### clair-scan:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

@@ -60,6 +60,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |PLATFORM|The platform to build on||true|
 |IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
+|ENABLE_ZSTD_CHUNKED|Whether to push an additional zstd:chunked variant of the image alongside the default gzip variant.|false|false|
 
 ## Results
 |name|description|
@@ -67,6 +68,9 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|
+|ZSTD_IMAGE_DIGEST|Digest of the zstd:chunked image variant|
+|ZSTD_IMAGE_REF|Image reference of the zstd:chunked image variant|
+|ZSTD_IMAGE_URL|Image repository and tag where the zstd:chunked image variant was pushed|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 
 
