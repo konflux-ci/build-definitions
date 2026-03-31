@@ -709,50 +709,15 @@ spec:
 
       VOLUME_MOUNTS=()
 
-      echo "[$(date --utc -Ins)] Setup prefetched"
-
       if [ -f "/var/workdir/cachi2/cachi2.env" ]; then
-        # Identify the current arch to filter the prefetched content
-        PREFETCH_ARCH="$(uname -m)"
-        echo "$PREFETCH_ARCH" >/shared/prefetch-arch
-
-        echo "Prefetched content will be made available"
-
-        cp -r "/var/workdir/cachi2" /tmp/
-        chmod -R go+rwX /tmp/cachi2
-
-        # In case RPMs were prefetched and this is a multi-arch build,
-        # clean up the packages that do not match the architecture being built
-        RPM_PREFETCH_DIR="/tmp/cachi2/output/deps/rpm"
-        if [ -d "$RPM_PREFETCH_DIR" ] && [ "$(find $RPM_PREFETCH_DIR | wc -l)" -gt 1 ]; then
-          echo "Removing prefetched RPMs from non-matching architectures"
-          PREFETCH_ARCH="$(uname -m)"
-          for path in "$RPM_PREFETCH_DIR"/*; do
-            if [ "$(basename "$path")" != "$PREFETCH_ARCH" ]; then
-              echo "Removing: $path"
-              rm -rf "$path"
-            else
-              echo "Keeping: $path"
-            fi
-          done
-        fi
-
-        VOLUME_MOUNTS+=(--volume /tmp/cachi2:/cachi2)
-        # Read in the whole file (https://unix.stackexchange.com/questions/533277), then
-        # for each RUN ... line insert the cachi2.env command *after* any options like --mount
-        sed -E -i \
-          -e 'H;1h;$!d;x' \
-          -e 's@^\s*(run((\s|\\\n)+-\S+)*(\s|\\\n)+)@\1. /cachi2/cachi2.env \&\& \\\n    @igM' \
-          "$dockerfile_copy"
-
-        prefetched_repo_for_my_arch="/tmp/cachi2/output/deps/rpm/$(uname -m)/repos.d/cachi2.repo"
-        if [ -f "$prefetched_repo_for_my_arch" ]; then
-          echo "Adding $prefetched_repo_for_my_arch to $YUM_REPOS_D_FETCHED"
-          mkdir -p "$YUM_REPOS_D_FETCHED"
-          if [ ! -f "${YUM_REPOS_D_FETCHED}/cachi2.repo" ]; then
-            cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
-          fi
-        fi
+        prefetch_dir="/var/workdir/cachi2"
+        # KBC defaults to ${prefetch_dir}/copy-*
+        # Copy to a sibling dir instead in case we don't have write permissions to the prefetch_dir.
+        # It's still on the same filesystem, so copying via reflinks should be possible.
+        prefetch_dir_copy="/var/workdir/prefetch-copy"
+      else
+        prefetch_dir=""
+        prefetch_dir_copy=""
       fi
 
       yum_repos_d_sources=()
@@ -949,6 +914,10 @@ spec:
         --image-pull-noproxy "$BUILDAH_NO_PROXY"
         --yum-repos-d-sources "${yum_repos_d_sources[@]}"
         --yum-repos-d-target "$YUM_REPOS_D_TARGET"
+        --prefetch-dir "$prefetch_dir"
+        --prefetch-dir-copy "$prefetch_dir_copy"
+        --prefetch-env-mount /cachi2/cachi2.env
+        --prefetch-output-mount /cachi2/output
         --
         "${VOLUME_MOUNTS[@]}"
         "${BUILDAH_ARGS[@]}"
@@ -969,9 +938,9 @@ spec:
       echo "[$(date --utc -Ins)] Add metadata"
 
       # Save the SBOM produced in prefetch so it can be merged into the final SBOM later
-      if [ -f "/tmp/cachi2/output/bom.json" ]; then
+      if [ -f "${prefetch_dir}/output/bom.json" ]; then
         echo "Making copy of sbom-prefetch.json"
-        cp /tmp/cachi2/output/bom.json ./sbom-prefetch.json
+        cp "${prefetch_dir}/output/bom.json" ./sbom-prefetch.json
       fi
 
       touch /shared/base_images_digests
