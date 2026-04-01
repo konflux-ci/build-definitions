@@ -127,6 +127,26 @@ spec:
     description: Additional key=value labels that should be applied to the image
     name: LABELS
     type: array
+  - default:
+    - name
+    - version
+    - release
+    - summary
+    - description
+    - io.k8s.description
+    - io.k8s.display-name
+    - com.redhat.component
+    - url
+    - vcs-ref
+    - vcs-type
+    - vendor
+    - io.openshift.tags
+    description: |-
+      Array of label names that should not be inherited from the base image.
+      This is useful to prevent inheriting base image metadata like name, version, description, etc.
+      Common examples: name, version, release, summary, description, io.k8s.description, io.k8s.display-name, com.redhat.component, url, vcs-ref, vcs-type, vendor, io.openshift.tags
+    name: UNSET_LABELS
+    type: array
   - default: []
     description: Additional key=value annotations that should be applied to the image
     name: ANNOTATIONS
@@ -333,6 +353,8 @@ spec:
     - $(params.ENV_VARS[*])
     - --labels
     - $(params.LABELS[*])
+    - --unset-labels
+    - $(params.UNSET_LABELS[*])
     - --annotations
     - $(params.ANNOTATIONS[*])
     computeResources:
@@ -472,6 +494,7 @@ spec:
       env_vars=()
 
       LABELS=()
+      UNSET_LABELS=()
       ANNOTATIONS=()
       # Append any annotations from the specified file
       if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
@@ -502,6 +525,10 @@ spec:
               --labels)
                   shift
                   while [[ $# -gt 0 && $1 != --* ]]; do LABELS+=("--label" "$1"); shift; done
+                  ;;
+              --unset-labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do UNSET_LABELS+=("--unsetlabel" "$1"); shift; done
                   ;;
               --annotations)
                   shift
@@ -597,6 +624,11 @@ spec:
 
       if [ "${INHERIT_BASE_IMAGE_LABELS}" != "true" ] ; then
         BUILDAH_ARGS+=("--inherit-labels=false")
+      fi
+
+      # Add --unsetlabel flags for labels that should not be inherited from base image
+      if [ ${#UNSET_LABELS[@]} -gt 0 ]; then
+        BUILDAH_ARGS+=("${UNSET_LABELS[@]}")
       fi
 
       if [ -n "${BUILDAH_SOURCE_DATE_EPOCH}" ]; then
