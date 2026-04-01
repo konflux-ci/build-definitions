@@ -72,6 +72,11 @@ spec:
       description: The image is built from this commit.
       type: string
       default: ""
+    - name: COMPRESSION_FORMAT
+      description: Compression format for image layers (e.g., gzip, zstd,
+        zstd:chunked)
+      type: string
+      default: ""
     - name: CONTEXT
       description: Path to the directory to use as context.
       type: string
@@ -92,6 +97,11 @@ spec:
       description: Array of --env values ("env=value" strings)
       type: array
       default: []
+    - name: FORCE_COMPRESSION
+      description: Force recompression of all layers including base image
+        layers
+      type: string
+      default: "false"
     - name: HERMETIC
       description: Determines if build will be executed without network access.
       type: string
@@ -1060,6 +1070,14 @@ spec:
           value: $(params.BUILDAH_FORMAT)
         - name: TASKRUN_NAME
           value: $(context.taskRun.name)
+        - name: COMPRESSION_FORMAT
+          value: $(params.COMPRESSION_FORMAT)
+        - name: FORCE_COMPRESSION
+          value: $(params.FORCE_COMPRESSION)
+        - name: IMAGE
+          value: $(params.IMAGE)
+        - name: TLSVERIFY
+          value: $(params.TLSVERIFY)
       script: |
         #!/bin/bash
         set -e
@@ -1083,6 +1101,16 @@ spec:
           push_format=docker
         fi
 
+        COMPRESSION_ARGS=()
+
+        if [ -n "${COMPRESSION_FORMAT}" ]; then
+          COMPRESSION_ARGS+=(--compression-format="${COMPRESSION_FORMAT}")
+        fi
+
+        if [ "${FORCE_COMPRESSION}" == "true" ]; then
+          COMPRESSION_ARGS+=(--force-compression)
+        fi
+
         echo "[$(date --utc -Ins)] Push image with unique tag"
 
         buildah_retries=3
@@ -1093,6 +1121,7 @@ spec:
           --format="$push_format" \
           --retry "$buildah_retries" \
           --tls-verify="$TLSVERIFY" \
+          "${COMPRESSION_ARGS[@]}" \
           "$IMAGE" \
           "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
           echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
@@ -1107,6 +1136,7 @@ spec:
           --format="$push_format" \
           --retry "$buildah_retries" \
           --tls-verify="$TLSVERIFY" \
+          "${COMPRESSION_ARGS[@]}" \
           --digestfile "/var/workdir/image-digest" "$IMAGE" \
           "docker://$IMAGE"; then
           echo "Failed to push sbom image to $IMAGE"
