@@ -91,11 +91,17 @@ spec:
 
         echo "Getting Target ocp version for the FBC fragment"
         image_manifest_sha=$(echo "${image_manifests}" | jq -r 'to_entries[0].value')
-        target_ocp_version=$(get_ocp_version_from_fbc_fragment "$image_without_tag@$image_manifest_sha")
+        raw_target_ocp_version=$(get_ocp_version_from_fbc_fragment "$image_without_tag@$image_manifest_sha")
+        # Check if the ocp version is returned in JSON array, and if so, declare the highest version as target version
+        if jq -e 'type == "array"' >/dev/null 2>&1 <<< "$raw_target_ocp_version"; then
+          target_ocp_version=$(echo "$raw_target_ocp_version" | jq -r '.[]' | sort -V | tail -n 1)
+        else
+            target_ocp_version="$raw_target_ocp_version"
+        fi
         echo "${target_ocp_version#v}" >"/tekton/home/target_ocp_version.txt"
         echo "Target OCP version: ${target_ocp_version}"
 
-        target_index_url=$(get_target_fbc_catalog_image -i "${image_and_digest}")
+        target_index_url="registry.redhat.io/redhat/redhat-operator-index:${target_ocp_version}"
         echo "Target index: ${target_index_url}"
 
         target_index_repo_reg=$(get_image_registry_and_repository "${target_index_url}")
