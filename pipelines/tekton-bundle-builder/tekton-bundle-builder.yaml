@@ -58,6 +58,15 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+    name: source-date-epoch
+  - default: "false"
+    description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH
+    name: rewrite-timestamp
+  - default: "false"
+    description: Omit build history information from the resulting image
+    name: omit-history
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)

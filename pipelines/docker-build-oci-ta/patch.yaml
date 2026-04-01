@@ -17,25 +17,6 @@
     "pipelines.openshift.io/strategy": "docker"
 - op: remove
   path: /spec/workspaces/0
-# Order of Tasks from the base docker-build Pipeline:
-# $ kustomize build pipelines/docker-build | yq .spec.tasks.[].name | nl -v 0
-#   0  init
-#   1  clone-repository
-#   2  prefetch-dependencies
-#   3  build-container
-#   4  build-image-index
-#   5  build-source-image
-#   6  deprecated-base-image-check
-#   7  clair-scan
-#   8  ecosystem-cert-preflight-checks
-#   9  sast-snyk-check
-#  10  clamav-scan
-#  11  sast-coverity-check
-#  12  coverity-availability-check
-#  13  sast-shell-check
-#  14  sast-unicode-check
-#  15  apply-tags
-#  16  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -118,8 +99,6 @@
   path: /spec/tasks/9/taskRef/name
   value: sast-snyk-check-oci-ta
 - op: add
-  # In the docker-build Pipeline, the snyk Task does not receive any parameters, so we cannot
-  # append to it.
   path: /spec/tasks/9/params/-
   value:
     name: SOURCE_ARTIFACT

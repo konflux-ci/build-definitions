@@ -66,6 +66,15 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: ""
+    description: Timestamp in seconds since Unix epoch for reproducible builds.
+    name: source-date-epoch
+  - default: "false"
+    description: Clamp mtime of all files to at most SOURCE_DATE_EPOCH
+    name: rewrite-timestamp
+  - default: "false"
+    description: Omit build history information from the resulting image
+    name: omit-history
   - default: []
     description: Array of --build-arg values ("arg=value" strings) for buildah
     name: build-args
@@ -165,6 +174,12 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
+    - name: REWRITE_TIMESTAMP
+      value: $(params.rewrite-timestamp)
+    - name: OMIT_HISTORY
+      value: $(params.omit-history)
     - name: SOURCE_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT

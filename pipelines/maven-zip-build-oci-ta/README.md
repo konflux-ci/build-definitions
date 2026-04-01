@@ -10,10 +10,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-oci-artifact:0.1:IMAGE_EXPIRES_AFTER|
+|omit-history| Omit build history information from the resulting image| false| |
 |output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-oci-artifact:0.1:IMAGE ; sast-coverity-check:0.3:IMAGE|
 |prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|rewrite-timestamp| Clamp mtime of all files to at most SOURCE_DATE_EPOCH| false| |
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### build-maven-zip-oci-ta:0.1 task parameters
