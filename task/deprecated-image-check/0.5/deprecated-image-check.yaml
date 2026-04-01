@@ -85,8 +85,7 @@ spec:
             arch_imageanddigest=$(echo $imagewithouttag@$arch_sha)
 
             # Get base images from SBOM
-            cosign download sbom $arch_imageanddigest > ${SBOM_FILE_PATH}
-            if [ $? -ne 0 ]; then
+            if ! cosign download sbom "$arch_imageanddigest" > "${SBOM_FILE_PATH}"; then
               echo "Unable to download sbom for arch $arch."
               continue
             fi
