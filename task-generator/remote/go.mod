@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.25.0
 
 require (
-	github.com/tektoncd/pipeline v1.3.1
+	github.com/tektoncd/pipeline v1.3.3
 	k8s.io/api v0.33.4
 	k8s.io/apimachinery v0.33.4
 	k8s.io/cli-runtime v0.33.4
