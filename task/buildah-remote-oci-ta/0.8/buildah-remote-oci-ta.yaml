@@ -793,6 +793,11 @@ spec:
             cp "$prefetched_repo_for_my_arch" "$YUM_REPOS_D_FETCHED"
           fi
         fi
+
+        # Cleans up empty /cachi2 folder if it exists
+        if [ -d "/var/workdir/cachi2" ]; then
+          rmdir /var/workdir/cachi2 || true
+        fi
       fi
 
       # if yum repofiles stored in git, copy them to mount point outside the source dir
