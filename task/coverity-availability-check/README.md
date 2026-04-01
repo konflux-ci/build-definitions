@@ -1,0 +1,1 @@
+../../external-task/coverity-availability-check/README.md

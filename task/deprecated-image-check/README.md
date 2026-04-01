@@ -1,0 +1,1 @@
+../../external-task/deprecated-image-check/README.md
