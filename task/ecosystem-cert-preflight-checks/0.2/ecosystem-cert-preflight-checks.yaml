@@ -50,7 +50,7 @@ spec:
         requests:
           cpu: 100m
           memory: 512Mi
-      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
       results:
         - name: artifact-type
           description: The type of artifact this task is considering.
@@ -162,7 +162,7 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: generate-container-auth
-      image: quay.io/konflux-ci/oras:latest@sha256:f322638a8a337f26adda3f72d3fbcf7e1218a6d8d7e2365376487417a05e0f4e
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
       env:
       - name: PARAM_IMAGE_URL
         value: $(params.image-url)
@@ -288,7 +288,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
       results:
       - name: test-output
         description: The overall outcome of this task.
@@ -326,7 +326,7 @@ spec:
         for ARCH in "${SUPPORTED_ARCHES[@]}"
         do
             # Check if results directory exits
-            RESULT_JSON_PATH=artifacts/${ARCH}/results.json
+            RESULT_JSON_PATH=/artifacts/${ARCH}/results.json
             if ! [ -f "${RESULT_JSON_PATH}" ]; then
                 continue
             fi
@@ -389,7 +389,7 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
-      image: quay.io/konflux-ci/appstudio-utils:1610c1fc4cfc9c9053dbefc1146904a4df6659ef@sha256:90ac97b811073cb99a23232c15a08082b586c702b85da6200cf54ef505e3c50c
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
       results:
         - name: test-output
       volumeMounts:

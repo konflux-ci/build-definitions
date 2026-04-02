@@ -57,7 +57,7 @@ spec:
     - name: SOURCE_CODE_DIR
       value: source
   steps:
-  - image: quay.io/konflux-ci/konflux-test:v1.4.42@sha256:32112ba0f1b8a3944f4905be40308713c32beb6c059c42ef0bc2b5fe7947ff2f
+  - image: quay.io/konflux-ci/konflux-test:v1.4.52@sha256:deabe80a01dca3a8a0edb709324e30cbf0baa176f7a181bbb695323f506f7aac
     name: modify-task-files
     env:
     - name: CONTEXT
@@ -179,7 +179,7 @@ spec:
 
       printf "%s\n" "${FILES[@]}" > "${TASK_FILE}"
     workingDir: $(workspaces.source.path)
-  - image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+  - image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
     name: build
     env:
     - name: CONTEXT
@@ -247,12 +247,6 @@ spec:
       # task_dir is where the task definition reside
       # this task run for only one task file, so extracting it from the first element is enough
       task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
-      actual_task_version=$(get_actual_task_version "${FILES[0]}")
-
-      if [[ -z "$actual_task_version" ]]; then
-        printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
-        exit 1
-      fi
 
       # If task is kustomized, generate it and replace the FILES value with the value of the generated task
       # All other files will be ignored.
@@ -261,6 +255,13 @@ spec:
         FILES=("$(generate_kustomized_task "$task_dir")")
       else
         echo "Task is not Kustomized - continue"
+      fi
+
+      actual_task_version=$(get_actual_task_version "${FILES[0]}")
+
+      if [[ -z "$actual_task_version" ]]; then
+        printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
+        exit 1
       fi
 
       # Push migration to registry if there is
