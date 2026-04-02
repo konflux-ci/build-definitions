@@ -132,6 +132,11 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          memory: 4Gi
     - name: sanitize-config-file-with-yq
       image: quay.io/konflux-ci/yq:latest@sha256:9264d52ac6d69bfe92617f309466a0c531990a4c07e63fe73748f44a42e0d1d2
       script: |
