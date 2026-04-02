@@ -6,15 +6,15 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|build-image-index| Add built image into an OCI image index| false| build-image-index:0.2:ALWAYS_BUILD_INDEX|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
-|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.2:BUILDAH_FORMAT|
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.3:BUILDAH_FORMAT|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| |
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.2:IMAGE_EXPIRES_AFTER|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
 |labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
-|output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
+|output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
@@ -30,15 +30,13 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |LOG_LEVEL| Log level to use in the task. See golang logrus docs for available levels.| info| |
-### build-image-index:0.2 task parameters
+### build-image-index:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
 |BUILDAH_FORMAT| The format for the resulting image's mediaType. Valid values are oci (default) or docker.| oci| '$(params.buildah-format)'|
-|COMMIT_SHA| The commit the image is built from.| ""| '$(tasks.clone-repository.results.commit)'|
 |IMAGE| The target image and tag where the image will be pushed to.| None| '$(params.output-image)'|
 |IMAGES| List of Image Manifests to be referenced by the Image Index| None| '['$(tasks.build-container.results.IMAGE_URL)@$(tasks.build-container.results.IMAGE_DIGEST)']'|
-|IMAGE_EXPIRES_AFTER| Delete image tag after specified time resulting in garbage collection of the digest. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| ""| '$(params.image-expires-after)'|
 |SBOM_SKIP_VALIDATION| Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| vfs| |
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
@@ -249,7 +247,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index:0.2 task results
+### build-image-index:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
@@ -291,7 +289,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|commit| The precise commit SHA that was fetched by this Task.| build-image-index:0.2:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
@@ -306,7 +304,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |---|---|---|
 |IMAGE_DIGEST| Digest of the package just built| |
 |IMAGE_REF| Image reference of the built package| |
-|IMAGE_URL| Image repository and tag where the built package was pushed| build-image-index:0.2:IMAGES|
+|IMAGE_URL| Image repository and tag where the built package was pushed| build-image-index:0.3:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### rpms-signature-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)

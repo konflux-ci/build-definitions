@@ -135,10 +135,6 @@ spec:
     params:
     - name: IMAGE
       value: $(params.output-image)
-    - name: COMMIT_SHA
-      value: $(tasks.clone-repository.results.commit)
-    - name: IMAGE_EXPIRES_AFTER
-      value: $(params.image-expires-after)
     - name: ALWAYS_BUILD_INDEX
       value: $(params.build-image-index)
     - name: IMAGES
@@ -148,7 +144,7 @@ spec:
     - build-container
     taskRef:
       name: build-image-index
-      version: "0.2"
+      version: "0.3"
   - name: sast-shell-check
     params:
     - name: image-digest
