@@ -416,6 +416,7 @@ spec:
         exit 1
       fi
       export SSH_HOST=$(cat /ssh/host)
+      IS_LOCALHOST=false
 
       if [ "$SSH_HOST" == "localhost" ] ; then
         IS_LOCALHOST=true
@@ -429,12 +430,13 @@ spec:
 
       mkdir -p scripts
 
-      if ! [[ $IS_LOCALHOST ]]; then
+      if [[ "${IS_LOCALHOST:-false}" != "true" ]]; then
         echo "[$(date --utc -Ins)] Setup VM"
 
-        if [[ "$BUILDAH_HTTP_PROXY" =~ .+\.cluster\.local ]]; then
+        if [[ "${BUILDAH_HTTP_PROXY:-}" =~ .+\.cluster\.local ]]; then
           echo "[$(date --utc -Ins)] Ignoring cluster local proxy for remote build"
-          unset BUILDAH_HTTP_PROXY BUILDAH_NO_PROXY
+          BUILDAH_HTTP_PROXY=""
+          BUILDAH_NO_PROXY=""
         fi
 
         chmod 0400 ~/.ssh/id_rsa
@@ -446,8 +448,8 @@ spec:
 
         PORT_FORWARD=""
         PODMAN_PORT_FORWARD=""
-        if [ -n "$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR" ] ; then
-          PORT_FORWARD=" -L 80:$JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:80"
+        if [ -n "${JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR:-}" ] ; then
+          PORT_FORWARD=" -L 80:${JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR}:80"
           PODMAN_PORT_FORWARD=" -e JVM_BUILD_WORKSPACE_ARTIFACT_CACHE_PORT_80_TCP_ADDR=localhost"
         fi
 
@@ -1062,7 +1064,7 @@ spec:
           PODMAN_NVIDIA_ARGS+=("--device=nvidia.com/gpu=all" "--security-opt=label=disable")
       fi
 
-      if ! [[ $IS_LOCALHOST ]]; then
+      if [[ "${IS_LOCALHOST:-false}" != "true" ]]; then
         PRIVILEGED_NESTED_FLAGS=()
         if [[ "${PRIVILEGED_NESTED}" == "true" ]]; then
           # This is a workaround for building bootc images because the cache filesystem (/var/tmp/ on the host) must be a real filesystem that supports setting SELinux security attributes.
