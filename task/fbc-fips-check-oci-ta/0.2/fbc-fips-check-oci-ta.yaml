@@ -1,0 +1,149 @@
+---
+# Task: FIPS check for operator bundle images (matrix worker)
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fbc-fips-check-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: konflux
+  labels:
+    app.kubernetes.io/version: "0.2"
+spec:
+  description: |-
+    FIPS compliance check task for operator bundle images. Processes images from one bucket using fips-operator-check-step-action.
+    This task is designed to work with fbc-fips-prepare-oci-ta using matrix expansion on BUCKET_INDEX parameter.
+
+    For standalone mode (single task), use v0.1 instead.
+  params:
+    - name: BUCKETS_ARTIFACT
+      description: OCI reference to buckets artifact from fbc-fips-prepare-oci-ta
+      type: string
+    - name: BUCKET_INDEX
+      description: Which bucket to process (0, 1, 2, ...)
+      type: string
+    - name: MAX_PARALLEL
+      description: Maximum number of images to process in parallel within this bucket
+      type: string
+      default: "2"
+  results:
+    - name: IMAGES_PROCESSED
+      description: Images processed in the task
+    - name: TEST_OUTPUT
+      description: Tekton task test output
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-buckets-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      args:
+        - use
+        - $(params.BUCKETS_ARTIFACT)=/var/workdir/buckets
+
+    - name: prepare-bucket-images
+      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      env:
+        - name: BUCKET_INDEX
+          value: $(params.BUCKET_INDEX)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "=========================================="
+        echo "Preparing bucket ${BUCKET_INDEX} for FIPS check"
+        echo "=========================================="
+
+        bucket_file="/var/workdir/buckets/bucket-${BUCKET_INDEX}.txt"
+
+        if [ ! -f "${bucket_file}" ]; then
+          echo "ERROR: Bucket file not found: ${bucket_file}"
+          echo "Available files:"
+          ls -la /var/workdir/buckets/ || true
+          exit 1
+        fi
+
+        mkdir -p /tekton/home
+
+        # Copy metadata files (including test_output.txt for error propagation)
+        for file in target_ocp_version.txt related-images-map.txt images_processed.txt test_output.txt; do
+          if [ -f "/var/workdir/buckets/${file}" ]; then
+            cp "/var/workdir/buckets/${file}" /tekton/home/
+          fi
+        done
+
+        if [ -f /tekton/home/target_ocp_version.txt ]; then
+          echo "Target OCP version: $(cat /tekton/home/target_ocp_version.txt)"
+        fi
+
+        # Read images from bucket file
+        readarray -t bucket_images < "${bucket_file}"
+        num_images=${#bucket_images[@]}
+
+        echo "Bucket ${BUCKET_INDEX} contains ${num_images} images"
+
+        # Only write unique_related_images.txt if there are images to process
+        if [ "${num_images}" -gt 0 ]; then
+          printf '%s ' "${bucket_images[@]}" > /tekton/home/unique_related_images.txt
+          echo "Ready to process ${num_images} images"
+        else
+          echo "No images in this bucket"
+        fi
+
+    - name: fips-operator-check-step-action
+      params:
+        - name: MAX_PARALLEL
+          value: $(params.MAX_PARALLEL)
+      computeResources:
+        limits:
+          cpu: "2"
+          memory: 12Gi
+        requests:
+          cpu: "2"
+          memory: 12Gi
+      ref:
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions
+          - name: revision
+            value: 6660aed5c5388fade0f433c14d41c5d4e073d07a
+          - name: pathInRepo
+            value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
+        resolver: git
+
+    - name: output-results
+      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      env:
+        - name: BUCKET_INDEX
+          value: $(params.BUCKET_INDEX)
+        - name: STEP_ACTION_OUTPUT
+          value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "Bucket ${BUCKET_INDEX} FIPS check complete"
+
+        # Output IMAGES_PROCESSED if available
+        if [ -f /tekton/home/images_processed.txt ]; then
+          cat /tekton/home/images_processed.txt > "$(results.IMAGES_PROCESSED.path)"
+        fi
+
+        # Check if prepare task reported an error/failure (propagate to check task result)
+        if [ -f /tekton/home/test_output.txt ]; then
+          prepare_result=$(jq -r '.result // empty' /tekton/home/test_output.txt 2>/dev/null || true)
+          if [ "${prepare_result}" = "ERROR" ] || [ "${prepare_result}" = "FAILURE" ]; then
+            echo "Propagating ${prepare_result} from prepare task"
+            cat /tekton/home/test_output.txt > "$(results.TEST_OUTPUT.path)"
+            exit 0
+          fi
+        fi
+
+        # Use step action output (normal FIPS check result)
+        if [ -n "${STEP_ACTION_OUTPUT}" ]; then
+          echo "${STEP_ACTION_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        fi
