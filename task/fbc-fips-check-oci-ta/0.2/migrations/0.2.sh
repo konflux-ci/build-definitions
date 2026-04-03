@@ -37,15 +37,15 @@ fi
 echo "Migrating fbc-fips-check-oci-ta to matrix mode..."
 
 # Extract current task parameters for the prepare task
-source_artifact=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"SOURCE_ARTIFACT\") | .value" "$pipeline_file" 2>/dev/null || echo '$(tasks.clone-repository.results.SOURCE_ARTIFACT)')
-image_digest=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-digest\") | .value" "$pipeline_file" 2>/dev/null || echo '$(tasks.build-container.results.IMAGE_DIGEST)')
-image_url=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-url\") | .value" "$pipeline_file" 2>/dev/null || echo '$(tasks.build-container.results.IMAGE_URL)')
+source_artifact=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"SOURCE_ARTIFACT\") | .value" "$pipeline_file" 2>/dev/null || echo "\$(tasks.clone-repository.results.SOURCE_ARTIFACT)")
+image_digest=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-digest\") | .value" "$pipeline_file" 2>/dev/null || echo "\$(tasks.build-container.results.IMAGE_DIGEST)")
+image_url=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-url\") | .value" "$pipeline_file" 2>/dev/null || echo "\$(tasks.build-container.results.IMAGE_URL)")
 
 # Get runAfter from existing task
 run_after=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .runAfter[0]" "$pipeline_file" 2>/dev/null || echo "")
 
 # ociStorage with suffix to avoid conflict with output-image
-oci_storage='$(params.output-image)-fbc-fips-check'
+oci_storage="\$(params.output-image)-fbc-fips-check"
 
 # Determine paths based on whether it is a Pipeline or PipelineRun
 if yq -e '.spec.pipelineSpec' "$pipeline_file" >/dev/null 2>&1; then
@@ -116,7 +116,7 @@ pmt modify -f "$pipeline_file" task "$task_name" add-param BUCKETS_ARTIFACT "\$(
 # Add matrix expansion
 pmt modify -f "$pipeline_file" generic insert \
   "$task_path" \
-  '{"matrix": {"params": [{"name": "BUCKET_INDEX", "value": ["$(tasks.fbc-fips-prepare-oci-ta.results.BUCKET_INDICES[*])"]}]}}'
+  "{\"matrix\": {\"params\": [{\"name\": \"BUCKET_INDEX\", \"value\": [\"\$(tasks.fbc-fips-prepare-oci-ta.results.BUCKET_INDICES[*])\"]}]}}"
 
 echo "Migration to matrix mode completed successfully!"
 echo "- Added 'fbc-fips-prepare-oci-ta' task"
