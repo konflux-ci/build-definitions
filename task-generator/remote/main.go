@@ -243,8 +243,6 @@ if ! [[ $IS_LOCALHOST ]]; then
 			ret += "cd " + step.WorkingDir + "\n"
 		}
 		ret += step.Script
-		ret += "\nbuildah push \"$IMAGE\" \"oci:konflux-final-image:$IMAGE\""
-		ret += "\necho \"[$(date --utc -Ins)] End push remote\""
 		ret += "\nREMOTESSHEOF"
 		ret += "\nchmod +x " + script + "\n"
 		ret += "\nPODMAN_NVIDIA_ARGS=()"
@@ -295,7 +293,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 
 		ret += `
   echo "[$(date --utc -Ins)] Buildah pull"
-  buildah pull "oci:konflux-final-image:$IMAGE"
+  buildah pull "oci:$(cat /shared/container_path):$IMAGE"
 else
   bash ` + containerScript + ` "$@"
 fi

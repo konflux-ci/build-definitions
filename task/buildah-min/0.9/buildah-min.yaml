@@ -6,7 +6,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.9.1
+    app.kubernetes.io/version: 0.9.2
     build.appstudio.redhat.com/build_type: docker
   name: buildah-min
 spec:
@@ -931,7 +931,7 @@ spec:
       done
 
       image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
-      buildah push "$IMAGE" oci:"/shared/$image_name.oci"
+      buildah push "$IMAGE" oci:"/shared/$image_name.oci:$IMAGE"
       echo "/shared/$image_name.oci" > /shared/container_path
 
       echo "[$(date --utc -Ins)] End build"
