@@ -67,29 +67,32 @@ spec:
           exit 1
         fi
 
+        mkdir -p /tekton/home
+
+        # Copy metadata files (including test_output.txt for error propagation)
+        for file in target_ocp_version.txt related-images-map.txt images_processed.txt test_output.txt; do
+          if [ -f "/var/workdir/buckets/${file}" ]; then
+            cp "/var/workdir/buckets/${file}" /tekton/home/
+          fi
+        done
+
+        if [ -f /tekton/home/target_ocp_version.txt ]; then
+          echo "Target OCP version: $(cat /tekton/home/target_ocp_version.txt)"
+        fi
+
         # Read images from bucket file
         readarray -t bucket_images < "${bucket_file}"
         num_images=${#bucket_images[@]}
 
         echo "Bucket ${BUCKET_INDEX} contains ${num_images} images"
 
-        # Prepare for fips-operator-check-step-action (space-separated)
-        mkdir -p /tekton/home
-        printf '%s ' "${bucket_images[@]}" > /tekton/home/unique_related_images.txt
-
-        # Copy metadata if available
-        if [ -f /var/workdir/buckets/target_ocp_version.txt ]; then
-          cp /var/workdir/buckets/target_ocp_version.txt /tekton/home/
-          echo "Target OCP version: $(cat /tekton/home/target_ocp_version.txt)"
+        # Only write unique_related_images.txt if there are images to process
+        if [ "${num_images}" -gt 0 ]; then
+          printf '%s ' "${bucket_images[@]}" > /tekton/home/unique_related_images.txt
+          echo "Ready to process ${num_images} images"
+        else
+          echo "No images in this bucket"
         fi
-        if [ -f /var/workdir/buckets/related-images-map.txt ]; then
-          cp /var/workdir/buckets/related-images-map.txt /tekton/home/
-        fi
-        if [ -f /var/workdir/buckets/images_processed.txt ]; then
-          cp /var/workdir/buckets/images_processed.txt /tekton/home/
-        fi
-
-        echo "Ready to process ${num_images} images"
 
     - name: fips-operator-check-step-action
       params:
@@ -130,4 +133,17 @@ spec:
           cat /tekton/home/images_processed.txt > "$(results.IMAGES_PROCESSED.path)"
         fi
 
-        echo "${STEP_ACTION_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        # Check if prepare task reported an error/failure (propagate to check task result)
+        if [ -f /tekton/home/test_output.txt ]; then
+          prepare_result=$(jq -r '.result // empty' /tekton/home/test_output.txt 2>/dev/null || true)
+          if [ "${prepare_result}" = "ERROR" ] || [ "${prepare_result}" = "FAILURE" ]; then
+            echo "Propagating ${prepare_result} from prepare task"
+            cat /tekton/home/test_output.txt > "$(results.TEST_OUTPUT.path)"
+            exit 0
+          fi
+        fi
+
+        # Use step action output (normal FIPS check result)
+        if [ -n "${STEP_ACTION_OUTPUT}" ]; then
+          echo "${STEP_ACTION_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        fi
