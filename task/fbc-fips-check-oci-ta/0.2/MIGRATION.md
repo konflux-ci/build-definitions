@@ -26,7 +26,7 @@ Replace the single `fbc-fips-check-oci-ta` task with two tasks:
 
 ### Before (v0.1)
 ```yaml
-- name: fbc-fips-check
+- name: fbc-fips-check-oci-ta
   taskRef:
     resolver: git
     params:
@@ -48,7 +48,7 @@ Replace the single `fbc-fips-check-oci-ta` task with two tasks:
 ### After (v0.2)
 ```yaml
 # Step 1: Prepare images and split into buckets
-- name: fbc-fips-prepare
+- name: fbc-fips-prepare-oci-ta
   taskRef:
     resolver: git
     params:
@@ -71,13 +71,13 @@ Replace the single `fbc-fips-check-oci-ta` task with two tasks:
       value: "3"
 
 # Step 2: Process each bucket in parallel using matrix expansion
-- name: fbc-fips-check
+- name: fbc-fips-check-oci-ta
   runAfter:
-    - fbc-fips-prepare
+    - fbc-fips-prepare-oci-ta
   matrix:
     params:
       - name: BUCKET_INDEX
-        value: $(tasks.fbc-fips-prepare.results.BUCKET_INDICES[*])
+        value: $(tasks.fbc-fips-prepare-oci-ta.results.BUCKET_INDICES[*])
   taskRef:
     resolver: git
     params:
@@ -89,7 +89,7 @@ Replace the single `fbc-fips-check-oci-ta` task with two tasks:
         value: task/fbc-fips-check-oci-ta/0.2/fbc-fips-check-oci-ta.yaml
   params:
     - name: BUCKETS_ARTIFACT
-      value: $(tasks.fbc-fips-prepare.results.BUCKETS_ARTIFACT)
+      value: $(tasks.fbc-fips-prepare-oci-ta.results.BUCKETS_ARTIFACT)
     - name: MAX_PARALLEL
       value: "2"
 ```
