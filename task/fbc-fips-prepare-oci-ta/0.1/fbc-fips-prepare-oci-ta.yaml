@@ -46,8 +46,6 @@ spec:
     - name: TOTAL_IMAGES
       description: Total number of unique images
       type: string
-    - name: TEST_OUTPUT
-      description: Tekton task test output
   volumes:
     - name: workdir
       emptyDir: {}
@@ -119,17 +117,18 @@ spec:
         echo "Rendering FBC fragment: ${image_and_digest}"
         rendered_fbc_image_file=$(render_opm -t "${image_and_digest}" --file)
         if [[ ! -f "${rendered_fbc_image_file}" ]]; then
-          note="Task $(context.task.name) failed: Unable to render the FBC fragment image: ${image_and_digest}"
+          note="Task fbc-fips-check-oci-ta failed: Unable to render the FBC fragment image: ${image_and_digest}"
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
           exit 0
         fi
         echo "Getting package names in FBC fragment"
         if ! fragment_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_fbc_image_file}" --file); then
-          note="Task $(context.task.name) failed: Could not get package names from FBC fragment."
+          note="Task fbc-fips-check-oci-ta failed: Could not get package names from FBC fragment."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
           exit 0
         fi
         echo "Packages in FBC fragment: ${fragment_pkg_names}"
@@ -138,17 +137,18 @@ spec:
         echo "Rendering target index: ${target_index_url}"
         rendered_target_index_file=$(render_opm -t "${target_index_url}" --file)
         if [[ ! -f "${rendered_target_index_file}" ]]; then
-          note="Task $(context.task.name) failed: Unable to render the fragment target index image: ${IMAGE_URL}"
+          note="Task fbc-fips-check-oci-ta failed: Unable to render the fragment target index image: ${IMAGE_URL}"
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r ERROR -t "${note}")
+          echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
           exit 0
         fi
 
         if ! ti_pkg_names=$(extract_unique_package_names_from_catalog "${rendered_target_index_file}" --file); then
-          note="Task $(context.task.name) failed: Could not get package names from the target index."
+          note="Task fbc-fips-check-oci-ta failed: Could not get package names from the target index."
           echo "${note}"
           TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+          echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
           exit 0
         fi
 
@@ -178,10 +178,10 @@ spec:
           digests_processed+=("\"$arch_sha\"")
 
           if ! unreleased_bundles=$(get_unreleased_bundle -i "$image_without_tag@$arch_sha" -b "$target_index_url"); then
-            note="Task $(context.task.name) failed: Could not get unreleased bundle images from the fragment. Make sure you have ImagePullCredentials for registry.redhat.io"
+            note="Task fbc-fips-check-oci-ta failed: Could not get unreleased bundle images from the fragment. Make sure you have ImagePullCredentials for registry.redhat.io"
             echo "${note}"
             TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
-            echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+            echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
             exit 0
           fi
 
@@ -226,10 +226,10 @@ spec:
 
             # Run the FIPS check only if the bundle is part of the Openshift Subscription or has the fips label set
             if [[ $image_accessible -eq 0 ]]; then
-              note="Task $(context.task.name) failed: Could not render unreleased bundle image: ${bundle}. Make sure the image is accessible or a mirror is provided for the same in images-mirror-set.yaml"
+              note="Task fbc-fips-check-oci-ta failed: Could not render unreleased bundle image: ${bundle}. Make sure the image is accessible or a mirror is provided for the same in images-mirror-set.yaml"
               echo "${note}"
               TEST_OUTPUT=$(make_result_json -r FAILURE -f 1 -t "$note")
-              echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+              echo "${TEST_OUTPUT}" > /tekton/home/test_output.txt
               exit 0
             fi
             subscription_label=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["operators.openshift.io/valid-subscription"] != null)) | (.value.annotations["operators.openshift.io/valid-subscription"] | fromjson)[]')
@@ -305,18 +305,42 @@ spec:
         set -euo pipefail
 
         echo "=========================================="
-        echo "Splitting images into ${NUM_BUCKETS} buckets"
+        echo "Splitting images into buckets (max ${NUM_BUCKETS})"
         echo "=========================================="
 
         mkdir -p /var/workdir/buckets
 
+        # Helper function to finalize: copy metadata, create BUCKET_INDICES
+        # Uses global variable: actual_buckets
+        finalize() {
+          # Copy metadata files for check task (including test_output.txt for error propagation)
+          for file in target_ocp_version.txt related-images-map.txt images_processed.txt test_output.txt; do
+            if [ -f "/tekton/home/${file}" ]; then
+              cp "/tekton/home/${file}" /var/workdir/buckets/
+            fi
+          done
+
+          # Generate bucket indices JSON array for matrix expansion: ["0","1","2",...]
+          local indices_json="["
+          for ((i=0; i<actual_buckets; i++)); do
+            if [ $i -gt 0 ]; then
+              indices_json+=","
+            fi
+            indices_json+="\"${i}\""
+          done
+          indices_json+="]"
+          echo "Bucket indices: ${indices_json}"
+          echo -n "${indices_json}" > "$(results.BUCKET_INDICES.path)"
+        }
+
         # Read unique images (space-separated from 0.1 format)
         if [ ! -f /tekton/home/unique_related_images.txt ]; then
-          echo "No images file found"
+          echo "No images file found (previous step may have failed or no images to check)"
           echo "0" > "$(results.TOTAL_IMAGES.path)"
-          for ((i=0; i<NUM_BUCKETS; i++)); do
-            touch "/var/workdir/buckets/bucket-${i}.txt"
-          done
+          # Always launch at least 1 worker to propagate any error from prepare step
+          actual_buckets=1
+          : > "/var/workdir/buckets/bucket-0.txt"
+          finalize
           exit 0
         fi
 
@@ -328,20 +352,27 @@ spec:
 
         if [ "${num_images}" -eq 0 ]; then
           echo "No images to split"
-          for ((i=0; i<NUM_BUCKETS; i++)); do
-            touch "/var/workdir/buckets/bucket-${i}.txt"
-          done
+          # Always launch at least 1 worker to propagate any error from prepare step
+          actual_buckets=1
+          : > "/var/workdir/buckets/bucket-0.txt"
+          finalize
           exit 0
         fi
 
-        echo "Total images: ${num_images}"
+        # Calculate actual number of buckets: max(1, min(NUM_BUCKETS, num_images))
+        if [ "${num_images}" -lt "${NUM_BUCKETS}" ]; then
+          actual_buckets=${num_images}
+        else
+          actual_buckets=${NUM_BUCKETS}
+        fi
+        echo "Total images: ${num_images}, using ${actual_buckets} bucket(s)"
 
         # Initialize empty buckets
-        for ((i=0; i<NUM_BUCKETS; i++)); do
+        for ((i=0; i<actual_buckets; i++)); do
           : > "/var/workdir/buckets/bucket-${i}.txt"
         done
 
-        echo "Load balancing: distributing big images to different buckets"
+        echo "Load balancing: distributing images across ${actual_buckets} bucket(s)"
 
         # Load image mirror map if available
         image_mirror_map=""
@@ -417,7 +448,7 @@ spec:
 
         # Greedy algorithm: assign each image to lightest bucket
         declare -a weights
-        for ((i=0; i<NUM_BUCKETS; i++)); do
+        for ((i=0; i<actual_buckets; i++)); do
           weights[i]=0
         done
 
@@ -428,7 +459,7 @@ spec:
           # Find lightest bucket
           min_bucket=0
           min_weight=${weights[0]}
-          for ((i=1; i<NUM_BUCKETS; i++)); do
+          for ((i=1; i<actual_buckets; i++)); do
             if [ "${weights[$i]}" -lt "${min_weight}" ]; then
               min_weight=${weights[$i]}
               min_bucket=$i
@@ -443,44 +474,13 @@ spec:
         # Report
         echo ""
         echo "Bucket distribution:"
-        for ((i=0; i<NUM_BUCKETS; i++)); do
+        for ((i=0; i<actual_buckets; i++)); do
           count=$(wc -l < "/var/workdir/buckets/bucket-${i}.txt")
           weight_mb=$((weights[i] / 1024 / 1024))
           echo "  Bucket ${i}: ${count} images, ${weight_mb} MB"
         done
 
-        # Copy metadata files
-        if [ -f /tekton/home/target_ocp_version.txt ]; then
-          cp /tekton/home/target_ocp_version.txt /var/workdir/buckets/
-        fi
-        if [ -f /tekton/home/related-images-map.txt ]; then
-          cp /tekton/home/related-images-map.txt /var/workdir/buckets/
-        fi
-        if [ -f /tekton/home/images_processed.txt ]; then
-          cp /tekton/home/images_processed.txt /var/workdir/buckets/
-        fi
-
-        # Generate bucket indices JSON array for matrix expansion: ["0","1","2",...]
-        indices_json="["
-        for ((i=0; i<NUM_BUCKETS; i++)); do
-          if [ $i -gt 0 ]; then
-            indices_json+=","
-          fi
-          indices_json+="\"${i}\""
-        done
-        indices_json+="]"
-        echo "Bucket indices: ${indices_json}"
-        echo -n "${indices_json}" > "$(results.BUCKET_INDICES.path)"
-
-        # Write SUCCESS TEST_OUTPUT if no error occurred earlier
-        # shellcheck source=/dev/null
-        . /utils.sh
-        if [ ! -f /tekton/home/test_output.txt ]; then
-          note="Task $(context.task.name) completed: Prepared ${num_images} images in ${actual_buckets} bucket(s)."
-          TEST_OUTPUT=$(make_result_json -r SUCCESS -s "${num_images}" -t "$note")
-          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)" "/tekton/home/test_output.txt"
-        fi
-
+        finalize
         echo "Done!"
 
     - name: create-buckets-artifact
