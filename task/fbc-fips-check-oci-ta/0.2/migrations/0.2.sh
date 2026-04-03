@@ -3,9 +3,14 @@
 set -euo pipefail
 
 # Created for task: fbc-fips-check-oci-ta@0.2
-# Optional migration: Enable matrix mode for parallel processing
-# NOTE: This migration is OPTIONAL. v0.2 is fully backward compatible with v0.1.
-#       Only run this if you want to enable matrix mode for better performance.
+# Migration: Convert standalone fbc-fips-check-oci-ta to matrix mode with prepare task
+#
+# NOTE: v0.2 is designed for matrix mode and requires different parameters than v0.1.
+#       - v0.1: Standalone mode (SOURCE_ARTIFACT, image-digest, image-url)
+#       - v0.2: Matrix mode (BUCKETS_ARTIFACT, BUCKET_INDEX) with fbc-fips-prepare-oci-ta
+#
+#       This script adds fbc-fips-prepare-oci-ta and rewires fbc-fips-check-oci-ta for
+#       parallel processing. If you prefer standalone mode, continue using v0.1.
 
 declare -r pipeline_file=${1:?missing pipeline file}
 
@@ -41,8 +46,8 @@ source_artifact=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") |
 image_digest=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-digest\") | .value" "$pipeline_file" 2>/dev/null || echo "\$(tasks.build-container.results.IMAGE_DIGEST)")
 image_url=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .params[] | select(.name == \"image-url\") | .value" "$pipeline_file" 2>/dev/null || echo "\$(tasks.build-container.results.IMAGE_URL)")
 
-# Get runAfter from existing task
-run_after=$(yq -e "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .runAfter[0]" "$pipeline_file" 2>/dev/null || echo "")
+# Get all runAfter dependencies from existing task (as JSON array)
+run_after_json=$(yq -o=json "${TASKS_SELECTOR} | select(.name == \"${task_name}\") | .runAfter // []" "$pipeline_file")
 
 # ociStorage with suffix to avoid conflict with output-image
 oci_storage="\$(params.output-image)-fbc-fips-check"
@@ -80,9 +85,9 @@ prepare_task_json=$(cat <<EOF
 EOF
 )
 
-# Add runAfter if the original task had it
-if [[ -n "$run_after" && "$run_after" != "null" ]]; then
-  prepare_task_json=$(echo "$prepare_task_json" | yq -o=json ".runAfter = [\"${run_after}\"]")
+# Add runAfter if the original task had dependencies
+if [[ "$run_after_json" != "[]" && "$run_after_json" != "null" ]]; then
+  prepare_task_json=$(echo "$prepare_task_json" | yq -o=json ".runAfter = ${run_after_json}")
 fi
 
 # Append the prepare task to the tasks list
@@ -122,5 +127,4 @@ echo "Migration to matrix mode completed successfully!"
 echo "- Added 'fbc-fips-prepare-oci-ta' task"
 echo "- Updated '$task_name' task with matrix expansion"
 echo ""
-echo "Note: This migration is optional. If you prefer standalone mode,"
-echo "you can simply update the task version to 0.2 without matrix."
+echo "Note: If you prefer standalone mode, continue using v0.1 instead of v0.2."

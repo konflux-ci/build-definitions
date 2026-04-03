@@ -12,7 +12,7 @@ metadata:
 spec:
   description: |-
     Prepare images for parallel FIPS checking by extracting, deduplicating, and distributing across buckets.
-    This task is designed to work with fbc-fips-check-worker-oci-ta using matrix expansion.
+    This task is designed to work with fbc-fips-check-oci-ta (v0.2) using matrix expansion.
   params:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code
@@ -471,6 +471,15 @@ spec:
         indices_json+="]"
         echo "Bucket indices: ${indices_json}"
         echo -n "${indices_json}" > "$(results.BUCKET_INDICES.path)"
+
+        # Write SUCCESS TEST_OUTPUT if no error occurred earlier
+        # shellcheck source=/dev/null
+        . /utils.sh
+        if [ ! -f /tekton/home/test_output.txt ]; then
+          note="Task $(context.task.name) completed: Prepared ${num_images} images in ${actual_buckets} bucket(s)."
+          TEST_OUTPUT=$(make_result_json -r SUCCESS -s "${num_images}" -t "$note")
+          echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)" "/tekton/home/test_output.txt"
+        fi
 
         echo "Done!"
 
