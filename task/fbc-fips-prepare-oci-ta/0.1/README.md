@@ -24,6 +24,7 @@ In order to resolve unreleased image pullspecs, this task expects an ImageDigest
 |BUCKETS_ARTIFACT|OCI reference to buckets artifact containing bucket files and metadata|
 |BUCKET_INDICES|Array of bucket indices for matrix expansion (e.g., ["0","1","2"])|
 |TOTAL_IMAGES|Total number of unique images extracted and distributed|
+|TEST_OUTPUT|Tekton task test output in JSON format (SUCCESS/ERROR/FAILURE)|
 
 
 ## Additional info
