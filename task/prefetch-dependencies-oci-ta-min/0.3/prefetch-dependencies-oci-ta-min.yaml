@@ -1,0 +1,204 @@
+# WARNING: This is an auto generated file, do not modify this file directly
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.3"
+  name: prefetch-dependencies-oci-ta-min
+spec:
+  description: Task that prefetches project dependencies for hermetic build.
+  params:
+  - default: activation-key
+    description: Name of secret which contains subscription activation key
+    name: ACTIVATION_KEY
+    type: string
+  - description: The Trusted Artifact URI pointing to the artifact with the application
+      source code.
+    name: SOURCE_ARTIFACT
+    type: string
+  - default: ca-bundle.crt
+    description: The name of the key in the ConfigMap that contains the CA bundle
+      data.
+    name: caTrustConfigMapKey
+    type: string
+  - default: trusted-ca
+    description: The name of the ConfigMap to read CA bundle data from.
+    name: caTrustConfigMapName
+    type: string
+  - default: ""
+    description: |
+      Pass configuration to the prefetch tool.
+      Note this needs to be passed as a YAML-formatted config dump, not as a file path!
+    name: config-file-content
+  - description: Configures project packages that will have their dependencies prefetched.
+    name: input
+  - default: debug
+    description: Set the logging level (debug, info, warn, error, fatal).
+    name: log-level
+  - default: strict
+    description: 'Control how input requirement violations are handled: strict (errors)
+      or permissive (warnings).'
+    name: mode
+    type: string
+  - default: ""
+    description: Expiration date for the trusted artifacts created in the OCI repository.
+      An empty string means the artifacts do not expire.
+    name: ociArtifactExpiresAfter
+    type: string
+  - description: The OCI repository where the Trusted Artifacts are stored.
+    name: ociStorage
+    type: string
+  - default: spdx
+    description: 'Select the SBOM format to generate. Valid values: spdx, cyclonedx.'
+    name: sbom-type
+  results:
+  - description: The Trusted Artifact URI pointing to the artifact with the prefetched
+      dependencies.
+    name: CACHI2_ARTIFACT
+    type: string
+  - description: The Trusted Artifact URI pointing to the artifact with the application
+      source code.
+    name: SOURCE_ARTIFACT
+    type: string
+  stepTemplate:
+    volumeMounts:
+    - mountPath: /var/workdir
+      name: workdir
+  steps:
+  - env:
+    - name: INPUT
+      value: $(params.input)
+    - name: SOURCE_ARTIFACT
+      value: $(params.SOURCE_ARTIFACT)
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1773939694@sha256:83006d535923fcf1345067873524a3980316f51794f01d8655be55d6e9387183
+    name: skip-ta
+    script: |
+      #!/bin/bash
+
+      if [ -z "${INPUT}" ]; then
+        mkdir -p /var/workdir/source
+        mkdir -p /var/workdir/cachi2
+        echo "true" >/var/workdir/source/.skip-trusted-artifacts
+        echo "true" >/var/workdir/cachi2/.skip-trusted-artifacts
+        echo -n "${SOURCE_ARTIFACT}" >"$(results.SOURCE_ARTIFACT.path)"
+        echo -n "" >"$(results.CACHI2_ARTIFACT.path)"
+      fi
+  - args:
+    - use
+    - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:6ee5ae7d29b718eb3c69e55f1ec3a3264bc1a03ba398b2e1f34c7a20af1720d1
+    name: use-trusted-artifact
+  - computeResources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: KBC_LOG_LEVEL
+      value: $(params.log-level)
+    - name: KBC_PD_INPUT
+      value: $(params.input)
+    - name: KBC_PD_SOURCE_DIR
+      value: /var/workdir/source
+    - name: KBC_PD_OUTPUT_DIR
+      value: /var/workdir/cachi2/output
+    - name: KBC_PD_SBOM_FORMAT
+      value: $(params.sbom-type)
+    - name: KBC_PD_MODE
+      value: $(params.mode)
+    - name: KBC_PD_OUTPUT_DIR_MOUNT_POINT
+      value: /cachi2/output
+    - name: KBC_PD_ENV_FILE
+      value: /var/workdir/cachi2/cachi2.env
+    - name: KBC_PD_GIT_AUTH_DIRECTORY
+      value: $(workspaces.git-basic-auth.path)
+    - name: WORKSPACE_NETRC_PATH
+      value: $(workspaces.netrc.path)
+    - name: CONFIG_FILE_CONTENT
+      value: $(params.config-file-content)
+    image: quay.io/konflux-ci/hermeto:0.48.0@sha256:105b953463a203b82223cc54fb466ee0395ae9cca67bcdbbcbec4c340d511f26
+    name: prefetch-dependencies
+    script: |
+      #!/bin/bash
+
+      if [ -n "${WORKSPACE_NETRC_PATH}" ]; then
+        export NETRC="${WORKSPACE_NETRC_PATH}/.netrc"
+      fi
+
+      CA_BUNDLE_PATH=/mnt/trusted-ca/ca-bundle.crt
+      if [ -f "$CA_BUNDLE_PATH" ]; then
+        cp -vf "$CA_BUNDLE_PATH" /etc/pki/ca-trust/source/anchors
+        update-ca-trust
+      fi
+
+      if [ -e /activation-key/org ] && [ -e /activation-key/activationkey ]; then
+        export KBC_PD_RHSM_ORG=/activation-key/org
+        export KBC_PD_RHSM_ACTIVATION_KEY=/activation-key/activationkey
+      fi
+
+      if [ -n "${CONFIG_FILE_CONTENT}" ]; then
+        echo "${CONFIG_FILE_CONTENT}" >/mnt/config/config.yaml
+        export KBC_PD_CONFIG_FILE=/mnt/config/config.yaml
+      fi
+
+      konflux-build-cli prefetch-dependencies
+    volumeMounts:
+    - mountPath: /activation-key
+      name: activation-key
+    - mountPath: /mnt/config
+      name: config
+    - mountPath: /mnt/trusted-ca
+      name: trusted-ca
+      readOnly: true
+  - args:
+    - create
+    - --store
+    - $(params.ociStorage)
+    - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+    - $(results.CACHI2_ARTIFACT.path)=/var/workdir/cachi2
+    computeResources:
+      limits:
+        cpu: 100m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    env:
+    - name: IMAGE_EXPIRES_AFTER
+      value: $(params.ociArtifactExpiresAfter)
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:6ee5ae7d29b718eb3c69e55f1ec3a3264bc1a03ba398b2e1f34c7a20af1720d1
+    name: create-trusted-artifact
+  volumes:
+  - name: activation-key
+    secret:
+      optional: true
+      secretName: $(params.ACTIVATION_KEY)
+  - emptyDir: {}
+    name: config
+  - configMap:
+      items:
+      - key: $(params.caTrustConfigMapKey)
+        path: ca-bundle.crt
+      name: $(params.caTrustConfigMapName)
+      optional: true
+    name: trusted-ca
+  - emptyDir: {}
+    name: workdir
+  workspaces:
+  - description: |
+      A Workspace containing a .gitconfig and .git-credentials file or username and password.
+      These will be copied to the user's home before prefetch is run. Any
+      other files in this Workspace are ignored. It is strongly recommended
+      to bind a Secret to this Workspace over other volume types.
+    name: git-basic-auth
+    optional: true
+  - description: |
+      Workspace containing a .netrc file. Prefetch will use the credentials in this file when
+      performing http(s) requests.
+    name: netrc
+    optional: true

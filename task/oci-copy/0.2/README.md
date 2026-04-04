@@ -27,6 +27,29 @@ Copy content from arbitrary urls into the OCI registry. Downloads and pushes fil
 
 ## Additional info
 
+### HuggingFace downloads
+
+When `source` URLs in `oci-copy.yaml` point to `https://huggingface.co/`, the task automatically uses the HuggingFace CLI (`hf download`) for concurrent, Xet-accelerated transfers instead of `curl`.
+
+To authenticate with gated/private HuggingFace repos, provide a token via `BEARER_TOKEN_SECRET_NAME`. The secret must contain a key named `token` with a valid HuggingFace access token.
+
+HuggingFace source URLs must use the resolve format:
+
+```
+https://huggingface.co/{org}/{repo}/resolve/{revision}/{filepath}
+```
+
+Example `oci-copy.yaml` with HuggingFace sources:
+
+```yaml
+artifact_type: application/x-mlmodel
+artifacts:
+- filename: config.json
+  sha256sum: 953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41
+  source: https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config.json
+  type: application/json
+```
+
 ### AWS S3 downloads
 
 When AWS credentials are provided via `AWS_SECRET_NAME`, this task uses the AWS CLI with optimized settings for parallel multipart file transfers.

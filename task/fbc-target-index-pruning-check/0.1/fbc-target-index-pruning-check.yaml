@@ -48,7 +48,7 @@ spec:
         name: workdir
   steps:
     - name: pull-rendered-catalog
-      image: quay.io/konflux-ci/oras:latest@sha256:721da6e6f0e7a60d5d1fe7c32edba5471da21bed1bd8a7c999aed9a3a9b1e940
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       workingDir: /shared
       securityContext:
         runAsUser: 0
@@ -71,7 +71,7 @@ spec:
           exit 1
         fi
     - name: run-pruning-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
+      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir
