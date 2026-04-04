@@ -132,7 +132,7 @@ spec:
         elif echo "$DOCKERFILE" | grep -q "^https\?://"; then
           echo "Fetch Dockerfile from $DOCKERFILE"
           dockerfile_path=$(mktemp --suffix=-dockerfile)
-          http_code=$(curl -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE")
+          http_code=$(curl --fail --show-error -s -L -w "%{http_code}" --output "$dockerfile_path" "$DOCKERFILE" || true)
           if [ $http_code != 200 ]; then
             echo "No Dockerfile is fetched. Server responds $http_code"
             exit 1
