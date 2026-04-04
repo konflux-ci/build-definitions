@@ -251,4 +251,4 @@ spec:
 
         data=$(jq --compact-output --null-input --arg message "$slack_message" '{text: $message}')
 
-        curl -X POST -H 'Content-type: application/json' --data "${data}" "$WEBHOOK_URL"
+        curl --fail --show-error -X POST -H 'Content-type: application/json' --data "${data}" "$WEBHOOK_URL"

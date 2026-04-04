@@ -275,7 +275,7 @@ spec:
         tag_prefix="migration-${actual_task_version}"
         query_params="onlyActiveTags=true&limit=5&filter_tag_name=like:${tag_prefix}-%"
         url="https://quay.io/api/v1/repository/${image_repo}/tag/?${query_params}"
-        tags=$(curl --no-progress-meter -L "$url" | jq -r '.tags[] | .name + " " + .manifest_digest')
+        tags=$(curl --fail --show-error --no-progress-meter -L "$url" | jq -r '.tags[] | .name + " " + .manifest_digest')
         while read -r tag_name manifest_digest; do
           if [[ -z "$tag_name" ]]; then
             continue
