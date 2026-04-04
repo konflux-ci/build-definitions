@@ -69,7 +69,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:27ddb820f0d30609dcb8de88219309edbced429896324e474f494470c2f003fb
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -196,7 +196,7 @@ spec:
 
         printf "%s\n" "${FILES[@]}" >"${TASK_FILE}"
     - name: build
-      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       workingDir: /var/workdir
       env:
         - name: CONTEXT
