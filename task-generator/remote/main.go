@@ -158,7 +158,7 @@ if [ "$SSH_HOST" == "localhost" ] ; then
   IS_LOCALHOST=true
   echo "Localhost detected; running build in cluster"
 elif [ -e "/ssh/otp" ]; then
-  curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
+  curl --fail --show-error --cacert /ssh/otp-ca -XPOST -d @/ssh/otp $(cat /ssh/otp-server) >~/.ssh/id_rsa
   echo "" >> ~/.ssh/id_rsa
 else
   cp /ssh/id_rsa ~/.ssh
