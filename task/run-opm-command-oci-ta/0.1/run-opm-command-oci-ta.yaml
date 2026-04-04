@@ -72,7 +72,7 @@ spec:
         subPath: ca-bundle.crt
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c44144ab0a9644c5da8ceea2b9f8df0e2e684aa5c1608688d7df9b8cc2836ac
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -132,7 +132,7 @@ spec:
         - "bash"
         - $(params.OPM_ARGS[*])
     - name: convert-image-tags-to-digests
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.4.52@sha256:deabe80a01dca3a8a0edb709324e30cbf0baa176f7a181bbb695323f506f7aac
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -277,7 +277,7 @@ spec:
         load_utils
         convert_tags_to_digests
     - name: replace-related-images-pullspec-in-file
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.4.52@sha256:deabe80a01dca3a8a0edb709324e30cbf0baa176f7a181bbb695323f506f7aac
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -311,7 +311,7 @@ spec:
           echo "Replacing pullspecs in '${FILE_TO_UPDATE_PULLSPEC_PATH}' using '${IDMS_PATH_PARAM}'."
           replace_mirror_pullspec_with_source "${IDMS_PATH_PARAM}" "${FILE_TO_UPDATE_PULLSPEC_PATH}"
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c44144ab0a9644c5da8ceea2b9f8df0e2e684aa5c1608688d7df9b8cc2836ac
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
       when:
         - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
           operator: in
