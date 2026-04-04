@@ -45,7 +45,7 @@ spec:
               readOnly: true
         steps:
           - name: mock-source
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -68,7 +68,7 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             workingDir: $(workspaces.tests-workspace.path)
             command: ["oras"]
             args:
@@ -77,7 +77,7 @@ spec:
               - $(params.modelPath)
               - source/
           - name: record-model-digest
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -88,7 +88,7 @@ spec:
               echo "Share location of the mocked model"
               echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
             args:
               - create
               - --store
@@ -165,7 +165,7 @@ spec:
                 value: $(params.IMAGE_URL)
               - name: SBOM_BLOB_URL
                 value: $(params.SBOM_BLOB_URL)
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             securityContext:
               runAsUser: 0
               runAsNonRoot: false
