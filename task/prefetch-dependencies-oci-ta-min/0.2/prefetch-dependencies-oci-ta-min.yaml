@@ -99,9 +99,9 @@ spec:
   - args:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:6ee5ae7d29b718eb3c69e55f1ec3a3264bc1a03ba398b2e1f34c7a20af1720d1
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
     name: use-trusted-artifact
-  - image: quay.io/konflux-ci/yq:latest@sha256:9264d52ac6d69bfe92617f309466a0c531990a4c07e63fe73748f44a42e0d1d2
+  - image: quay.io/konflux-ci/yq:latest@sha256:2e7d0e277f98c1f3c891dc1cbd05ed1b14fd9c8cf93582f05a65656dfbe31138
     name: sanitize-config-file-with-yq
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]; then
@@ -384,7 +384,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:6ee5ae7d29b718eb3c69e55f1ec3a3264bc1a03ba398b2e1f34c7a20af1720d1
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
     name: create-trusted-artifact
   volumes:
   - name: activation-key
