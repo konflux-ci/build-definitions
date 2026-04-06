@@ -221,6 +221,16 @@ spec:
 
             fips_annotation=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["features.operators.openshift.io/fips-compliant"]? == "true")) | .value.annotations["features.operators.openshift.io/fips-compliant"]')
 
+            # Extract createdAt annotation for FIPS exemption check
+            created_at=$(echo "${bundle_out}" | jq -r '.properties[] | select((.value | type == "object") and (.value.annotations["createdAt"] != null)) | .value.annotations["createdAt"]' | head -1)
+
+            # FIPS requirement cutoff date (Jan 31, 2025) - bundles created before this date
+            # with qualifying subscriptions are exempt from FIPS checks unless they explicitly
+            # claim fips-compliant=true
+            FIPS_CUTOFF_DATE="2025-01-31T00:00:00Z"
+            # Pre-computed epoch seconds for FIPS_CUTOFF_DATE to avoid runtime date parsing issues
+            FIPS_CUTOFF_EPOCH=1738281600
+
             if ! echo "${subscription_label}" | grep -e "OpenShift Kubernetes Engine" -e "OpenShift Container Platform" -e "OpenShift Platform Plus"; then
               echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are not present in operators.openshift.io/valid-subscription."
               echo "Subscription labels are : $subscription_label"
@@ -231,7 +241,35 @@ spec:
                 echo "The annotation features.operators.openshift.io/fips-compliant is set to true. Running the FIPS static check..."
               fi
             else
-              echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are present in operators.openshift.io/valid-subscription. Running the FIPS static check..."
+              # Bundle has qualifying Red Hat subscription
+              echo "OpenShift Kubernetes Engine, OpenShift Platform Plus or OpenShift Container Platform are present in operators.openshift.io/valid-subscription."
+
+              # Check for FIPS exemption based on createdAt date
+              is_legacy_bundle=false
+              if [ -n "${created_at}" ]; then
+                echo "Bundle createdAt: ${created_at}"
+                # Convert createdAt to Unix timestamp for comparison
+                created_at_ts=$(date -d "${created_at}" +%s 2>/dev/null || echo "")
+
+                if [ -n "${created_at_ts}" ] && [ "${created_at_ts}" -lt "${FIPS_CUTOFF_EPOCH}" ]; then
+                  is_legacy_bundle=true
+                  echo "Bundle was created before FIPS requirement date (${FIPS_CUTOFF_DATE})"
+                fi
+              else
+                echo "No createdAt annotation found on bundle"
+              fi
+
+              if [ "${is_legacy_bundle}" = true ]; then
+                # Legacy bundle (created before FIPS requirement date)
+                if [ -n "${fips_annotation}" ] && [ "${fips_annotation}" = "true" ]; then
+                  echo "Legacy bundle claims fips-compliant=true. Running FIPS static check to verify compliance..."
+                else
+                  echo "Legacy bundle created before ${FIPS_CUTOFF_DATE} is exempt from FIPS check. Skipping FIPS static check for ${bundle}"
+                  continue
+                fi
+              else
+                echo "Bundle created on or after FIPS requirement date. Running the FIPS static check..."
+              fi
             fi
 
             manifest_related_images=$(extract_related_images_from_bundle "$bundle")
