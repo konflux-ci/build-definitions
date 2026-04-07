@@ -1,10 +1,10 @@
 # fbc-fips-prepare-oci-ta task
 
-The fbc-fips-prepare task extracts relatedImages from all unreleased operator bundle images in an FBC fragment, deduplicates them, and distributes them across multiple buckets for parallel FIPS compliance checking.
+This is the prepare task for `fbc-fips-check-matrix-based-oci-ta`. Together they provide the same FIPS compliance checking functionality as the standalone `fbc-fips-check-oci-ta`, but with parallel processing support.
 
-This task is designed to work as the first step in a multi-bucket FIPS checking pipeline. It processes the FBC fragment to identify unreleased operator bundles (those not present in the Red Hat production Index Image `registry.redhat.io/redhat/redhat-operator-index`), extracts their relatedImages, and intelligently distributes them across buckets using size-based load balancing.
+The task extracts relatedImages from all unreleased operator bundle images in an FBC fragment, deduplicates them, and distributes them across multiple buckets for parallel FIPS compliance checking.
 
-The task uses a greedy algorithm to fetch image sizes in parallel and assign larger images to different buckets, ensuring balanced workload distribution. This enables efficient parallel FIPS checking by processing different buckets concurrently using the fbc-fips-check-oci-ta (v0.2) task.
+It processes the FBC fragment to identify unreleased operator bundles (those not present in the Red Hat production Index Image `registry.redhat.io/redhat/redhat-operator-index`), extracts their relatedImages, and intelligently distributes them across buckets using size-based load balancing.
 
 In order to resolve unreleased image pullspecs, this task expects an ImageDigestMirrorSet file located at .tekton/images-mirror-set.yaml of your FBC fragment git repo. It should map unreleased registry.redhat.io pullspecs of relatedImages to their valid quay.io pullspecs. If the ImageDigestMirrorSet is not provided, the task will attempt to process the registry.redhat.io pullspecs as is and might fail.
 
@@ -14,6 +14,7 @@ In order to resolve unreleased image pullspecs, this task expects an ImageDigest
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code||true|
 |image-digest|Image digest to scan||true|
 |image-url|Image URL||true|
+|image-mirror-set-path|Path to the image mirror set file.|.tekton/images-mirror-set.yaml|false|
 |ociStorage|The OCI repository where the Trusted Artifacts are stored||true|
 |NUM_BUCKETS|Number of buckets to create|1|false|
 |SIZE_FETCH_PARALLEL|Number of parallel image size fetches for load balancing|5|false|
@@ -21,10 +22,9 @@ In order to resolve unreleased image pullspecs, this task expects an ImageDigest
 ## Results
 |name|description|
 |---|---|
-|BUCKETS_ARTIFACT|OCI reference to buckets artifact containing bucket files and metadata|
-|BUCKET_INDICES|Array of bucket indices for matrix expansion (e.g., ["0","1","2"])|
-|TOTAL_IMAGES|Total number of unique images extracted and distributed|
-|TEST_OUTPUT|Tekton task test output in JSON format (SUCCESS/ERROR/FAILURE)|
+|BUCKETS_ARTIFACT|OCI reference to buckets artifact|
+|BUCKET_INDICES|Array of bucket indices for matrix expansion|
+|TOTAL_IMAGES|Total number of unique images|
 
 
 ## Additional info
@@ -38,13 +38,13 @@ This task always uses load balancing to distribute images across buckets based o
 This ensures that buckets have roughly equal total workloads, preventing situations where one bucket has all the large images and takes significantly longer to process.
 
 ### Bucket Distribution
-The NUM_BUCKETS parameter controls how many parallel processing buckets are created. Each bucket will be processed by a separate TaskRun using the fbc-fips-check-oci-ta (v0.2) task, typically with matrix expansion. Increasing the number of buckets enables more parallelism but also creates more TaskRuns.
+The NUM_BUCKETS parameter controls how many parallel processing buckets are created. Each bucket will be processed by a separate TaskRun using the fbc-fips-check-matrix-based-oci-ta task, typically with matrix expansion. Increasing the number of buckets enables more parallelism but also creates more TaskRuns.
 
 ### Image Size Fetching
 The SIZE_FETCH_PARALLEL parameter controls how many image size fetches run concurrently during load balancing. If image registries are accessible with good network connectivity, this can be increased to speed up the extraction phase. If many images fail to fetch sizes (due to network issues or authentication), they will be assigned size 0 and distributed to buckets normally.
 
 ### Usage Example
-This task should be used together with fbc-fips-check-oci-ta (v0.2) in a pipeline. Here's how to connect both tasks using matrix expansion:
+This task should be used together with fbc-fips-check-matrix-based-oci-ta in a pipeline. Here's how to connect both tasks using matrix expansion:
 
 ```yaml
 tasks:
@@ -87,7 +87,7 @@ tasks:
         - name: revision
           value: main
         - name: pathInRepo
-          value: task/fbc-fips-check-oci-ta/0.2/fbc-fips-check-oci-ta.yaml
+          value: task/fbc-fips-check-matrix-based-oci-ta/0.1/fbc-fips-check-matrix-based-oci-ta.yaml
     params:
       - name: BUCKETS_ARTIFACT
         value: $(tasks.fbc-fips-prepare.results.BUCKETS_ARTIFACT)

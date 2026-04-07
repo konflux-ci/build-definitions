@@ -1,20 +1,21 @@
 ---
-# Task: FIPS check for operator bundle images (matrix worker)
+# Task: FIPS check for operator bundle images (matrix-based worker)
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: fbc-fips-check-oci-ta
+  name: fbc-fips-check-matrix-based-oci-ta
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: konflux
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: "0.1"
 spec:
   description: |-
-    FIPS compliance check task for operator bundle images. Processes images from one bucket using fips-operator-check-step-action.
+    FIPS compliance check task for operator bundle images (matrix-based).
+    Processes images from one bucket using fips-operator-check-step-action.
     This task is designed to work with fbc-fips-prepare-oci-ta using matrix expansion on BUCKET_INDEX parameter.
 
-    For standalone mode (single task), use v0.1 instead.
+    For standalone mode (single task), use fbc-fips-check-oci-ta instead.
   params:
     - name: BUCKETS_ARTIFACT
       description: OCI reference to buckets artifact from fbc-fips-prepare-oci-ta
@@ -144,6 +145,10 @@ spec:
         fi
 
         # Use step action output (normal FIPS check result)
-        if [ -n "${STEP_ACTION_OUTPUT}" ]; then
+        # Check if STEP_ACTION_OUTPUT is valid (not empty and not unresolved Tekton variable)
+        if [ -n "${STEP_ACTION_OUTPUT}" ] && [[ "${STEP_ACTION_OUTPUT}" != *"\$(steps."* ]]; then
           echo "${STEP_ACTION_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
+        else
+          # Stepaction didn't produce output (no images to check) - skip without output
+          echo "No images to check in this bucket, skipping"
         fi
