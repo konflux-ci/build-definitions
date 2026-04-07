@@ -14,11 +14,14 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-image-index:0.2:IMAGE_EXPIRES_AFTER|
 |labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
+|omit-history| Omit build history information from the resulting image| false| |
 |output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.2:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|rewrite-timestamp| Clamp mtime of all files to at most SOURCE_DATE_EPOCH| false| |
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Timestamp in seconds since Unix epoch for reproducible builds.| | |
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters
