@@ -72,14 +72,6 @@
   path: /spec/tasks/4/taskRef/name
   value: build-image-index-min
 
-# clair-scan
-- op: test
-  path: /spec/tasks/7/taskRef/name
-  value: clair-scan
-- op: replace
-  path: /spec/tasks/7/taskRef/name
-  value: clair-scan-min
-
 # clamav-scan
 - op: test
   path: /spec/tasks/10/taskRef/name
@@ -169,12 +161,20 @@
 - op: remove
   path: /spec/tasks/8
 
+# clair-scan
+- op: test
+  path: /spec/tasks/7/taskRef/name
+  value: clair-scan
+- op: remove
+  path: /spec/tasks/7
+
 # build-source-image
 - op: test
   path: /spec/tasks/5/taskRef/name
   value: source-build-oci-ta
 - op: remove
   path: /spec/tasks/5
+
 
 # Remove unused params (in reverse order)
 # kustomize build pipelines/docker-build-oci-ta | yq '.spec.params.[].name' | nl -v 0

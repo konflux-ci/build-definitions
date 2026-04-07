@@ -207,22 +207,6 @@ spec:
       operator: in
       values:
       - "false"
-  - name: clair-scan
-    params:
-    - name: image-digest
-      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-    - name: image-url
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    runAfter:
-    - build-image-index
-    taskRef:
-      name: clair-scan-min
-      version: "0.3"
-    when:
-    - input: $(params.skip-checks)
-      operator: in
-      values:
-      - "false"
   - name: clamav-scan
     params:
     - name: image-digest
