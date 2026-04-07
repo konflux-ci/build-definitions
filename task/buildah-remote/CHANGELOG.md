@@ -11,6 +11,12 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.2
+
+### Changed
+
+- The task now only stores one local OCI directory copy of the built image, not two.
+
 ## 0.9.1
 
 ### Changed
