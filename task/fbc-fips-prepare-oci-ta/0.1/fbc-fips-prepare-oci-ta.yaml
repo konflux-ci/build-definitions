@@ -12,7 +12,7 @@ metadata:
 spec:
   description: |-
     Prepare images for parallel FIPS checking by extracting, deduplicating, and distributing across buckets.
-    This task is designed to work with fbc-fips-check-oci-ta (v0.2) using matrix expansion.
+    This task is designed to work with fbc-fips-check-matrix-based-oci-ta using matrix expansion.
   params:
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with the application source code
@@ -61,7 +61,7 @@ spec:
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
 
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.48@sha256:9b815268fb2bf10b5d745518da1c6568944f15816efe51adc192972b42a6e74d
+      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
