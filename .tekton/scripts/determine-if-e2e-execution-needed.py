@@ -65,12 +65,7 @@ def get_changed_files_from_pr(pull_number):
 def does_updated_files_covered_by_e2e(updated_files):
     required_to_run_e2e = False
     for file_path in updated_files:
-        if file_path.startswith("task/"):
-            task_name = file_path.split("/")[1]
-            if task_name in tasks_covered_by_e2e:
-                required_to_run_e2e = True
-                break
-        elif file_path.startswith("external-task/"):
+        if file_path.startswith("task/") or file_path.startswith("external-task/"):
             task_name = file_path.split("/")[1]
             if task_name in tasks_covered_by_e2e:
                 required_to_run_e2e = True
