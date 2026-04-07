@@ -11,6 +11,14 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.2
+
+### Changed
+
+- The task now sets `org.opencontainers.image.ref.name` annotation in the
+  locally stored OCI image index. This is not a user-facing change. It is for
+  optimizing buildah-remote task.
+
 ## 0.9.1
 
 ### Changed
