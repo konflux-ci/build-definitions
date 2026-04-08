@@ -11,6 +11,15 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.3
+
+### Fixed
+
+- Added `--fail` flag and error handling to the `curl` call that retrieves the SSH key from the OTP
+  server. Previously, HTTP errors (e.g. 400 when a one-time token was already consumed by a
+  PipelineRun retry) were silently swallowed, writing the error body into `~/.ssh/id_rsa` and
+  causing `Load key: invalid format` build failures.
+
 ## 0.9.2
 
 ### Changed
