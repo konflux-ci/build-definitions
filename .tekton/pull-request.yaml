@@ -103,8 +103,8 @@ spec:
             value: "$(params.image-target)"
           - name: expressions
             value:
-              - tasks := strings.any_prefix_match(input, ["task/", "hack/", ".tekton/"])
-              - tasks_pipelines := strings.any_prefix_match(input, ["task/", "pipelines/", "hack/", ".tekton/"])
+              - tasks := strings.any_prefix_match(input, ["task/", "external-task/", "hack/", ".tekton/"])
+              - tasks_pipelines := strings.any_prefix_match(input, ["task/", "external-task/", "pipelines/", "hack/", ".tekton/"])
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
         runAfter:
           - build-appstudio-utils-index
