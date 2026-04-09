@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.3
+
+### Fixed
+
+- Version bump to stay in sync with buildah-remote-oci-ta. The remote variant now has `--fail`
+  flag and error handling on the `curl` call that retrieves the SSH key from the OTP server.
+
 ## 0.9.0
 
 ### Added
