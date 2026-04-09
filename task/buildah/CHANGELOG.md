@@ -19,6 +19,18 @@ If that's not something you ever plan to do, consider removing this section.
   locally stored OCI image index. This is not a user-facing change. It is for
   optimizing buildah-remote task.
 
+## 0.9.1 - 2026-03-10
+
+### Fixed
+
+- Preserve label values containing equals signs in labels.json
+
+## 0.8.4 - 2026-03-10
+
+### Fixed
+
+- Preserve label values containing equals signs in labels.json
+
 ## 0.9.1
 
 ### Changed

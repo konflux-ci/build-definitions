@@ -17,6 +17,18 @@ If that's not something you ever plan to do, consider removing this section.
 
 - The task now only stores one local OCI directory copy of the built image, not two.
 
+## 0.9.1 - 2026-03-10
+
+### Fixed
+
+- Preserve label values containing equals signs in labels.json
+
+## 0.8.3 - 2026-03-10
+
+### Fixed
+
+- Preserve label values containing equals signs in labels.json
+
 ## 0.9.1
 
 ### Changed
