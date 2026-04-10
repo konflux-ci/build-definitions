@@ -30,12 +30,10 @@
 #   8  ecosystem-cert-preflight-checks
 #   9  sast-snyk-check
 #  10  clamav-scan
-#  11  sast-coverity-check
-#  12  coverity-availability-check
-#  13  sast-shell-check
-#  14  sast-unicode-check
-#  15  apply-tags
-#  16  push-dockerfile
+#  11  sast-shell-check
+#  12  sast-unicode-check
+#  13  apply-tags
+#  14  push-dockerfile
 
 # clone-repository Task
 - op: replace
@@ -132,13 +130,13 @@
 - op: remove
   path: /spec/tasks/9/workspaces/0
 
-# sast-coverity-check
+# sast-shell-check
 - op: test
   path: /spec/tasks/11/taskRef/name
-  value: sast-coverity-check
+  value: sast-shell-check
 - op: replace
   path: /spec/tasks/11/taskRef/name
-  value: sast-coverity-check-oci-ta
+  value: sast-shell-check-oci-ta
 - op: add
   path: /spec/tasks/11/params/-
   value:
@@ -152,54 +150,34 @@
 - op: remove
   path: /spec/tasks/11/workspaces/0
 
-# sast-shell-check
-- op: test
-  path: /spec/tasks/13/taskRef/name
-  value: sast-shell-check
-- op: replace
-  path: /spec/tasks/13/taskRef/name
-  value: sast-shell-check-oci-ta
-- op: add
-  path: /spec/tasks/13/params/-
-  value:
-    name: SOURCE_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-- op: add
-  path: /spec/tasks/13/params/-
-  value:
-    name: CACHI2_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-- op: remove
-  path: /spec/tasks/13/workspaces/0
-
 # sast-unicode-check
 - op: test
-  path: /spec/tasks/14/taskRef/name
+  path: /spec/tasks/12/taskRef/name
   value: sast-unicode-check
 - op: replace
-  path: /spec/tasks/14/taskRef/name
+  path: /spec/tasks/12/taskRef/name
   value: sast-unicode-check-oci-ta
 - op: add
-  path: /spec/tasks/14/params/-
+  path: /spec/tasks/12/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: add
-  path: /spec/tasks/14/params/-
+  path: /spec/tasks/12/params/-
   value:
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
-  path: /spec/tasks/14/workspaces/0
+  path: /spec/tasks/12/workspaces/0
 
 # push-dockerfile
 - op: replace
-  path: /spec/tasks/16/taskRef/name
+  path: /spec/tasks/14/taskRef/name
   value: push-dockerfile-oci-ta
 - op: add
-  path: /spec/tasks/16/params/-
+  path: /spec/tasks/14/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: remove
-  path: /spec/tasks/16/workspaces/0
+  path: /spec/tasks/14/workspaces/0
