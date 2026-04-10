@@ -22,13 +22,11 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
+#     11  sast-shell-check
+#     12  sast-unicode-check
+#     13  apply-tags
+#     14  push-dockerfile
+#     15  rpms-signature-scan
 - op: add
   path: /spec/tasks/3/params
   value:
@@ -42,13 +40,9 @@
     value: $(params.revision)
 # Remove tasks that assume a binary image
 - op: remove
-  path: /spec/tasks/17  # rpms-signature-scan
+  path: /spec/tasks/15  # rpms-signature-scan
 - op: remove
-  path: /spec/tasks/16  # push-dockerfile
-- op: remove
-  path: /spec/tasks/12  # coverity-availability-check
-- op: remove
-  path: /spec/tasks/11  # sast-coverity-check
+  path: /spec/tasks/14  # push-dockerfile
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove

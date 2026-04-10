@@ -88,10 +88,10 @@
 - op: remove
   path: /spec/tasks/4/workspaces/0
 
-# sast-coverity-check
+# sast-shell-check
 - op: replace
   path: /spec/tasks/5/taskRef/name
-  value: sast-coverity-check-oci-ta
+  value: sast-shell-check-oci-ta
 - op: add
   path: /spec/tasks/5/params/-
   value:
@@ -105,36 +105,19 @@
 - op: remove
   path: /spec/tasks/5/workspaces/0
 
-# sast-shell-check
-- op: replace
-  path: /spec/tasks/7/taskRef/name
-  value: sast-shell-check-oci-ta
-- op: add
-  path: /spec/tasks/7/params/-
-  value:
-    name: SOURCE_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
-- op: add
-  path: /spec/tasks/7/params/-
-  value:
-    name: CACHI2_ARTIFACT
-    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-- op: remove
-  path: /spec/tasks/7/workspaces/0
-
 # sast-unicode-check
 - op: replace
-  path: /spec/tasks/8/taskRef/name
+  path: /spec/tasks/6/taskRef/name
   value: sast-unicode-check-oci-ta
 - op: add
-  path: /spec/tasks/8/params/-
+  path: /spec/tasks/6/params/-
   value:
     name: SOURCE_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
 - op: add
-  path: /spec/tasks/8/params/-
+  path: /spec/tasks/6/params/-
   value:
     name: CACHI2_ARTIFACT
     value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
 - op: remove
-  path: /spec/tasks/8/workspaces/0
+  path: /spec/tasks/6/workspaces/0
