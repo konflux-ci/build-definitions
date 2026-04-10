@@ -40,12 +40,11 @@ spec:
     - name: get-unique-related-images
       image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
       computeResources:
-        limits:
-          memory: 12Gi
-          cpu: '1'
         requests:
-          memory: 12Gi
-          cpu: '1'
+          memory: 4Gi
+          cpu: "705m"
+        limits:
+          memory: 4Gi
       env:
         - name: IMAGE_URL
           value: $(params.image-url)
@@ -305,12 +304,11 @@ spec:
 
     - name: fips-operator-check-step-action
       computeResources:
-        limits:
-          memory: 12Gi
-          cpu: '8'
         requests:
-          memory: 12Gi
-          cpu: '8'
+          memory: 512Mi
+          cpu: "2059m"
+        limits:
+          memory: 512Mi
       params:
         - name: MAX_PARALLEL
           value: $(params.MAX_PARALLEL)
@@ -326,6 +324,12 @@ spec:
 
     - name: parse-images-processed-result
       image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: "50m"
+        limits:
+          memory: 64Mi
       env:
         - name: STEP_ACTION_TEST_OUTPUT
           value: $(steps.fips-operator-check-step-action.results.TEST_OUTPUT)
