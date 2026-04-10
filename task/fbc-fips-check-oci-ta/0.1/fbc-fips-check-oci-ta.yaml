@@ -47,6 +47,12 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: "50m"
+        limits:
+          memory: 64Mi
     - name: get-unique-related-images
       image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
       env:
@@ -306,11 +312,10 @@ spec:
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" >"/tekton/home/images_processed.txt"
       computeResources:
         limits:
-          cpu: "1"
-          memory: 12Gi
+          memory: 4Gi
         requests:
-          cpu: "1"
-          memory: 12Gi
+          cpu: 705m
+          memory: 4Gi
       securityContext:
         capabilities:
           add:
@@ -321,11 +326,10 @@ spec:
           value: $(params.MAX_PARALLEL)
       computeResources:
         limits:
-          cpu: "8"
-          memory: 12Gi
+          memory: 512Mi
         requests:
-          cpu: "8"
-          memory: 12Gi
+          cpu: 2059m
+          memory: 512Mi
       ref:
         params:
           - name: url
@@ -351,3 +355,9 @@ spec:
           echo "Task was skipped. Exiting"
           exit 0
         fi
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
