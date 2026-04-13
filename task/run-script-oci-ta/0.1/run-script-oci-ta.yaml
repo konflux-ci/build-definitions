@@ -112,7 +112,7 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-        - $(params.PREFETCH_ARTIFACT)=/var/workdir/cachi2
+        - $(params.PREFETCH_ARTIFACT)=/var/workdir/prefetch
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           name: trusted-ca
@@ -174,9 +174,12 @@ spec:
 
         PREFETCH_MOUNT=""
         PREFETCH_SOURCE=""
-        if [ -d "/var/workdir/cachi2" ]; then
-          PREFETCH_MOUNT="--volume /var/workdir/cachi2:/cachi2"
-          if [[ -f /var/workdir/cachi2/prefetch.env ]]; then
+        if [ -d "/var/workdir/prefetch" ]; then
+          # The mount point should stay /cachi2 because:
+          # a) that's what the prefetch task expects
+          # b) user scripts may be referring directly to /cachi2/output/deps/generic
+          PREFETCH_MOUNT="--volume /var/workdir/prefetch:/cachi2"
+          if [[ -f /var/workdir/prefetch/prefetch.env ]]; then
             echo "using prefetch.env file to enable prefetch integration"
             PREFETCH_SOURCE=". /cachi2/prefetch.env &&"
           else
