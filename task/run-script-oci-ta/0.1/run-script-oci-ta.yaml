@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.1.1"
 spec:
   description: |-
     This task allows to run an script stored on the git repository and stores the resultant directory
@@ -176,7 +176,13 @@ spec:
         PREFETCH_SOURCE=""
         if [ -d "/var/workdir/cachi2" ]; then
           PREFETCH_MOUNT="--volume /var/workdir/cachi2:/cachi2"
-          PREFETCH_SOURCE=". /cachi2/cachi2.env &&"
+          if [[ -f /var/workdir/cachi2/prefetch.env ]]; then
+            echo "using prefetch.env file to enable prefetch integration"
+            PREFETCH_SOURCE=". /cachi2/prefetch.env &&"
+          else
+            echo "using cachi2.env file to enable prefetch integration"
+            PREFETCH_SOURCE=". /cachi2/cachi2.env &&"
+          fi
         fi
 
         # Create the script file
