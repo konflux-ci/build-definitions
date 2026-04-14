@@ -61,6 +61,9 @@ spec:
     - name: enable-cache-proxy
       description: Enable cache proxy configuration
       default: "false"
+    - name: enable-package-registry-proxy
+      description: Use the package registry proxy when prefetching dependencies
+      default: "true"
   tasks:
     - name: init
       params:
@@ -90,6 +93,8 @@ spec:
       params:
         - name: input
           value: $(params.prefetch-input)
+        - name: enable-package-registry-proxy
+          value: "$(params.enable-package-registry-proxy)"
       runAfter:
         - clone-repository
       taskRef:

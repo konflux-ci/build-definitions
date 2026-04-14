@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.3.1
+    app.kubernetes.io/version: 0.3.2
 spec:
   description: Task that prefetches project dependencies for hermetic build.
   params:
@@ -15,6 +15,18 @@ spec:
       description: Name of secret which contains subscription activation key
       type: string
       default: activation-key
+    - name: SERVICE_CA_TRUST_CONFIG_MAP_KEY
+      description: The name of the key in the ConfigMap that contains the
+        service CA bundle data. Used to verify TLS connections to in-cluster
+        services such as the package registry proxy.
+      type: string
+      default: service-ca.crt
+    - name: SERVICE_CA_TRUST_CONFIG_MAP_NAME
+      description: The name of the ConfigMap to read service CA bundle data
+        from. Used to verify TLS connections to in-cluster services such as
+        the package registry proxy.
+      type: string
+      default: openshift-service-ca.crt
     - name: SOURCE_ARTIFACT
       description: The Trusted Artifact URI pointing to the artifact with
         the application source code.
@@ -33,6 +45,10 @@ spec:
         Pass configuration to the prefetch tool.
         Note this needs to be passed as a YAML-formatted config dump, not as a file path!
       default: ""
+    - name: enable-package-registry-proxy
+      description: Use the package registry proxy when prefetching dependencies
+      type: string
+      default: "true"
     - name: input
       description: Configures project packages that will have their dependencies
         prefetched.
@@ -72,6 +88,13 @@ spec:
         secretName: $(params.ACTIVATION_KEY)
     - name: config
       emptyDir: {}
+    - name: service-ca
+      configMap:
+        items:
+          - key: $(params.SERVICE_CA_TRUST_CONFIG_MAP_KEY)
+            path: ca-bundle.crt
+        name: $(params.SERVICE_CA_TRUST_CONFIG_MAP_NAME)
+        optional: true
     - name: trusted-ca
       configMap:
         items:
@@ -132,6 +155,9 @@ spec:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
           readOnly: true
+        - mountPath: /mnt/service-ca
+          name: service-ca
+          readOnly: true
       env:
         - name: KBC_LOG_LEVEL
           value: $(params.log-level)
@@ -156,6 +182,8 @@ spec:
           value: $(workspaces.netrc.path)
         - name: CONFIG_FILE_CONTENT
           value: $(params.config-file-content)
+        - name: KBC_PD_ENABLE_PACKAGE_REGISTRY_PROXY
+          value: $(params.enable-package-registry-proxy)
       script: |
         #!/bin/bash
 
@@ -164,8 +192,22 @@ spec:
         fi
 
         CA_BUNDLE_PATH=/mnt/trusted-ca/ca-bundle.crt
+        SERVICE_CA_BUNDLE_PATH=/mnt/service-ca/ca-bundle.crt
+        UPDATE_CA_TRUST=false
+
         if [ -f "$CA_BUNDLE_PATH" ]; then
-          cp -vf "$CA_BUNDLE_PATH" /etc/pki/ca-trust/source/anchors
+          echo "Using mounted CA bundle: $CA_BUNDLE_PATH"
+          cp -vf "$CA_BUNDLE_PATH" /etc/pki/ca-trust/source/anchors/ca-bundle.crt
+          UPDATE_CA_TRUST=true
+        fi
+
+        if [ -f "$SERVICE_CA_BUNDLE_PATH" ]; then
+          echo "Using mounted service CA bundle: $SERVICE_CA_BUNDLE_PATH"
+          cp -vf "$SERVICE_CA_BUNDLE_PATH" /etc/pki/ca-trust/source/anchors/service-ca.crt
+          UPDATE_CA_TRUST=true
+        fi
+
+        if [ "$UPDATE_CA_TRUST" = "true" ]; then
           update-ca-trust
         fi
 
