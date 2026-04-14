@@ -11,6 +11,11 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.2
+
+- Added `enable-package-registry-proxy` parameter to enable use of the package registry proxy when prefetching dependencies.
+- Added `SERVICE_CA_TRUST_CONFIG_MAP_NAME` and `SERVICE_CA_TRUST_CONFIG_MAP_KEY` parameters to mount the OpenShift service CA for verifying TLS connections to in-cluster services such as the package registry proxy.
+
 ## 0.3.1
 
 ### Added
