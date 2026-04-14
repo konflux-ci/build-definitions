@@ -86,7 +86,7 @@ spec:
           - name: name
             value: sast-snyk-check
           - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:10d6a41c51102c07c0147f2f3d57a2180d58c0cc4af2a022862247edcde5cd54
+            value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:4629221cb84f878382df5ddb65ebf83f2b8f3b0edbcb85067fc9bfc2805f606c
           - name: kind
             value: task
           resolver: bundles
@@ -124,7 +124,7 @@ spec:
           - name: name
             value: sast-unicode-check
           - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.3@sha256:bc8f58d5fd484c31266f6f2ee292208066bdbd4010a171ef5a09ebc5f8a0de2d
+            value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.4@sha256:fd7c78e9b0375a9e92f235a0173e85de3371cd00d33e8ed212647279525aadd1
           - name: kind
             value: task
           resolver: bundles
@@ -149,7 +149,7 @@ spec:
                 echo $? > partner-tasks-code.out
                 cat partner-tasks.out
             - name: create-comment
-              image: registry.access.redhat.com/ubi9/python-39:9.6-1762373664@sha256:8093b0752e9cce0019c0708f55a032c158d70fefe31a2dcb13d179311e356e5e
+              image: registry.access.redhat.com/ubi9/python-39:9.7-1776086485@sha256:c3d30a724ff5781cd470979300aa9b2700098c3a8ca1b0e4e5c75080294f33e5
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
@@ -303,7 +303,7 @@ spec:
         taskSpec:
           steps:
             - name: check-task-migration-md
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:a42133554fdccd1e28d5030e13435b11e06113a8f6d9244b4077eef9c34757f8
+              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:c24dbe19be6cd9b2a8ab9a76f50607b123b75fcf8a3aeeed45ac91a7bde107a0
               workingDir: $(workspaces.source.path)/source
               script: |
                 #!/usr/bin/env bash
@@ -339,7 +339,7 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:d16d937d4c480650976d23a1d9851c60db661eb88dce48959f091d122dffe435
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:5ae89e3ac5763088c1d346e1cc44c5263f2d2d55668234513b0d2f3fc6b2a6c8
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service
