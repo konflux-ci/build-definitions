@@ -60,12 +60,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: send-message
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       args:
         - --files
         - $(params.files[*])
