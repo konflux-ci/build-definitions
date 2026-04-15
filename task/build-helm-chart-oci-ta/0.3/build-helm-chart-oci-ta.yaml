@@ -283,16 +283,25 @@ spec:
           echo "Building Helm dependencies from Chart.lock..."
 
           # Add required repositories from Chart.yaml dependencies
-          yq -r '.dependencies[].repository' Chart.yaml | sort -u | while read -r repo_url; do
+          http_repo_used=false
+          while read -r repo_url; do
             if [ -n "$repo_url" ]; then
-              repo_name=$(echo "$repo_url" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*$||' | sed 's|\.|_|g')
-              echo "Adding repository: $repo_name ($repo_url)"
-              helm repo add "$repo_name" "$repo_url" || true
+              proto=$(echo "$repo_url" | cut -d: -f1)
+              if [ "$proto" = "oci" ]; then
+                echo "Skipping adding helm repository for OCI dependency: $repo_url"
+              else
+                http_repo_used=true
+                repo_name=$(echo "$repo_url" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*$||' | sed 's|\.|_|g')
+                echo "Adding repository: $repo_name ($repo_url)"
+                helm repo add "$repo_name" "$repo_url" || true
+              fi
             fi
-          done
+          done < <(yq -r '.dependencies[].repository' Chart.yaml | sort -u)
 
           # Update repository index
-          helm repo update
+          if [ "$http_repo_used" = "true" ]; then
+            helm repo update
+          fi
 
           # Build dependencies
           helm dependency build .
