@@ -473,78 +473,9 @@ spec:
       buildah umount "$kbc_container"
       buildah rm "$kbc_container"
 
-      build_args=()
-      env_vars=()
-
       if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
         ANNOTATIONS_FILE=$(realpath "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}")
       fi
-
-      # Save `args` for later
-      array_args=("$@")
-
-      # Split `args` into two multiple sets of arguments.
-      while [[ $# -gt 0 ]]; do
-        case $1 in
-        --build-args)
-          shift
-          # Note: this may result in multiple --build-arg=KEY=value flags with the same KEY being
-          # passed to buildah. In that case, the *last* occurrence takes precedence. This is why
-          # we append BUILD_ARGS after the content of the BUILD_ARGS_FILE
-          while [[ $# -gt 0 && $1 != --* ]]; do
-            build_args+=("$1")
-            shift
-          done
-          ;;
-        --envs)
-          shift
-          # Collect env entries of the form KEY=value
-          while [[ $# -gt 0 && $1 != --* ]]; do
-            env_vars+=("$1")
-            shift
-          done
-          ;;
-        --labels)
-          shift
-          # still have to skip them, no longer have to handle them
-          while [[ $# -gt 0 && $1 != --* ]]; do shift; done
-          ;;
-        --annotations)
-          shift
-          # still have to skip them, no longer have to handle them
-          while [[ $# -gt 0 && $1 != --* ]]; do shift; done
-          ;;
-        *)
-          echo "unexpected argument: $1" >&2
-          exit 2
-          ;;
-        esac
-      done
-
-      BUILD_ARG_FLAGS=()
-      for build_arg in "${build_args[@]}"; do
-        BUILD_ARG_FLAGS+=("--build-arg=$build_arg")
-      done
-
-      ENV_FLAGS=()
-      for env_var in "${env_vars[@]}"; do
-        ENV_FLAGS+=("--env=$env_var")
-      done
-
-      DOCKERFILE_ARG_FLAGS=()
-      DOCKERFILE_ARG_FLAGS+=("${BUILD_ARG_FLAGS[@]}")
-      DOCKERFILE_ARG_FLAGS+=("${ENV_FLAGS[@]}")
-
-      if [ -n "${BUILD_ARGS_FILE}" ]; then
-        DOCKERFILE_ARG_FLAGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
-      fi
-
-      dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_path" >/shared/parsed_dockerfile.json
-      BASE_IMAGES=$(
-        jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
-          tr -d '"' |
-          tr -d "'"
-      )
 
       BUILDAH_ARGS=()
 
@@ -668,7 +599,6 @@ spec:
         --quay-image-expires-after "$IMAGE_EXPIRES_AFTER"
         --build-args-file "$BUILD_ARGS_FILE"
         --annotations-file "$ANNOTATIONS_FILE"
-        "${array_args[@]}" # --annotations, --labels, --envs, --build-args
         --legacy-build-timestamp "$BUILD_TIMESTAMP"
         --add-legacy-labels
         --include-legacy-buildinfo-path="$ICM_KEEP_COMPAT_LOCATION"
@@ -683,6 +613,9 @@ spec:
         --prefetch-dir-copy "$prefetch_dir_copy"
         --prefetch-env-mount /cachi2/cachi2.env
         --prefetch-output-mount /cachi2/output
+        --containerfile-json-output /shared/parsed_dockerfile.json
+        --resolved-base-images-output /shared/base_images_digests
+        "$@" # --annotations, --labels, --envs, --build-args
         --
         "${VOLUME_MOUNTS[@]}"
         "${BUILDAH_ARGS[@]}"
@@ -705,19 +638,6 @@ spec:
         echo "Making copy of sbom-prefetch.json"
         cp "${prefetch_dir}/output/bom.json" ./sbom-prefetch.json
       fi
-
-      touch /shared/base_images_digests
-      echo "Recording base image digests used"
-      for image in $BASE_IMAGES; do
-        # Get the image pullspec and filter out a tag if it is not set
-        # Use head -n 1 to ensure we only get one result even if multiple images match the filter
-        base_image_digest=$(buildah images --format '{{ .Name }}{{ if ne .Tag "<none>" }}:{{ .Tag }}{{ end }}@{{ .Digest }}' --filter reference="$image" | head -n 1)
-        # In some cases, there might be BASE_IMAGES, but not any associated digest. This happens
-        # if buildah did not use that particular image during build because it was skipped
-        if [ -n "$base_image_digest" ]; then
-          echo "$image $base_image_digest" | tee -a /shared/base_images_digests
-        fi
-      done
 
       image_name=$(echo "${IMAGE##*/}" | tr ':' '-')
       buildah push "$IMAGE" oci:"/shared/$image_name.oci:$IMAGE"
