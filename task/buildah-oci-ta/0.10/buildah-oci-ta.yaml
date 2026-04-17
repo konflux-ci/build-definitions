@@ -513,20 +513,6 @@ spec:
           exit 1
         fi
 
-        dockerfile_copy=$(mktemp --tmpdir "$(basename "$dockerfile_path").XXXXXX")
-        cp "$dockerfile_path" "$dockerfile_copy"
-
-        # Inject the image content manifest into the container we are producing.
-        # This will generate the content-sets.json file and copy it by appending a COPY
-        # instruction to the Containerfile.
-        icm_opts=()
-        if [ "${ICM_KEEP_COMPAT_LOCATION}" = "true" ]; then
-          icm_opts+=(-c)
-        fi
-        if [ "${SKIP_INJECTIONS}" = "false" ]; then
-          inject-icm-to-containerfile "${icm_opts[@]}" "$dockerfile_copy" "/var/workdir/cachi2/output/bom.json" "$SOURCE_CODE_DIR/$CONTEXT"
-        fi
-
         echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
 
         # Fixing group permission on /var/lib/containers
@@ -611,7 +597,7 @@ spec:
           DOCKERFILE_ARG_FLAGS+=("--build-arg-file=${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
         fi
 
-        dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_copy" >/shared/parsed_dockerfile.json
+        dockerfile-json "${DOCKERFILE_ARG_FLAGS[@]}" "$dockerfile_path" >/shared/parsed_dockerfile.json
         BASE_IMAGES=$(
           jq -r '.Stages[] | select(.From | .Stage or .Scratch | not) | .BaseName | select(test("^oci-archive:") | not)' /shared/parsed_dockerfile.json |
             tr -d '"' |
@@ -727,9 +713,8 @@ spec:
         declare IMAGE
 
         cmd=(
-          # TODO: lost .containerignore handling for contents-sets.json
           konflux-build-cli image build
-          -f "$dockerfile_copy" -t "$IMAGE" --context "$SOURCE_CODE_DIR/$CONTEXT"
+          -f "$dockerfile_path" -t "$IMAGE" --context "$SOURCE_CODE_DIR/$CONTEXT"
           --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
           --workdir-mount "$WORKINGDIR_MOUNT"
           --target "$TARGET_STAGE"
