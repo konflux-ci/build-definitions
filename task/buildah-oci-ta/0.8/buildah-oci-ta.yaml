@@ -8,7 +8,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.8.3
+    app.kubernetes.io/version: 0.8.4
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -234,6 +234,28 @@ spec:
         to a non-TLS registry)
       type: string
       default: "true"
+    - name: UNSET_LABELS
+      description: List of label names to remove from the base image. By default,
+        common base image labels are removed so the final image does not look
+        like the parent image. Provide your own list to override the defaults,
+        or use an empty array to keep all base image labels.
+      type: array
+      default:
+        - name
+        - release
+        - version
+        - summary
+        - description
+        - url
+        - maintainer
+        - com.redhat.component
+        - com.redhat.license_terms
+        - io.k8s.display-name
+        - io.k8s.description
+        - io.openshift.tags
+        - io.openshift.expose-services
+        - distribution-scope
+        - vendor
     - name: WORKINGDIR_MOUNT
       description: Mount the current working directory into the build using
         --volume $PWD:/$WORKINGDIR_MOUNT. Note that the $PWD will be the context
@@ -402,6 +424,8 @@ spec:
         - $(params.LABELS[*])
         - --annotations
         - $(params.ANNOTATIONS[*])
+        - --unset-labels
+        - $(params.UNSET_LABELS[*])
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -604,6 +628,13 @@ spec:
             shift
             while [[ $# -gt 0 && $1 != --* ]]; do
               ANNOTATIONS+=("--annotation" "$1")
+              shift
+            done
+            ;;
+          --unset-labels)
+            shift
+            while [[ $# -gt 0 && $1 != --* ]]; do
+              BUILDAH_ARGS+=("--unsetlabel" "$1")
               shift
             done
             ;;

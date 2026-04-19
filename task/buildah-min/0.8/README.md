@@ -37,6 +37,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |STORAGE_DRIVER|Storage driver to configure for buildah|overlay|false|
 |SKIP_UNUSED_STAGES|Whether to skip stages in Containerfile that seem unused by subsequent stages|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
+|UNSET_LABELS|List of label names to remove from the base image. By default, common base image labels are removed so the final image does not look like the parent image. Provide your own list to override the defaults, or use an empty array to keep all base image labels.|["name","release","version","summary","description","url","maintainer","com.redhat.component","com.redhat.license_terms","io.k8s.display-name","io.k8s.description","io.openshift.tags","io.openshift.expose-services","distribution-scope","vendor"]|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
 |ANNOTATIONS_FILE|Path to a file with additional key=value annotations that should be applied to the image|""|false|
 |PRIVILEGED_NESTED|Whether to enable privileged mode, should be used only with remote VMs|false|false|

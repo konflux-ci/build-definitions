@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.8.3
+    app.kubernetes.io/version: 0.8.4
     build.appstudio.redhat.com/build_type: docker
   name: buildah-min
 spec:
@@ -127,6 +127,28 @@ spec:
   - default: []
     description: Additional key=value labels that should be applied to the image
     name: LABELS
+    type: array
+  - default:
+    - name
+    - release
+    - version
+    - summary
+    - description
+    - url
+    - maintainer
+    - com.redhat.component
+    - com.redhat.license_terms
+    - io.k8s.display-name
+    - io.k8s.description
+    - io.openshift.tags
+    - io.openshift.expose-services
+    - distribution-scope
+    - vendor
+    description: List of label names to remove from the base image. By default, common
+      base image labels are removed so the final image does not look like the parent
+      image. Provide your own list to override the defaults, or use an empty array
+      to keep all base image labels.
+    name: UNSET_LABELS
     type: array
   - default: []
     description: Additional key=value annotations that should be applied to the image
@@ -336,6 +358,8 @@ spec:
     - $(params.LABELS[*])
     - --annotations
     - $(params.ANNOTATIONS[*])
+    - --unset-labels
+    - $(params.UNSET_LABELS[*])
     computeResources:
       limits:
         memory: 4Gi
@@ -520,6 +544,10 @@ spec:
               --annotations)
                   shift
                   while [[ $# -gt 0 && $1 != --* ]]; do ANNOTATIONS+=("--annotation" "$1"); shift; done
+                  ;;
+              --unset-labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do BUILDAH_ARGS+=("--unsetlabel" "$1"); shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2
