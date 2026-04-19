@@ -78,6 +78,11 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          memory: 4Gi
     - name: push
       image: quay.io/konflux-ci/oras:latest@sha256:4512d1e023abc80567b02927820be39f58ce16335ae312a20623488f585f23aa
       workingDir: /var/workdir
