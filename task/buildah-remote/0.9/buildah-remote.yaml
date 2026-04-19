@@ -397,7 +397,7 @@ spec:
         IS_LOCALHOST=true
         echo "Localhost detected; running build in cluster"
       elif [ -e "/ssh/otp" ]; then
-        if ! curl --fail --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa; then
+        if ! curl --fail --show-error --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa; then
           echo "Failed to retrieve SSH key from the OTP server. This can happen when the PipelineRun retry option re-runs a task whose one-time credential was already consumed. Please, start a new build, and if problem persists, please report it as an MPC bug." >&2
           exit 1
         fi
