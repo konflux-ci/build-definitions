@@ -27,13 +27,11 @@
 #      8  ecosystem-cert-preflight-checks
 #      9  sast-snyk-check
 #     10  clamav-scan
-#     11  sast-coverity-check
-#     12  coverity-availability-check
-#     13  sast-shell-check
-#     14  sast-unicode-check
-#     15  apply-tags
-#     16  push-dockerfile
-#     17  rpms-signature-scan
+#     11  sast-shell-check
+#     12  sast-unicode-check
+#     13  apply-tags
+#     14  push-dockerfile
+#     15  rpms-signature-scan
 
 # build-container
 - op: test
@@ -97,54 +95,3 @@
     value: "$(tasks.init.results.http-proxy)"
   - name: NO_PROXY
     value: "$(tasks.init.results.no-proxy)"
-
-# FIXME: duplicate the "add" operations for sast-coverity-check, which is based on build-container
-- op: test
-  path: /spec/tasks/11/name
-  value: sast-coverity-check
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: IMAGE
-    value: $(params.output-image)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: DOCKERFILE
-    value: $(params.dockerfile)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: CONTEXT
-    value: $(params.path-context)
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: HERMETIC
-    value: "$(params.hermetic)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: PREFETCH_INPUT
-    value: "$(params.prefetch-input)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: IMAGE_EXPIRES_AFTER
-    value: "$(params.image-expires-after)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: COMMIT_SHA
-    value: "$(tasks.clone-repository.results.commit)"
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: BUILD_ARGS
-    value:
-      - $(params.build-args[*])
-- op: add
-  path: /spec/tasks/11/params/-
-  value:
-    name: BUILD_ARGS_FILE
-    value: "$(params.build-args-file)"

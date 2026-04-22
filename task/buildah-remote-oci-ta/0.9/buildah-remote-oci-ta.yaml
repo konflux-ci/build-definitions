@@ -4,7 +4,6 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
-  creationTimestamp: null
   labels:
     app.kubernetes.io/version: 0.9.3
     build.appstudio.redhat.com/build_type: docker
@@ -356,7 +355,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
     name: use-trusted-artifact
     volumeMounts:
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -1189,7 +1188,7 @@ spec:
     name: push
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
@@ -1226,7 +1225,7 @@ spec:
         --tls-verify="$TLSVERIFY" \
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+        echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
         exit 1
       fi
 
@@ -1240,7 +1239,7 @@ spec:
         --tls-verify="$TLSVERIFY" \
         --digestfile "/var/workdir/image-digest" "$IMAGE" \
         "docker://$IMAGE"; then
-        echo "Failed to push sbom image to $IMAGE"
+        echo "Failed to push image to $IMAGE"
         exit 1
       fi
 
@@ -1364,7 +1363,7 @@ spec:
       requests:
         cpu: 1100m
         memory: 4Gi
-    image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
     name: sbom-syft-generate
     script: |
       #!/bin/bash
@@ -1539,7 +1538,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
     name: upload-sbom
     script: |
       #!/bin/bash

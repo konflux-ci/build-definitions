@@ -6,7 +6,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.3"
+    app.kubernetes.io/version: "0.3.1"
 spec:
   description: Task that prefetches project dependencies for hermetic build.
   params:
@@ -42,7 +42,7 @@ spec:
 
   steps:
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.49.0@sha256:a689bb706be2afabc6d936967d29a8b12a38e5a1211c68b68db5101f09492345
+      image: quay.io/konflux-ci/hermeto:0.50.1@sha256:429936e9da7f2f073bc18bf8bfa0a607f1a98a37a506540171860039aee6960d
       volumeMounts:
         - name: activation-key
           mountPath: /activation-key
@@ -67,7 +67,10 @@ spec:
         - name: KBC_PD_OUTPUT_DIR_MOUNT_POINT
           value: /cachi2/output
         - name: KBC_PD_ENV_FILES
-          value: $(workspaces.source.path)/cachi2/cachi2.env
+          value: >-
+            $(workspaces.source.path)/cachi2/cachi2.env
+            $(workspaces.source.path)/cachi2/prefetch.env
+            $(workspaces.source.path)/cachi2/prefetch-env.json
         - name: KBC_PD_GIT_AUTH_DIRECTORY
           value: $(workspaces.git-basic-auth.path)
         - name: WORKSPACE_NETRC_PATH

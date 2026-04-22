@@ -30,8 +30,6 @@
 #  8	ecosystem-cert-preflight-checks
 #  9	sast-snyk-check
 # 10	clamav-scan
-# 11	sast-coverity-check
-# 12	coverity-availability-check
 # 13	sast-shell-check
 # 14	sast-unicode-check
 # 15	apply-tags
@@ -82,18 +80,18 @@
 
 # sast-shell-check
 - op: test
-  path: /spec/tasks/13/taskRef/name
+  path: /spec/tasks/11/taskRef/name
   value: sast-shell-check-oci-ta
 - op: replace
-  path: /spec/tasks/13/taskRef/name
+  path: /spec/tasks/11/taskRef/name
   value: sast-shell-check-oci-ta-min
 
 # sast-unicode-check
 - op: test
-  path: /spec/tasks/14/taskRef/name
+  path: /spec/tasks/12/taskRef/name
   value: sast-unicode-check-oci-ta
 - op: replace
-  path: /spec/tasks/14/taskRef/name
+  path: /spec/tasks/12/taskRef/name
   value: sast-unicode-check-oci-ta-min
 
 # tpa-scan
@@ -121,31 +119,17 @@
 
 # push-dockerfile
 - op: test
-  path: /spec/tasks/16/taskRef/name
+  path: /spec/tasks/14/taskRef/name
   value: push-dockerfile-oci-ta
 - op: remove
-  path: /spec/tasks/16
+  path: /spec/tasks/14
 
 # apply-tags
 - op: test
-  path: /spec/tasks/15/taskRef/name
+  path: /spec/tasks/13/taskRef/name
   value: apply-tags
 - op: remove
-  path: /spec/tasks/15
-
-# coverity-availability-check
-- op: test
-  path: /spec/tasks/12/taskRef/name
-  value: coverity-availability-check
-- op: remove
-  path: /spec/tasks/12
-
-# sast-coverity-check
-- op: test
-  path: /spec/tasks/11/taskRef/name
-  value: sast-coverity-check-oci-ta
-- op: remove
-  path: /spec/tasks/11
+  path: /spec/tasks/13
 
 # sast-snyk-check
 - op: test

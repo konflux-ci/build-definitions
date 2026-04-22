@@ -4,7 +4,6 @@ metadata:
   annotations:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
-  creationTimestamp: null
   labels:
     app.kubernetes.io/version: 0.9.3
     build.appstudio.redhat.com/build_type: docker
@@ -1156,7 +1155,7 @@ spec:
     name: push
     script: |
       #!/bin/bash
-      set -e
+      set -euo pipefail
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
         IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         export IMAGE
@@ -1194,7 +1193,7 @@ spec:
         "$IMAGE" \
         "docker://${IMAGE%:*}:${TASKRUN_NAME}"
       then
-        echo "Failed to push sbom image to ${IMAGE%:*}:${TASKRUN_NAME}"
+        echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
         exit 1
       fi
 
@@ -1209,7 +1208,7 @@ spec:
         --digestfile "$(workspaces.source.path)/image-digest" "$IMAGE" \
         "docker://$IMAGE"
       then
-        echo "Failed to push sbom image to $IMAGE"
+        echo "Failed to push image to $IMAGE"
         exit 1
       fi
 
@@ -1336,7 +1335,7 @@ spec:
       requests:
         cpu: 1100m
         memory: 4Gi
-    image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
     name: sbom-syft-generate
     script: |
       #!/bin/bash
@@ -1506,7 +1505,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
     name: upload-sbom
     script: |
       #!/bin/bash
