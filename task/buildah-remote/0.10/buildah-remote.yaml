@@ -296,10 +296,6 @@ spec:
       value: $(params.YUM_REPOS_D_TARGET)
     - name: TARGET_STAGE
       value: $(params.TARGET_STAGE)
-    - name: ENTITLEMENT_SECRET
-      value: $(params.ENTITLEMENT_SECRET)
-    - name: ACTIVATION_KEY
-      value: $(params.ACTIVATION_KEY)
     - name: ADDITIONAL_SECRET
       value: $(params.ADDITIONAL_SECRET)
     - name: BUILD_ARGS_FILE
@@ -588,53 +584,27 @@ spec:
         yum_repos_d_sources+=("${SOURCE_CODE_DIR}/${YUM_REPOS_D_SRC}")
       fi
 
-      echo "[$(date --utc -Ins)] Register sub-man"
-
-      ACTIVATION_KEY_PATH="/activation-key"
-      ENTITLEMENT_PATH="/entitlement"
-
       # 0. if hermetic=true, skip all subscription related stuff
-      # 1. do not enable activation key and entitlement at same time. If both vars are provided, prefer activation key.
+      # 1. do not enable activation key and entitlement at same time. If both are provided, prefer activation key.
       # 2. Activation-keys will be used when the key 'org' exists in the activation key secret.
       # 3. try to pre-register and mount files to the correct location so that users do no need to modify Dockerfiles.
-      # 3. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
+      # 4. If the Dockerfile contains the string "subcription-manager register", add the activation-keys volume
       #    to buildah but don't pre-register for backwards compatibility. Mount an empty directory on
-      #    shared emptydir volume to "/etc/pki/entitlement" to prevent certificates from being included
+      #    to "/etc/pki/entitlement" to prevent certificates from being included
+      rhsm_args=()
+      if [ "${HERMETIC}" != "true" ]; then
+        if [ -e /activation-key/org ]; then
+          rhsm_args+=(--rhsm-activation-key=/activation-key/activationkey
+                      --rhsm-org=/activation-key/org
+                      --rhsm-activation-mount=/activation-key)
 
-      if [ "${HERMETIC}" != "true" ] && [ -e /activation-key/org ]; then
-        cp -r --preserve=mode "$ACTIVATION_KEY_PATH" /tmp/activation-key
-        mkdir -p /shared/rhsm/etc/pki/entitlement
-        mkdir -p /shared/rhsm/etc/pki/consumer
-
-        VOLUME_MOUNTS+=(-v /tmp/activation-key:/activation-key \
-                        -v /shared/rhsm/etc/pki/entitlement:/etc/pki/entitlement:Z \
-                        -v /shared/rhsm/etc/pki/consumer:/etc/pki/consumer:Z)
-        echo "Adding activation key to the build"
-
-        if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
-          # user is not running registration in the Containerfile: pre-register.
-          echo "Pre-registering with subscription manager."
-          export RETRY_MAX_TRIES=6
-          if ! retry subscription-manager register --org "$(cat /tmp/activation-key/org)" --activationkey "$(cat /tmp/activation-key/activationkey)"
-          then
-            echo "Subscription-manager register failed"
-            exit 1
+          if ! grep -E "^[^#]*subscription-manager.[^#]*register" "$dockerfile_path"; then
+            # user is not running registration in the Containerfile: pre-register.
+            rhsm_args+=(--rhsm-activation-preregister)
           fi
-          unset RETRY_MAX_TRIES
-          trap 'subscription-manager unregister || true' EXIT
-
-          # copy generated certificates to /shared volume
-          cp /etc/pki/entitlement/*.pem /shared/rhsm/etc/pki/entitlement
-          cp /etc/pki/consumer/*.pem /shared/rhsm/etc/pki/consumer
-
-          # and then mount get /etc/rhsm/ca/redhat-uep.pem into /run/secrets/rhsm/ca
-          VOLUME_MOUNTS+=(--volume /etc/rhsm/ca/redhat-uep.pem:/etc/rhsm/ca/redhat-uep.pem:Z)
+        elif find /entitlement -name "*.pem" > /dev/null; then
+          rhsm_args+=(--rhsm-entitlements=/entitlement)
         fi
-
-      elif [ "${HERMETIC}" != "true" ] && find /entitlement -name "*.pem" > /dev/null; then
-        cp -r --preserve=mode "$ENTITLEMENT_PATH" /tmp/entitlement
-        VOLUME_MOUNTS+=(--volume /tmp/entitlement:/etc/pki/entitlement)
-        echo "Adding the entitlement to the build"
       fi
 
       if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
@@ -676,6 +646,7 @@ spec:
           --prefetch-dir-copy "$prefetch_dir_copy"
           --prefetch-env-mount /cachi2/cachi2.env
           --prefetch-output-mount /cachi2/output
+          "${rhsm_args[@]}"
           --containerfile-json-output /shared/parsed_dockerfile.json
           --resolved-base-images-output /shared/base_images_digests
           "$@"  # --annotations, --labels, --envs, --build-args
@@ -685,9 +656,6 @@ spec:
           --tls-verify="$TLSVERIFY" --no-cache
           --ulimit nofile=4096:4096
       )
-
-      # disable host subcription manager integration
-      find /usr/share/rhel/secrets -type l -exec unlink {} \;
 
       echo "[$(date --utc -Ins)] Run build command"
       echo "[$(date --utc -Ins)] $(printf '%q ' "${cmd[@]}")"
@@ -744,8 +712,6 @@ spec:
           -e YUM_REPOS_D_FETCHED="${YUM_REPOS_D_FETCHED@Q}" \
           -e YUM_REPOS_D_TARGET="${YUM_REPOS_D_TARGET@Q}" \
           -e TARGET_STAGE="${TARGET_STAGE@Q}" \
-          -e ENTITLEMENT_SECRET="${ENTITLEMENT_SECRET@Q}" \
-          -e ACTIVATION_KEY="${ACTIVATION_KEY@Q}" \
           -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
