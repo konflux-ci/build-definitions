@@ -89,7 +89,7 @@ spec:
       value: $(params.input)
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776104705@sha256:fe688da81a696387ca53a4c19231e99289591f990c904ef913c51b6e87d4e4df
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776833838@sha256:7d4e47500f28ac3a2bff06c25eff9127ff21048538ae03ce240d57cf756acd00
     name: skip-ta
     script: |
       #!/bin/bash
@@ -105,7 +105,7 @@ spec:
   - args:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f98820235bf8b7a2af879c4719aa20cb3912da115f73fc40da295a14a382298b
     name: use-trusted-artifact
   - computeResources:
       limits:
@@ -206,7 +206,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f98820235bf8b7a2af879c4719aa20cb3912da115f73fc40da295a14a382298b
     name: create-trusted-artifact
   volumes:
   - name: activation-key
