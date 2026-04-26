@@ -118,6 +118,7 @@ spec:
         # is a no-op for now. We can come back later and enforce that the content is identical between
         # all architectures if desired.
         images_processed_template='{"image": {"pullspec": "'"$IMAGE_URL"'", "digests": [%s]}}'
+        digests_processed=()
         if [ -n "$manifest_digests" ]; then
           while read -r _arch arch_sha; do
             digests_processed+=("\"$arch_sha\"")
@@ -334,9 +335,12 @@ spec:
         check_num=10
         failure_num=0
         TESTPASSED=true
+        note=""
+        failure_messages=()
 
         if [[ ! $(find . -name "grpc_health_probe") ]]; then
           echo "!FAILURE! - grpc_health_probe binary presence check failed."
+          failure_messages+=("grpc_health_probe binary not found in the FBC image")
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -354,7 +358,7 @@ spec:
           echo "    └── <package-name>/"
 
           # Set the note for the final error report
-          note="FBC directory structure validation failed: No package subdirectories were found inside the '${conffolder}' directory."
+          failure_messages+=("No package subdirectories found inside '${conffolder}' directory")
 
           failure_num=$((failure_num + 1))
           TESTPASSED=false
@@ -379,7 +383,7 @@ spec:
             echo "    └── <package-name>/"
 
             # Set a detailed note for the final error report, listing all empty directories
-            note="FBC directory validation failed. The following package directories are empty: ${empty_dirs[*]}"
+            failure_messages+=("Package directories are empty: ${empty_dirs[*]}")
 
             failure_num=$((failure_num + 1))
             TESTPASSED=false
@@ -390,6 +394,7 @@ spec:
 
         if ! opm validate ."${conffolder}"; then
           echo "!FAILURE! - opm validate check failed."
+          failure_messages+=("opm validate check failed - FBC fragment contains invalid operator metadata")
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -399,12 +404,14 @@ spec:
         render_opm -t ."${conffolder}" > ${OPM_RENDERED_CATALOG}
         if [ ! -f ${OPM_RENDERED_CATALOG} ]; then
           echo "!FAILURE! - unable to render the fragment FBC."
+          failure_messages+=("Unable to render the FBC fragment catalog")
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
 
         if jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1' ${OPM_RENDERED_CATALOG}; then
           echo "!FAILURE! - There are no olm package entries defined in this FBC fragment."
+          failure_messages+=("No olm.package entries found - at least one package must be defined")
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -437,12 +444,14 @@ spec:
           if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
             if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
               echo "!FAILURE! - olm.bundle.object bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must move to olm.csv.metadata bundle metadata."
+              failure_messages+=("olm.bundle.object not permitted for OCP ${OCP_VER_MAJOR}.${OCP_VER_MINOR} - use olm.csv.metadata")
               failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           else
             if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
               echo "!FAILURE! - olm.csv.metadata bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must only use olm.bundle.object bundle metadata."
+              failure_messages+=("olm.csv.metadata not permitted for OCP ${OCP_VER_MAJOR}.${OCP_VER_MINOR} - use olm.bundle.object")
               failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
@@ -456,13 +465,15 @@ spec:
           if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
             if [[ "${BUNDLE_COUNT}" -ne "${BUNDLE_CM_COUNT}" ]]; then
               echo "!FAILURE! - every olm.bundle object in the fragment must have a corresponding olm.csv.metadata bundle property"
-            failure_num=$((failure_num + 1))
+              failure_messages+=("Every olm.bundle must have olm.csv.metadata property - found ${BUNDLE_COUNT} bundles but only ${BUNDLE_CM_COUNT} have it")
+              failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           else
             if [[ "${BUNDLE_BO_COUNT}" -lt "${BUNDLE_COUNT}" ]]; then
               echo "!FAILURE! - every olm.bundle object in the fragment must have at least one olm.bundle.object bundle property"
-            failure_num=$((failure_num + 1))
+              failure_messages+=("Every olm.bundle must have olm.bundle.object property - found ${BUNDLE_COUNT} bundles but only ${BUNDLE_BO_COUNT} have it")
+              failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           fi
@@ -476,7 +487,7 @@ spec:
         if [ $status -ne 0 ]; then
           get_unreleased_fbc_related_images -i "$image_with_digest"
           echo "!FAILURE! - Could not get related images."
-          note="Step extract-and-validate failed ($status): Could not fetch related images. Make sure you have catalog.yaml or catalog.json formatted correctly in your file-based catalog (FBC) fragment image."
+          failure_messages+=("Could not fetch related images - check catalog.yaml or catalog.json format")
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         else
@@ -489,6 +500,12 @@ spec:
         fi
 
         if [ $TESTPASSED == false ]; then
+          # Construct comprehensive note from all failure messages
+          if [ ${#failure_messages[@]} -gt 0 ]; then
+            note="Step extract-and-validate failed with ${failure_num} error(s): $(IFS='; '; echo "${failure_messages[*]}"). For details, check Tekton task log."
+          else
+            note="Step extract-and-validate failed. For details, check Tekton task log."
+          fi
           ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
           echo -n "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         else
