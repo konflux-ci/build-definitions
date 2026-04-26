@@ -8,7 +8,6 @@
 When you make changes without bumping the version right away, document them here.
 If that's not something you ever plan to do, consider removing this section.
 -->
-
 *Nothing yet.*
 
 ## 0.9.3
@@ -37,6 +36,16 @@ If that's not something you ever plan to do, consider removing this section.
 
 ### Removed
 - BREAKING: Support for Dockerfile downloading in Konflux Build Pipeline.
+
+## 0.8.4
+
+### Added
+
+- Added `UNSET_LABELS`, a parameter for choosing which labels should not be
+  inherited from the base image. It comes with a default list of common
+  UBI/RHEL labels so the final image does not look like the parent image.
+  You can replace that list with your own, or use an empty list to keep all
+  base image labels.
 
 ## 0.8.3
 
