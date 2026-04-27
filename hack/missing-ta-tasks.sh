@@ -82,20 +82,17 @@ emit() {
       # is the task using a workspace(s) to share files?
       [[ "$disallowed_workspaces" == '[]' ]] && continue
 
-      # is there a newer version of the task
-      base_task_path=("${paths[@]}")
-      unset 'base_task_path[-1]'
-      version="${base_task_path[-1]/\/}"
-      unset 'base_task_path[-1]'
-      for dir in $(IFS=''; echo "${base_task_path[*]}*"); do
-          [[ ! -d "${dir}" ]] && continue
-          [[ "${version}" < "${dir/*\/}" ]] && continue 2
-      done
+      task_name="${paths[1]%/}"
+      task_dir=$(dirname "${task}")
+      subpath="${task_dir#task/"${task_name}"}"
+      subpath="${subpath#/}"
+      if [[ -n "$subpath" ]]; then
+        ta_dir="task/${task_name}-oci-ta/${subpath}"
+      else
+        ta_dir="task/${task_name}-oci-ta"
+      fi
 
       # there is no Trusted Artifacts variant of the task
-      unset 'paths[-1]'
-      paths[-2]="${paths[-2]%/}-oci-ta/"
-      ta_dir="$(IFS=''; echo "${paths[*]}")"
       if [[ ! -d "${ta_dir}" ]]; then
           emit error "${task}" "Task is using a workspace(s): ${disallowed_workspaces}, to share data and needs a corresponding Trusted Artifacts Task variant in ${ta_dir}"
           missing=$((missing + 1))

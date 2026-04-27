@@ -29,6 +29,9 @@ params:
 |mode|Control how input requirement violations are handled: strict (errors) or permissive (warnings). Valid values: strict, permissive.|strict|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|SERVICE_CA_TRUST_CONFIG_MAP_KEY|The name of the key in the ConfigMap that contains the service CA bundle data. Used to verify TLS connections to in-cluster services such as the package registry proxy.|service-ca.crt|false|
+|SERVICE_CA_TRUST_CONFIG_MAP_NAME|The name of the ConfigMap to read service CA bundle data from. Used to verify TLS connections to in-cluster services such as the package registry proxy.|openshift-service-ca.crt|false|
+|enable-package-registry-proxy|Use the package registry proxy when prefetching dependencies|true|false|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 
 ## Workspaces

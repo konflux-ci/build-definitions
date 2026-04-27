@@ -14,6 +14,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.9:BUILDAH_FORMAT ; build-image-index:0.3:BUILDAH_FORMAT|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.9:DOCKERFILE ; push-dockerfile:0.3:DOCKERFILE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.9:HERMETIC|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.9:IMAGE_EXPIRES_AFTER|
@@ -171,9 +172,12 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
+|SERVICE_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the service CA bundle data. Used to verify TLS connections to in-cluster services such as the package registry proxy.| service-ca.crt| |
+|SERVICE_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read service CA bundle data from. Used to verify TLS connections to in-cluster services such as the package registry proxy.| openshift-service-ca.crt| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |config-file-content| Pass configuration to the prefetch tool. Note this needs to be passed as a YAML-formatted config dump, not as a file path! | ""| |
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| '$(params.enable-package-registry-proxy)'|
 |input| Configures project packages that will have their dependencies prefetched.| None| '$(params.prefetch-input)'|
 |log-level| Set the logging level (debug, info, warn, error, fatal).| debug| |
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |

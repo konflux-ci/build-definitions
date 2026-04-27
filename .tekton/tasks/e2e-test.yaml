@@ -42,7 +42,7 @@ spec:
         secretName: konflux-test-infra
   steps:
     - name: e2e-test
-      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:5df8b2942e714d3f074c58b80f3e47336303a09e
+      image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:b6333d6d614962862a7b01f11970c7d7d4ee835a
       command: ["/konflux-e2e/konflux-e2e.test"]
       # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
       # against build-definitions to update this tag
@@ -96,7 +96,10 @@ spec:
       - name: TEKTON_CHAINS_NS
         value: "openshift-pipelines"
     - name: capture-log
-      image: quay.io/konflux-ci/pull-request-builds:appstudio-utils-$(params.revision)
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       script: |
         #!/bin/bash
         set -euo pipefail

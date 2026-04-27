@@ -30,13 +30,14 @@
 # 10	build-image-index
 # 11	buildah-format
 # 12	enable-cache-proxy
-# 13	build-args
-# 14	build-args-file
-# 15	privileged-nested
-# 16	build-platforms
+# 13	enable-package-registry-proxy
+# 14	build-args
+# 15	build-args-file
+# 16	privileged-nested
+# 17	build-platforms
 
 - op: remove
-  path: /spec/params/15  # privileged-nested
+  path: /spec/params/16  # privileged-nested
 - op: remove
   path: /spec/params/11  # buildah-format - FBC is always OCI
 - op: replace
@@ -139,7 +140,7 @@
   path: /spec/tasks/3/runAfter/0
   value: run-opm-command
 - op: replace
-  path: /spec/tasks/3/params/1/value
+  path: /spec/tasks/3/params/2/value
   value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
 - op: replace
   path: /spec/tasks/4/runAfter/0

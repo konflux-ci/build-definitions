@@ -41,38 +41,69 @@ as you make more local changes you increase the chance of merge conflicts.
 
 ## 🌲 Expected repository structure
 
-The shared scripts and workflows expect this repository to follow the
-[Tekton Catalog structure][tekton-catalog-structure].
+The shared scripts and workflows expect tasks to be organized under the `task/` directory.
+The task YAML file must be named `${task_name}.yaml` and placed under `task/${task_name}/`.
 
 They also introduce new elements and conventions, such as the `${task_name}-oci-ta`
 directories for [Trusted Artifacts](#trusted-artifacts) tasks.
 
 For details on how the `tests` directory is used, see [Task Integration Tests](#task-integration-tests).
 
-Putting it all together, the structure is as follows:
+### Flexible directory structure
+
+Task files can be placed at any nesting level within the task directory:
+
+```text
+task/${task_name}/${task_name}.yaml                   👈 flat (recommended)
+task/${task_name}/**/${task_name}.yaml                👈 arbitrarily nested
+task/${task_name}/${version}/${task_name}.yaml        👈 legacy (version subdir)
+```
+
+> [!NOTE]
+> The task version is determined by the `app.kubernetes.io/version` label in the task YAML,
+> not by the directory structure.
+
+### Example structure
 
 ```text
 task                                    👈 all tasks go here
-├── hello                               👈 the name of a task
+├── goodbye                             👈 flat structure (recommended)
 │   ├── CHANGELOG.md                    👈 the changelog for this task (required)
-│   ├── 0.1                             👈 a specific version of the task
-│   │   ├── hello.yaml                  👈 ${task_name}.yaml
-│   │   ├── README.md
-│   │   └── tests                       👈 Test directory
-│   │       ├── test-hello.yaml         👈 Test - A Pipeline named test-*.yaml
-│   │       ├── test-hello-2.yaml       👈 Test case 2
-│   │       └── pre-apply-task-hook.sh  👈 Optional hook
-│   └── 0.2
-│       ├── hello.yaml
-│       ├── migrations
-│       │   └── 0.2.sh                  👈 script for migrating to 0.2
+│   ├── goodbye.yaml                    👈 task YAML directly in task dir
+│   ├── kustomization.yaml
+│   ├── migrations
+│   │   └── 0.2.sh                      👈 script for migrating to 0.2
+│   └── tests                           👈 Test directory
+│       ├── test-goodbye.yaml           👈 Test - A Pipeline named test-*.yaml
+│       └── pre-apply-task-hook.sh      👈 Optional hook
+├── goodbye-oci-ta                      👈 ${task_name}-oci-ta for Trusted Artifacts
+│   ├── CHANGELOG.md
+│   ├── goodbye-oci-ta.yaml
+│   └── recipe.yaml                     👈 triggers auto-generation of the task yaml
+├── greet                               👈 nested structure
+│   ├── CHANGELOG.md
+│   └── subdir
+│       └── deep
+│           ├── greet.yaml              👈 task YAML in nested subdir
+│           └── tests
+│               └── test-greet.yaml
+├── greet-oci-ta                        👈 TA variant mirrors base task structure
+│   ├── CHANGELOG.md
+│   └── subdir
+│       └── deep
+│           ├── greet-oci-ta.yaml
+│           └── recipe.yaml
+├── hello                               👈 legacy structure with version subdirs
+│   ├── CHANGELOG.md
+│   └── 0.1                             👈 a specific version of the task
+│       ├── hello.yaml                  👈 ${task_name}.yaml
 │       └── README.md
-└── hello-oci-ta                        👈 ${task_name}-oci-ta for Trusted Artifacts
+└── hello-oci-ta                        👈 TA variant for legacy structure
     ├── CHANGELOG.md
     └── 0.1
         ├── hello-oci-ta.yaml
         ├── README.md
-        └── recipe.yaml                 👈 triggers auto-generation of the task yaml
+        └── recipe.yaml
 ```
 
 ## ☑️ CI workflows
@@ -143,13 +174,13 @@ The following is the steps to write a migration:
   form `<new task version>.sh`. Note that the version must match the bumped
   version.
 
-For example, to create a migration for task `hello`, migration file should be
+For example, to create a migration for task `goodbye`, migration file should be
 present like this:
 
 ```
 task
-└── hello
-    ├── hello.yaml
+└── goodbye
+    ├── goodbye.yaml
     └── migrations
         └── 0.2.sh
 ```
@@ -417,15 +448,15 @@ This workflow is designed to be efficient by following a two-stage logic:
 
 #### How to Add a Test
 
-1. Create a `tests` directory inside the task's versioned folder.  
+1. Create a `tests` directory alongside the task YAML file.
 
-2. Inside the `tests` directory, create a test file named `test-*.yaml` (for example, `test-hello.yaml`).  
-   - The script **automatically** discovers tests based on this naming convention.  
+2. Inside the `tests` directory, create a test file named `test-*.yaml` (for example, `test-hello.yaml`).
+   - The script **automatically** discovers tests based on this naming convention.
 
-3. The file must define a Tekton `kind: Pipeline` object.  
+3. The file must define a Tekton `kind: Pipeline` object.
 
-4. The Pipeline must declare a workspace named exactly `tests-workspace`.  
-   - The test script will **automatically** provide storage for this workspace when it runs the pipeline.  
+4. The Pipeline must declare a workspace named exactly `tests-workspace`.
+   - The test script will **automatically** provide storage for this workspace when it runs the pipeline.
 
 5. Optionally, add a `pre-apply-task-hook.sh` to the `tests` directory.
 
@@ -433,13 +464,12 @@ This workflow is designed to be efficient by following a two-stage logic:
 
 ```plaintext
 task
-└── hello
-    └── 0.1
-        ├── hello.yaml
-        └── tests                         👈 Test directory
-            └── test-hello.yaml           👈 Test - A Pipeline named test-*.yaml
-            └── test-hello-2.yaml         👈 Test case 2
-            └── pre-apply-task-hook.sh    👈 Optional hook
+└── goodbye
+    ├── goodbye.yaml
+    └── tests                             👈 Test directory
+        ├── test-goodbye.yaml             👈 Test - A Pipeline named test-*.yaml
+        ├── test-goodbye-2.yaml           👈 Test case 2
+        └── pre-apply-task-hook.sh        👈 Optional hook
 ```
 
 #### Using a `pre-apply-task-hook.sh`

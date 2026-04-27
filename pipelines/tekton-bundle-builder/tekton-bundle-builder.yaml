@@ -58,6 +58,9 @@ spec:
   - default: "false"
     description: Enable cache proxy configuration
     name: enable-cache-proxy
+  - default: "true"
+    description: Use the package registry proxy when prefetching dependencies
+    name: enable-package-registry-proxy
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -95,6 +98,8 @@ spec:
     params:
     - name: input
       value: $(params.prefetch-input)
+    - name: enable-package-registry-proxy
+      value: $(params.enable-package-registry-proxy)
     runAfter:
     - clone-repository
     taskRef:
