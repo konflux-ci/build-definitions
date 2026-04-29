@@ -22,6 +22,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.9:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-images:0.9:PREFETCH_INPUT|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| |
 |skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks

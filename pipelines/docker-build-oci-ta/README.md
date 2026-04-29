@@ -23,6 +23,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-container:0.9:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.9:PRIVILEGED_NESTED|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.4:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks
@@ -216,7 +217,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (default to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
+|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| '$(params.sast-target-dirs)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
@@ -233,7 +234,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
 |SNYK_SECRET| Name of secret which contains Snyk token.| snyk-secret| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
+|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| '$(params.sast-target-dirs)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Digest of the image to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
@@ -247,7 +248,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (defaults to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| |
+|TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| '$(params.sast-target-dirs)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|

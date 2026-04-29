@@ -44,6 +44,11 @@ spec:
   - default: "true"
     description: Use the package registry proxy when prefetching dependencies
     name: enable-package-registry-proxy
+  - default: .
+    description: Target directories in component's source code to scan with SAST tools.
+      Multiple values should be separated with commas.
+    name: sast-target-dirs
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-oci-artifact.results.IMAGE_URL)
@@ -120,6 +125,8 @@ spec:
       value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    - name: TARGET_DIRS
+      value: $(params.sast-target-dirs)
     runAfter:
     - build-oci-artifact
     taskRef:
@@ -139,6 +146,8 @@ spec:
       value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    - name: TARGET_DIRS
+      value: $(params.sast-target-dirs)
     runAfter:
     - build-oci-artifact
     taskRef:
@@ -158,6 +167,8 @@ spec:
       value: $(tasks.build-oci-artifact.results.IMAGE_DIGEST)
     - name: image-url
       value: $(tasks.build-oci-artifact.results.IMAGE_URL)
+    - name: TARGET_DIRS
+      value: $(params.sast-target-dirs)
     runAfter:
     - build-oci-artifact
     taskRef:
