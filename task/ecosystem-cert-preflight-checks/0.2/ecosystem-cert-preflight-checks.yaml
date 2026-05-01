@@ -162,6 +162,12 @@ spec:
         echo "Introspection concludes that this artifact is of type \"${_ARTIFACT_TYPE}\"."
 
     - name: generate-container-auth
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       env:
       - name: PARAM_IMAGE_URL
