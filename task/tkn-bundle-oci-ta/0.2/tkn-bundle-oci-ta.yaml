@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.2.2
+    app.kubernetes.io/version: 0.2.3
     build.appstudio.redhat.com/build_type: tkn-bundle
 spec:
   description: Creates and pushes a Tekton bundle containing the specified
@@ -24,6 +24,12 @@ spec:
     - name: IMAGE
       description: Reference of the image task will produce.
       type: string
+    - name: PARAM_DEFAULTS
+      description: Optional space-separated list of PARAM_NAME=VALUE entries.
+        Each entry sets the default value of the named param in the task YAML
+        files.
+      type: string
+      default: ""
     - name: REVISION
       description: Revision
       type: string
@@ -83,6 +89,8 @@ spec:
           value: $(params.STEPS_IMAGE)
         - name: STEPS_IMAGE_STEP_NAMES
           value: $(params.STEPS_IMAGE_STEP_NAMES)
+        - name: PARAM_DEFAULTS
+          value: $(params.PARAM_DEFAULTS)
       script: |
         #!/bin/env bash
         set -o errexit
@@ -191,6 +199,31 @@ spec:
             else
               yq '(.spec.steps[] | select(has("image")).image) = strenv(STEPS_IMAGE)' -i "$f"
             fi
+          done
+        fi
+
+        # Allow default values for params in the task being built to be set at build time
+        # PARAM_DEFAULTS should be a space-separated list of `PARAM_NAME=default_value` pairs.
+        if [[ -n "${PARAM_DEFAULTS}" ]]; then
+          set -f
+          IFS=' ' read -r -a PD_ENTRIES <<<"${PARAM_DEFAULTS}"
+          set +f
+          for entry in "${PD_ENTRIES[@]}"; do
+            if [[ "${entry}" != *"="* ]]; then
+              echo "ERROR: invalid PARAM_DEFAULTS entry '${entry}', expected NAME=VALUE format" >&2
+              exit 1
+            fi
+            PARAM_NAME="${entry%%=*}"
+            PARAM_VALUE="${entry#*=}"
+            for f in "${FILES[@]}"; do
+              if ! PARAM_NAME="${PARAM_NAME}" yq -e '.spec.params[]? | select(.name == strenv(PARAM_NAME))' "$f" &>/dev/null; then
+                echo "Param '${PARAM_NAME}' does not exist in task file '${f##*/}', skipping" >&2
+                continue
+              fi
+              echo "Setting param default: ${PARAM_NAME}=${PARAM_VALUE} in task file '${f##*/}'"
+              PARAM_NAME="${PARAM_NAME}" PARAM_VALUE="${PARAM_VALUE}" \
+                yq '(.spec.params[]? | select(.name == strenv(PARAM_NAME)).default) = strenv(PARAM_VALUE)' -i "$f"
+            done
           done
         fi
 

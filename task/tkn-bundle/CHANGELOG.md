@@ -9,6 +9,11 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+## 0.2.3
+
+### Added
+
+Version 0.2.3 supports modifying task parameter default values at build time.
 
 ## 0.2.2
 

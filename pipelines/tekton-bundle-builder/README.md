@@ -116,6 +116,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|PARAM_DEFAULTS| Optional space-separated list of PARAM_NAME=VALUE entries. Each entry sets the default value of the named param in the task YAML files.| ""| |
 |REVISION| Revision| None| '$(params.revision)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
 |STEPS_IMAGE_STEP_NAMES| Optional comma- or space-separated step names to control which steps are updated with STEPS_IMAGE. If names are prefixed with ! then all steps except those are updated. Otherwise only the listed steps are updated. If empty, all step images are updated.| ""| |
