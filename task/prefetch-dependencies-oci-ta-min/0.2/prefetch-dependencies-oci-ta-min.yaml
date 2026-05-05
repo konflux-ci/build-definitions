@@ -83,7 +83,7 @@ spec:
       value: $(params.input)
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776104705@sha256:fe688da81a696387ca53a4c19231e99289591f990c904ef913c51b6e87d4e4df
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1777857961@sha256:8d0a8fb39ec907e8ca62cdd24b62a63ca49a30fe465798a360741fde58437a23
     name: skip-ta
     script: |
       #!/bin/bash
@@ -99,9 +99,9 @@ spec:
   - args:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:339f1a641a46e2a20b5c1aa5d1323c702812d012a1fae475ab27ae795554e523
     name: use-trusted-artifact
-  - image: quay.io/konflux-ci/yq:latest@sha256:c32538822bd26e0964090c689a1bc640d799bac62290c486b66055ddaf44748a
+  - image: quay.io/konflux-ci/yq:latest@sha256:5a41c8ccca7219156b2a56209c4329e1dad1e4015c71a492dd2c7d3e01451c17
     name: sanitize-config-file-with-yq
     script: |
       if [ -n "${CONFIG_FILE_CONTENT}" ]; then
@@ -134,7 +134,7 @@ spec:
       value: $(workspaces.netrc.bound)
     - name: WORKSPACE_NETRC_PATH
       value: $(workspaces.netrc.path)
-    image: quay.io/konflux-ci/hermeto:0.50.2@sha256:25a35443cdf557faeae3cb02146feba9c27c3fcecfae4cd831158c980f253c46
+    image: quay.io/konflux-ci/hermeto:0.51.0@sha256:4899755ffd1574547102a58469aea916822c7fd7825cbec8e477e1b57668a6d7
     name: prefetch-dependencies
     script: |
       #!/bin/bash
@@ -384,7 +384,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:339f1a641a46e2a20b5c1aa5d1323c702812d012a1fae475ab27ae795554e523
     name: create-trusted-artifact
   volumes:
   - name: activation-key
