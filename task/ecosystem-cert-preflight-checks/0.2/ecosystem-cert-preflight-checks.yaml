@@ -380,8 +380,9 @@ spec:
           fi
         done < <(find /artifacts -type f -name "cert-image.json")
 
-        image_digest=$(retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}" | sha256sum | awk '{print "sha256:" $1}')
-        if [[ -n "$image_digest" && ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
+        retry skopeo inspect --raw --retry-times "$skopeo_retries" "docker://${PARAM_IMAGE_URL}" > /tmp/raw-manifest.json
+        image_digest="sha256:$(sha256sum < /tmp/raw-manifest.json | awk '{print $1}')"
+        if [[ ! " ${digests_processed[*]} " == *" \"$image_digest\" "* ]]; then
           digests_processed+=("\"$image_digest\"")
         fi
 
