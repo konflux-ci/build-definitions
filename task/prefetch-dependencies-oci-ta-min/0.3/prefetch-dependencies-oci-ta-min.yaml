@@ -84,7 +84,13 @@ spec:
     - mountPath: /var/workdir
       name: workdir
   steps:
-  - env:
+  - computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    env:
     - name: INPUT
       value: $(params.input)
     - name: SOURCE_ARTIFACT
