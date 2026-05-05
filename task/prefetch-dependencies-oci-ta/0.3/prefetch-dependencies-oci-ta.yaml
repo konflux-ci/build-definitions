@@ -140,6 +140,12 @@ spec:
           echo -n "${SOURCE_ARTIFACT}" >"$(results.SOURCE_ARTIFACT.path)"
           echo -n "" >"$(results.CACHI2_ARTIFACT.path)"
         fi
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:69c9537ec111c5333ef3351e6afbe5e9ab76bc416057f2fe6675895f73c25239
       args:
