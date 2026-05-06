@@ -83,11 +83,23 @@ spec:
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:77563b5fb4b82f9b6a47070ba06e60486567d34e03ea60cd5169be0be53ad5dc
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       script: |-
         #!/bin/bash
         set -o verbose
@@ -133,7 +145,7 @@ spec:
       image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
       computeResources:
         limits:
-          memory: 512Mi
+          memory: 128Mi
         requests:
           cpu: 250m
           memory: 128Mi
