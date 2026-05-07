@@ -146,7 +146,13 @@ spec:
   - description: The precise URL that was fetched by this Task.
     name: url
   steps:
-  - env:
+  - computeResources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 350m
+        memory: 2Gi
+    env:
     - name: HOME
       value: $(params.userHome)
     - name: PARAM_URL
@@ -346,7 +352,13 @@ spec:
       readOnly: true
     - mountPath: /var/workdir
       name: workdir
-  - env:
+  - computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    env:
     - name: PARAM_ENABLE_SYMLINK_CHECK
       value: $(params.enableSymlinkCheck)
     - name: CHECKOUT_DIR
