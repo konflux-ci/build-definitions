@@ -57,6 +57,8 @@ spec:
       description: Image reference of the built image
     - name: IMAGE_URL
       description: Repository where the artifact was pushed
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to downloaded model files.
     - name: SBOM_BLOB_URL
       description: Link to the SBOM blob pushed to the registry.
   volumes:
@@ -153,6 +155,8 @@ spec:
         # Use NVMe-backed emptyDir for downloads (faster than workspace PVC)
         export DOWNLOAD_DIR="/var/lib/containers/downloads"
         mkdir -p "$DOWNLOAD_DIR"
+        export MODEL_SOURCE_DIR="/var/workdir/model-source"
+        mkdir -p "$MODEL_SOURCE_DIR"
 
         # Configure AWS CLI once (avoid race condition in parallel downloads)
         mkdir -p ~/.aws
@@ -187,6 +191,9 @@ spec:
             echo "[DL] ERROR: Checksum mismatch for ${OCI_FILENAME}"
             exit 1
           fi
+          # Preserve a copy for trusted-artifact creation used by downstream scans.
+          mkdir -p "$(dirname "${MODEL_SOURCE_DIR}/${OCI_FILENAME}")"
+          cp "$dlpath" "${MODEL_SOURCE_DIR}/${OCI_FILENAME}"
           echo "[DL] Downloaded ${OCI_FILENAME} [OK]"
         }
 
@@ -533,6 +540,22 @@ spec:
         capabilities:
           add:
             - SETFCAP
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+      args:
+        - create
+        - --store
+        - $(params.IMAGE).source
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/model-source
+      env:
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.IMAGE_EXPIRES_AFTER)
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: "2"
+          memory: 4Gi
     - name: sbom-generate
       image: quay.io/konflux-ci/mobster:1.2.0-1774868067@sha256:2e00c2f0aeff55713150b51822013327ea0e0d75b8164a52f837fb297c17703d
       workingDir: /var/workdir
