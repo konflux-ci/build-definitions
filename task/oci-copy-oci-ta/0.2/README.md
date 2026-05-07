@@ -9,6 +9,7 @@ Copy content from arbitrary urls into the OCI registry. Downloads and pushes fil
 |AWS_SECRET_NAME|Name of a secret which will be made available to the build for downloading from Amazon S3 or S3-compatible storage using AWS CLI with parallel multipart transfers. If specified, this will take precedence over BEARER_TOKEN_SECRET_NAME. The secret must contain two keys: `aws_access_key_id` and `aws_secret_access_key`.|does-not-exist|false|
 |BEARER_TOKEN_SECRET_NAME|Name of a secret which will be made available to the build as an Authorization header. Note, the token will be sent to all servers found in the oci-copy.yaml file. If you do not wish to send the token to all servers, different taskruns and therefore different oci artifacts must be used.|does-not-exist|false|
 |IMAGE|Reference of the image we will push||true|
+|IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |OCI_COPY_FILE|Path to the oci copy file.|./oci-copy.yaml|false|
 |PARALLEL_JOBS|Number of files to download/push in parallel.|8|false|
 |SBOM_TYPE|Select the SBOM format to generate. Valid values: spdx, cyclonedx.|spdx|false|
