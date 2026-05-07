@@ -21,6 +21,7 @@ Copy content from arbitrary urls into the OCI registry. Downloads and pushes fil
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Repository where the artifact was pushed|
 |SBOM_BLOB_URL|Link to the SBOM blob pushed to the registry.|
+|SOURCE_ARTIFACT|The Trusted Artifact URI pointing to downloaded model files.|
 
 
 ## Additional info
