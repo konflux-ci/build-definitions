@@ -43,6 +43,12 @@ spec:
       workingDir: $(workspaces.source.path)/source
       securityContext:
         runAsUser: 0
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       env:
         - name: CHANNELS
           value: $(params.channels)
