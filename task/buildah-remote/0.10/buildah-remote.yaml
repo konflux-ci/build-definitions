@@ -455,28 +455,6 @@ spec:
       set -euo pipefail
       cd $(workspaces.source.path)
 
-      echo "[$(date --utc -Ins)] Validate context path"
-
-      if [ -z "$CONTEXT" ]; then
-        echo "WARNING: CONTEXT is empty. Defaulting to '.' (the source directory)." >&2
-        CONTEXT="."
-      fi
-
-      source_dir_path=$(realpath "$SOURCE_CODE_DIR")
-      context_dir_path=$(realpath "$SOURCE_CODE_DIR/$CONTEXT")
-
-      case "$context_dir_path" in
-        "$source_dir_path" | "$source_dir_path/"*)
-          # path is valid, do nothing
-          ;;
-        *)
-          echo "ERROR: The CONTEXT parameter ('$CONTEXT') is invalid because it escapes the source directory." >&2
-          echo "Source path: $source_dir_path" >&2
-          echo "Resolved path: $context_dir_path" >&2
-          exit 1
-          ;;
-      esac
-
       echo "[$(date --utc -Ins)] Update CA trust"
 
       ca_bundle=/mnt/trusted-ca/ca-bundle.crt
@@ -620,7 +598,7 @@ spec:
 
       cmd=(
           konflux-build-cli image build
-          -f "$dockerfile_path" -t "$IMAGE" --context "$SOURCE_CODE_DIR/$CONTEXT"
+          -f "$dockerfile_path" -t "$IMAGE" --source "$SOURCE_CODE_DIR" --context "$CONTEXT"
           --secret-dirs "src=/additional-secret,name=$ADDITIONAL_SECRET,optional=true"
           --workdir-mount "$WORKINGDIR_MOUNT"
           --target "$TARGET_STAGE"
