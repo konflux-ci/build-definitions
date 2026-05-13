@@ -483,9 +483,6 @@ spec:
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
       elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
         dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
-      elif [ -e "$DOCKERFILE" ]; then
-        # Instrumented builds (SAST) use this custom dockerfile step as their base
-        dockerfile_path="$DOCKERFILE"
       else
         echo "Cannot find Dockerfile $DOCKERFILE"
         exit 1
@@ -530,8 +527,6 @@ spec:
         security_args+=(--cap-add "${ADD_CAPABILITIES}")
       fi
 
-      VOLUME_MOUNTS=()
-
       if [ -f "$(workspaces.source.path)/cachi2/cachi2.env" ]; then
         prefetch_dir="$(workspaces.source.path)/cachi2"
         # KBC defaults to ${prefetch_dir}/copy-*
@@ -572,14 +567,6 @@ spec:
         elif find /entitlement -name "*.pem" > /dev/null; then
           rhsm_args+=(--rhsm-entitlements=/entitlement)
         fi
-      fi
-
-      if [ -n "${ADDITIONAL_VOLUME_MOUNTS-}" ]; then
-        # ADDITIONAL_VOLUME_MOUNTS allows to specify more volumes for the build.
-        # Instrumented builds (SAST) use this step as their base and add some other tools.
-        while read -r volume_mount; do
-          VOLUME_MOUNTS+=("--volume=$volume_mount")
-        done <<< "$ADDITIONAL_VOLUME_MOUNTS"
       fi
 
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
@@ -624,8 +611,6 @@ spec:
           --src-tls-verify="$TLSVERIFY"
           --dest-tls-verify="$TLSVERIFY"
           "$@"  # --annotations, --labels, --envs, --build-args
-          --
-          "${VOLUME_MOUNTS[@]}"
       )
 
       echo "[$(date --utc -Ins)] Run build command"
