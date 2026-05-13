@@ -276,7 +276,8 @@ spec:
         conffolder=$(jq -r '.Labels ."operators.operatorframework.io.index.configs.v1"' "$IMAGE_INSPECT") || status=$?
         if [[ $status -ne 0 ||  "${conffolder}" == "null" ]]; then
           echo "Could not get 'operators.operatorframework.io.index.configs.v1' label from ${IMAGE_INSPECT}. Make sure file exists and it contains this label."
-          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          note="Step extract-and-validate failed: Could not get 'operators.operatorframework.io.index.configs.v1' label from ${IMAGE_INSPECT}. For details, check Tekton task log."
+          TEST_OUTPUT="$(make_result_json -r ERROR -t "$note")"
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           exit 0
         fi
@@ -294,7 +295,8 @@ spec:
 
         if [ -z "$(ls -A .$conffolder)" ]; then
           echo "$conffolder is missing catalog file."
-          TEST_OUTPUT="$(make_result_json -r ERROR)"
+          note="Step extract-and-validate failed: $conffolder is missing catalog file. For details, check Tekton task log."
+          TEST_OUTPUT="$(make_result_json -r ERROR -t "$note")"
           echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
           popd
           exit 0
@@ -338,6 +340,7 @@ spec:
 
         if [[ ! $(find . -name "grpc_health_probe") ]]; then
           echo "!FAILURE! - grpc_health_probe binary presence check failed."
+          note="Step extract-and-validate failed: grpc_health_probe binary not found in the FBC image. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -355,8 +358,7 @@ spec:
           echo "    └── <package-name>/"
 
           # Set the note for the final error report
-          note="FBC directory structure validation failed: No package subdirectories were found inside the '${conffolder}' directory."
-
+          note="Step extract-and-validate failed: FBC directory structure validation failed. No package subdirectories found inside '${conffolder}' directory. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         else
@@ -380,8 +382,7 @@ spec:
             echo "    └── <package-name>/"
 
             # Set a detailed note for the final error report, listing all empty directories
-            note="FBC directory validation failed. The following package directories are empty: ${empty_dirs[*]}"
-
+            note="Step extract-and-validate failed: Package directories are empty for ${empty_dirs[*]}. For details, check Tekton task log."
             failure_num=$((failure_num + 1))
             TESTPASSED=false
           else
@@ -391,6 +392,7 @@ spec:
 
         if ! opm validate ."${conffolder}"; then
           echo "!FAILURE! - opm validate check failed."
+          note="Step extract-and-validate failed: opm validate check failed. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -400,12 +402,14 @@ spec:
         render_opm -t ."${conffolder}" > ${OPM_RENDERED_CATALOG}
         if [ ! -f ${OPM_RENDERED_CATALOG} ]; then
           echo "!FAILURE! - unable to render the fragment FBC."
+          note="Step extract-and-validate failed: Unable to render the FBC fragment. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
 
         if jq -en 'reduce (inputs | select(.schema == "olm.package")) as $obj (0; .+1) < 1' ${OPM_RENDERED_CATALOG}; then
           echo "!FAILURE! - There are no olm package entries defined in this FBC fragment."
+          note="Step extract-and-validate failed: No olm.package entries found in FBC fragment. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         fi
@@ -438,12 +442,14 @@ spec:
           if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
             if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.bundle.object")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
               echo "!FAILURE! - olm.bundle.object bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must move to olm.csv.metadata bundle metadata."
+              note="Step extract-and-validate failed: olm.bundle.object not permitted for OCP ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. For details, check Tekton task log."
               failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           else
             if ! jq -en 'reduce( inputs | select(.schema == "olm.bundle" and .properties[].type == "olm.csv.metadata")) as $_ (0;.+1) == 0' ${OPM_RENDERED_CATALOG}; then
               echo "!FAILURE! - olm.csv.metadata bundle properties are not permitted in a FBC fragment for OCP version ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. Fragments must only use olm.bundle.object bundle metadata."
+              note="Step extract-and-validate failed: olm.csv.metadata not permitted for OCP ${OCP_VER_MAJOR}.${OCP_VER_MINOR}. For details, check Tekton task log."
               failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
@@ -457,13 +463,15 @@ spec:
           if [[ "${OCP_BUNDLE_METADATA_FORMAT}" = "olm.csv.metadata" ]]; then
             if [[ "${BUNDLE_COUNT}" -ne "${BUNDLE_CM_COUNT}" ]]; then
               echo "!FAILURE! - every olm.bundle object in the fragment must have a corresponding olm.csv.metadata bundle property"
-            failure_num=$((failure_num + 1))
+              note="Step extract-and-validate failed: Missing olm.csv.metadata bundle properties. For details, check Tekton task log."
+              failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           else
             if [[ "${BUNDLE_BO_COUNT}" -lt "${BUNDLE_COUNT}" ]]; then
               echo "!FAILURE! - every olm.bundle object in the fragment must have at least one olm.bundle.object bundle property"
-            failure_num=$((failure_num + 1))
+              note="Step extract-and-validate failed: Missing olm.bundle.object bundle properties. For details, check Tekton task log."
+              failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
           fi
@@ -477,7 +485,7 @@ spec:
         if [ $status -ne 0 ]; then
           get_unreleased_fbc_related_images -i "$image_with_digest"
           echo "!FAILURE! - Could not get related images."
-          note="Step extract-and-validate failed ($status): Could not fetch related images. Make sure you have catalog.yaml or catalog.json formatted correctly in your file-based catalog (FBC) fragment image."
+          note="Step extract-and-validate failed: Could not fetch related images. For details, check Tekton task log."
           failure_num=$((failure_num + 1))
           TESTPASSED=false
         else
@@ -490,8 +498,9 @@ spec:
         fi
 
         if [ $TESTPASSED == false ]; then
+          # Use existing note if set, otherwise provide generic failure message
           if [ -z "$note" ]; then
-            note="Step extract-and-validate failed: Validation checks failed. For details, check Tekton task log."
+            note="Step extract-and-validate failed with ${failure_num} error(s). For details, check Tekton task log."
           fi
           ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
           echo -n "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
