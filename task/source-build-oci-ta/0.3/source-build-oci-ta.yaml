@@ -87,6 +87,12 @@ spec:
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
+      computeResources:
+        limits:
+          memory: 1Gi
+        requests:
+          memory: 1Gi
+          cpu: 300m
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -182,6 +188,12 @@ spec:
 
             ' <<<"$sbom" | tee "$BASE_IMAGES_FILE"
         fi
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: build
       image: quay.io/konflux-ci/source-container-build:latest@sha256:a8416f792207e4b9b8bfea1c9b86ad54ae7bc28384d14de0726cced3dee01ae5
       workingDir: /var/workdir
@@ -255,7 +267,7 @@ spec:
           memory: 2Gi
         requests:
           cpu: 250m
-          memory: 512Mi
+          memory: 2Gi
       securityContext:
         capabilities:
           add:
