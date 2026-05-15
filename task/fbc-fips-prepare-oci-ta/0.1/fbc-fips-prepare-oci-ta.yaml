@@ -164,11 +164,7 @@ spec:
         if [[ "${unreleased_pkg_count}" -gt 0 ]]; then
           echo "One or more packages in the FBC fragment were not found in the target index."
 
-          # Derive previous minor version from target_ocp_version
-          major_ocp_version=$(echo "${target_ocp_version#v}" | awk -F'.' '{print $1}')
-          minor_ocp_version=$(echo "${target_ocp_version#v}" | awk -F'.' '{print $2}')
-          prev_minor_version=$(("${minor_ocp_version}" - 1))
-          prev_ocp_version="v${major_ocp_version}.${prev_minor_version}"
+          prev_ocp_version=$(get_prev_ocp_version "${target_ocp_version}")
           echo "Using the previous catalog OCP version to check for unreleased bundles: ${prev_ocp_version}"
           target_index_url="${target_index_repo_reg}:${prev_ocp_version}"
         fi
