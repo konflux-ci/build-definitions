@@ -536,32 +536,21 @@ spec:
         ANNOTATIONS_FILE=$(realpath "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}")
       fi
 
-      BUILDAH_ARGS=()
-
       if [ -n "${BUILD_ARGS_FILE}" ]; then
         BUILD_ARGS_FILE=$(realpath "${SOURCE_CODE_DIR}/${BUILD_ARGS_FILE}")
       fi
 
       # Necessary for newer version of buildah if the host system does not contain up to date version of container-selinux
       # TODO remove the option once all hosts were updated
-      BUILDAH_ARGS+=("--security-opt=unmask=/proc/interrupts")
+      security_args=(--security-opts unmask=/proc/interrupts)
 
       if [ "${PRIVILEGED_NESTED}" == "true" ]; then
-        BUILDAH_ARGS+=("--security-opt=label=disable")
-        BUILDAH_ARGS+=("--cap-add=all")
-        BUILDAH_ARGS+=("--device=/dev/fuse")
+        security_args+=(--security-opts label=disable)
+        security_args+=(--cap-add all)
+        security_args+=(--devices /dev/fuse)
       fi
-
       if [ -n "${ADD_CAPABILITIES}" ]; then
-        BUILDAH_ARGS+=("--cap-add=${ADD_CAPABILITIES}")
-      fi
-
-      if [ "${SQUASH}" == "true" ]; then
-        BUILDAH_ARGS+=("--squash")
-      fi
-
-      if [ "${BUILDAH_OMIT_HISTORY}" == "true" ]; then
-        BUILDAH_ARGS+=("--omit-history")
+        security_args+=(--cap-add "${ADD_CAPABILITIES}")
       fi
 
       VOLUME_MOUNTS=()
@@ -628,6 +617,8 @@ spec:
         --inherit-labels="$INHERIT_BASE_IMAGE_LABELS"
         --source-date-epoch "$BUILDAH_SOURCE_DATE_EPOCH"
         --rewrite-timestamp="$BUILDAH_REWRITE_TIMESTAMP"
+        --squash="$SQUASH"
+        --omit-history="$BUILDAH_OMIT_HISTORY"
         --image-source "$SOURCE_URL"
         --image-revision "$COMMIT_SHA"
         --quay-image-expires-after "$IMAGE_EXPIRES_AFTER"
@@ -647,15 +638,17 @@ spec:
         --prefetch-dir-copy "$prefetch_dir_copy"
         --prefetch-env-mount /cachi2/cachi2.env
         --prefetch-output-mount /cachi2/output
+        "${security_args[@]}"
         "${rhsm_args[@]}"
         --containerfile-json-output /shared/parsed_dockerfile.json
         --resolved-base-images-output /shared/base_images_digests
+        --no-cache
+        --ulimits nofile=4096:4096
+        --src-tls-verify="$TLSVERIFY"
+        --dest-tls-verify="$TLSVERIFY"
         "$@" # --annotations, --labels, --envs, --build-args
         --
         "${VOLUME_MOUNTS[@]}"
-        "${BUILDAH_ARGS[@]}"
-        --tls-verify="$TLSVERIFY" --no-cache
-        --ulimit nofile=4096:4096
       )
 
       echo "[$(date --utc -Ins)] Run build command"
