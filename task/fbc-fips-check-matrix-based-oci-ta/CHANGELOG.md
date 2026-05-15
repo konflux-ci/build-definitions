@@ -2,12 +2,9 @@
 
 ## Unreleased
 
-<!--
-When you make changes without bumping the version right away, document them here.
-If that's not something you ever plan to do, consider removing this section.
--->
+### Fixed
 
-*Nothing yet.*
+- Updated the `fips-operator-check-step-action` revision parameter to use `check-payload` release `0.3.14`.
 
 ## 0.1
 
