@@ -632,25 +632,47 @@ spec:
             tr -d "'"
         )
 
+        echo "[$(date --utc -Ins)] Validate base image architectures"
+
+        host_arch=$(uname -m)
+        case "$host_arch" in
+        x86_64) oci_arch="amd64" ;;
+        aarch64) oci_arch="arm64" ;;
+        *) oci_arch="$host_arch" ;;
+        esac
+
+        set_proxy
+
+        # Pull each base image and verify its architecture matches the host, prevents building via emulation
+        # Pulled images are then reused when calling buildah build
+        buildah_retries=3
+        for image in $BASE_IMAGES; do
+          if ! retry buildah pull --retry "$buildah_retries" "$image"; then
+            echo "ERROR: Failed to pull base image ${image}" >&2
+            exit 1
+          fi
+
+          if ! image_arch=$(buildah inspect --type=image --format '{{.OCIv1.Architecture}}' "$image"); then
+            echo "ERROR: Failed to inspect base image ${image}" >&2
+            exit 1
+          fi
+
+          # If the image was an index without the correct arch, buildah pull would have already
+          # failed above. This check catches single-arch references.
+          if [ "$image_arch" != "$oci_arch" ]; then
+            echo "ERROR: Base image ${image} has architecture '${image_arch}', expected '${oci_arch}'. Use a multi-arch image reference instead of a single-architecture digest." >&2
+            exit 1
+          fi
+        done
+
+        unset_proxy
+
         BUILDAH_ARGS=()
         UNSHARE_ARGS=()
 
         if [ "${HERMETIC}" == "true" ]; then
           BUILDAH_ARGS+=("--pull=never")
           UNSHARE_ARGS+=("--net")
-          buildah_retries=3
-
-          set_proxy
-
-          for image in $BASE_IMAGES; do
-            if ! retry unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 --mount -- buildah pull --retry "$buildah_retries" "$image"; then
-              echo "Failed to pull base image ${image}"
-              exit 1
-            fi
-          done
-
-          unset_proxy
-
           echo "Build will be executed with network isolation"
         fi
 
