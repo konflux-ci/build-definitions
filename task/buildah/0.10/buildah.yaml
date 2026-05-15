@@ -399,6 +399,18 @@ spec:
 
       sed -i 's/^\s*short-name-mode\s*=\s*.*/short-name-mode = "disabled"/' /etc/containers/registries.conf
 
+      # Delete policy settings for Red Hat registries to disable signature verification.
+      # TODO: don't do this?
+      container_policy=$(
+        jq '.transports |= (
+              del(.docker.["registry.access.redhat.com"]) |
+              del(.docker.["registry.redhat.io"]) |
+              if (.docker == {}) then del(.docker) else . end
+            )' /etc/containers/policy.json
+      )
+      echo "Effective container policy:"
+      printf '%s\n' "$container_policy" | tee /etc/containers/policy.json
+
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >> /etc/subgid
 
