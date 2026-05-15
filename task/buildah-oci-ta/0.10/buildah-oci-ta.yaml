@@ -451,8 +451,6 @@ spec:
         #!/bin/bash
         set -euo pipefail
 
-        echo "[$(date --utc -Ins)] Update CA trust"
-
         ca_bundle=/mnt/trusted-ca/ca-bundle.crt
         proxy_ca_bundle=/mnt/proxy-ca-bundle/ca-bundle.crt
         update_ca_trust=false
@@ -470,18 +468,8 @@ spec:
         fi
 
         if [ "$update_ca_trust" = "true" ]; then
+          echo "[$(date --utc -Ins)] Update CA trust"
           update-ca-trust
-        fi
-
-        echo "[$(date --utc -Ins)] Prepare Dockerfile"
-
-        if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
-          dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
-        elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
-          dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
-        else
-          echo "Cannot find Dockerfile $DOCKERFILE"
-          exit 1
         fi
 
         echo "[$(date --utc -Ins)] Prepare system (architecture: $(uname -m))"
@@ -513,6 +501,17 @@ spec:
         cp "$kbc_mount"/usr/local/bin/konflux-build-cli /usr/local/bin/
         buildah umount "$kbc_container"
         buildah rm "$kbc_container"
+
+        echo "[$(date --utc -Ins)] Run the build"
+
+        if [ -e "$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE" ]; then
+          dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$CONTEXT/$DOCKERFILE"
+        elif [ -e "$SOURCE_CODE_DIR/$DOCKERFILE" ]; then
+          dockerfile_path="$(pwd)/$SOURCE_CODE_DIR/$DOCKERFILE"
+        else
+          echo "Cannot find Dockerfile $DOCKERFILE"
+          exit 1
+        fi
 
         if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
           ANNOTATIONS_FILE=$(realpath "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}")
@@ -621,7 +620,6 @@ spec:
           "$@" # --annotations, --labels, --envs, --build-args
         )
 
-        echo "[$(date --utc -Ins)] Run build command"
         echo "[$(date --utc -Ins)] $(printf '%q ' "${cmd[@]}")"
 
         "${cmd[@]}"
