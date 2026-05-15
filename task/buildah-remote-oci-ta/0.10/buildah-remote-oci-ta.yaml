@@ -465,7 +465,6 @@ spec:
         rsync -razW /mnt/trusted-ca/ "$SSH_HOST:$BUILD_DIR/volumes/trusted-ca/"
         rsync -razW /mnt/proxy-ca-bundle/ "$SSH_HOST:$BUILD_DIR/volumes/proxy-ca-bundle/"
         rsync -razW  "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
-        rsync -razW  --mkpath "/usr/bin/retry" "$SSH_HOST:$BUILD_DIR/usr/bin/retry"
         rsync -razW  "/tekton/results/" "$SSH_HOST:$BUILD_DIR/results/"
       fi
       if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
@@ -736,12 +735,11 @@ spec:
           -v "${BUILD_DIR@Q}/volumes/trusted-ca:/mnt/trusted-ca:Z" \
           -v "${BUILD_DIR@Q}/volumes/proxy-ca-bundle:/mnt/proxy-ca-bundle:Z" \
           -v "${BUILD_DIR@Q}/.docker/:/root/.docker:Z" \
-          -v "${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z" \
           -v "${BUILD_DIR@Q}/results/:/tekton/results:Z" \
           -v "${BUILD_DIR@Q}/scripts:/scripts:Z" \
           -v /var/lib/containers \
           "${PRIVILEGED_NESTED_FLAGS[@]@Q}" \
-          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
+          --user=0 "${PODMAN_NVIDIA_ARGS[@]@Q}" --rm --entrypoint='' "${BUILDER_IMAGE@Q}" /scripts/script-build.sh "${@@Q}"
         echo "[$(date --utc -Ins)] Rsync back"
         rsync -razW --stats "$SSH_HOST:$BUILD_DIR/volumes/shared/" /shared/
         rsync -razW --stats "$SSH_HOST:$BUILD_DIR/volumes/workdir/" /var/workdir/
