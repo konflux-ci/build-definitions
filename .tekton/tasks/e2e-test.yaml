@@ -36,6 +36,12 @@ spec:
       type: string
     - name: revision
       type: string
+    - name: changed_files
+      type: string
+      default: ""
+  workspaces:
+    - name: source
+      description: Workspace containing the cloned repository
   volumes:
     - name: konflux-test-infra-volume
       secret:
@@ -43,22 +49,28 @@ spec:
   steps:
     - name: e2e-test
       image: quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests:e0aca0804d10db527d21837f988ecce24c190556
-      command: ["/konflux-e2e/konflux-e2e.test"]
-      # a la infra-deployment updates, when PRs merge in e2e-tests, PRs will be opened
-      # against build-definitions to update this tag
-      args: [
-        "--ginkgo.label-filter=build-templates-e2e",
-        "--ginkgo.junit-report=$(params.artifact_dir)/e2e-report.xml",
-        "--ginkgo.no-color",
-        "--ginkgo.v",
-        "--ginkgo.timeout=2h"
-      ]
+      workingDir: $(workspaces.source.path)/source/e2e-tests
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        ginkgo build ./tests/build/
+        ginkgo \
+          --label-filter=build-templates-e2e \
+          --fail-on-empty \
+          --junit-report="${ARTIFACT_DIR}/e2e-report.xml" \
+          --no-color \
+          -v \
+          --timeout=2h \
+          ./tests/build/ 2>&1 | tee "${ARTIFACT_DIR}/e2e-tests.log"
       securityContext:
         capabilities:
           add:
           - SETFCAP
       onError: continue
       env:
+      - name: ARTIFACT_DIR
+        value: "$(params.artifact_dir)"
       - name: APP_SUFFIX
         value: "$(params.app_suffix)"
       - name: QUAY_E2E_ORGANIZATION
@@ -78,9 +90,9 @@ spec:
       - name: MY_GITHUB_ORG
         value: konflux-qe-bd
       - name: EC_PIPELINES_REPO_URL
-        value: $(params.ec_pipelines_repo_url)
+        value: "$(params.ec_pipelines_repo_url)"
       - name: EC_PIPELINES_REPO_REVISION
-        value: $(params.ec_pipelines_repo_revision)
+        value: "$(params.ec_pipelines_repo_revision)"
       - name: CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE
         value: "$(params.docker-build-bundle)"
       - name: CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE
