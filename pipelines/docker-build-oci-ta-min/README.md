@@ -9,20 +9,20 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Parameters
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
-|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.9:BUILD_ARGS|
-|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.9:BUILD_ARGS_FILE|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.10:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.10:BUILD_ARGS_FILE|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
-|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.9:BUILDAH_FORMAT ; build-image-index:0.3:BUILDAH_FORMAT|
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.9:DOCKERFILE|
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.10:BUILDAH_FORMAT ; build-image-index:0.3:BUILDAH_FORMAT|
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.10:DOCKERFILE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.1:url|
-|hermetic| Execute the build with network isolation| false| build-container:0.9:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-container:0.9:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-container:0.9:IMAGE ; build-image-index:0.3:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.9:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-container:0.9:PREFETCH_INPUT|
-|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.9:PRIVILEGED_NESTED|
+|hermetic| Execute the build with network isolation| false| build-container:0.10:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-container:0.10:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-container:0.10:IMAGE ; build-image-index:0.3:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.10:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-container:0.10:PREFETCH_INPUT|
+|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.10:PRIVILEGED_NESTED|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
@@ -40,7 +40,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### buildah-oci-ta-min:0.9 task parameters
+### buildah-oci-ta-min:0.10 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -226,7 +226,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; rpms-signature-scan:0.2:image-url ; tpa-scan:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### buildah-oci-ta-min:0.9 task results
+### buildah-oci-ta-min:0.10 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
@@ -249,21 +249,21 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.9:COMMIT_SHA|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:0.10:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
-|url| The precise URL that was fetched by this Task.| build-container:0.9:SOURCE_URL|
+|url| The precise URL that was fetched by this Task.| build-container:0.10:SOURCE_URL|
 ### init:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-container:0.9:HTTP_PROXY|
-|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-container:0.9:NO_PROXY|
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-container:0.10:HTTP_PROXY|
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-container:0.10:NO_PROXY|
 ### prefetch-dependencies-oci-ta-min:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.9:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.9:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.4:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.10:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.10:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.4:SOURCE_ARTIFACT|
 ### rpms-signature-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
