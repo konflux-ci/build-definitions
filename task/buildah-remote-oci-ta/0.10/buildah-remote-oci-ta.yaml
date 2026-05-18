@@ -576,6 +576,14 @@ spec:
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
 
+      # TODO: drop this once we're able to use konflux-build-cli as the main image
+      echo "[$(date --utc -Ins)] Fetch konflux-build-cli"
+      kbc_container=$(buildah from quay.io/konflux-ci/konflux-build-cli:latest)
+      kbc_mount=$(buildah mount "$kbc_container")
+      cp "$kbc_mount"/usr/local/bin/konflux-build-cli /usr/local/bin/
+      buildah umount "$kbc_container"
+      buildah rm "$kbc_container"
+
       build_args=()
       env_vars=()
 
