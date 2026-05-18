@@ -41,13 +41,13 @@ spec:
         name: workdir
   steps:
     - name: use-buckets-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
       args:
         - use
         - $(params.BUCKETS_ARTIFACT)=/var/workdir/buckets
 
     - name: prepare-bucket-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
       env:
         - name: BUCKET_INDEX
           value: $(params.BUCKET_INDEX)
@@ -117,7 +117,7 @@ spec:
         resolver: git
 
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
       env:
         - name: BUCKET_INDEX
           value: $(params.BUCKET_INDEX)

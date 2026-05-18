@@ -43,7 +43,7 @@ spec:
               readOnly: true
         steps:
           - name: create-catalog-with-digests
-            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            image: quay.io/konflux-ci/task-runner:1.7.0@sha256:1c0582a85dae0949f3ec94aca95695c5d7698b371f1b76c5a78822a6249073dc
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -70,7 +70,7 @@ spec:
               echo "Created catalog with digest-based images:"
               cat "$(workspaces.tests-workspace.path)/source/.konflux/catalog/test-operator/catalog.json"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c44144ab0a9644c5da8ceea2b9f8df0e2e684aa5c1608688d7df9b8cc2836ac
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
             args:
               - create
               - --store
@@ -131,12 +131,12 @@ spec:
               readOnly: true
         steps:
           - name: fetch-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c44144ab0a9644c5da8ceea2b9f8df0e2e684aa5c1608688d7df9b8cc2836ac
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
             args:
               - use
               - $(params.SOURCE_ARTIFACT)=$(workspaces.tests-workspace.path)/output
           - name: verify-images-still-digested
-            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            image: quay.io/konflux-ci/task-runner:1.7.0@sha256:1c0582a85dae0949f3ec94aca95695c5d7698b371f1b76c5a78822a6249073dc
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
