@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.9.4
+
+### Fixed
+
+- Validate base image architecture before build. The task now fails if a base image
+  doesn't match the host architecture, preventing silent emulation builds.
+
 ## 0.9.3
 
 ### Fixed
