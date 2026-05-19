@@ -387,7 +387,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
     name: build
     script: |
       #!/bin/bash
@@ -435,14 +435,6 @@ spec:
 
       # Setting new namespace to run buildah - 2^32-2
       echo 'root:1:4294967294' | tee -a /etc/subuid >>/etc/subgid
-
-      # TODO: drop this once we're able to use konflux-build-cli as the main image
-      echo "[$(date --utc -Ins)] Fetch konflux-build-cli"
-      kbc_container=$(buildah from quay.io/konflux-ci/konflux-build-cli:latest)
-      kbc_mount=$(buildah mount "$kbc_container")
-      cp "$kbc_mount"/usr/local/bin/konflux-build-cli /usr/local/bin/
-      buildah umount "$kbc_container"
-      buildah rm "$kbc_container"
 
       echo "[$(date --utc -Ins)] Run the build"
 
@@ -583,6 +575,7 @@ spec:
       capabilities:
         add:
         - SETFCAP
+      runAsUser: 0
     volumeMounts:
     - mountPath: /var/lib/containers
       name: varlibcontainers
@@ -613,7 +606,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
     name: push
     script: |
       #!/bin/bash
