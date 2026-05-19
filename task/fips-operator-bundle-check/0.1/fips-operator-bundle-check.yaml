@@ -33,7 +33,6 @@ spec:
       computeResources:
         limits:
           memory: 12Gi
-          cpu: '1'
         requests:
           memory: 12Gi
           cpu: '1'
@@ -129,7 +128,6 @@ spec:
       computeResources:
         limits:
           memory: 12Gi
-          cpu: '8'
         requests:
           memory: 12Gi
           cpu: '8'
@@ -148,6 +146,12 @@ spec:
 
     - name: parse-images-processed-result
       image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          memory: 64Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
