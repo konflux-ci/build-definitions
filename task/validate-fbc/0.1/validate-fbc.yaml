@@ -219,6 +219,7 @@ spec:
         image_with_digest=$(cat /shared/image_with_digest)
         base_image_with_digest=$(cat /shared/base_image_with_digest)
         base_image_repository=$(cat /shared/base_image_repository)
+        note=""
 
         declare -a ALLOWED_BASE_IMAGES=(
           "registry.redhat.io/openshift4/ose-operator-registry"
@@ -429,7 +430,7 @@ spec:
           OCP_BUNDLE_METADATA_THRESHOLD_MINOR=17
           OCP_BUNDLE_METADATA_FORMAT="olm.bundle.object"
 
-          if [[ "${OCP_VER_MAJOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MAJOR}" ]] && [[ "${OCP_VER_MINOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MINOR}" ]]; then
+          if [[ "${OCP_VER_MAJOR}" -gt "${OCP_BUNDLE_METADATA_THRESHOLD_MAJOR}" ]] || [[ "${OCP_VER_MAJOR}" -eq "${OCP_BUNDLE_METADATA_THRESHOLD_MAJOR}" && "${OCP_VER_MINOR}" -ge "${OCP_BUNDLE_METADATA_THRESHOLD_MINOR}" ]]; then
              OCP_BUNDLE_METADATA_FORMAT="olm.csv.metadata"
           fi
 
@@ -489,6 +490,9 @@ spec:
         fi
 
         if [ $TESTPASSED == false ]; then
+          if [ -z "$note" ]; then
+            note="Step extract-and-validate failed: Validation checks failed. For details, check Tekton task log."
+          fi
           ERROR_OUTPUT=$(make_result_json -r FAILURE -f $failure_num -s $((check_num - failure_num)) -t "$note")
           echo -n "${ERROR_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
         else
