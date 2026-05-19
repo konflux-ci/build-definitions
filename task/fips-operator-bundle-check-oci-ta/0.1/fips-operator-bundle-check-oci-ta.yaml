@@ -143,7 +143,6 @@ spec:
         echo "${images_processed_template/\[%s]/[$digests_processed_string]}" >/tekton/home/images_processed.txt
       computeResources:
         limits:
-          cpu: "1"
           memory: 12Gi
         requests:
           cpu: "1"
@@ -158,7 +157,6 @@ spec:
           value: $(params.MAX_PARALLEL)
       computeResources:
         limits:
-          cpu: "8"
           memory: 12Gi
         requests:
           cpu: "8"
@@ -184,3 +182,9 @@ spec:
           echo "Task was skipped. Exiting"
           exit 0
         fi
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
