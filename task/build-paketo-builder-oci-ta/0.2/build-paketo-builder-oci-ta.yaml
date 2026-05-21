@@ -173,7 +173,7 @@ spec:
           cat /ssh/error
         exit 1
         elif [ -e "/ssh/otp" ]; then
-          curl --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa
+          curl --fail --show-error --cacert /ssh/otp-ca -XPOST -d @/ssh/otp "$(cat /ssh/otp-server)" >~/.ssh/id_rsa
           echo "" >> ~/.ssh/id_rsa
         else
           cp /ssh/id_rsa ~/.ssh
@@ -291,7 +291,7 @@ spec:
           echo "Fetch lifecycle and patch the ${PACK_BUILDER_FILE} file ..."
           LIFECYCLE_VERSION=$(tomljson ${PACK_BUILDER_FILE} | jq -r '.lifecycle.version')
           unshare -Ufp --keep-caps -r --map-users 1,1,65536 --map-groups 1,1,65536 -- \
-            curl -skL https://github.com/buildpacks/lifecycle/releases/download/v${LIFECYCLE_VERSION}/lifecycle-v${LIFECYCLE_VERSION}+linux.x86-64.tgz --output source/lifecycle-v${LIFECYCLE_VERSION}+linux.x86-64.tgz
+            curl --fail --show-error -skL https://github.com/buildpacks/lifecycle/releases/download/v${LIFECYCLE_VERSION}/lifecycle-v${LIFECYCLE_VERSION}+linux.x86-64.tgz --output source/lifecycle-v${LIFECYCLE_VERSION}+linux.x86-64.tgz
 
           echo "Patch the builder toml file to use the local PATH of the lifecycle tar.gz file"
           tomljson ${PACK_BUILDER_FILE} > source/builder.json
