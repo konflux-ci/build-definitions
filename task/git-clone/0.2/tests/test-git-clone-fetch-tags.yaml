@@ -2,10 +2,10 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: test-git-clone-with-tag
+  name: test-git-clone-fetch-tags
 spec:
   description: |
-    Test the git-clone task with tag
+    Test the git-clone task with fetchTags enabled
   workspaces:
     - name: tests-workspace
   tasks:
@@ -15,8 +15,8 @@ spec:
       params:
         - name: url
           value: https://github.com/konflux-ci/build-definitions
-        - name: revision
-          value: v0.1.5
+        - name: fetchTags
+          value: "true"
       workspaces:
         - name: output
           workspace: tests-workspace
@@ -29,9 +29,11 @@ spec:
           - name: check-result
             image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             script: |
-              #!/usr/bin/env sh
+              #!/usr/bin/env bash
               set -eux
-              files=$(find "$(workspaces.output.path)/source/" -mindepth 1 -maxdepth 1)
-              test -n "$files"
+              git config --global --add safe.directory "$(workspaces.output.path)/source"
+              cd "$(workspaces.output.path)/source"
+              # Verify that tags were fetched
+              git tag -l | grep -q "v0.1.5"
       runAfter:
         - run-task
