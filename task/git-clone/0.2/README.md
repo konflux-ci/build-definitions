@@ -18,18 +18,16 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |deleteExisting|Clean out the contents of the destination directory if it already exists before cloning.|true|false|
 |httpProxy|HTTP proxy server for non-SSL requests.|""|false|
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
+|logLevel|Log level for the git-clone command.|info|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
-|verbose|Log the commands that are executed during `git-clone`'s operation.|false|false|
-|gitInitImage|Deprecated. Has no effect. Will be removed in the future.|""|false|
-|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. |true|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|
 |targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
-|mergeSourceRepoUrl|URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository.|""|false|
-|mergeSourceDepth|Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch.|""|false|
+|mergeSourceRepoUrl|URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. |""|false|
+|mergeSourceDepth|Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. |""|false|
 
 ## Results
 |name|description|
