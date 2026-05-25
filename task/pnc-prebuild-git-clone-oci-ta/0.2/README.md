@@ -12,6 +12,9 @@ The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided url, 
 |fetchTags|Fetch all tags for the repo.|false|false|
 |httpProxy|HTTP proxy server for non-SSL requests.|""|false|
 |httpsProxy|HTTPS proxy server for SSL requests.|""|false|
+|logLevel|Log level for the git-clone command.|info|false|
+|mergeSourceDepth|Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. |""|false|
+|mergeSourceRepoUrl|URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. |""|false|
 |mergeTargetBranch|Set to "true" to merge the targetBranch into the checked-out revision.|false|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
 |ociArtifactExpiresAfter|Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.|""|false|
@@ -21,11 +24,10 @@ The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided url, 
 |shortCommitLength|Length of short commit SHA|7|false|
 |sparseCheckoutDirectories|Define the directory patterns to match or exclude when performing a sparse checkout.|""|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
+|submodulePaths|Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. |""|false|
 |submodules|Initialize and fetch git submodules.|true|false|
 |targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
 |url|Repository URL to clone from.||true|
-|userHome|Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. |/tekton/home|false|
-|verbose|Log the commands that are executed during `git-clone`'s operation.|false|false|
 |BUILD_SCRIPT|Middleware (Maven/Gradle/Ant/SBT) build script to build the project to embed with the Containerfile||true|
 |BUILD_TOOL|The build tool to use (ant, gradle, maven, sbt).||true|
 |BUILD_TOOL_VERSION|The build tool version to use (e.g. 3.9.5)||true|
