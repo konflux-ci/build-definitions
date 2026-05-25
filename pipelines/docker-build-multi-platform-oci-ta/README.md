@@ -16,14 +16,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-images:0.10:DOCKERFILE ; push-dockerfile:0.3:DOCKERFILE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
-|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|git-url| Source Repository URL| None| clone-repository:0.2:url|
 |hermetic| Execute the build with network isolation| false| build-images:0.10:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-images:0.10:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-images:0.10:IMAGE ; build-image-index:0.3:IMAGE|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-images:0.10:IMAGE_EXPIRES_AFTER|
+|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-images:0.10:IMAGE ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-images:0.10:CONTEXT ; push-dockerfile:0.3:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-images:0.10:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-images:0.10:PRIVILEGED_NESTED|
-|revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|revision| Revision of the Source Repository| | clone-repository:0.2:revision|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
@@ -143,7 +143,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |platform| The platform the image is built on.| ""| |
-### git-clone-oci-ta:0.1 task parameters
+### git-clone-oci-ta:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -153,6 +153,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
 |httpsProxy| HTTPS proxy server for SSL requests.| ""| |
+|logLevel| Log level for the git-clone command.| info| |
 |mergeSourceDepth| Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. | ""| |
 |mergeSourceRepoUrl| URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. | ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
@@ -168,8 +169,6 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |submodules| Initialize and fetch git submodules.| true| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
-|userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
-|verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
 ### init:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -318,7 +317,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
 |IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
-### git-clone-oci-ta:0.1 task results
+### git-clone-oci-ta:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
@@ -372,10 +371,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.3:netrc|
 ## Available workspaces from tasks
-### git-clone-oci-ta:0.1 task workspaces
+### git-clone-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
