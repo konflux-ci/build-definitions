@@ -2,10 +2,10 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: test-git-clone-with-tag
+  name: test-git-clone-custom-subdirectory
 spec:
   description: |
-    Test the git-clone task with tag
+    Test the git-clone task with a custom subdirectory
   workspaces:
     - name: tests-workspace
   tasks:
@@ -15,8 +15,8 @@ spec:
       params:
         - name: url
           value: https://github.com/konflux-ci/build-definitions
-        - name: revision
-          value: v0.1.5
+        - name: subdirectory
+          value: my-custom-dir
       workspaces:
         - name: output
           workspace: tests-workspace
@@ -29,9 +29,12 @@ spec:
           - name: check-result
             image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
             script: |
-              #!/usr/bin/env sh
+              #!/usr/bin/env bash
               set -eux
-              files=$(find "$(workspaces.output.path)/source/" -mindepth 1 -maxdepth 1)
-              test -n "$files"
+              # Files should be in the custom subdirectory, not "source"
+              test -d "$(workspaces.output.path)/my-custom-dir/.git"
+              test -f "$(workspaces.output.path)/my-custom-dir/README.md"
+              # Default "source" should not exist
+              test ! -d "$(workspaces.output.path)/source"
       runAfter:
         - run-task
