@@ -119,6 +119,12 @@ spec:
           echo "Wrote /var/workdir/vars/$varfile with contents:"
           cat "/var/workdir/vars/$varfile"
         done
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: oci-copy
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       workingDir: /var/workdir
@@ -557,6 +563,12 @@ spec:
           --image-pullspec "$IMAGE_URL" \
           --image-digest "$IMAGE_DIGEST" \
           --sbom-type "$SBOM_TYPE"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: upload-sbom
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       workingDir: /var/workdir
@@ -564,6 +576,12 @@ spec:
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsNonRoot: false
         runAsUser: 0
@@ -577,3 +595,9 @@ spec:
         SBOM_DIGEST=$(sha256sum sbom.json | awk '{ print $1 }')
         echo "Found that ${SBOM_DIGEST} is the SBOM digest"
         echo -n "${REPO}@sha256:${SBOM_DIGEST}" | tee $(results.SBOM_BLOB_URL.path)
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
