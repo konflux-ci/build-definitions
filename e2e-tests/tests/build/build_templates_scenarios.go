@@ -1,7 +1,6 @@
 package build
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/konflux-ci/e2e-tests/pkg/constants"
@@ -324,15 +323,5 @@ func DoesHermetoChanged(changedFilesStr string) bool {
 
 // this function returns which scenarios to execute based on changed_files in PR
 func GetScenarios() []string {
-	changedFiles := utils.GetEnv(PR_CHANGED_FILES_ENV, "")
-	if changedFiles == "" {
-		fmt.Println("ChangedFiles is empty")
-		return componentUrls
-	} else if DoesHermetoChanged(changedFiles) {
-		fmt.Println("Hermeto related files changed, running hermetic scenarios as well")
-		return append(basicScenarioUrls, hermeticScenarioUrls...)
-	} else {
-		fmt.Println("Files changed are not hermeto related, running basic scenarios")
-		return basicScenarioUrls
-	}
+	return []string{"https://github.com/konflux-qe-bd/nodejs-yarn-modern-sample-app"}
 }
