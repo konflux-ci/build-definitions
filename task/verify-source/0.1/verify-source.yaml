@@ -47,6 +47,12 @@ spec:
   steps:
     - name: slsa-verify
       image: quay.io/konflux-ci/git-clone@sha256:aedc5ba99f95c3d77fc256ac01677212c18298373a0b3de3aeabc41ba69cc301
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       env:
         - name: PARAM_URL
           value: $(params.url)
