@@ -323,5 +323,5 @@ func DoesHermetoChanged(changedFilesStr string) bool {
 
 // this function returns which scenarios to execute based on changed_files in PR
 func GetScenarios() []string {
-	return []string{"https://github.com/konflux-qe-bd/nodejs-yarn-modern-sample-app"}
+	return []string{"https://github.com/chmeliik/nodejs-yarn-modern-sample-app"}
 }
