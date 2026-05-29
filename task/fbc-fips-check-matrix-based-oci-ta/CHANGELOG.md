@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Updated the `fips-operator-check-step-action` revision parameter to use `check-payload` release `0.3.15`.
 - Updated the `fips-operator-check-step-action` revision parameter to use `check-payload` release `0.3.14`.
 
 ## 0.1
