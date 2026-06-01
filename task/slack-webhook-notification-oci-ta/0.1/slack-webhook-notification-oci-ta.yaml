@@ -252,6 +252,12 @@ spec:
         data=$(jq --compact-output --null-input --arg message "$slack_message" '{text: $message}')
 
         curl -X POST -H 'Content-type: application/json' --data "${data}" "$WEBHOOK_URL"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsNonRoot: false
         runAsUser: 0
