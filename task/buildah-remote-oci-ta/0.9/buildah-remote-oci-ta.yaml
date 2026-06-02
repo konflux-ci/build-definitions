@@ -354,7 +354,11 @@ spec:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
-    computeResources: {}
+    computeResources:
+      limits:
+        memory: 4Gi
+      requests:
+        memory: 4Gi
     image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
     name: use-trusted-artifact
     volumeMounts:

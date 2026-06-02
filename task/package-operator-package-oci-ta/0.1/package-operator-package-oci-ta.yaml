@@ -67,6 +67,11 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      computeResources:
+        limits:
+          memory: 4Gi
+        requests:
+          memory: 4Gi
     - name: build-pkg
       image: quay.io/redhat-services-prod/mos-lpsre-tenant/package-operator-internal/kubectl-package-internal:fb55c52@sha256:3ac443d3f8b69c50b84e93acf3c8eac76f3c84d00d7cde2276dcbaa8809561bf
       args:
