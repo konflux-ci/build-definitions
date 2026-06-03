@@ -1,5 +1,5 @@
 ---
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: opm-get-bundle-version
@@ -21,6 +21,12 @@ spec:
   steps:
     - name: opm-render-bundle
       image: "registry.redhat.io/openshift4/ose-operator-registry:latest@sha256:fb659a4c2942db5f1073c6b66be5c7ac2e4aed30432cce4aff08b9d5874010e9"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsUser: 0
       env:
@@ -32,6 +38,12 @@ spec:
         opm render "${BUNDLE_IMAGE}" > "$(workspaces.workspace.path)/bundle.json"
     - name: jq-get-olm-package-version
       image: "quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
