@@ -1,0 +1,48 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-symlink-ignore-pattern-whitespace
+spec:
+  description: |
+    Verify symlinkCheckIgnorePattern trims whitespace around comma-separated patterns.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/helm/helm
+        - name: revision
+          value: release-3.20
+        - name: submodules
+          value: "false"
+        - name: depth
+          value: "1"
+        - name: refspec
+          value: +refs/heads/release-3.20:refs/remotes/origin/release-3.20
+        - name: enableSymlinkCheck
+          value: "true"
+        - name: symlinkCheckIgnorePattern
+          value: " internal/third_party/dep/fs/testdata/symlinks/* , pkg/chart/loader/testdata/frobnitz_with_dev_null/* "
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+    - name: check-result
+      runAfter:
+        - run-task
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      taskSpec:
+        workspaces:
+          - name: output
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            script: |
+              #!/usr/bin/env sh
+              set -eux
+              test -f "$(workspaces.output.path)/source/Makefile"

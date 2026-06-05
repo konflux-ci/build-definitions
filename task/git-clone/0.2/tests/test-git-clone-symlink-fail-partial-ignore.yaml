@@ -1,0 +1,34 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-symlink-fail-partial-ignore
+  annotations:
+    test/assert-task-failure: "run-task"
+spec:
+  description: |
+    Verify symlink-check still fails when only symlinks under dep testdata are ignored.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/helm/helm
+        - name: revision
+          value: release-3.20
+        - name: submodules
+          value: "false"
+        - name: depth
+          value: "1"
+        - name: refspec
+          value: +refs/heads/release-3.20:refs/remotes/origin/release-3.20
+        - name: enableSymlinkCheck
+          value: "true"
+        - name: symlinkCheckIgnorePattern
+          value: "internal/third_party/dep/fs/testdata/symlinks/*"
+      workspaces:
+        - name: output
+          workspace: tests-workspace
