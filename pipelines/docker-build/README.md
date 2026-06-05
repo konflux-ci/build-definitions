@@ -163,6 +163,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
 |submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable.| ""| |
 |submodules| Initialize and fetch git submodules.| true| |
+|symlinkCheckIgnorePattern| CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. | ""| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
 ### init:0.4 task parameters
