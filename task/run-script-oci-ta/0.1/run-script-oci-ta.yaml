@@ -92,12 +92,6 @@ spec:
     - name: varlibcontainers
       emptyDir: {}
   stepTemplate:
-    computeResources:
-      limits:
-        memory: 4Gi
-      requests:
-        cpu: "1"
-        memory: 1Gi
     env:
       - name: SCRIPT
         value: $(params.SCRIPT)
@@ -109,6 +103,12 @@ spec:
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:adf22f3ec90bfa3f7e2c832a7d52febd1ea31aa9fff6db21324c965d7d622327
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -120,6 +120,12 @@ spec:
           subPath: ca-bundle.crt
     - name: run-script
       image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
+      computeResources:
+        requests:
+          memory: 5Gi
+          cpu: 1500m
+        limits:
+          memory: 5Gi
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
@@ -259,8 +265,8 @@ spec:
         - name: IMAGE_EXPIRES_AFTER
           value: $(params.ociArtifactExpiresAfter)
       computeResources:
-        limits:
-          memory: 3Gi
         requests:
-          cpu: "1"
-          memory: 3Gi
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
