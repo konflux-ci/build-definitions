@@ -80,6 +80,14 @@ spec:
       Check symlinks in the repo. If they're pointing outside of the repo, the build will fail.
     name: enableSymlinkCheck
     type: string
+  - default: ""
+    description: |
+      CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match
+      are not checked. Patterns are relative to the checkout directory and must not start with '/'.
+      Use '*' and '?' as wildcards ('*' matches across '/').
+      Quote patterns containing commas using CSV double quotes.
+    name: symlinkCheckIgnorePattern
+    type: string
   - default: "false"
     description: Fetch all tags for the repo.
     name: fetchTags
@@ -154,6 +162,8 @@ spec:
       value: $(params.deleteExisting)
     - name: KBC_GIT_CLONE_ENABLE_SYMLINK_CHECK
       value: $(params.enableSymlinkCheck)
+    - name: KBC_GIT_CLONE_SYMLINK_CHECK_IGNORE_PATTERN
+      value: $(params.symlinkCheckIgnorePattern)
     - name: KBC_GIT_CLONE_FETCH_TAGS
       value: $(params.fetchTags)
     - name: KBC_GIT_CLONE_MERGE_TARGET_BRANCH

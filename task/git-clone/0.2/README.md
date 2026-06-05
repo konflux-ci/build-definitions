@@ -21,6 +21,7 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |logLevel|Log level for the git-clone command.|info|false|
 |noProxy|Opt out of proxying HTTP/HTTPS requests.|""|false|
 |enableSymlinkCheck|Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. |true|false|
+|symlinkCheckIgnorePattern|CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. |""|false|
 |fetchTags|Fetch all tags for the repo.|false|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
