@@ -216,8 +216,6 @@ if ! [[ $IS_LOCALHOST ]]; then
 		}
 		ret += "\n  rsync -razW  \"$HOME/.docker/\" \"$SSH_HOST:$BUILD_DIR/.docker/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/.docker/:/root/.docker:Z\" \\\n"
-		ret += "\n  rsync -razW  --mkpath \"/usr/bin/retry\" \"$SSH_HOST:$BUILD_DIR/usr/bin/retry\""
-		podmanArgs += "    -v \"${BUILD_DIR@Q}/usr/bin/retry:/usr/bin/retry:Z\" \\\n"
 		ret += "\n  rsync -razW  \"/tekton/results/\" \"$SSH_HOST:$BUILD_DIR/results/\""
 		podmanArgs += "    -v \"${BUILD_DIR@Q}/results/:/tekton/results:Z\" \\\n"
 		ret += "\nfi\n"
@@ -280,7 +278,7 @@ if ! [[ $IS_LOCALHOST ]]; then
 		ret += "\n  # shellcheck disable=SC2086"
 		ret += "\n  # Please note: all variables below the first ssh line must be quoted with ${var@Q}!"
 		ret += "\n  # See https://stackoverflow.com/questions/6592376/prevent-ssh-from-breaking-up-shell-script-parameters"
-		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]@Q}\" --rm \"${BUILDER_IMAGE@Q}\" /" + containerScript + ` "${@@Q}"`
+		ret += "\n  ssh $SSH_ARGS \"$SSH_HOST\" $PORT_FORWARD podman  run " + env + "" + podmanArgs + "    --user=0 \"${PODMAN_NVIDIA_ARGS[@]@Q}\" --rm --entrypoint='' \"${BUILDER_IMAGE@Q}\" /" + containerScript + ` "${@@Q}"`
 
 		// Sync the contents of the workspaces back so subsequent tasks can use them
 		ret += "\n  echo \"[$(date --utc -Ins)] Rsync back\""

@@ -95,7 +95,7 @@ spec:
       value: $(params.input)
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1777460003@sha256:24650313873554b6ba16c1a1b6b9f9142604f6ab735113e1695faf2dd07fdede
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
     name: skip-ta
     script: |
       #!/bin/bash
@@ -111,7 +111,7 @@ spec:
   - args:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:69c9537ec111c5333ef3351e6afbe5e9ab76bc416057f2fe6675895f73c25239
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
     name: use-trusted-artifact
   - computeResources:
       limits:
@@ -145,7 +145,7 @@ spec:
       value: $(params.config-file-content)
     - name: KBC_PD_ENABLE_PACKAGE_REGISTRY_PROXY
       value: $(params.enable-package-registry-proxy)
-    image: quay.io/konflux-ci/hermeto:0.52.0@sha256:a2677373a6e5bdec5f808c7761a856b93a2afa62bf002444c86932cbca29905c
+    image: quay.io/konflux-ci/hermeto:0.53.0@sha256:1dc414807be0cacf6d1b7f5bc3d098e1c25bfbca9a45a613050e5036435d4102
     name: prefetch-dependencies
     script: |
       #!/bin/bash
@@ -212,7 +212,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:69c9537ec111c5333ef3351e6afbe5e9ab76bc416057f2fe6675895f73c25239
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
     name: create-trusted-artifact
   volumes:
   - name: activation-key
