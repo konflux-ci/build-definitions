@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.10"
+    app.kubernetes.io/version: "0.10.1"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -313,7 +313,7 @@ spec:
       value: $(params.SKIP_INJECTIONS)
     imagePullPolicy: IfNotPresent
   steps:
-  - image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+  - image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:88395b2e3aba44a15f8ab4e12d63e81db215dc72a799200a3b560a55f30c631c
     name: build
     computeResources:
       limits:
@@ -561,7 +561,7 @@ spec:
     workingDir: $(workspaces.source.path)
 
   - name: push
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:88395b2e3aba44a15f8ab4e12d63e81db215dc72a799200a3b560a55f30c631c
     computeResources:
       limits:
         memory: 4Gi

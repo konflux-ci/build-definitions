@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.1
+
+### Changed
+
+- Updated the image that runs the `build` and `push` steps.
+  Notably, the new image comes with Buildah `v1.44.0`.
+
 ## 0.10
 
 This version introduces [konflux-build-cli]. The `build` step replaces most of the Bash with
