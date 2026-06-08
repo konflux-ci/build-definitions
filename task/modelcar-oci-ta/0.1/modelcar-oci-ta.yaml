@@ -122,11 +122,23 @@ spec:
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: download-model-files
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       volumeMounts:
         - mountPath: /model-secret
           name: model-secret
@@ -161,6 +173,12 @@ spec:
         find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -186,6 +204,12 @@ spec:
 
     - name: copy-model-files
       image: registry.access.redhat.com/ubi9/python-311:9.7-1769430375
+      computeResources:
+        requests:
+          memory: 512Mi
+          cpu: 50m
+        limits:
+          memory: 512Mi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
@@ -217,6 +241,12 @@ spec:
 
     - name: push-image
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -251,6 +281,12 @@ spec:
 
     - name: sbom-generate
       image: quay.io/konflux-ci/mobster:1.2.0-1774868067@sha256:2e00c2f0aeff55713150b51822013327ea0e0d75b8164a52f837fb297c17703d
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -270,6 +306,12 @@ spec:
 
     - name: upload-sbom
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -287,6 +329,12 @@ spec:
         fi
     - name: report-sbom-url
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       workingDir: /var/workdir
       script: |
         #!/bin/bash

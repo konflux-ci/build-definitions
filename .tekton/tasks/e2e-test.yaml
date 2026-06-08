@@ -20,16 +20,6 @@ spec:
       type: string
     - name: ec_pipelines_repo_revision
       type: string
-    - name: docker-build-bundle
-      type: string
-    - name: docker-build-oci-ta-bundle
-      type: string
-    - name: docker-build-oci-ta-min-bundle
-      type: string
-    - name: docker-build-multi-platform-oci-ta-bundle
-      type: string
-    - name: fbc-builder-bundle
-      type: string
     - name: artifact_dir
       type: string
     - name: pipelinerun_name
@@ -53,6 +43,15 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        bundle_values="$(workspaces.source.path)/source/bundle_values.env"
+        if [[ -f "${bundle_values}" ]]; then
+          echo "Using custom bundles from ${bundle_values}"
+          # shellcheck disable=SC1090
+          source "${bundle_values}"
+        else
+          echo "No custom bundles found, using defaults"
+        fi
 
         ginkgo build ./tests/build/
         ginkgo \
@@ -93,16 +92,6 @@ spec:
         value: "$(params.ec_pipelines_repo_url)"
       - name: EC_PIPELINES_REPO_REVISION
         value: "$(params.ec_pipelines_repo_revision)"
-      - name: CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE
-        value: "$(params.docker-build-bundle)"
-      - name: CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE
-        value: "$(params.docker-build-oci-ta-bundle)"
-      - name: CUSTOM_DOCKER_BUILD_OCI_TA_MIN_PIPELINE_BUNDLE
-        value: "$(params.docker-build-oci-ta-min-bundle)"
-      - name: CUSTOM_DOCKER_BUILD_OCI_MULTI_PLATFORM_TA_PIPELINE_BUNDLE
-        value: "$(params.docker-build-multi-platform-oci-ta-bundle)"
-      - name: CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE
-        value: "$(params.fbc-builder-bundle)"
       - name: PR_CHANGED_FILES
         value: "$(params.changed_files)"
       - name: TEKTON_CHAINS_NS
