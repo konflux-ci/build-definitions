@@ -195,6 +195,12 @@ spec:
         fi
 
         printf "%s\n" "${FILES[@]}" >"${TASK_FILE}"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: build
       image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
       workingDir: /var/workdir
@@ -388,5 +394,11 @@ spec:
         # cleanup task file
         # shellcheck disable=SC2153
         [[ -f "${TASK_FILE}" ]] && rm -f "${TASK_FILE}"
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsUser: 0
