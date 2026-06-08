@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.8.3"
+    app.kubernetes.io/version: "0.8.4"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     build.appstudio.redhat.com/expires-on: "2026-04-30T00:00:00Z"
@@ -115,6 +115,29 @@ spec:
     description: Additional key=value labels that should be applied to the image
     type: array
     default: []
+  - name: UNSET_LABELS
+    description: >-
+      List of label names to remove from the base image. By default, common
+      base image labels are removed so the final image does not look like the
+      parent image. Provide your own list to override the defaults, or use an
+      empty array to keep all base image labels.
+    type: array
+    default:
+      - name
+      - release
+      - version
+      - summary
+      - description
+      - url
+      - maintainer
+      - com.redhat.component
+      - com.redhat.license_terms
+      - io.k8s.display-name
+      - io.k8s.description
+      - io.openshift.tags
+      - io.openshift.expose-services
+      - distribution-scope
+      - vendor
   - name: ANNOTATIONS
     description: Additional key=value annotations that should be applied to the image
     type: array
@@ -353,6 +376,8 @@ spec:
     - $(params.LABELS[*])
     - --annotations
     - $(params.ANNOTATIONS[*])
+    - --unset-labels
+    - $(params.UNSET_LABELS[*])
 
     script: |
       #!/bin/bash
@@ -509,6 +534,10 @@ spec:
               --annotations)
                   shift
                   while [[ $# -gt 0 && $1 != --* ]]; do ANNOTATIONS+=("--annotation" "$1"); shift; done
+                  ;;
+              --unset-labels)
+                  shift
+                  while [[ $# -gt 0 && $1 != --* ]]; do BUILDAH_ARGS+=("--unsetlabel" "$1"); shift; done
                   ;;
               *)
                   echo "unexpected argument: $1" >&2

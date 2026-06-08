@@ -142,6 +142,16 @@ of use cases. All known (minor) differences documented below.
 ### Removed
 - BREAKING: Support for Dockerfile downloading in Konflux Build Pipeline.
 
+## 0.8.4
+
+### Added
+
+- Added `UNSET_LABELS`, a parameter for choosing which labels should not be
+  inherited from the base image. It comes with a default list of common
+  UBI/RHEL labels so the final image does not look like the parent image.
+  You can replace that list with your own, or use an empty list to keep all
+  base image labels.
+
 ## 0.8.3
 
 ### Fixed
