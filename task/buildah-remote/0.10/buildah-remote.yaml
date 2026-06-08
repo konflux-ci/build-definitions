@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.10"
+    app.kubernetes.io/version: 0.10.1
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -331,7 +331,7 @@ spec:
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:88395b2e3aba44a15f8ab4e12d63e81db215dc72a799200a3b560a55f30c631c
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -378,7 +378,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:88395b2e3aba44a15f8ab4e12d63e81db215dc72a799200a3b560a55f30c631c
     name: build
     script: |-
       #!/bin/bash
@@ -762,7 +762,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:88395b2e3aba44a15f8ab4e12d63e81db215dc72a799200a3b560a55f30c631c
     name: push
     script: |
       #!/bin/bash
