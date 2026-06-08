@@ -19,11 +19,13 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |BUILD_TIMESTAMP|Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.|""|false|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |COMMIT_SHA|The image is built from this commit.|""|false|
+|COMPRESSION_FORMAT|Compression format for image layers (e.g., gzip, zstd, zstd:chunked)|""|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|true|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |ENV_VARS|Array of --env values ("env=value" strings)|[]|false|
+|FORCE_COMPRESSION|Force recompression of all layers including base image layers|false|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
