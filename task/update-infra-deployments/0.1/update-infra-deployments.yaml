@@ -52,6 +52,12 @@ spec:
       env:
         - name: TASKRUN_NAME
           value: $(context.taskRun.name)
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -144,6 +150,12 @@ spec:
           value: $(params.ORIGIN_REPO)
         - name: GIT_IMAGE
           value: $(params.GIT_IMAGE)
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       script: |
         if [ -n "${GIT_IMAGE}" ]; then
           echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
@@ -163,6 +175,12 @@ spec:
           value: $(params.SCRIPT)
         - name: SCRIPT_IMAGE
           value: $(params.SCRIPT_IMAGE)
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       script: |
         if [ -n "${SCRIPT_IMAGE}" ]; then
           echo "WARNING: provided deprecated SCRIPT_IMAGE parameter has no effect."
@@ -179,6 +197,12 @@ spec:
       env:
         - name: GIT_IMAGE
           value: $(params.GIT_IMAGE)
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       script: |
         if [ -n "${GIT_IMAGE}" ]; then
           echo "WARNING: provided deprecated GIT_IMAGE parameter has no effect."
@@ -220,6 +244,12 @@ spec:
           value: $(params.REVISION)
         - name: TARGET_GH_REPO
           value: "$(params.TARGET_GH_REPO)"
+      computeResources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
       script: |
         #!/usr/bin/env python3
         import json
