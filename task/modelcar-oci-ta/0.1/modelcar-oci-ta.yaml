@@ -297,7 +297,7 @@ spec:
         manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
         config_path="${TARGET_OCI}/blobs/sha256/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
 
-        base_labels=$(jq -c '.Labels // {}' "$config_path")
+        base_labels=$(jq -c '.config.Labels // {}' "$config_path")
         labels_json=$(jq -nc \
           --argjson base "$base_labels" \
           --arg created "$BUILD_TIMESTAMP_RFC3339" \
@@ -313,7 +313,7 @@ spec:
           * (if $expires != "" then {"quay.expires-after": $expires} else {} end)
           * (if $cpe != "" then {"cpe": $cpe} else {} end)')
 
-        new_config=$(jq -c --argjson labels "$labels_json" '.Labels = ((.Labels // {}) * $labels)' "$config_path")
+        new_config=$(jq -c --argjson labels "$labels_json" '.config = ((.config // {}) | .Labels = $labels)' "$config_path")
         read -r new_config_digest new_config_size <<< "$(write_oci_blob "$new_config")"
 
         new_manifest=$(jq -c \
