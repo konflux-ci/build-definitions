@@ -80,10 +80,6 @@ spec:
       description: CPE identifier label required for on-prem product releases
       type: string
       default: ""
-    - name: LABELS
-      description: Additional key=value labels to apply to the built image
-      type: array
-      default: []
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -271,33 +267,25 @@ spec:
           value: $(params.SOURCE_DATE_EPOCH)
         - name: CPE
           value: $(params.CPE)
-      args:
-        - --labels
-        - $(params.LABELS[*])
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
 
         ARCHFUL_BASE_IMAGE=$(cat "$(results.BASE_IMAGE_REF.path)")
-        OCI_TAG="latest"
         INDEX="${TARGET_OCI}/index.json"
 
-        extra_labels=()
-        while [[ $# -gt 0 ]]; do
-          case "$1" in
-            --labels)
-              shift
-              while [[ $# -gt 0 && $1 != --* ]]; do
-                extra_labels+=("$1")
-                shift
-              done
-              ;;
-            *)
-              shift
-              ;;
-          esac
-        done
+        write_oci_blob() {
+          local content="$1"
+          local file digest size
+          file=$(mktemp)
+          echo -n "$content" > "$file"
+          digest="sha256:$(sha256sum "$file" | awk '{print $1}')"
+          size=$(wc -c < "$file" | tr -d ' ')
+          cp "$file" "${TARGET_OCI}/blobs/sha256/${digest#sha256:}"
+          rm -f "$file"
+          echo "${digest} ${size}"
+        }
 
         if [ -n "${SOURCE_DATE_EPOCH}" ]; then
           BUILD_TIMESTAMP="${SOURCE_DATE_EPOCH}"
@@ -306,58 +294,42 @@ spec:
         fi
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@${BUILD_TIMESTAMP}" +'%Y-%m-%dT%H:%M:%SZ')
 
-        labels_json=$(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -c '.Labels // {}')
-        overrides=$(jq -nc \
+        base_labels=$(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -c '.Labels // {}')
+        labels_json=$(jq -nc \
+          --argjson base "$base_labels" \
           --arg created "$BUILD_TIMESTAMP_RFC3339" \
           --arg commit "${COMMIT_SHA}" \
           --arg expires "${IMAGE_EXPIRES_AFTER}" \
           --arg cpe "${CPE}" \
-          '{
+          '$base * {
             "org.opencontainers.image.created": $created,
             "build-date": $created,
             "vcs-type": "git"
           }
-          + (if $commit != "" then {"vcs-ref": $commit, "org.opencontainers.image.revision": $commit} else {} end)
-          + (if $expires != "" then {"quay.expires-after": $expires} else {} end)
-          + (if $cpe != "" then {"cpe": $cpe} else {} end)')
-        labels_json=$(jq -c --argjson overrides "$overrides" '. * $overrides' <<< "$labels_json")
-        for pair in "${extra_labels[@]}"; do
-          key="${pair%%=*}"
-          value="${pair#*=}"
-          labels_json=$(jq -c --arg k "$key" --arg v "$value" '. + {($k): $v}' <<< "$labels_json")
-        done
+          * (if $commit != "" then {"vcs-ref": $commit, "org.opencontainers.image.revision": $commit} else {} end)
+          * (if $expires != "" then {"quay.expires-after": $expires} else {} end)
+          * (if $cpe != "" then {"cpe": $cpe} else {} end)')
 
-        manifest_digest=$(jq -r --arg tag "$OCI_TAG" '
+        manifest_digest=$(jq -r '
           .manifests[]
-          | select(.annotations["org.opencontainers.image.ref.name"] == $tag)
+          | select(.annotations["org.opencontainers.image.ref.name"] == "latest")
           | .digest' "$INDEX")
         if [ -z "$manifest_digest" ] || [ "$manifest_digest" = "null" ]; then
           manifest_digest=$(jq -r '.manifests[0].digest' "$INDEX")
         fi
 
         manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
-        config_digest=$(jq -r '.config.digest' "$manifest_path")
-        config_path="${TARGET_OCI}/blobs/sha256/${config_digest#sha256:}"
+        config_path="${TARGET_OCI}/blobs/sha256/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
 
         new_config=$(jq -c --argjson labels "$labels_json" '.Labels = ((.Labels // {}) * $labels)' "$config_path")
-        new_config_file=$(mktemp)
-        echo -n "$new_config" > "$new_config_file"
-        new_config_digest="sha256:$(sha256sum "$new_config_file" | awk '{print $1}')"
-        new_config_size=$(wc -c < "$new_config_file" | tr -d ' ')
-        cp "$new_config_file" "${TARGET_OCI}/blobs/sha256/${new_config_digest#sha256:}"
-        rm -f "$new_config_file"
+        read -r new_config_digest new_config_size <<< "$(write_oci_blob "$new_config")"
 
         new_manifest=$(jq -c \
           --arg digest "$new_config_digest" \
           --argjson size "$new_config_size" \
           '.config.digest = $digest | .config.size = $size' \
           "$manifest_path")
-        new_manifest_file=$(mktemp)
-        echo -n "$new_manifest" > "$new_manifest_file"
-        new_manifest_digest="sha256:$(sha256sum "$new_manifest_file" | awk '{print $1}')"
-        new_manifest_size=$(wc -c < "$new_manifest_file" | tr -d ' ')
-        cp "$new_manifest_file" "${TARGET_OCI}/blobs/sha256/${new_manifest_digest#sha256:}"
-        rm -f "$new_manifest_file"
+        read -r new_manifest_digest new_manifest_size <<< "$(write_oci_blob "$new_manifest")"
 
         jq --arg old "$manifest_digest" \
           --arg new "$new_manifest_digest" \
