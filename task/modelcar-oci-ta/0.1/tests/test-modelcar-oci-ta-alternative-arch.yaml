@@ -88,7 +88,7 @@ spec:
               echo "Share location of the mocked model"
               echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            image: quay.io/konflux-ci/build-trusted-artifacts@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
             args:
               - create
               - --store
@@ -101,7 +101,7 @@ spec:
         - name: SOURCE_ARTIFACT
           value: $(tasks.mock-trusted-artifact.results.SOURCE_ARTIFACT)
         - name: BASE_IMAGE
-          value: "registry.access.redhat.com/ubi9/ubi:latest@sha256:b68c21b2dd3e72abcf2f8dcfc77580e4030564d1243bfcb7cd64ccc5aa3e0a25"
+          value: "registry.access.redhat.com/ubi9/ubi@sha256:b68c21b2dd3e72abcf2f8dcfc77580e4030564d1243bfcb7cd64ccc5aa3e0a25"
         - name: PLATFORM
           value: linux/s390x
         - name: IMAGE_APPEND_PLATFORM

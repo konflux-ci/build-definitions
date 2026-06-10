@@ -340,7 +340,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+      value: quay.io/konflux-ci/konflux-build-cli@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -357,7 +357,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
+    image: quay.io/konflux-ci/build-trusted-artifacts@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
     name: use-trusted-artifact
     volumeMounts:
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -401,7 +401,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+    image: quay.io/konflux-ci/konflux-build-cli@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
     name: build
     script: |-
       #!/bin/bash
@@ -785,7 +785,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+    image: quay.io/konflux-ci/konflux-build-cli@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
     name: push
     script: |
       #!/bin/bash

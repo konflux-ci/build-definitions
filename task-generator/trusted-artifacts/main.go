@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 )
 
 func main() {
@@ -26,7 +25,7 @@ func main() {
 	if _, err := os.Stat(taTaskPath); err == nil {
 		existing := expectValue(readTask(taTaskPath))
 		for _, step := range existing.Spec.Steps {
-			if strings.Contains(step.Image, "/build-trusted-artifacts:") {
+			if isBuildTrustedArtifactsImage(step.Image) {
 				image = step.Image
 				break
 			}

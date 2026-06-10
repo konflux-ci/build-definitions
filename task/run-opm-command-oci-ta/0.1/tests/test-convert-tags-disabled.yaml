@@ -70,7 +70,7 @@ spec:
               echo "Created catalog with tagged images:"
               cat "$(workspaces.tests-workspace.path)/source/.konflux/catalog/test-operator/catalog.json"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
+            image: quay.io/konflux-ci/build-trusted-artifacts@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
             args:
               - create
               - --store
@@ -131,7 +131,7 @@ spec:
               readOnly: true
         steps:
           - name: fetch-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
+            image: quay.io/konflux-ci/build-trusted-artifacts@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
             args:
               - use
               - $(params.SOURCE_ARTIFACT)=$(workspaces.tests-workspace.path)/output

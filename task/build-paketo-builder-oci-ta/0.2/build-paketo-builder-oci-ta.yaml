@@ -130,14 +130,14 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
+      image: quay.io/konflux-ci/build-trusted-artifacts@sha256:4689f88dd253bd1feebf57f1a76a5a751880f739000719cd662bbdc76990a7fd
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - args:
         - "$(params.BUILD_ARGS[*])"
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
+      image: quay.io/konflux-ci/buildah-task@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
       name: "run-script"
       script: |-
         #!/usr/bin/env bash
@@ -457,7 +457,7 @@ spec:
         requests:
           cpu: "1"
           memory: 1Gi
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
+      image: quay.io/konflux-ci/buildah-task@sha256:27400eaf836985bcc35182d62d727629f061538f61603c05b85d5d99bfa7da2d
       name: inject-sbom-and-push
       env:
         - name: TASKRUN_NAME

@@ -15,6 +15,8 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
+const buildTrustedArtifactsRepo = "quay.io/konflux-ci/build-trusted-artifacts"
+
 var (
 	image = ""
 
@@ -26,9 +28,18 @@ var (
 			panic(err)
 		}
 
-		return "quay.io/konflux-ci/build-trusted-artifacts:latest@" + desc.Digest.String()
+		return "quay.io/konflux-ci/build-trusted-artifacts@" + desc.Digest.String()
 	}
 )
+
+func isBuildTrustedArtifactsImage(imageRef string) bool {
+	ref, err := name.ParseReference(imageRef)
+	if err != nil {
+		return false
+	}
+
+	return ref.Context().String() == buildTrustedArtifactsRepo
+}
 
 func ensureImage() {
 	if image != "" {

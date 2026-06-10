@@ -389,7 +389,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
+      image: quay.io/konflux-ci/build-trusted-artifacts@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -400,7 +400,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+      image: quay.io/konflux-ci/konflux-build-cli@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
       args:
         - --build-args
         - $(params.BUILD_ARGS[*])
@@ -642,7 +642,7 @@ spec:
             - SETFCAP
         runAsUser: 0
     - name: push
-      image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
+      image: quay.io/konflux-ci/konflux-build-cli@sha256:949367ed2d1d2b9d8c23a5b26a9314eb28a01036a7e48496d38ec56cc720e06d
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
