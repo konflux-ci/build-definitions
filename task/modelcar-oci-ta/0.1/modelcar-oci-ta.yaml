@@ -248,7 +248,6 @@ spec:
         set -eu
         set -o pipefail
 
-        ARCHFUL_BASE_IMAGE=$(cat "$(results.BASE_IMAGE_REF.path)")
         INDEX="${TARGET_OCI}/index.json"
 
         write_oci_blob() {
@@ -270,7 +269,11 @@ spec:
         fi
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@${BUILD_TIMESTAMP}" +'%Y-%m-%dT%H:%M:%SZ')
 
-        base_labels=$(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -c '.Labels // {}')
+        manifest_digest=$(skopeo inspect --no-tags "oci:${TARGET_OCI}:latest" | jq -r '.Digest')
+        manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
+        config_path="${TARGET_OCI}/blobs/sha256/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
+
+        base_labels=$(jq -c '.Labels // {}' "$config_path")
         labels_json=$(jq -nc \
           --argjson base "$base_labels" \
           --arg created "$BUILD_TIMESTAMP_RFC3339" \
@@ -285,17 +288,6 @@ spec:
           * (if $commit != "" then {"vcs-ref": $commit, "org.opencontainers.image.revision": $commit} else {} end)
           * (if $expires != "" then {"quay.expires-after": $expires} else {} end)
           * (if $cpe != "" then {"cpe": $cpe} else {} end)')
-
-        manifest_digest=$(jq -r '
-          .manifests[]
-          | select(.annotations["org.opencontainers.image.ref.name"] == "latest")
-          | .digest' "$INDEX")
-        if [ -z "$manifest_digest" ] || [ "$manifest_digest" = "null" ]; then
-          manifest_digest=$(jq -r '.manifests[0].digest' "$INDEX")
-        fi
-
-        manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
-        config_path="${TARGET_OCI}/blobs/sha256/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
 
         new_config=$(jq -c --argjson labels "$labels_json" '.Labels = ((.Labels // {}) * $labels)' "$config_path")
         read -r new_config_digest new_config_size <<< "$(write_oci_blob "$new_config")"
