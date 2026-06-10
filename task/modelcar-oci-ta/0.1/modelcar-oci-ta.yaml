@@ -64,6 +64,26 @@ spec:
       description: Whether to append a sanitized platform architecture on the IMAGE tag
       type: string
       default: "false"
+    - name: COMMIT_SHA
+      description: Git commit SHA of the source repository
+      type: string
+      default: ""
+    - name: IMAGE_EXPIRES_AFTER
+      description: Image tag expiration time for quay.expires-after label
+      type: string
+      default: ""
+    - name: SOURCE_DATE_EPOCH
+      description: Timestamp in seconds since Unix epoch for reproducible builds. Sets org.opencontainers.image.created and build-date labels.
+      type: string
+      default: ""
+    - name: CPE
+      description: CPE identifier label required for on-prem product releases
+      type: string
+      default: ""
+    - name: LABELS
+      description: Additional key=value labels to apply to the built image
+      type: array
+      default: []
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -238,6 +258,79 @@ spec:
         echo Models: models/*
 
         olot --verbose "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
+
+    - name: apply-image-labels
+      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      workingDir: /var/workdir
+      env:
+        - name: COMMIT_SHA
+          value: $(params.COMMIT_SHA)
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.IMAGE_EXPIRES_AFTER)
+        - name: SOURCE_DATE_EPOCH
+          value: $(params.SOURCE_DATE_EPOCH)
+        - name: CPE
+          value: $(params.CPE)
+      args:
+        - --labels
+        - $(params.LABELS[*])
+      script: |
+        #!/bin/bash
+        set -eu
+        set -o pipefail
+
+        ARCHFUL_BASE_IMAGE=$(cat "$(results.BASE_IMAGE_REF.path)")
+
+        label_args=()
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --labels)
+              shift
+              while [[ $# -gt 0 && $1 != --* ]]; do
+                label_args+=(--label "$1")
+                shift
+              done
+              ;;
+            *)
+              shift
+              ;;
+          esac
+        done
+
+        if [ -n "${SOURCE_DATE_EPOCH}" ]; then
+          BUILD_TIMESTAMP="${SOURCE_DATE_EPOCH}"
+        else
+          BUILD_TIMESTAMP=$(date -u +'%s')
+        fi
+        BUILD_TIMESTAMP_RFC3339=$(date -u -d "@${BUILD_TIMESTAMP}" +'%Y-%m-%dT%H:%M:%SZ')
+
+        while IFS='=' read -r key value; do
+          [ -n "$key" ] && label_args+=(--label "${key}=${value}")
+        done < <(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -r '.Labels // {} | to_entries[] | "\(.key)=\(.value)"')
+
+        label_args+=(
+          --label "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}"
+          --label "build-date=${BUILD_TIMESTAMP_RFC3339}"
+          --label "vcs-type=git"
+        )
+        if [ -n "${CPE}" ]; then
+          label_args+=(--label "cpe=${CPE}")
+        fi
+        if [ -n "${COMMIT_SHA}" ]; then
+          label_args+=(
+            --label "vcs-ref=${COMMIT_SHA}"
+            --label "org.opencontainers.image.revision=${COMMIT_SHA}"
+          )
+        fi
+        if [ -n "${IMAGE_EXPIRES_AFTER}" ]; then
+          label_args+=(--label "quay.expires-after=${IMAGE_EXPIRES_AFTER}")
+        fi
+
+        LABELED_OCI="${TARGET_OCI}-labeled"
+        rm -rf "${LABELED_OCI}"
+        skopeo copy "oci:${TARGET_OCI}:latest" "oci:${LABELED_OCI}:latest" "${label_args[@]}"
+        rm -rf "${TARGET_OCI}"
+        mv "${LABELED_OCI}" "${TARGET_OCI}"
 
     - name: push-image
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
