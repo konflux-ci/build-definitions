@@ -9,6 +9,10 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.4.2
+
+- Pipeline upgrade: Remove PipelineRun parameter `sast-target-dirs` with invalid attributes from PipelineRun `.spec.params` definition
+
 ## 0.4.1
 
 - Pipeline upgrade: Promote `TARGET_DIRS` parameter from SAST task level to pipeline level as `sast-target-dirs`

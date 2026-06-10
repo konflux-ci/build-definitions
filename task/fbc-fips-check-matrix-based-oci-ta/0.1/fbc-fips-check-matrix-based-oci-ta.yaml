@@ -41,13 +41,13 @@ spec:
         name: workdir
   steps:
     - name: use-buckets-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
       args:
         - use
         - $(params.BUCKETS_ARTIFACT)=/var/workdir/buckets
 
     - name: prepare-bucket-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.1@sha256:e6b090c515168c8ed0fa932ffe0ac6f27dbc1ea41fdb2fe83cfcaa7829b910bd
       env:
         - name: BUCKET_INDEX
           value: $(params.BUCKET_INDEX)
@@ -111,13 +111,13 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 6660aed5c5388fade0f433c14d41c5d4e073d07a
+            value: e96f4c79387f635a1a49cb3298541ab25b3ddada
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
         resolver: git
 
     - name: output-results
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.1@sha256:e6b090c515168c8ed0fa932ffe0ac6f27dbc1ea41fdb2fe83cfcaa7829b910bd
       env:
         - name: BUCKET_INDEX
           value: $(params.BUCKET_INDEX)

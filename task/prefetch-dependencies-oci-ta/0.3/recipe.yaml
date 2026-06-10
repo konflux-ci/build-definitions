@@ -7,12 +7,18 @@ add:
 additionalSteps:
   - at: 0
     name: skip-ta
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1777857961@sha256:8d0a8fb39ec907e8ca62cdd24b62a63ca49a30fe465798a360741fde58437a23
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
     env:
     - name: INPUT
       value: $(params.input)
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
+    computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
     script: |
       #!/bin/bash
 

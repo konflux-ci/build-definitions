@@ -84,12 +84,18 @@ spec:
     - mountPath: /var/workdir
       name: workdir
   steps:
-  - env:
+  - computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    env:
     - name: INPUT
       value: $(params.input)
     - name: SOURCE_ARTIFACT
       value: $(params.SOURCE_ARTIFACT)
-    image: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1777857961@sha256:8d0a8fb39ec907e8ca62cdd24b62a63ca49a30fe465798a360741fde58437a23
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
     name: skip-ta
     script: |
       #!/bin/bash
@@ -105,7 +111,7 @@ spec:
   - args:
     - use
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:339f1a641a46e2a20b5c1aa5d1323c702812d012a1fae475ab27ae795554e523
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
     name: use-trusted-artifact
   - computeResources:
       limits:
@@ -139,7 +145,7 @@ spec:
       value: $(params.config-file-content)
     - name: KBC_PD_ENABLE_PACKAGE_REGISTRY_PROXY
       value: $(params.enable-package-registry-proxy)
-    image: quay.io/konflux-ci/hermeto:0.51.0@sha256:4899755ffd1574547102a58469aea916822c7fd7825cbec8e477e1b57668a6d7
+    image: quay.io/konflux-ci/hermeto:0.53.0@sha256:1dc414807be0cacf6d1b7f5bc3d098e1c25bfbca9a45a613050e5036435d4102
     name: prefetch-dependencies
     script: |
       #!/bin/bash
@@ -206,7 +212,7 @@ spec:
     env:
     - name: IMAGE_EXPIRES_AFTER
       value: $(params.ociArtifactExpiresAfter)
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:339f1a641a46e2a20b5c1aa5d1323c702812d012a1fae475ab27ae795554e523
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
     name: create-trusted-artifact
   volumes:
   - name: activation-key

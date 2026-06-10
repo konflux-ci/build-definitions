@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.8/buildah-remote.yaml, task/build-image-index/0.3/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.10/buildah-remote.yaml, task/build-image-index/0.3/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -257,16 +257,6 @@ spec:
             value: "{{ source_url }}"
           - name: ec_pipelines_repo_revision
             value: "{{ revision }}"
-          - name: docker-build-bundle
-            value: "$(tasks.build-bundles.results.custom-docker-build-bundle)"
-          - name: docker-build-oci-ta-bundle
-            value: "$(tasks.build-bundles.results.custom-docker-build-oci-ta-bundle)"
-          - name: docker-build-oci-ta-min-bundle
-            value: "$(tasks.build-bundles.results.custom-docker-build-oci-ta-min-bundle)"
-          - name: docker-build-multi-platform-oci-ta-bundle
-            value: "$(tasks.build-bundles.results.custom-docker-build-multi-platform-oci-ta-bundle)"
-          - name: fbc-builder-bundle
-            value: "$(tasks.build-bundles.results.custom-fbc-builder-bundle)"
           - name: artifact_dir
             value: /workspace/artifact-dir
           - name: pipelinerun_name
@@ -279,6 +269,9 @@ spec:
           - build-bundles
         taskRef:
           name: e2e-test
+        workspaces:
+          - name: source
+            workspace: workspace
         # Added a timeout due to https://issues.redhat.com/browse/STONEBLD-2265
         timeout: "2h"
       - name: ec-task-checks

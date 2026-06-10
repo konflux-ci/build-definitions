@@ -11,6 +11,110 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10
+
+This version introduces [konflux-build-cli]. The `build` step replaces most of the Bash with
+`konflux-build-cli image build`. Other steps still use Bash, this will change soon.
+
+We expect version 0.10 to behave the same as version 0.9 for the vast majority
+of use cases. All known (minor) differences documented below.
+
+### Added
+
+- The `vcs-url` label. Previously, the task would inject the following vcs-related labels:
+  - `org.opencontainers.image.revision` and its [legacy counterpart][projectatomic-labels],
+    `vcs-ref`
+  - `org.opencontainers.image.source` and nothing else
+    - Version 0.10 adds the missing legacy counterpart, `vcs-url`
+
+### Changed
+
+- The precedence of default annotations (those injected by the task automatically)
+  - Before: `ANNOTATIONS_FILE` < `ANNOTATIONS` < default annotations
+  - Now: default annotations < `ANNOTATIONS_FILE` < `ANNOTATIONS`
+- When handling the `YUM_REPOS_D_SRC` and `YUM_REPOS_D_FETCHED` directories,
+  injects only regular files into `/etc/yum.repos.d`. Previously, the task would
+  inject the directories as a whole. `/etc/yum.repos.d` is a flat structure, so
+  the task now injects only regular files to avoid injecting unexpected content.
+- Prefetch integration:
+  - Looks for both `prefetch.env` and `cachi2.env` in the prefetch dir (in this order).
+    Version 0.3.1 of the prefetch task added `prefetch.env` and a future version
+    will remove `cachi2.env`.
+  - Doesn't rely specifically on `cachi2.repo` files to enable RPM integration,
+    just needs any `*.repo` file at the expected path.
+  - In case the `YUM_REPOS_D_SRC` or `YUM_REPOS_D_FETCHED` directories contain
+    a repo file with the same name as the repo file from Hermeto, the Hermeto
+    repo takes precedence. Previously, `YUM_REPOS_*` would take precedence.
+  - Doesn't copy the prefetch files to `/tmp`, instead copies them to a directory
+    on the same filesystem as the original files. This uses copy-on-write and avoids
+    duplicating the underlying data.
+- Red Hat subscription-manager integration:
+  - Will mount the RHSM CA certificates into the build in two cases:
+    - When using `ACTIVATION_KEY` and the containerfile doesn't include
+      `subscription-manager register` (same as before)
+    - When using `ENTITLEMENT_SECRET` (not done before and should have been)
+  - When mounting RHSM CA certificates, mounts the whole `/etc/rhsm/ca` directory
+    instead of mounting a specific file. This closes [#1621].
+
+### Fixed
+
+- Injecting metadata to `/usr/share/buildinfo` and `/root/buildinfo`:
+  - Does not write any new files or modify any existing files in the source directory,
+    injects the files using a separate build-context.
+  - Will log a warning if the `TARGET` param is set and `SKIP_INJECTIONS=false`
+    (using `TARGET` disables metadata injection anyway). Metadata injection never
+    worked with a non-default target, version 0.10 just adds the warning.
+  - Injecting `labels.json`:
+    - Will skip LABEL instructions in stages that don't affect the labels of the final image.
+    - Will correctly omit the `io.buildah.version` label when `SOURCE_DATE_EPOCH` is non-empty.
+      Previously, `labels.json` would always include `io.buildah.version`.
+- Pre-pulling base images for hermetic builds and base-arch verification (see [0.9.4](#094)):
+  - Also pulls images referenced in `COPY --from=$image` and `RUN --mount=from=$image`.
+    Previously, would only pull images referenced as `FROM $image`.
+  - Does not pull images for unused stages (unless `SKIP_UNUSED_STAGES=false`).
+  - Will skip image references with [transports][containers-transports] that don't
+    represent pullable images. Specifically, will only pull transport-less references
+    and `docker://` references. Previously, the task would skip `oci-archive:` references
+    but fail on any other kind of non-standard reference.
+- Modifying the containerfile to set prefetch environment variables in RUN instructions:
+  - No longer mangles RUN instructions that use the exec form or a bare here-doc.
+    Instead skips the instruction and logs a warning.
+
+    ```dockerfile
+    RUN ["echo", "skips exec-form commands"]
+
+    RUN <<EOF
+    echo "skips bare heredocs"
+    EOF
+
+    RUN bash -e <<EOF
+    echo "supports heredocs if they start with something other than the <<marker"
+    EOF
+    ```
+
+    - This partially fixes [#1200], in the sense that the containerfile at least
+      doesn't become broken. The unsupported instructions don't automatically get
+      the variables that may be required to make the hermetic build work though.
+  - Fixes dozens of small bugs that most users never would have hit. For example,
+    version 0.10:
+    - Doesn't mangle heredoc lines that look line `RUN` instructions
+    - Doesn't inject text into the middle of a string with quoted/escaped whitespace
+    - Properly handles [backtick-escaped][dockerfile-escape] containerfiles
+
+[konflux-build-cli]: https://github.com/konflux-ci/konflux-build-cli
+[projectatomic-labels]: https://github.com/projectatomic/ContainerApplicationGenericLabels
+[containers-transports]: https://www.mankier.com/5/containers-transports
+[#1200]: https://github.com/konflux-ci/build-definitions/issues/1200
+[dockerfile-escape]: https://docs.docker.com/reference/dockerfile/#escape
+[#1621]: https://github.com/konflux-ci/build-definitions/issues/1621
+
+## 0.9.4
+
+### Fixed
+
+- Validate base image architecture before build. The task now fails if a base image
+  doesn't match the host architecture, preventing silent emulation builds.
+
 ## 0.9.3
 
 ### Fixed

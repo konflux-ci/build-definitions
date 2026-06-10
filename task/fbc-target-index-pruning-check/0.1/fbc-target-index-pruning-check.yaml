@@ -48,7 +48,7 @@ spec:
         name: workdir
   steps:
     - name: pull-rendered-catalog
-      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      image: quay.io/konflux-ci/task-runner:1.7.0@sha256:1c0582a85dae0949f3ec94aca95695c5d7698b371f1b76c5a78822a6249073dc
       workingDir: /shared
       securityContext:
         runAsUser: 0
@@ -60,6 +60,7 @@ spec:
           memory: 2Gi
         requests:
           memory: 2Gi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
@@ -71,7 +72,7 @@ spec:
           exit 1
         fi
     - name: run-pruning-check
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       workingDir: /var/workdir
@@ -85,6 +86,7 @@ spec:
           memory: 10Gi
         requests:
           memory: 10Gi
+          cpu: 1200m
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

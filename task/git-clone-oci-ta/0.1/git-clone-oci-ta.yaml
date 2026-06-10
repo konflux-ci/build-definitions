@@ -374,6 +374,12 @@ spec:
           echo "Fetching tags"
           retry git fetch --tags
         fi
+      computeResources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 350m
+          memory: 2Gi
       securityContext:
         runAsUser: 0
     - name: symlink-check
@@ -408,6 +414,12 @@ spec:
           echo "Running symlink check"
           check_symlinks
         fi
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
     - name: create-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
       args:

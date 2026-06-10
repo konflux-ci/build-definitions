@@ -75,6 +75,9 @@ def does_updated_files_covered_by_e2e(updated_files):
             if pipeline_name in pipelines_covered_by_e2e:
                 required_to_run_e2e = True
                 break
+        elif file_path.startswith("e2e-tests/"):
+            required_to_run_e2e = True
+            break
         elif file_path in files_covered_by_e2e:
             required_to_run_e2e = True
             break

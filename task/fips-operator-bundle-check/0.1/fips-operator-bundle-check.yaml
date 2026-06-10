@@ -29,11 +29,10 @@ spec:
       description: Images processed in the task.
   steps:
     - name: get-unique-related-images
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.1@sha256:e6b090c515168c8ed0fa932ffe0ac6f27dbc1ea41fdb2fe83cfcaa7829b910bd
       computeResources:
         limits:
           memory: 12Gi
-          cpu: '1'
         requests:
           memory: 12Gi
           cpu: '1'
@@ -129,7 +128,6 @@ spec:
       computeResources:
         limits:
           memory: 12Gi
-          cpu: '8'
         requests:
           memory: 12Gi
           cpu: '8'
@@ -142,12 +140,18 @@ spec:
           - name: url
             value: https://github.com/konflux-ci/build-definitions
           - name: revision
-            value: 6660aed5c5388fade0f433c14d41c5d4e073d07a
+            value: e96f4c79387f635a1a49cb3298541ab25b3ddada
           - name: pathInRepo
             value: stepactions/fips-operator-check-step-action/0.1/fips-operator-check-step-action.yaml
 
     - name: parse-images-processed-result
-      image: quay.io/konflux-ci/konflux-test:v1.4.50@sha256:8b9c7be18bef49f60ac9926830174072cc2010c620c7b3d0a5bb53ba02fcf71d
+      image: quay.io/konflux-ci/konflux-test:v1.5.1@sha256:e6b090c515168c8ed0fa932ffe0ac6f27dbc1ea41fdb2fe83cfcaa7829b910bd
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          memory: 64Mi
+          cpu: 50m
       script: |
         #!/usr/bin/env bash
         set -euo pipefail

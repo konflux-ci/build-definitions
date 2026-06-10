@@ -195,7 +195,12 @@ spec:
     - name: WORKSPACE_BASIC_AUTH_DIRECTORY_PATH
       value: $(workspaces.basic-auth.path)
     image: quay.io/konflux-ci/git-clone@sha256:09ac9c14392b5c2b8057f66cc4abfb8ce5d7214706318959d00908923a754434
-    computeResources: {}
+    computeResources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 350m
+        memory: 2Gi
     securityContext:
       runAsUser: 0
     volumeMounts:
@@ -379,7 +384,12 @@ spec:
       value: $(params.subdirectory)
     - name: WORKSPACE_OUTPUT_PATH
       value: $(workspaces.output.path)
-    computeResources: {}
+    computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
     script: |
       #!/usr/bin/env bash
       set -euo pipefail
