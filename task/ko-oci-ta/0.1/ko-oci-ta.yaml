@@ -84,13 +84,19 @@ spec:
         memory: 4Gi
       requests:
         cpu: "1"
-        memory: 1Gi
+        memory: 4Gi
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+      computeResources:
+        requests:
+          memory: 4Gi
+          cpu: 50m
+        limits:
+          memory: 4Gi
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -102,6 +108,12 @@ spec:
     - name: build
       image: quay.io/konflux-ci/ko-builder:latest@sha256:6dd07b33afbf322122524cd0b5e69bbe4b3fa260467947e0b822dc6524744cbd
       workingDir: /var/workdir/source
+      computeResources:
+        requests:
+          memory: 4Gi
+          cpu: "3"
+        limits:
+          memory: 4Gi
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           name: trusted-ca
@@ -170,7 +182,7 @@ spec:
         limits:
           memory: 512Mi
         requests:
-          memory: 256Mi
+          memory: 512Mi
           cpu: 100m
       securityContext:
         runAsUser: 0
@@ -235,7 +247,7 @@ spec:
         limits:
           memory: 512Mi
         requests:
-          memory: 256Mi
+          memory: 512Mi
           cpu: 100m
       script: |
         #!/bin/bash
