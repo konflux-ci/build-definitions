@@ -280,14 +280,16 @@ spec:
         set -o pipefail
 
         ARCHFUL_BASE_IMAGE=$(cat "$(results.BASE_IMAGE_REF.path)")
+        OCI_TAG="latest"
+        INDEX="${TARGET_OCI}/index.json"
 
-        label_args=()
+        extra_labels=()
         while [[ $# -gt 0 ]]; do
           case "$1" in
             --labels)
               shift
               while [[ $# -gt 0 && $1 != --* ]]; do
-                label_args+=(--label "$1")
+                extra_labels+=("$1")
                 shift
               done
               ;;
@@ -304,33 +306,65 @@ spec:
         fi
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@${BUILD_TIMESTAMP}" +'%Y-%m-%dT%H:%M:%SZ')
 
-        while IFS='=' read -r key value; do
-          [ -n "$key" ] && label_args+=(--label "${key}=${value}")
-        done < <(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -r '.Labels // {} | to_entries[] | "\(.key)=\(.value)"')
+        labels_json=$(skopeo inspect --no-tags "docker://${ARCHFUL_BASE_IMAGE}" | jq -c '.Labels // {}')
+        overrides=$(jq -nc \
+          --arg created "$BUILD_TIMESTAMP_RFC3339" \
+          --arg commit "${COMMIT_SHA}" \
+          --arg expires "${IMAGE_EXPIRES_AFTER}" \
+          --arg cpe "${CPE}" \
+          '{
+            "org.opencontainers.image.created": $created,
+            "build-date": $created,
+            "vcs-type": "git"
+          }
+          + (if $commit != "" then {"vcs-ref": $commit, "org.opencontainers.image.revision": $commit} else {} end)
+          + (if $expires != "" then {"quay.expires-after": $expires} else {} end)
+          + (if $cpe != "" then {"cpe": $cpe} else {} end)')
+        labels_json=$(jq -c --argjson overrides "$overrides" '. * $overrides' <<< "$labels_json")
+        for pair in "${extra_labels[@]}"; do
+          key="${pair%%=*}"
+          value="${pair#*=}"
+          labels_json=$(jq -c --arg k "$key" --arg v "$value" '. + {($k): $v}' <<< "$labels_json")
+        done
 
-        label_args+=(
-          --label "org.opencontainers.image.created=${BUILD_TIMESTAMP_RFC3339}"
-          --label "build-date=${BUILD_TIMESTAMP_RFC3339}"
-          --label "vcs-type=git"
-        )
-        if [ -n "${CPE}" ]; then
-          label_args+=(--label "cpe=${CPE}")
-        fi
-        if [ -n "${COMMIT_SHA}" ]; then
-          label_args+=(
-            --label "vcs-ref=${COMMIT_SHA}"
-            --label "org.opencontainers.image.revision=${COMMIT_SHA}"
-          )
-        fi
-        if [ -n "${IMAGE_EXPIRES_AFTER}" ]; then
-          label_args+=(--label "quay.expires-after=${IMAGE_EXPIRES_AFTER}")
+        manifest_digest=$(jq -r --arg tag "$OCI_TAG" '
+          .manifests[]
+          | select(.annotations["org.opencontainers.image.ref.name"] == $tag)
+          | .digest' "$INDEX")
+        if [ -z "$manifest_digest" ] || [ "$manifest_digest" = "null" ]; then
+          manifest_digest=$(jq -r '.manifests[0].digest' "$INDEX")
         fi
 
-        LABELED_OCI="${TARGET_OCI}-labeled"
-        rm -rf "${LABELED_OCI}"
-        skopeo copy "oci:${TARGET_OCI}:latest" "oci:${LABELED_OCI}:latest" "${label_args[@]}"
-        rm -rf "${TARGET_OCI}"
-        mv "${LABELED_OCI}" "${TARGET_OCI}"
+        manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
+        config_digest=$(jq -r '.config.digest' "$manifest_path")
+        config_path="${TARGET_OCI}/blobs/sha256/${config_digest#sha256:}"
+
+        new_config=$(jq -c --argjson labels "$labels_json" '.Labels = ((.Labels // {}) * $labels)' "$config_path")
+        new_config_file=$(mktemp)
+        echo -n "$new_config" > "$new_config_file"
+        new_config_digest="sha256:$(sha256sum "$new_config_file" | awk '{print $1}')"
+        new_config_size=$(wc -c < "$new_config_file" | tr -d ' ')
+        cp "$new_config_file" "${TARGET_OCI}/blobs/sha256/${new_config_digest#sha256:}"
+        rm -f "$new_config_file"
+
+        new_manifest=$(jq -c \
+          --arg digest "$new_config_digest" \
+          --argjson size "$new_config_size" \
+          '.config.digest = $digest | .config.size = $size' \
+          "$manifest_path")
+        new_manifest_file=$(mktemp)
+        echo -n "$new_manifest" > "$new_manifest_file"
+        new_manifest_digest="sha256:$(sha256sum "$new_manifest_file" | awk '{print $1}')"
+        new_manifest_size=$(wc -c < "$new_manifest_file" | tr -d ' ')
+        cp "$new_manifest_file" "${TARGET_OCI}/blobs/sha256/${new_manifest_digest#sha256:}"
+        rm -f "$new_manifest_file"
+
+        jq --arg old "$manifest_digest" \
+          --arg new "$new_manifest_digest" \
+          --argjson size "$new_manifest_size" \
+          '.manifests |= map(if .digest == $old then .digest = $new | .size = $size else . end)' \
+          "$INDEX" > "${INDEX}.tmp"
+        mv "${INDEX}.tmp" "$INDEX"
 
     - name: push-image
       image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
