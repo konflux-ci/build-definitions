@@ -166,6 +166,11 @@ spec:
     name: short-commit
   - description: The precise URL that was fetched by this Task.
     name: url
+  stepTemplate:
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - mountPath: /var/workdir
+      name: workdir
   steps:
   - computeResources:
       limits:
@@ -371,8 +376,6 @@ spec:
     - mountPath: /mnt/trusted-ca
       name: trusted-ca
       readOnly: true
-    - mountPath: /var/workdir
-      name: workdir
   - computeResources:
       limits:
         memory: 64Mi
@@ -408,9 +411,6 @@ spec:
         echo "Running symlink check"
         check_symlinks
       fi
-    volumeMounts:
-    - mountPath: /var/workdir
-      name: workdir
   - args:
     - prepare
     - --build-tool-version=$(params.BUILD_TOOL_VERSION)
@@ -453,8 +453,6 @@ spec:
     image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
     name: create-trusted-artifact
     volumeMounts:
-    - mountPath: /var/workdir
-      name: workdir
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
       name: trusted-ca
       readOnly: true

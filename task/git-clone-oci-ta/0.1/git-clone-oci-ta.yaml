@@ -176,6 +176,11 @@ spec:
         with the git remote when performing the clone. Binding a Secret to this
         Workspace is strongly recommended over other volume types.
       optional: true
+  stepTemplate:
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
   steps:
     - name: clone
       image: quay.io/konflux-ci/git-clone@sha256:09ac9c14392b5c2b8057f66cc4abfb8ce5d7214706318959d00908923a754434
@@ -183,8 +188,6 @@ spec:
         - mountPath: /mnt/trusted-ca
           name: trusted-ca
           readOnly: true
-        - mountPath: /var/workdir
-          name: workdir
       env:
         - name: HOME
           value: $(params.userHome)
@@ -385,9 +388,6 @@ spec:
         runAsUser: 0
     - name: symlink-check
       image: quay.io/konflux-ci/git-clone@sha256:09ac9c14392b5c2b8057f66cc4abfb8ce5d7214706318959d00908923a754434
-      volumeMounts:
-        - mountPath: /var/workdir
-          name: workdir
       env:
         - name: PARAM_ENABLE_SYMLINK_CHECK
           value: $(params.enableSymlinkCheck)
@@ -429,8 +429,6 @@ spec:
         - $(params.ociStorage)
         - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
       volumeMounts:
-        - mountPath: /var/workdir
-          name: workdir
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
           name: trusted-ca
           readOnly: true
