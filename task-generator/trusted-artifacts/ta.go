@@ -362,6 +362,8 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 
 		if task.Spec.StepTemplate == nil && !recipe.PreferStepTemplate {
 			create.VolumeMounts = append([]core.VolumeMount{workdirVolumeMount}, recipe.AddTAVolumeMount...)
+		} else if len(recipe.AddTAVolumeMount) > 0 {
+			create.VolumeMounts = append(create.VolumeMounts, recipe.AddTAVolumeMount...)
 		}
 		task.Spec.Steps = append(task.Spec.Steps, create)
 	}
