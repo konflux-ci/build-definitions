@@ -43,6 +43,9 @@ spec:
         set -o nounset
         set -o pipefail
 
+        # shellcheck disable=SC1091
+        source .tekton/scripts/install-ec-gh.sh
+
         git config --global --add safe.directory /workspace/source/source
 
         rules="$(mktemp -d)"
