@@ -21,7 +21,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |ociStorage|The OCI repository where the Trusted Artifacts are stored.||true|
 |refspec|Refspec to fetch before checking out revision.|""|false|
 |revision|Revision to checkout. (branch, tag, sha, ref, etc...)|""|false|
-|shortCommitLength|Length of short commit SHA|7|false|
+|shortCommitLength|Minimum length of the short commit SHA. Git may return a longer prefix if needed for uniqueness.|7|false|
 |sparseCheckoutDirectories|Define the directory patterns to match or exclude when performing a sparse checkout.|""|false|
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
 |submodulePaths|Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. |""|false|
@@ -38,7 +38,7 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |commit|The precise commit SHA that was fetched by this Task.|
 |commit-timestamp|The commit timestamp of the checkout|
 |merged_sha|The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).|
-|short-commit|The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters|
+|short-commit|Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.|
 |url|The precise URL that was fetched by this Task.|
 
 ## Workspaces
