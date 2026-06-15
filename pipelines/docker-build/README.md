@@ -157,7 +157,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
 |refspec| Refspec to fetch before checking out revision.| ""| |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| ""| '$(params.revision)'|
-|shortCommitLength| Length of short commit SHA| 7| |
+|shortCommitLength| Minimum length of the short commit SHA. Git may return a longer prefix if needed for uniqueness.| 7| |
 |sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| ""| |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
@@ -307,7 +307,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |commit| The precise commit SHA that was fetched by this Task.| build-container:0.10:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
-|short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
+|short-commit| Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.| |
 |url| The precise URL that was fetched by this Task.| build-container:0.10:SOURCE_URL|
 ### init:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
