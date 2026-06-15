@@ -8,12 +8,12 @@ Pipelines and Tasks are delivered into Konflux via the quay organization `konflu
 Pipelines are bundled and pushed into repositories prefixed with `pipeline-` and tagged with `$GIT_SHA` (the tag will be updated with every change).
 Tasks are bundled and pushed into repositories prefixed with `task-` and tagged with `$VERSION`, where `VERSION` is the task version (the tag is updated when the task file contains any change in the PR)
 
-Currently, a set of utilities is bundled with Konflux in `quay.io/konflux-ci/appstudio-utils:$GIT_SHA` as a convenience, but tasks may be run from different per-task containers.
+**Note:** The `appstudio-utils` image has been deprecated and replaced by `quay.io/konflux-ci/task-runner`. Tasks use the `task-runner` image as their utility container.
 
 
 ## Building
 
-The script `hack/build-and-push.sh` creates bundles for pipelines, tasks and the `appstudio-utils` image. Images are pushed into your quay.io repository. You will need to set `QUAY_NAMESPACE` to use this feature and be logged into quay.io on your workstation.
+The script `hack/build-and-push.sh` creates bundles for pipelines and tasks. Images are pushed into your quay.io repository. You will need to set `QUAY_NAMESPACE` to use this feature and be logged into quay.io on your workstation.
 Once you run the `hack/build-and-push.sh`, all pipelines will come from your bundle instead of the default one installed by GitOps into the cluster.
 
 > **Note**

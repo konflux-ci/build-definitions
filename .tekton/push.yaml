@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.10/buildah-remote.yaml, task/build-image-index/0.3/build-image-index.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml, task/apply-tags/0.3/apply-tags.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.1/git-clone.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -15,7 +15,7 @@ spec:
     - name: revision
       value: "{{ revision }}"
     - name: image-target
-      value: "quay.io/konflux-ci/appstudio-utils:{{ revision }}"
+      value: "quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e"
     - name: slack-webhook-notification-team
       value: "integration-slack-alerts"
     - name: console_url
@@ -45,30 +45,6 @@ spec:
         workspaces:
           - name: output
             workspace: workspace
-
-      - name: sast-snyk-check
-        params:
-          - name: ARGS
-            value: --report --project-name=konflux-ci/build-definitions
-          - name: image-url
-            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
-          - name: image-digest
-            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
-        runAfter:
-          - build-appstudio-utils-index
-        taskRef:
-          params:
-          - name: name
-            value: sast-snyk-check
-          - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:566753ca880764361b11f2c67d8e62dda94f829b11cb48e4716f27568216a481
-          - name: kind
-            value: task
-          resolver: bundles
-        workspaces:
-          - name: workspace
-            workspace: workspace
-
       - name: ec-task-checks
         runAfter:
           - clone-repository
@@ -77,59 +53,11 @@ spec:
         workspaces:
           - name: source
             workspace: workspace
-      - name: build-appstudio-utils
-        matrix:
-          params:
-          - name: PLATFORM
-            value:
-            - linux/x86_64
-            - linux/arm64
-        params:
-          - name: IMAGE
-            value: "$(params.image-target)"
-          - name: CONTEXT
-            value: appstudio-utils
-          - name: IMAGE_APPEND_PLATFORM
-            value: "true"
-        runAfter:
-          - clone-repository
-        taskRef:
-          name: buildah-remote
-        workspaces:
-          - name: source
-            workspace: workspace
-
-      - name: build-appstudio-utils-index
-        params:
-          - name: IMAGE
-            value: "$(params.image-target)"
-          - name: IMAGES
-            value:
-            - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
-        runAfter:
-          - build-appstudio-utils
-        taskRef:
-          name: build-image-index
-
-      - name: apply-additional-image-tags
-        params:
-          - name: IMAGE_URL
-            value: $(tasks.build-appstudio-utils-index.results.IMAGE_URL)
-          - name: IMAGE_DIGEST
-            value: $(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)
-          - name: ADDITIONAL_TAGS
-            value: ["latest"]
-        runAfter:
-          - build-appstudio-utils-index
-        taskRef:
-          name: apply-tags
-
       - name: build-bundles
         params:
           - name: revision
             value: "$(params.revision)"
         runAfter:
-          - build-appstudio-utils-index
           - ec-task-checks
           - create-repositories-if-missing
         workspaces:
@@ -202,6 +130,10 @@ spec:
               script: |
                 #!/bin/bash
                 set -euo pipefail
+
+                # shellcheck disable=SC1091
+                source .tekton/scripts/install-ec-gh.sh
+
                 git config --global --add safe.directory /workspace/source/source
 
                 DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
@@ -230,7 +162,7 @@ spec:
 
       - name: create-repositories-if-missing
         runAfter:
-          - build-appstudio-utils-index
+          - clone-repository
         taskSpec:
           steps:
             - name: run-create-bundle-repos

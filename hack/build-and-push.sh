@@ -184,27 +184,9 @@ fi
 # (This method is used in PR testing)
 : "${TEST_REPO_NAME:=}"
 
-APPSTUDIO_UTILS_IMG="quay.io/$QUAY_NAMESPACE/${TEST_REPO_NAME:-appstudio-utils}:${TEST_REPO_NAME:+appstudio-utils-}$BUILD_TAG"
-
 OUTPUT_TASK_BUNDLE_LIST="${OUTPUT_TASK_BUNDLE_LIST-task-bundle-list}"
 OUTPUT_PIPELINE_BUNDLE_LIST="${OUTPUT_PIPELINE_BUNDLE_LIST-pipeline-bundle-list}"
 rm -f "${OUTPUT_TASK_BUNDLE_LIST}" "${OUTPUT_PIPELINE_BUNDLE_LIST}"
-
-# Build appstudio-utils image
-if [ "$SKIP_BUILD" == "" ]; then
-    echo "Using $QUAY_NAMESPACE to push results "
-    docker build -t "$APPSTUDIO_UTILS_IMG" "appstudio-utils/"
-    retry docker push "$APPSTUDIO_UTILS_IMG"
-
-    # This isn't needed during PR testing
-    if [[ "$BUILD_TAG" != "latest" && -z "$TEST_REPO_NAME" ]]; then
-        # tag with latest
-        IMAGE_NAME="${APPSTUDIO_UTILS_IMG%:*}:latest"
-        docker tag "$APPSTUDIO_UTILS_IMG" "$IMAGE_NAME"
-        retry docker push "$IMAGE_NAME"
-    fi
-
-fi
 
 GENERATED_PIPELINES_DIR=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
 declare -r GENERATED_PIPELINES_DIR
@@ -448,7 +430,8 @@ attach_migration_file() {
         )
 
         if [ -n "$filename" ]; then
-            if diff "$filename" "$migration_file" >/dev/null; then
+            # sha256sum is used instead of diff, which is not available in the task-runner image
+            if [ "$(sha256sum < "$filename")" = "$(sha256sum < "$migration_file")" ]; then
                 found=true
                 break
             else

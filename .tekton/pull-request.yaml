@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, task/buildah-remote/0.10/buildah-remote.yaml, task/build-image-index/0.3/build-image-index.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/git-clone/0.1/git-clone.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -16,7 +16,7 @@ spec:
     - name: e2e_test_namespace
       value: build-templates-e2e
     - name: image-target
-      value: quay.io/konflux-ci/pull-request-builds:appstudio-utils-{{revision}}
+      value: "quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e"
   pipelineSpec:
     params:
       - name: repo_url
@@ -38,61 +38,6 @@ spec:
             value: $(params.revision)
           - name: depth
             value: "0"
-      - name: build-appstudio-utils
-        matrix:
-          params:
-          - name: PLATFORM
-            value:
-            - linux/x86_64
-            - linux/arm64
-        params:
-          - name: IMAGE
-            value: "$(params.image-target)"
-          - name: CONTEXT
-            value: appstudio-utils
-          - name: IMAGE_APPEND_PLATFORM
-            value: "true"
-        runAfter:
-          - clone-repository
-        taskRef:
-          name: buildah-remote
-        workspaces:
-          - name: source
-            workspace: workspace
-
-      - name: build-appstudio-utils-index
-        params:
-          - name: IMAGE
-            value: "$(params.image-target)"
-          - name: IMAGES
-            value:
-            - $(tasks.build-appstudio-utils.results.IMAGE_REF[*])
-        runAfter:
-          - build-appstudio-utils
-        taskRef:
-          name: build-image-index
-
-      - name: sast-snyk-check
-        runAfter:
-          - clone-repository
-          - build-appstudio-utils-index
-        params:
-          - name: image-url
-            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
-          - name: image-digest
-            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
-        taskRef:
-          params:
-          - name: name
-            value: sast-snyk-check
-          - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:566753ca880764361b11f2c67d8e62dda94f829b11cb48e4716f27568216a481
-          - name: kind
-            value: task
-          resolver: bundles
-        workspaces:
-          - name: workspace
-            workspace: workspace
       - name: task-switchboard
         taskRef:
           name: task-switchboard
@@ -107,29 +52,9 @@ spec:
               - tasks_pipelines := strings.any_prefix_match(input, ["task/", "external-task/", "pipelines/", "hack/", ".tekton/"])
               - check_partner_tasks := strings.any_prefix_match(input, ["partners/", "hack/", ".tekton/"])
         runAfter:
-          - build-appstudio-utils-index
+          - clone-repository
         workspaces:
           - name: source
-            workspace: workspace
-      - name: sast-unicode-check
-        runAfter:
-          - build-appstudio-utils-index
-        params:
-          - name: image-digest
-            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_DIGEST)"
-          - name: image-url
-            value: "$(tasks.build-appstudio-utils-index.results.IMAGE_URL)"
-        taskRef:
-          params:
-          - name: name
-            value: sast-unicode-check
-          - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.4@sha256:fd7c78e9b0375a9e92f235a0173e85de3371cd00d33e8ed212647279525aadd1
-          - name: kind
-            value: task
-          resolver: bundles
-        workspaces:
-          - name: workspace
             workspace: workspace
       - name: check-partner-tasks
         when:
