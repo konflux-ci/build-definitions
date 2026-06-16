@@ -9,56 +9,6 @@ addParams:
       hours, days, and weeks, respectively.
     type: string
     default: ""
-addResult:
-  - name: SOURCE_ARTIFACT
-    description: The Trusted Artifact URI pointing to downloaded model files.
-additionalSteps:
-  - at: 3
-    name: populate-model-source
-    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
-    workingDir: /var/workdir
-    script: |
-      #!/bin/bash
-      set -euo pipefail
-
-      mkdir -p /var/workdir/model-source
-      select-oci-auth "${IMAGE}" >auth.json
-      REPO=${IMAGE%:*}
-
-      shopt -s nullglob
-      varfiles=(/var/workdir/vars/*)
-      shopt -u nullglob
-
-      if [ "${#varfiles[@]}" -eq 0 ]; then
-        echo "No artifacts to include in SOURCE_ARTIFACT"
-        exit 0
-      fi
-
-      for varfile in "${varfiles[@]}"; do
-        # shellcheck source=/dev/null
-        source "$varfile"
-        output_path="/var/workdir/model-source/${OCI_FILENAME}"
-        mkdir -p "$(dirname "${output_path}")"
-        retry oras blob fetch --registry-config auth.json "${REPO}@sha256:${OCI_ARTIFACT_DIGEST}" >"${output_path}"
-        echo "${OCI_ARTIFACT_DIGEST}  ${output_path}" | sha256sum --check --quiet
-      done
-  - at: 4
-    name: create-trusted-artifact
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
-    args:
-      - create
-      - --store
-      - $(params.IMAGE).source
-      - $(results.SOURCE_ARTIFACT.path)=/var/workdir/model-source
-    env:
-      - name: IMAGE_EXPIRES_AFTER
-        value: $(params.IMAGE_EXPIRES_AFTER)
-    computeResources:
-      limits:
-        memory: 4Gi
-      requests:
-        cpu: "2"
-        memory: 4Gi
 removeWorkspaces:
   - source
 replacements:
