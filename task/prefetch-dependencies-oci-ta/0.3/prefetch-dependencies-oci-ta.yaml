@@ -215,6 +215,8 @@ spec:
 
         if [ "$UPDATE_CA_TRUST" = "true" ]; then
           update-ca-trust
+          # requests ignores the system CA store. Set REQUESTS_CA_BUNDLE explicitly.
+          export REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
         fi
 
         if [ -e /activation-key/org ] && [ -e /activation-key/activationkey ]; then
