@@ -123,7 +123,7 @@ spec:
         name: workdir
   steps:
     - name: skip-ta
-      image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
+      image: registry.access.redhat.com/ubi9/ubi-minimal:9.8-1781496742@sha256:1bc3c5c15720506a0cf48adfdf8b623dfe704377e007d7bbae8d14876392ca6a
       env:
         - name: INPUT
           value: $(params.input)
@@ -147,12 +147,12 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0d5769f1a100f6b4f330cfa5d2bd22efc50bdb184e270ca84404e25c0b8fcf80
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prefetch-dependencies
-      image: quay.io/konflux-ci/hermeto:0.53.0@sha256:1dc414807be0cacf6d1b7f5bc3d098e1c25bfbca9a45a613050e5036435d4102
+      image: quay.io/konflux-ci/hermeto:0.55.0@sha256:27936b01262824104cce87d433ffcb622bf906bc833033b6b05c62257f3c3232
       volumeMounts:
         - mountPath: /activation-key
           name: activation-key
@@ -236,7 +236,7 @@ spec:
           cpu: "1"
           memory: 3Gi
     - name: create-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:5307eb0dd71e493851632526497b85640efe46cf2e1934856724489260c968ae
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0d5769f1a100f6b4f330cfa5d2bd22efc50bdb184e270ca84404e25c0b8fcf80
       args:
         - create
         - --store
