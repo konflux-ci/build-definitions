@@ -11,6 +11,16 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.2
+
+### Fixed
+
+- The injected `labels.json` file will now better match the actual image labels
+  in cases when the containerfile includes quoted `LABEL` values. This is a result
+  of [dockerfile-json#16].
+
+[dockerfile-json#16]: https://github.com/konflux-ci/dockerfile-json/pull/16
+
 ## 0.10.1
 
 ### Changed
