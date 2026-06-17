@@ -74,22 +74,22 @@ spec:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
       computeResources:
+        limits:
+          memory: 4Gi
         requests:
           memory: 4Gi
           cpu: 50m
-        limits:
-          memory: 4Gi
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: run-opm-with-user-args
       image: quay.io/konflux-ci/operator-sdk-builder:latest@sha256:2737ff035f3a6d94e189cd31e7653998525c52f4d4db994ba1874a3a74bb4912
       computeResources:
+        limits:
+          memory: 512Mi
         requests:
           memory: 512Mi
           cpu: 100m
-        limits:
-          memory: 512Mi
       workingDir: /var/workdir/source
       results:
         - name: skip_create_trusted_artifact
@@ -146,11 +146,11 @@ spec:
     - name: convert-image-tags-to-digests
       image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
       computeResources:
+        limits:
+          memory: 64Mi
         requests:
           memory: 64Mi
           cpu: 250m
-        limits:
-          memory: 64Mi
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -297,11 +297,11 @@ spec:
     - name: replace-related-images-pullspec-in-file
       image: quay.io/konflux-ci/konflux-test:v1.5.0@sha256:fbd5ad045b902065990218922aa6f343e8eb5fd039ecd445bc54819b8e968c3e
       computeResources:
+        limits:
+          memory: 64Mi
         requests:
           memory: 64Mi
           cpu: 50m
-        limits:
-          memory: 64Mi
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
@@ -337,11 +337,11 @@ spec:
     - name: create-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:a246cf2267fe6fa68ae8885c6ca4141923edca3ccf9b56838d1ebe369d31b46d
       computeResources:
+        limits:
+          memory: 3Gi
         requests:
           memory: 3Gi
           cpu: 50m
-        limits:
-          memory: 3Gi
       when:
         - input: "$(steps.run-opm-with-user-args.results.skip_create_trusted_artifact)"
           operator: in
