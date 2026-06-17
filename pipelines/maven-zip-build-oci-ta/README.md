@@ -14,7 +14,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |output-image| Fully Qualified Output Image| None| clone-repository:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-oci-artifact:0.1:IMAGE|
 |prefetch-input| Build dependencies to be prefetched| generic| prefetch-dependencies:0.3:input|
 |revision| Revision of the Source Repository| | clone-repository:0.1:revision|
-|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.4:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks
@@ -91,13 +91,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| ""| '$(tasks.build-oci-artifact.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| ""| '$(tasks.build-oci-artifact.results.IMAGE_URL)'|
-### sast-snyk-check-oci-ta:0.4 task parameters
+### sast-snyk-check-oci-ta:0.5 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| ""| |
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
+|EXTRA_ARTIFACT_FILTER| Extended regex matching org.opencontainers.image.title paths in the OCI manifest when FETCH_EXTRA_ARTIFACTS=true.| (^|/)(Dockerfile|Containerfile|[^/]+\.(sh|bash|zsh|ksh|py|rb|pl|js|mjs|cjs|ts|ps1))$| |
+|FETCH_EXTRA_ARTIFACTS| When "true", fetch script-like files from image-url@image-digest (OCI artifact manifest) into /var/workdir/source alongside the restored SOURCE_ARTIFACT. Skipped for standard container images.| false| |
 |IGNORE_FILE_PATHS| Directories or files to be excluded from Snyk scan (Comma-separated). Useful to split the directories of a git repo across multiple components.| ""| |
-|IMP_FINDINGS_ONLY| Report only important findings. Default is true. To report all findings, specify "false"| true| |
+|IMP_FINDINGS_ONLY| Report only important findings in task result. Default is "true". To report all findings in task result, specify "false". Uploaded SARIF report to remote registry always includes all findings, regardless of severity level.| true| |
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Write excluded records in file. Useful for auditing (defaults to false).| false| |
@@ -134,9 +136,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### build-maven-zip-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.4:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest|
+|IMAGE_DIGEST| Digest of the OCI-Artifact just built| sast-snyk-check:0.5:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest|
 |IMAGE_REF| OCI-Artifact reference of the built OCI-Artifact| |
-|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| sast-snyk-check:0.4:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url|
+|IMAGE_URL| OCI-Artifact repository and tag where the built OCI-Artifact was pushed| sast-snyk-check:0.5:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### git-clone-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -157,13 +159,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### prefetch-dependencies-oci-ta:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-oci-artifact:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.4:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| sast-snyk-check:0.4:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.4:SOURCE_ARTIFACT|
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-oci-artifact:0.1:CACHI2_ARTIFACT ; sast-snyk-check:0.5:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| sast-snyk-check:0.5:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.4:SOURCE_ARTIFACT|
 ### sast-shell-check-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check-oci-ta:0.4 task results
+### sast-snyk-check-oci-ta:0.5 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
