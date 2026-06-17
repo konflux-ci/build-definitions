@@ -332,7 +332,7 @@ spec:
         export PATH=/shared/bin:$PATH
 
         # We have 10 total checks
-        check_num=10
+        check_num=11
         failure_num=0
         TESTPASSED=true
 
@@ -466,6 +466,32 @@ spec:
             failure_num=$((failure_num + 1))
               TESTPASSED=false
             fi
+          fi
+        fi
+
+        # Validate olm.bundle image references are digest-pinned
+        status=0
+        bundle_images=$(jq -r 'select(.schema == "olm.bundle" and .image != null) | .image' ${OPM_RENDERED_CATALOG}) || status=$?
+        if [ $status -ne 0 ]; then
+          echo "!FAILURE! - Could not extract olm.bundle image references from rendered catalog."
+          failure_num=$((failure_num + 1))
+          TESTPASSED=false
+        else
+          non_pinned_images=()
+
+          while IFS= read -r bundle_image; do
+            if [[ -n "${bundle_image}" ]]; then
+              if [[ ! "${bundle_image}" =~ @sha256:[a-f0-9]{64}$ ]]; then
+                non_pinned_images+=("${bundle_image}")
+              fi
+            fi
+          done <<< "${bundle_images}"
+
+          if [[ ${#non_pinned_images[@]} -gt 0 ]]; then
+            echo "!FAILURE! - The following olm.bundle image references are not digest-pinned:"
+            printf '  %s\n' "${non_pinned_images[@]}"
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
           fi
         fi
 

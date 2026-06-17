@@ -19,3 +19,15 @@ You can choose to produce `olm.csv.metadata` format by using the `--migrate-leve
 Bundle data in `olm.csv.metadata` format contains only information that the OpenShift Console needs which is derived from the package's Cluster Standard Version(CSV).  Since the previous `olm.bundle.object` format would include bundle CSV metadata as well as other properties it is possible to convert from `olm.bundle.object` to `olm.csv.metadata`, but not the reverse. 
 
 If you rely on other tooling/processes to produce your fragment and currently use the `olm.bundle.object` bundle metadata format, then you may either adjust your tooling to generate `olm.csv.metadata` format or you may use `opm` to migrate your fragment's bundle metadata by using `opm render --migrate-level=bundle-object-to-csv-metadata [fragment-ref]` (where `fragment-ref` is a pullspec to the fragment or a path to a directory containing the fragment).
+
+## olm.bundle image references are not digest-pinned
+
+Tasks may fail with an error message containing the string `olm.bundle image references are not digest-pinned`. This means that one or more bundle image references in your FBC fragment use a floating tag (e.g. `:latest` or `:v1.0`) instead of a digest-pinned reference.
+
+All `olm.bundle` image references must use the `@sha256:<digest>` format to ensure reproducible builds and supply chain integrity.
+
+To fix this, replace tag-based references with their digest-pinned equivalents. You can obtain the digest for an image using:
+```bash
+skopeo inspect --no-tags docker://<image>:<tag> | jq -r '.Digest'
+```
+Then update your catalog to use `<image>@sha256:<digest>` instead of `<image>:<tag>`.
