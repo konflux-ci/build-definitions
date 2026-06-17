@@ -31,3 +31,11 @@ To fix this, replace tag-based references with their digest-pinned equivalents. 
 skopeo inspect --no-tags docker://<image>:<tag> | jq -r '.Digest'
 ```
 Then update your catalog to use `<image>@sha256:<digest>` instead of `<image>:<tag>`.
+
+## olm.bundle image references are not from registry.redhat.io or registry.stage.redhat.io
+
+Tasks may fail with an error message containing the string `olm.bundle image references are not from registry.redhat.io or registry.stage.redhat.io`. This means that one or more bundle image references in your FBC fragment point to a registry other than `registry.redhat.io` or `registry.stage.redhat.io`.
+
+All `olm.bundle` image references must originate from a trusted registry to ensure supply chain integrity.
+
+To fix this, ensure that all bundle images referenced in your catalog are published to `registry.redhat.io` or `registry.stage.redhat.io` and update the image references accordingly.

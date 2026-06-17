@@ -332,7 +332,7 @@ spec:
         export PATH=/shared/bin:$PATH
 
         # We have 10 total checks
-        check_num=11
+        check_num=12
         failure_num=0
         TESTPASSED=true
 
@@ -469,7 +469,7 @@ spec:
           fi
         fi
 
-        # Validate olm.bundle image references are digest-pinned
+        # Validate olm.bundle image references are digest-pinned and from trusted registries
         status=0
         bundle_images=$(jq -r 'select(.schema == "olm.bundle" and .image != null) | .image' ${OPM_RENDERED_CATALOG}) || status=$?
         if [ $status -ne 0 ]; then
@@ -478,11 +478,15 @@ spec:
           TESTPASSED=false
         else
           non_pinned_images=()
+          wrong_registry_images=()
 
           while IFS= read -r bundle_image; do
             if [[ -n "${bundle_image}" ]]; then
               if [[ ! "${bundle_image}" =~ @sha256:[a-f0-9]{64}$ ]]; then
                 non_pinned_images+=("${bundle_image}")
+              fi
+              if [[ ! "${bundle_image}" =~ ^registry\.(stage\.)?redhat\.io/ ]]; then
+                wrong_registry_images+=("${bundle_image}")
               fi
             fi
           done <<< "${bundle_images}"
@@ -490,6 +494,13 @@ spec:
           if [[ ${#non_pinned_images[@]} -gt 0 ]]; then
             echo "!FAILURE! - The following olm.bundle image references are not digest-pinned:"
             printf '  %s\n' "${non_pinned_images[@]}"
+            failure_num=$((failure_num + 1))
+            TESTPASSED=false
+          fi
+
+          if [[ ${#wrong_registry_images[@]} -gt 0 ]]; then
+            echo "!FAILURE! - The following olm.bundle image references are not from registry.redhat.io or registry.stage.redhat.io:"
+            printf '  %s\n' "${wrong_registry_images[@]}"
             failure_num=$((failure_num + 1))
             TESTPASSED=false
           fi
