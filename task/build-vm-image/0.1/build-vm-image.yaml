@@ -113,6 +113,11 @@ spec:
         # bootc-builder-image: "quay.io/centos-bootc/bootc-image-builder:latest"
         # source-image: "quay.io/centos-bootc/centos-bootc:stream9"
         # tagged-as: registry.centos.org/bootc:stream9
+        #   ^ tagged-as is passed to BIB via --local and recorded by
+        #     bootc install to-disk as the upgrade source. Deployed VMs
+        #     run bootc upgrade against this ref, so it must point to a
+        #     valid bootc container image — not a disk image artifact.
+        #     Omitting tagged-as defaults to source-image, which is safe.
 
         # trim any leading slash.
         BIB_CONFIG_FILE=${BIB_CONFIG_FILE#/}
