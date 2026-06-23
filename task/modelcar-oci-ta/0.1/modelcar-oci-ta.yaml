@@ -147,46 +147,6 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    - name: download-model-files
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
-      computeResources:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 64Mi
-      volumeMounts:
-        - mountPath: /model-secret
-          name: model-secret
-      workingDir: /var/workdir
-      env:
-        - name: MTIME_DEFAULT
-          value: $(params.MTIME)
-      script: |
-        #!/bin/bash
-        set -eu
-        set -o pipefail
-
-        if ! retry oras pull "$MODEL_IMAGE" \
-          --registry-config /model-secret/.dockerconfigjson --output /var/workdir/models
-        then
-          echo "Failed to pull ${MODEL_IMAGE} from registry"
-          exit 1
-        fi
-        chmod -R g+wx models
-
-        # since several ModelCar archs are produced by different and separate pipeline runs consuming this Task,
-        # in order to achieve analogous optimization of Olot of "layers re-use across archs",
-        # we can set the model files mtime to a fixed timestamp, to achieve analogous result
-        MTIME=$(oras manifest fetch "$MODEL_IMAGE" \
-          --registry-config /model-secret/.dockerconfigjson \
-          | jq -r '.annotations["org.opencontainers.image.created"]' \
-          | tr -d 'TZ:-' \
-          | sed 's/\(..\)$/.\1/')
-        if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
-          MTIME="$MTIME_DEFAULT"
-        fi
-        find models -exec touch -t "$MTIME" {} +
     - name: create-modelcar-base-image
       image: quay.io/konflux-ci/release-service-utils:2f93b7ed6a2099e7187bb110a6b95caac3b8bdbc
       computeResources:
@@ -218,8 +178,8 @@ spec:
         echo "Recording base image used:"
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
-    - name: copy-model-files
-      image: registry.access.redhat.com/ubi9/python-311:9.7-1769430375
+    - name: build-and-push
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       computeResources:
         requests:
           memory: 512Mi
@@ -229,36 +189,15 @@ spec:
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
+      volumeMounts:
+        - mountPath: /model-secret
+          name: model-secret
       workingDir: /var/workdir
       env:
-        - name: OLOT_VERSION
-          value: 0.1.14
         - name: MODELCARD_PATH
           value: $(params.MODELCARD_PATH)
-        - name: REMOVE_ORIGINALS
-          value: $(params.REMOVE_ORIGINALS)
-      script: |
-        #!/bin/bash
-        set -eu
-        set -o pipefail
-
-        REMOVE_ORIGINALS_ARG=()
-        if [[ "$REMOVE_ORIGINALS" == "true" ]]; then
-          REMOVE_ORIGINALS_ARG+=("--remove-originals")
-        fi
-        pip install olot=="${OLOT_VERSION}"
-
-        echo REMOVE_ORIGINALS_ARG "${REMOVE_ORIGINALS_ARG[@]}"
-        echo MODELCARD_PATH "$MODELCARD_PATH"
-        echo TARGET_OCI "$TARGET_OCI"
-        echo Models: models/*
-
-        olot --verbose "${REMOVE_ORIGINALS_ARG[@]}" -m "$MODELCARD_PATH" "$TARGET_OCI" models/*
-
-    - name: apply-image-labels
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
-      workingDir: /var/workdir
-      env:
+        - name: MTIME_DEFAULT
+          value: $(params.MTIME)
         - name: COMMIT_SHA
           value: $(params.COMMIT_SHA)
         - name: IMAGE_EXPIRES_AFTER
@@ -272,6 +211,89 @@ spec:
         set -eu
         set -o pipefail
 
+        # ─── Resolve destination image ───
+        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
+          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
+          export IMAGE
+        fi
+        select-oci-auth "$IMAGE" > auth.json
+        DEST_REPO="${IMAGE%:*}"
+        BLOBS_DIR="${TARGET_OCI}/blobs/sha256"
+
+        # ─── Fetch model manifest for mtime + layer list ───
+        MODEL_MANIFEST=$(oras manifest fetch "$MODEL_IMAGE" \
+          --registry-config /model-secret/.dockerconfigjson)
+        MODEL_REF="${MODEL_IMAGE%%@*}"
+
+        MTIME=$(echo "$MODEL_MANIFEST" | jq -r '.annotations["org.opencontainers.image.created"]' \
+          | tr -d 'TZ:-' \
+          | sed 's/\(..\)$/.\1/')
+        if [ -z "$MTIME" ] || [ "$MTIME" = "null" ]; then
+          MTIME="$MTIME_DEFAULT"
+        fi
+
+        LAYER_COUNT=$(echo "$MODEL_MANIFEST" | jq \
+          '[.layers[] | select(.annotations["org.opencontainers.image.title"] != null)] | length')
+        echo "Model artifact has ${LAYER_COUNT} named layer(s) to process"
+
+        # ─── Download, layer, and push model files one at a time ───
+        mkdir -p models
+        CHUNK_IDX=0
+        FIRST_CHUNK=true
+
+        while IFS= read -r layer; do
+          CHUNK_IDX=$((CHUNK_IDX + 1))
+          blob_digest=$(echo "$layer" | jq -r '.digest')
+          title=$(echo "$layer" | jq -r '.annotations["org.opencontainers.image.title"]')
+
+          echo "[${CHUNK_IDX}/${LAYER_COUNT}] Fetching ${title}..."
+          mkdir -p "models/$(dirname "$title")"
+
+          if ! retry oras blob fetch \
+            --registry-config /model-secret/.dockerconfigjson \
+            -o "models/${title}" \
+            "${MODEL_REF}@${blob_digest}"
+          then
+            echo "Failed to fetch blob ${blob_digest} (${title})"
+            exit 1
+          fi
+          chmod g+wx "models/${title}"
+          touch -t "$MTIME" "models/${title}"
+
+          MODELCARD_ARG=()
+          if [ "$FIRST_CHUNK" = true ]; then
+            MODELCARD_ARG+=(-m "$MODELCARD_PATH")
+            FIRST_CHUNK=false
+          fi
+
+          ls "$BLOBS_DIR" | sort > /tmp/blobs_before.txt
+
+          olot --verbose --remove-originals \
+            "${MODELCARD_ARG[@]}" \
+            "$TARGET_OCI" \
+            "models/${title}"
+
+          rm -f "models/${title}"
+
+          # Push new layer blobs to registry, then delete from disk
+          MANIFEST_HASH=$(jq -r '.manifests[0].digest' "${TARGET_OCI}/index.json" | sed 's/sha256://')
+          LAYER_HASHES=$(jq -r '.layers[].digest' "$BLOBS_DIR/$MANIFEST_HASH" | sed 's/sha256://')
+
+          for new_blob in $(comm -13 /tmp/blobs_before.txt <(ls "$BLOBS_DIR" | sort)); do
+            if echo "$LAYER_HASHES" | grep -qx "$new_blob"; then
+              echo "Pushing layer sha256:${new_blob} to registry..."
+              retry oras blob push --registry-config auth.json \
+                "$DEST_REPO" "$BLOBS_DIR/$new_blob"
+              rm "$BLOBS_DIR/$new_blob"
+            fi
+          done
+
+        done < <(echo "$MODEL_MANIFEST" | jq -c \
+          '.layers[] | select(.annotations["org.opencontainers.image.title"] != null)')
+
+        rm -rf models
+
+        # ─── Apply image labels ───
         INDEX="${TARGET_OCI}/index.json"
 
         write_oci_blob() {
@@ -281,7 +303,7 @@ spec:
           echo -n "$content" > "$file"
           digest="sha256:$(sha256sum "$file" | awk '{print $1}')"
           size=$(wc -c < "$file" | tr -d ' ')
-          cp "$file" "${TARGET_OCI}/blobs/sha256/${digest#sha256:}"
+          cp "$file" "$BLOBS_DIR/${digest#sha256:}"
           rm -f "$file"
           echo "${digest} ${size}"
         }
@@ -293,9 +315,9 @@ spec:
         fi
         BUILD_TIMESTAMP_RFC3339=$(date -u -d "@${BUILD_TIMESTAMP}" +'%Y-%m-%dT%H:%M:%SZ')
 
-        manifest_digest=$(skopeo inspect --no-tags "oci:${TARGET_OCI}:latest" | jq -r '.Digest')
-        manifest_path="${TARGET_OCI}/blobs/sha256/${manifest_digest#sha256:}"
-        config_path="${TARGET_OCI}/blobs/sha256/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
+        manifest_digest=$(jq -r '.manifests[0].digest' "$INDEX")
+        manifest_path="$BLOBS_DIR/${manifest_digest#sha256:}"
+        config_path="$BLOBS_DIR/$(jq -r '.config.digest | sub("^sha256:"; "")' "$manifest_path")"
 
         base_labels=$(jq -c '.config.Labels // {}' "$config_path")
         labels_json=$(jq -nc \
@@ -330,32 +352,22 @@ spec:
           "$INDEX" > "${INDEX}.tmp"
         mv "${INDEX}.tmp" "$INDEX"
 
-    - name: push-image
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
-      computeResources:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 64Mi
-      workingDir: /var/workdir
-      script: |
-        #!/bin/bash
-        set -eu
-        set -o pipefail
+        # ─── Push remaining blobs + manifest ───
+        MANIFEST_HASH=$(jq -r '.manifests[0].digest' "$INDEX" | sed 's/sha256://')
 
-        if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
-          IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
-          export IMAGE
-        fi
+        for blob_file in "$BLOBS_DIR"/*; do
+          blob_name=$(basename "$blob_file")
+          [ "$blob_name" = "$MANIFEST_HASH" ] && continue
+          echo "Pushing blob sha256:${blob_name}..."
+          retry oras blob push --registry-config auth.json "$DEST_REPO" "$blob_file"
+        done
 
-        select-oci-auth "$IMAGE" >auth.json
-
-        echo "Pushing complete artifact manifest to ${IMAGE}"
-        if ! retry oras cp --to-registry-config auth.json --from-oci-layout "${TARGET_OCI}:latest" "$IMAGE"
+        echo "Pushing manifest to ${IMAGE}..."
+        if ! retry oras manifest push --registry-config auth.json \
+          "$IMAGE" "$BLOBS_DIR/$MANIFEST_HASH"
         then
-            echo "Failed to push complete artifact manifest to ${IMAGE}"
-            exit 1
+          echo "Failed to push manifest to ${IMAGE}"
+          exit 1
         fi
         echo "Push complete!"
 
@@ -396,7 +408,7 @@ spec:
           --sbom-type "$SBOM_TYPE"
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       computeResources:
         requests:
           memory: 64Mi
@@ -419,7 +431,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       computeResources:
         requests:
           memory: 64Mi
