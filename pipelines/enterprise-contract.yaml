@@ -80,6 +80,10 @@ spec:
         Setting to false is useful on specific conditions but will always mark the integration test as successful and
         humans will tend to ignore the test results if they failed. Use with caution.
       default: "true"
+    - name: EFFECTIVE_TIME
+      type: string
+      description: Run policy checks with the provided time.
+      default: "now"
   results:
     - name: TEST_OUTPUT
       value: "$(tasks.verify.results.TEST_OUTPUT)"
@@ -137,6 +141,8 @@ spec:
           value: "$(params.SINGLE_COMPONENT)"
         - name: SINGLE_COMPONENT_CUSTOM_RESOURCE
           value: "$(params.SINGLE_COMPONENT_CUSTOM_RESOURCE)"
+        - name: EFFECTIVE_TIME
+          value: "$(params.EFFECTIVE_TIME)"
       taskRef:
         resolver: bundles
         params:
