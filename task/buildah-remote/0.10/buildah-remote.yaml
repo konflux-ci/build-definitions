@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.2
+    app.kubernetes.io/version: 0.10.3
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote
 spec:
@@ -245,6 +245,11 @@ spec:
     description: Log level for the build command.
     name: LOG_LEVEL
     type: string
+  - default: "false"
+    description: Allows to use parent images that don't match the build host architecture.
+      This option must be used with caution as it may create incompatible images.
+    name: ALLOW_CROSS_PLATFORM_IMAGES
+    type: string
   - description: The platform to build on
     name: PLATFORM
     type: string
@@ -330,8 +335,10 @@ spec:
       value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
+    - name: ALLOW_CROSS_PLATFORM_IMAGES
+      value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:eaf4bcc55d4753eb0776b9bf61257edb5661b1a574268ef41e8bccb348112dad
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -378,7 +385,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:eaf4bcc55d4753eb0776b9bf61257edb5661b1a574268ef41e8bccb348112dad
     name: build
     script: |-
       #!/bin/bash
@@ -612,6 +619,7 @@ spec:
           --ulimits nofile=4096:4096
           --src-tls-verify="$TLSVERIFY"
           --dest-tls-verify="$TLSVERIFY"
+          --allow-cross-platform-images="$ALLOW_CROSS_PLATFORM_IMAGES"
           "$@"  # --annotations, --labels, --envs, --build-args
       )
 
@@ -686,6 +694,7 @@ spec:
           -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
           -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
+          -e ALLOW_CROSS_PLATFORM_IMAGES="${ALLOW_CROSS_PLATFORM_IMAGES@Q}" \
           -e HOME="${HOME@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \

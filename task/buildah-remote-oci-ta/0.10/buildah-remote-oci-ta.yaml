@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.2
+    app.kubernetes.io/version: 0.10.3
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -32,6 +32,11 @@ spec:
     description: Comma separated list of extra capabilities to add when running 'buildah
       build'
     name: ADD_CAPABILITIES
+    type: string
+  - default: "false"
+    description: Allows to use parent images that don't match the build host architecture.
+      This option must be used with caution as it may create incompatible images.
+    name: ALLOW_CROSS_PLATFORM_IMAGES
     type: string
   - default: []
     description: Additional key=value annotations that should be applied to the image
@@ -285,6 +290,8 @@ spec:
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
       value: $(params.ADD_CAPABILITIES)
+    - name: ALLOW_CROSS_PLATFORM_IMAGES
+      value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
     - name: BUILD_ARGS_FILE
@@ -340,7 +347,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:eaf4bcc55d4753eb0776b9bf61257edb5661b1a574268ef41e8bccb348112dad
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -401,7 +408,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:eaf4bcc55d4753eb0776b9bf61257edb5661b1a574268ef41e8bccb348112dad
     name: build
     script: |-
       #!/bin/bash
@@ -635,6 +642,7 @@ spec:
         --ulimits nofile=4096:4096
         --src-tls-verify="$TLSVERIFY"
         --dest-tls-verify="$TLSVERIFY"
+        --allow-cross-platform-images="$ALLOW_CROSS_PLATFORM_IMAGES"
         "$@" # --annotations, --labels, --envs, --build-args
       )
 
@@ -682,6 +690,7 @@ spec:
           --tmpfs /run/secrets \
           -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
           -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e ALLOW_CROSS_PLATFORM_IMAGES="${ALLOW_CROSS_PLATFORM_IMAGES@Q}" \
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
