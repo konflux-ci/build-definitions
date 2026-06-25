@@ -1,0 +1,165 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-vm-image-sbom-happy-path
+spec:
+  description: |
+    Test that the build-vm-image task downloads an SBOM from the source container
+    and attaches it to the built disk image artifact.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source-image
+      taskSpec:
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: push-source-and-attach-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              SOURCE_IMAGE="registry-service.kind-registry/test-source:test"
+
+              echo "Pushing dummy source container image"
+              cd /tmp && echo "source-content" > source.txt
+              oras push --no-tty "${SOURCE_IMAGE}" source.txt
+
+              echo "Creating test SBOM with a known package"
+              cat > test-sbom.json <<'EOF'
+              {
+                "spdxVersion": "SPDX-2.3",
+                "dataLicense": "CC0-1.0",
+                "SPDXID": "SPDXRef-DOCUMENT",
+                "name": "test-source-sbom",
+                "documentNamespace": "https://test.example.com/sbom",
+                "creationInfo": {
+                  "creators": ["Tool: test-harness"],
+                  "created": "2024-01-01T00:00:00Z"
+                },
+                "packages": [
+                  {
+                    "SPDXID": "SPDXRef-Package-test",
+                    "name": "test-package",
+                    "versionInfo": "1.0.0",
+                    "downloadLocation": "NOASSERTION",
+                    "supplier": "NOASSERTION"
+                  }
+                ]
+              }
+              EOF
+
+              echo "Attaching SBOM to source image"
+              cosign attach sbom --sbom test-sbom.json --type spdx "${SOURCE_IMAGE}"
+              echo "Setup complete"
+
+    - name: run-build-vm-image
+      taskRef:
+        name: build-vm-image
+      params:
+        - name: PLATFORM
+          value: linux/amd64
+        - name: OUTPUT_IMAGE
+          value: registry-service.kind-registry/test-disk-image:latest
+        - name: SOURCE_ARTIFACT
+          value: unused
+        - name: IMAGE_TYPE
+          value: qcow2
+        - name: SBOM_TYPE
+          value: spdx
+        - name: SKIP_SBOM_GENERATION
+          value: "false"
+      runAfter:
+        - setup-source-image
+
+    - name: verify-sbom
+      params:
+        - name: IMAGE_URL
+          value: $(tasks.run-build-vm-image.results.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-build-vm-image.results.IMAGE_DIGEST)
+        - name: SBOM_BLOB_URL
+          value: $(tasks.run-build-vm-image.results.SBOM_BLOB_URL)
+      taskSpec:
+        params:
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+          - name: SBOM_BLOB_URL
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: check-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            env:
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+              - name: SBOM_BLOB_URL
+                value: $(params.SBOM_BLOB_URL)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              IMAGE_REF="${IMAGE_URL}@${IMAGE_DIGEST}"
+              echo "Verifying SBOM on disk image: ${IMAGE_REF}"
+
+              echo "=== Check 1: SBOM can be downloaded ==="
+              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              echo "${SBOM}" | jq .
+
+              echo "=== Check 2: SBOM has packages ==="
+              PKG_COUNT=$(echo "${SBOM}" | jq '.packages | length')
+              if [ "${PKG_COUNT}" -eq 0 ]; then
+                echo "FAIL: SBOM has no packages" && exit 1
+              fi
+              echo "PASS: SBOM has ${PKG_COUNT} package(s)"
+
+              echo "=== Check 3: SBOM contains test-package ==="
+              if ! echo "${SBOM}" | jq -e '.packages[] | select(.name == "test-package")' > /dev/null; then
+                echo "FAIL: test-package not found in SBOM" && exit 1
+              fi
+              echo "PASS: test-package found"
+
+              echo "=== Check 4: SBOM_BLOB_URL is non-empty ==="
+              if [ -z "${SBOM_BLOB_URL}" ]; then
+                echo "FAIL: SBOM_BLOB_URL is empty" && exit 1
+              fi
+              echo "PASS: SBOM_BLOB_URL = ${SBOM_BLOB_URL}"
+
+              echo "=== Check 5: SBOM is not a placeholder ==="
+              if echo "${SBOM}" | jq -e '.comment' > /dev/null 2>&1; then
+                COMMENT=$(echo "${SBOM}" | jq -r '.comment')
+                if [[ "${COMMENT}" == *"placeholder"* ]]; then
+                  echo "FAIL: SBOM is a placeholder" && exit 1
+                fi
+              fi
+              echo "PASS: SBOM is not a placeholder"
+
+              echo "All checks passed"
+      runAfter:
+        - run-build-vm-image

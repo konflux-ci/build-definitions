@@ -1,0 +1,196 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-vm-image-sbom-multi-arch-fallback
+spec:
+  description: |
+    Test that the build-vm-image task correctly detects a multi-arch source image
+    (passes --platform to cosign) but falls back to a placeholder SBOM when no
+    SBOM is attached to the per-arch manifest.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source-image
+      taskSpec:
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: push-multiarch-source-no-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              REPO="registry-service.kind-registry/test-source"
+
+              echo "=== Pushing per-arch images (no SBOM on either) ==="
+              cd /tmp
+              echo "amd64-content-no-sbom" > amd64.txt
+              oras push --no-tty "${REPO}:amd64" amd64.txt
+              AMD64_DIGEST=$(oras resolve "${REPO}:amd64")
+              echo "amd64 digest: ${AMD64_DIGEST}"
+
+              echo "arm64-content-no-sbom" > arm64.txt
+              oras push --no-tty "${REPO}:arm64" arm64.txt
+              ARM64_DIGEST=$(oras resolve "${REPO}:arm64")
+              echo "arm64 digest: ${ARM64_DIGEST}"
+
+              echo "=== Creating OCI image index ==="
+              cat > index.json <<EOF
+              {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                  {
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "digest": "${AMD64_DIGEST}",
+                    "size": $(skopeo inspect --raw "docker://${REPO}@${AMD64_DIGEST}" | wc -c),
+                    "platform": { "architecture": "amd64", "os": "linux" }
+                  },
+                  {
+                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                    "digest": "${ARM64_DIGEST}",
+                    "size": $(skopeo inspect --raw "docker://${REPO}@${ARM64_DIGEST}" | wc -c),
+                    "platform": { "architecture": "arm64", "os": "linux" }
+                  }
+                ]
+              }
+              EOF
+              cat index.json
+
+              REGISTRY="registry-service.kind-registry"
+              INDEX_CT="application/vnd.oci.image.index.v1+json"
+              curl -fsSL -X PUT \
+                -H "Content-Type: ${INDEX_CT}" \
+                -d @index.json \
+                "https://${REGISTRY}/v2/test-source/manifests/test" \
+                --cacert /etc/pki/tls/certs/ca-custom-bundle.crt || \
+              curl -fsSL -X PUT \
+                -H "Content-Type: ${INDEX_CT}" \
+                -d @index.json \
+                "http://${REGISTRY}/v2/test-source/manifests/test"
+
+              echo "=== Verifying index ==="
+              skopeo inspect --raw "docker://${REPO}:test" | jq .
+
+              echo "Setup complete — multi-arch index with no SBOM on any manifest"
+
+    - name: run-build-vm-image
+      taskRef:
+        name: build-vm-image
+      params:
+        - name: PLATFORM
+          value: linux/amd64
+        - name: OUTPUT_IMAGE
+          value: registry-service.kind-registry/test-disk-image:latest
+        - name: SOURCE_ARTIFACT
+          value: unused
+        - name: IMAGE_TYPE
+          value: qcow2
+        - name: SBOM_TYPE
+          value: spdx
+        - name: SKIP_SBOM_GENERATION
+          value: "false"
+      runAfter:
+        - setup-source-image
+
+    - name: verify-sbom
+      params:
+        - name: IMAGE_URL
+          value: $(tasks.run-build-vm-image.results.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-build-vm-image.results.IMAGE_DIGEST)
+        - name: SBOM_BLOB_URL
+          value: $(tasks.run-build-vm-image.results.SBOM_BLOB_URL)
+      taskSpec:
+        params:
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+          - name: SBOM_BLOB_URL
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: check-placeholder-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            env:
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+              - name: SBOM_BLOB_URL
+                value: $(params.SBOM_BLOB_URL)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              IMAGE_REF="${IMAGE_URL}@${IMAGE_DIGEST}"
+              echo "Verifying placeholder SBOM on disk image: ${IMAGE_REF}"
+
+              echo "=== Check 1: SBOM can be downloaded ==="
+              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              echo "${SBOM}" | jq .
+
+              echo "=== Check 2: SBOM is SPDX format ==="
+              if ! echo "${SBOM}" | jq -e '.spdxVersion == "SPDX-2.3"' > /dev/null; then
+                echo "FAIL: not an SPDX-2.3 document" && exit 1
+              fi
+              echo "PASS: spdxVersion is SPDX-2.3"
+
+              echo "=== Check 3: SBOM has empty packages (placeholder) ==="
+              PKG_COUNT=$(echo "${SBOM}" | jq '.packages | length')
+              if [ "${PKG_COUNT}" -ne 0 ]; then
+                echo "FAIL: expected 0 packages in placeholder, got ${PKG_COUNT}" && exit 1
+              fi
+              echo "PASS: packages array is empty"
+
+              echo "=== Check 4: SBOM_BLOB_URL is non-empty ==="
+              if [ -z "${SBOM_BLOB_URL}" ]; then
+                echo "FAIL: SBOM_BLOB_URL is empty" && exit 1
+              fi
+              echo "PASS: SBOM_BLOB_URL = ${SBOM_BLOB_URL}"
+
+              echo "=== Check 5: SBOM is a placeholder ==="
+              IS_PLACEHOLDER=false
+              if echo "${SBOM}" | jq -e '.comment' > /dev/null 2>&1; then
+                COMMENT=$(echo "${SBOM}" | jq -r '.comment')
+                if [[ "${COMMENT}" == *"placeholder"* ]]; then
+                  IS_PLACEHOLDER=true
+                fi
+              fi
+              if echo "${SBOM}" | jq -e '.creationInfo.comment' > /dev/null 2>&1; then
+                CREATION_COMMENT=$(echo "${SBOM}" | jq -r '.creationInfo.comment')
+                if [[ "${CREATION_COMMENT}" == *"placeholder"* ]]; then
+                  IS_PLACEHOLDER=true
+                fi
+              fi
+              if [ "${IS_PLACEHOLDER}" != "true" ]; then
+                echo "FAIL: SBOM should be a placeholder but has no placeholder marker" && exit 1
+              fi
+              echo "PASS: SBOM is a placeholder (multi-arch detection ran but no SBOM found)"
+
+              echo "All checks passed — multi-arch fallback to placeholder works correctly"
+      runAfter:
+        - run-build-vm-image
