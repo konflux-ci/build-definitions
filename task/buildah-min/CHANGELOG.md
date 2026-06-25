@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.3
+
+### Added
+
+- Added new parameter ALLOW_CROSS_PLATFORM_IMAGES to allow usage of parent images
+  which don't match build host architecture.
+
 ## 0.10.2
 
 ### Fixed

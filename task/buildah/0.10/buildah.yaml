@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.10.2"
+    app.kubernetes.io/version: "0.10.3"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -232,6 +232,11 @@ spec:
     description: Log level for the build command.
     type: string
     default: info
+  - name: ALLOW_CROSS_PLATFORM_IMAGES
+    description: Allows to use parent images that don't match the build host architecture. This
+      option must be used with caution as it may create incompatible images.
+    type: string
+    default: "false"
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -311,9 +316,11 @@ spec:
       value: $(params.SBOM_SKIP_VALIDATION)
     - name: SKIP_INJECTIONS
       value: $(params.SKIP_INJECTIONS)
+    - name: ALLOW_CROSS_PLATFORM_IMAGES
+      value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
     imagePullPolicy: IfNotPresent
   steps:
-  - image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+  - image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:eaf4bcc55d4753eb0776b9bf61257edb5661b1a574268ef41e8bccb348112dad
     name: build
     computeResources:
       limits:
@@ -517,6 +524,7 @@ spec:
           --ulimits nofile=4096:4096
           --src-tls-verify="$TLSVERIFY"
           --dest-tls-verify="$TLSVERIFY"
+          --allow-cross-platform-images="$ALLOW_CROSS_PLATFORM_IMAGES"
           "$@"  # --annotations, --labels, --envs, --build-args
       )
 
