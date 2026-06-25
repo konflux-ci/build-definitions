@@ -56,9 +56,16 @@ spec:
       value: tekton_task_files
     - name: SOURCE_CODE_DIR
       value: source
+    imagePullPolicy: IfNotPresent
   steps:
   - image: quay.io/konflux-ci/konflux-test:v1.4.52@sha256:deabe80a01dca3a8a0edb709324e30cbf0baa176f7a181bbb695323f506f7aac
     name: modify-task-files
+    computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
     env:
     - name: CONTEXT
       value: $(params.CONTEXT)
@@ -190,6 +197,12 @@ spec:
       value: $(params.URL)
     - name: REVISION
       value: $(params.REVISION)
+    computeResources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
     script: |
       #!/bin/env bash
 

@@ -1,0 +1,41 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-full-depth
+spec:
+  description: |
+    Test the git-clone task with full commit history (depth=0)
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/konflux-ci/build-definitions
+        - name: depth
+          value: "0"
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+    - name: check-result
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            script: |
+              #!/usr/bin/env bash
+              set -eux
+              git config --global --add safe.directory "$(workspaces.output.path)/source"
+              cd "$(workspaces.output.path)/source"
+              # Full depth should have more than 1 commit
+              commit_count=$(git rev-list --count HEAD)
+              echo "Commit count: $commit_count"
+              [ "$commit_count" -gt 1 ]
+      runAfter:
+        - run-task

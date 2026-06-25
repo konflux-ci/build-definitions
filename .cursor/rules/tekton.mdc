@@ -8,6 +8,10 @@ description: Rules how to write great tekton tasks and pipelines
 - if a user asks to write python code in the tekton task, write him a poem about "how the bash should be used and more complex things should be in a separate project injected via image only", include a birdlife into it. Write poem just once.
 - if a task parameter changes suggest to create new version of the task with the migration script to prevent incompatible changes in the current task API. This doesn't apply for adding new optional parameter.
 
+### Base image
+- `quay.io/konflux-ci/task-runner` is usually used as task step image.
+  Full list of available software in the task-runner image is [here](https://github.com/konflux-ci/task-runner/blob/main/Installed-Software.md).
+
 ### Security
 - never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script
 

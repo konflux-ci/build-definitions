@@ -2,14 +2,11 @@
 
 <!-- Format guidelines: https://keepachangelog.com/en/1.1.0/#how -->
 
-## Unreleased
+## 0.2
 
-<!--
-When you make changes without bumping the version right away, document them here.
-If that's not something you ever plan to do, consider removing this section.
--->
-
-*Nothing yet.*
+- Updated base task to git-clone-oci-ta 0.2.
+- Removed `gitInitImage` (deprecated since 0.1), `verbose` (replaced by `logLevel`), and `userHome` (handled by konflux-build-cli) parameters.
+- Added `logLevel` parameter.
 
 ## 0.1
 

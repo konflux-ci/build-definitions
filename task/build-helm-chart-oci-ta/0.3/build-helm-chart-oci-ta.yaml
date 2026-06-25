@@ -95,6 +95,7 @@ spec:
     - name: workdir
       emptyDir: {}
   stepTemplate:
+    imagePullPolicy: IfNotPresent
     volumeMounts:
       - mountPath: /var/workdir
         name: workdir
@@ -116,7 +117,7 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: package-and-push
-      image: quay.io/konflux-ci/tools@sha256:0f6181789a6dcc0d01120dbdd874207a415dc9b0685538423cda5df081749245
+      image: quay.io/konflux-ci/tools@sha256:23a150c91e242064020d24f1f43182804ae97e77f535324e0013cf02cfd4fe7d
       workingDir: /var/workdir
       env:
         - name: IMAGE

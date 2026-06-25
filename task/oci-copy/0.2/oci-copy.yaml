@@ -61,9 +61,16 @@ spec:
         value: $(params.SBOM_TYPE)
       - name: PARALLEL_JOBS
         value: $(params.PARALLEL_JOBS)
+    imagePullPolicy: IfNotPresent
   steps:
     - name: prepare
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       script: |
         #!/bin/bash
         set -eu
@@ -513,7 +520,13 @@ spec:
           name: varlibcontainers
       workingDir: $(workspaces.source.path)
     - name: sbom-generate
-      image: quay.io/konflux-ci/mobster:1.2.0-1774868067@sha256:2e00c2f0aeff55713150b51822013327ea0e0d75b8164a52f837fb297c17703d
+      image: quay.io/konflux-ci/mobster:1.2.1-1782136886@sha256:1374bc35c71781987cce00ef5efe2be42923f83def19b60a570e947189b90d15
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       script: |
         #!/bin/bash
         set -euo pipefail
@@ -533,6 +546,12 @@ spec:
       workingDir: $(workspaces.source.path)
     - name: upload-sbom
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
@@ -543,6 +562,12 @@ spec:
         DOCKER_CONFIG=/tmp/auth cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
     - name: report-sbom-url
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      computeResources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
       script: |
         #!/bin/bash
         REPO=${IMAGE%:*}
