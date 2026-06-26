@@ -21,3 +21,8 @@ description: Rules how to write great tekton tasks and pipelines
 
 ### bash
 - always set "set -euo pipefail" at the beginning of the bash script to prevent unexpected errors
+
+## Task variants (-min overlays)
+- some tasks have `-min` variants (reduced resource requests) as kustomize overlays in sibling directories (e.g. `task/buildah-min/`)
+- when modifying a parent task, check if a `-min` variant exists and regenerate it with `hack/build-manifests.sh`
+- see `AGENTS.md` section 5 for the full list of variant pairs and the regeneration procedure
