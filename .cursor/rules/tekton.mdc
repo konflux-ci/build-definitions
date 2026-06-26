@@ -13,7 +13,12 @@ description: Rules how to write great tekton tasks and pipelines
   Full list of available software in the task-runner image is [here](https://github.com/konflux-ci/task-runner/blob/main/Installed-Software.md).
 
 ### Security
-- never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script
+- never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script. Note: this rule is about Tekton parameter interpolation safety inside shell scripts, not about how parameters are passed to CLI tools (see "Parameter forwarding convention" below).
+
+### Parameter forwarding convention
+- When forwarding Tekton task parameters to CLI tools (e.g., `konflux-build-cli`), pass them as CLI flags (e.g., `--allow-cross-platform-images=$(params.ALLOW_CROSS_PLATFORM_IMAGES)`), not as environment variables.
+- Environment variables should only be used for parameters that the CLI tool explicitly expects as env vars (e.g., `LOG_LEVEL` → `KBC_LOG_LEVEL` is a known exception).
+- The existing rule "use env vars not params in scripts" refers to Tekton parameter interpolation inside shell scripts (i.e., use `$ENV_VAR` instead of `$(params.FOO)` in bash), not to how parameters are passed to CLI tools.
 
 ## Script
 - if a user hasn't specified otherwise, default script language is bash
