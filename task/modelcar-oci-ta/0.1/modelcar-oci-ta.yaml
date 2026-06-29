@@ -232,66 +232,110 @@ spec:
           MTIME="$MTIME_DEFAULT"
         fi
 
-        LAYER_COUNT=$(echo "$MODEL_MANIFEST" | jq \
-          '[.layers[] | select(.annotations["org.opencontainers.image.title"] != null)] | length')
-        echo "Model artifact has ${LAYER_COUNT} named layer(s) to process"
+        mapfile -t LAYERS < <(echo "$MODEL_MANIFEST" | jq -c \
+          '.layers[] | select(.annotations["org.opencontainers.image.title"] != null)')
+        TOTAL=${#LAYERS[@]}
+        BATCH_SIZE=5
+        TOTAL_BATCHES=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
 
-        # ─── Download, layer, and push model files one at a time ───
+        echo "[$(date -Ins)] Model artifact has ${TOTAL} named layer(s), processing in batches of ${BATCH_SIZE}"
+
+        # ─── Download, layer, and push model files in batches ───
         mkdir -p models
-        CHUNK_IDX=0
-        FIRST_CHUNK=true
+        FIRST_BATCH=true
 
-        while IFS= read -r layer; do
-          CHUNK_IDX=$((CHUNK_IDX + 1))
-          blob_digest=$(echo "$layer" | jq -r '.digest')
-          title=$(echo "$layer" | jq -r '.annotations["org.opencontainers.image.title"]')
+        for ((batch_start=0; batch_start<TOTAL; batch_start+=BATCH_SIZE)); do
+          batch_end=$((batch_start + BATCH_SIZE))
+          [ $batch_end -gt $TOTAL ] && batch_end=$TOTAL
+          batch_num=$((batch_start / BATCH_SIZE + 1))
 
-          echo "[${CHUNK_IDX}/${LAYER_COUNT}] Fetching ${title}..."
-          mkdir -p "models/$(dirname "$title")"
+          echo "[$(date -Ins)] Batch ${batch_num}/${TOTAL_BATCHES}: files $((batch_start+1))-${batch_end} of ${TOTAL}"
 
-          if ! retry oras blob fetch \
-            --registry-config /model-secret/.dockerconfigjson \
-            -o "models/${title}" \
-            "${MODEL_REF}@${blob_digest}"
-          then
-            echo "Failed to fetch blob ${blob_digest} (${title})"
+          # ── Parallel download ──
+          DOWNLOAD_PIDS=()
+          BATCH_FILES=()
+          for ((i=batch_start; i<batch_end; i++)); do
+            blob_digest=$(echo "${LAYERS[$i]}" | jq -r '.digest')
+            title=$(echo "${LAYERS[$i]}" | jq -r '.annotations["org.opencontainers.image.title"]')
+            mkdir -p "models/$(dirname "$title")"
+            BATCH_FILES+=("models/${title}")
+
+            (
+              retry oras blob fetch \
+                --registry-config /model-secret/.dockerconfigjson \
+                -o "models/${title}" \
+                "${MODEL_REF}@${blob_digest}" \
+              && echo "  Downloaded ${title}"
+            ) &
+            DOWNLOAD_PIDS+=($!)
+          done
+
+          DOWNLOAD_FAILED=0
+          for pid in "${DOWNLOAD_PIDS[@]}"; do
+            if ! wait "$pid"; then DOWNLOAD_FAILED=1; fi
+          done
+          if [ "$DOWNLOAD_FAILED" -ne 0 ]; then
+            echo "ERROR: One or more downloads failed in batch ${batch_num}"
             exit 1
           fi
-          chmod g+wx "models/${title}"
-          touch -t "$MTIME" "models/${title}"
 
+          for f in "${BATCH_FILES[@]}"; do
+            chmod g+wx "$f"
+            touch -t "$MTIME" "$f"
+          done
+
+          # ── olot: add all files in batch as layers ──
           MODELCARD_ARG=()
-          if [ "$FIRST_CHUNK" = true ]; then
+          if [ "$FIRST_BATCH" = true ]; then
             MODELCARD_ARG+=(-m "$MODELCARD_PATH")
-            FIRST_CHUNK=false
+            FIRST_BATCH=false
           fi
 
           ls "$BLOBS_DIR" | sort > /tmp/blobs_before.txt
 
-          olot --verbose --remove-originals default \
+          olot --verbose --remove-originals \
             "${MODELCARD_ARG[@]}" \
             "$TARGET_OCI" \
-            "models/${title}"
+            "${BATCH_FILES[@]}"
 
-          rm -f "models/${title}"
+          rm -f "${BATCH_FILES[@]}"
 
-          # Push new layer blobs to registry, then delete from disk
+          # ── Parallel push of new layer blobs ──
           MANIFEST_HASH=$(jq -r '.manifests[0].digest' "${TARGET_OCI}/index.json" | sed 's/sha256://')
           LAYER_HASHES=$(jq -r '.layers[].digest' "$BLOBS_DIR/$MANIFEST_HASH" | sed 's/sha256://')
 
+          PUSH_PIDS=()
+          NEW_BLOBS=()
           for new_blob in $(comm -13 /tmp/blobs_before.txt <(ls "$BLOBS_DIR" | sort)); do
             if echo "$LAYER_HASHES" | grep -qx "$new_blob"; then
-              echo "Pushing layer sha256:${new_blob} to registry..."
-              retry oras blob push --registry-config auth.json \
-                "$DEST_REPO" "$BLOBS_DIR/$new_blob"
-              rm "$BLOBS_DIR/$new_blob"
+              NEW_BLOBS+=("$new_blob")
+              (
+                retry oras blob push --registry-config auth.json \
+                  "$DEST_REPO" "$BLOBS_DIR/$new_blob" \
+                && echo "  Pushed sha256:${new_blob}"
+              ) &
+              PUSH_PIDS+=($!)
             fi
           done
 
-        done < <(echo "$MODEL_MANIFEST" | jq -c \
-          '.layers[] | select(.annotations["org.opencontainers.image.title"] != null)')
+          PUSH_FAILED=0
+          for pid in "${PUSH_PIDS[@]}"; do
+            if ! wait "$pid"; then PUSH_FAILED=1; fi
+          done
+          if [ "$PUSH_FAILED" -ne 0 ]; then
+            echo "ERROR: One or more pushes failed in batch ${batch_num}"
+            exit 1
+          fi
+
+          for blob in "${NEW_BLOBS[@]}"; do
+            rm "$BLOBS_DIR/$blob"
+          done
+
+          echo "[$(date -Ins)] Batch ${batch_num} complete: ${#NEW_BLOBS[@]} blobs pushed"
+        done
 
         rm -rf models
+        echo "[$(date -Ins)] All model layers pushed"
 
         # ─── Apply image labels ───
         INDEX="${TARGET_OCI}/index.json"
