@@ -21,3 +21,9 @@ description: Rules how to write great tekton tasks and pipelines
 
 ### bash
 - always set "set -euo pipefail" at the beginning of the bash script to prevent unexpected errors
+
+## Task releases
+- When bumping a task's image digest or making any change to a task version:
+  - Update the task's CHANGELOG.md with a new version section describing what changed
+  - Bump the `app.kubernetes.io/version` label in the task YAML to match
+  - Apply the same changes to all variant tasks that share the same image (e.g., git-clone, git-clone-oci-ta, git-clone-oci-ta-min)
