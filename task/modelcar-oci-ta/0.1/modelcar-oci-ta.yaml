@@ -182,10 +182,10 @@ spec:
       image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       computeResources:
         requests:
-          memory: 512Mi
-          cpu: 50m
+          memory: 2Gi
+          cpu: 250m
         limits:
-          memory: 512Mi
+          memory: 4Gi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
@@ -250,6 +250,9 @@ spec:
           batch_num=$((batch_start / BATCH_SIZE + 1))
 
           echo "[$(date -Ins)] Batch ${batch_num}/${TOTAL_BATCHES}: files $((batch_start+1))-${batch_end} of ${TOTAL}"
+          echo "  disk: $(df -h /var/workdir | tail -1 | awk '{print $3"/"$2" used ("$5")"}')"
+          echo "  blobs on disk: $(ls "$BLOBS_DIR" 2>/dev/null | wc -l), models dir: $(du -sh models 2>/dev/null | cut -f1 || echo 0)"
+          echo "  /tmp: $(du -sh /tmp 2>/dev/null | cut -f1), procs: $(ps aux 2>/dev/null | wc -l)"
 
           # ── Parallel download ──
           DOWNLOAD_PIDS=()
@@ -332,6 +335,7 @@ spec:
           done
 
           echo "[$(date -Ins)] Batch ${batch_num} complete: ${#NEW_BLOBS[@]} blobs pushed"
+          echo "  blobs remaining: $(ls "$BLOBS_DIR" 2>/dev/null | wc -l), OCI dir: $(du -sh "$TARGET_OCI" 2>/dev/null | cut -f1)"
         done
 
         rm -rf models
