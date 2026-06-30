@@ -11,6 +11,15 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.4
+
+### Fixed
+
+- Restores the `/cachi2/cachi2.env` mount that version 0.10.3 removed.
+  Despite being an undocumented implementation detail, some builds use
+  the presence of this file as an indicator that the build is hermetic.
+  Enable them to do so for the time being.
+
 ## 0.10.3
 
 ### Added
