@@ -24,7 +24,7 @@ description: Rules how to write great tekton tasks and pipelines
 
 ## Task releases
 
-Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.com/konflux-ci/architecture/blob/main/ADR/0054-task-versioning.md).
+Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.com/konflux-ci/architecture/blob/main/ADR/0054-task-versioning.md). See also the [Versioning section in SHARED-CI.md](SHARED-CI.md#versioning) for CI enforcement details.
 
 ### Versioning
 - Each meaningful change to a task must include a version bump in the `app.kubernetes.io/version` label.
@@ -42,4 +42,4 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 - For meaningful dependency updates (e.g., bumping a key tool version like Buildah or Hermeto), update the version and changelog manually.
 
 ### Variant tasks
-- Apply the same version bump and changelog changes to all variant tasks that share the same image (e.g., git-clone, git-clone-oci-ta, git-clone-oci-ta-min, pnc-prebuild-git-clone-oci-ta).
+- When a shared image changes, apply the same version bump and changelog update to every variant task that uses that image (e.g., `git-clone`, `git-clone-oci-ta`, `git-clone-oci-ta-min`, and `pnc-prebuild-git-clone-oci-ta` all use `quay.io/konflux-ci/git-clone`).
