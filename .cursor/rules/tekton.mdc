@@ -30,7 +30,7 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 - Each meaningful change to a task must include a version bump in the `app.kubernetes.io/version` label.
 - Tasks at `0.x`: use minor version bumps for breaking changes, patch bumps for non-breaking changes.
 - Tasks at `1.0` or greater: follow [Semantic Versioning](https://semver.org/).
-- Tasks are only released when their version number changes. Without a version bump, the task bundle is not rebuilt.
+- The goal is that tasks are only released when their version number changes (without a version bump, the task bundle would not be rebuilt). This is not yet fully enforced by CI.
 
 ### Changelog
 - Update the task's `CHANGELOG.md` (at `task/<task_name>/CHANGELOG.md`) with each version bump.
@@ -42,4 +42,5 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 - For meaningful dependency updates (e.g., bumping a key tool version like Buildah or Hermeto), update the version and changelog manually.
 
 ### Variant tasks
-- When a shared image changes, apply the same version bump and changelog update to every variant task that uses that image (e.g., `git-clone`, `git-clone-oci-ta`, `git-clone-oci-ta-min`, and `pnc-prebuild-git-clone-oci-ta` all use `quay.io/konflux-ci/git-clone`).
+- When a change applies to multiple variant tasks, apply the same version bump and changelog update to each affected variant (e.g., `git-clone`, `git-clone-oci-ta`, `git-clone-oci-ta-min`, and `pnc-prebuild-git-clone-oci-ta` all use `quay.io/konflux-ci/git-clone`).
+- Differences between variants can sometimes be warranted — use your judgment when a change does not apply equally to all variants.
