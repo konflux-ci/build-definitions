@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Fix SSH setup failing when mounted secrets contain symlinks to directories [konflux-build-cli#165](https://github.com/konflux-ci/konflux-build-cli/pull/165)
+
 ## 0.2.1
 
 - `refspec` parameter should now accept multiple refspecs separated by whitespace like in git-clone 0.1 [konflux-build-cli#155](https://github.com/konflux-ci/konflux-build-cli/issues/155)
