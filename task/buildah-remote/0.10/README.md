@@ -56,6 +56,8 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |SOURCE_DATE_EPOCH|Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.|""|false|
 |REWRITE_TIMESTAMP|Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.|false|false|
 |SKIP_INJECTIONS|Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.|false|false|
+|LOG_LEVEL|Log level for the build command.|info|false|
+|ALLOW_CROSS_PLATFORM_IMAGES|Allows to use parent images that don't match the build host architecture. This option must be used with caution as it may create incompatible images.|false|false|
 |PLATFORM|The platform to build on||true|
 |IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
 

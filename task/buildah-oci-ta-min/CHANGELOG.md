@@ -11,6 +11,33 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.4
+
+### Fixed
+
+- Restores the `/cachi2/cachi2.env` mount that version 0.10.3 removed.
+  Despite being an undocumented implementation detail, some builds use
+  the presence of this file as an indicator that the build is hermetic.
+  Enable them to do so for the time being.
+
+## 0.10.3
+
+### Added
+
+- Added new parameter ALLOW_CROSS_PLATFORM_IMAGES to allow usage of parent images
+  which don't match build host architecture.
+
+### Changed
+
+- When used with prefetch-dependencies >= 0.3.1, no longer edits RUN instructions
+  in order to set the prefetch environment variables. Instead, sets the variables
+  using buildah `--mount` + `--secret` flags. Details in [konflux-build-cli#151].
+  Fixes [#1200].
+  - As a side effect, also no longer mounts the `/cachi2/cachi2.env` file,
+    whose only purpose was to enable the automatic setting of prefetch variables.
+
+[konflux-build-cli#151]: https://github.com/konflux-ci/konflux-build-cli/pull/151
+
 ## 0.10.2
 
 ### Fixed

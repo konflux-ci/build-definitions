@@ -3,6 +3,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   annotations:
+    build.appstudio.redhat.com/expires-on: "2026-08-30T00:00:00Z"
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
@@ -90,6 +91,7 @@ spec:
       value: $(params.ALWAYS_BUILD_INDEX)
     - name: STORAGE_DRIVER
       value: $(params.STORAGE_DRIVER)
+    imagePullPolicy: IfNotPresent
     volumeMounts:
     - mountPath: /index-build-data
       name: shared-dir
@@ -274,7 +276,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+    image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
     name: upload-sbom
     script: |
       #!/bin/bash

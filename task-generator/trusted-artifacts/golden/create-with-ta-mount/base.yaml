@@ -1,0 +1,47 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: simple-build
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: A simple build task.
+  params:
+    - name: IMAGE
+      description: Image to build.
+      type: string
+    - name: caTrustConfigMapName
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: caTrustConfigMapKey
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the built image.
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.caTrustConfigMapName)
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        optional: true
+  workspaces:
+    - name: source
+      description: Source code workspace.
+  stepTemplate:
+    env:
+      - name: IMAGE
+        value: "$(params.IMAGE)"
+  steps:
+    - name: build
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "Building ${IMAGE}"
+      computeResources: {}

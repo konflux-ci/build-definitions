@@ -11,6 +11,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |ADDITIONAL_BASE_IMAGES|Additional base image references to include to the SBOM. Array of image_reference_with_digest strings|[]|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |ADD_CAPABILITIES|Comma separated list of extra capabilities to add when running 'buildah build'|""|false|
+|ALLOW_CROSS_PLATFORM_IMAGES|Allows to use parent images that don't match the build host architecture. This option must be used with caution as it may create incompatible images.|false|false|
 |ANNOTATIONS|Additional key=value annotations that should be applied to the image|[]|false|
 |ANNOTATIONS_FILE|Path to a file with additional key=value annotations that should be applied to the image|""|false|
 |BUILDAH_FORMAT|The format for the resulting image's mediaType. Valid values are oci (default) or docker.|oci|false|
@@ -31,6 +32,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_EXPIRES_AFTER|Delete image tag after specified time. Empty means to keep the image tag. Time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.|""|false|
 |INHERIT_BASE_IMAGE_LABELS|Determines if the image inherits the base image labels.|true|false|
 |LABELS|Additional key=value labels that should be applied to the image|[]|false|
+|LOG_LEVEL|Log level for the build command.|info|false|
 |NO_PROXY|Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.|""|false|
 |OMIT_HISTORY|Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.|false|false|
 |PREFETCH_INPUT|In case it is not empty, the prefetched content should be made available to the build.|""|false|

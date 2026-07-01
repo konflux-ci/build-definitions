@@ -2,14 +2,16 @@
 
 <!-- Format guidelines: https://keepachangelog.com/en/1.1.0/#how -->
 
-## Unreleased
+## 0.2.1
 
-<!--
-When you make changes without bumping the version right away, document them here.
-If that's not something you ever plan to do, consider removing this section.
--->
+- `refspec` parameter should now accept multiple refspecs separated by whitespace like in git-clone 0.1 [konflux-build-cli#155](https://github.com/konflux-ci/konflux-build-cli/issues/155)
+- Fix handling of whitespaces in gitconfig which should fix most of the issues with basic-auth [konflux-build-cli#159](https://github.com/konflux-ci/konflux-build-cli/pull/159)
 
-*Nothing yet.*
+## 0.2
+
+- Updated base task to git-clone-oci-ta 0.2.
+- Removed `gitInitImage` (deprecated since 0.1), `verbose` (replaced by `logLevel`), and `userHome` (handled by konflux-build-cli) parameters.
+- Added `logLevel` parameter.
 
 ## 0.1
 

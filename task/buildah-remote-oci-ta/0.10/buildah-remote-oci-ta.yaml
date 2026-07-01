@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.2
+    app.kubernetes.io/version: 0.10.4
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -32,6 +32,11 @@ spec:
     description: Comma separated list of extra capabilities to add when running 'buildah
       build'
     name: ADD_CAPABILITIES
+    type: string
+  - default: "false"
+    description: Allows to use parent images that don't match the build host architecture.
+      This option must be used with caution as it may create incompatible images.
+    name: ALLOW_CROSS_PLATFORM_IMAGES
     type: string
   - default: []
     description: Additional key=value annotations that should be applied to the image
@@ -285,6 +290,8 @@ spec:
       value: $(params.ADDITIONAL_SECRET)
     - name: ADD_CAPABILITIES
       value: $(params.ADD_CAPABILITIES)
+    - name: ALLOW_CROSS_PLATFORM_IMAGES
+      value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
     - name: ANNOTATIONS_FILE
       value: $(params.ANNOTATIONS_FILE)
     - name: BUILD_ARGS_FILE
@@ -340,7 +347,7 @@ spec:
     - name: YUM_REPOS_D_TARGET
       value: $(params.YUM_REPOS_D_TARGET)
     - name: BUILDER_IMAGE
-      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+      value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
     - name: PLATFORM
       value: $(params.PLATFORM)
     - name: IMAGE_APPEND_PLATFORM
@@ -357,7 +364,7 @@ spec:
     - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     computeResources: {}
-    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:9bd32f6bafb517b309e11a2d89365052b4ab3f1c9c23c4ffd45aff6f03960476
+    image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c51a3530f239323442e28ea7dace8b88a14638d823d5eaa8514843c33b03c02
     name: use-trusted-artifact
     volumeMounts:
     - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -401,7 +408,7 @@ spec:
       value: $(params.SOURCE_DATE_EPOCH)
     - name: BUILDAH_REWRITE_TIMESTAMP
       value: $(params.REWRITE_TIMESTAMP)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
     name: build
     script: |-
       #!/bin/bash
@@ -635,6 +642,7 @@ spec:
         --ulimits nofile=4096:4096
         --src-tls-verify="$TLSVERIFY"
         --dest-tls-verify="$TLSVERIFY"
+        --allow-cross-platform-images="$ALLOW_CROSS_PLATFORM_IMAGES"
         "$@" # --annotations, --labels, --envs, --build-args
       )
 
@@ -682,6 +690,7 @@ spec:
           --tmpfs /run/secrets \
           -e ADDITIONAL_SECRET="${ADDITIONAL_SECRET@Q}" \
           -e ADD_CAPABILITIES="${ADD_CAPABILITIES@Q}" \
+          -e ALLOW_CROSS_PLATFORM_IMAGES="${ALLOW_CROSS_PLATFORM_IMAGES@Q}" \
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
@@ -785,7 +794,7 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
-    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:7881de18a51416bb20548a23897225a14f4301c78663531d8c78b7f8af249747
+    image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
     name: push
     script: |
       #!/bin/bash
@@ -964,7 +973,7 @@ spec:
       requests:
         cpu: 1100m
         memory: 4Gi
-    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+    image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
     name: sbom-syft-generate
     script: |
       #!/bin/bash
@@ -1139,7 +1148,7 @@ spec:
       requests:
         cpu: 100m
         memory: 256Mi
-    image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+    image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
     name: upload-sbom
     script: |
       #!/bin/bash

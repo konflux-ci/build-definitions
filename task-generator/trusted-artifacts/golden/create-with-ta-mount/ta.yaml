@@ -1,0 +1,96 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: simple-build-oci-ta
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: A simple build task.
+  params:
+    - name: IMAGE
+      description: Image to build.
+      type: string
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+    - name: ociArtifactExpiresAfter
+      description: Expiration date for the trusted artifacts created in the
+        OCI repository. An empty string means the artifacts do not expire.
+      type: string
+      default: ""
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the built image.
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+  volumes:
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+    - name: workdir
+      emptyDir: {}
+  stepTemplate:
+    env:
+      - name: IMAGE
+        value: $(params.IMAGE)
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+    - name: build
+      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "Building ${IMAGE}"
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      volumeMounts:
+        - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+          name: trusted-ca
+          readOnly: true
+          subPath: ca-bundle.crt
+      env:
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi

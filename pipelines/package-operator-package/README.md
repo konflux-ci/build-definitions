@@ -11,14 +11,14 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.3:BUILDAH_FORMAT|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
-|git-url| Source Repository URL| None| clone-repository:0.1:url|
+|git-url| Source Repository URL| None| clone-repository:0.2:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
 |labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
 |output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
-|revision| Revision of the Source Repository| | clone-repository:0.1:revision|
+|revision| Revision of the Source Repository| | clone-repository:0.2:revision|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
@@ -81,7 +81,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |platform| The platform the image is built on.| ""| |
-### git-clone:0.1 task parameters
+### git-clone:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -90,25 +90,23 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
 |fetchTags| Fetch all tags for the repo.| false| |
-|gitInitImage| Deprecated. Has no effect. Will be removed in the future.| ""| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
 |httpsProxy| HTTPS proxy server for SSL requests.| ""| |
+|logLevel| Log level for the git-clone command.| info| |
 |mergeSourceDepth| Perform a shallow fetch of the target branch, fetching only the most recent N commits. If empty, fetches the full history of the target branch. | ""| |
 |mergeSourceRepoUrl| URL of the repository to fetch the target branch from when mergeTargetBranch is true. If empty, uses the same repository (origin). This allows merging a branch from a different repository. | ""| |
 |mergeTargetBranch| Set to "true" to merge the targetBranch into the checked-out revision.| false| |
 |noProxy| Opt out of proxying HTTP/HTTPS requests.| ""| |
 |refspec| Refspec to fetch before checking out revision.| ""| |
 |revision| Revision to checkout. (branch, tag, sha, ref, etc...)| ""| '$(params.revision)'|
-|shortCommitLength| Length of short commit SHA| 7| |
+|shortCommitLength| Minimum length of the short commit SHA. Git may return a longer prefix if needed for uniqueness.| 7| |
 |sparseCheckoutDirectories| Define the directory patterns to match or exclude when performing a sparse checkout.| ""| |
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |subdirectory| Subdirectory inside the `output` Workspace to clone the repo into.| source| |
-|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. | ""| |
+|submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable.| ""| |
 |submodules| Initialize and fetch git submodules.| true| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
-|userHome| Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user. | /tekton/home| |
-|verbose| Log the commands that are executed during `git-clone`'s operation.| false| |
 ### init:0.4 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -230,7 +228,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
 |IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
-### git-clone:0.1 task results
+### git-clone:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
@@ -238,7 +236,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |commit| The precise commit SHA that was fetched by this Task.| |
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
-|short-commit| The commit SHA that was fetched by this Task limited to params.shortCommitLength number of characters| |
+|short-commit| Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.| |
 |url| The precise URL that was fetched by this Task.| |
 ### init:0.4 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -281,11 +279,11 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.1:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
+|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
 |netrc| |True| prefetch-dependencies:0.3:netrc|
-|workspace| |False| clone-repository:0.1:output ; prefetch-dependencies:0.3:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.5:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|workspace| |False| clone-repository:0.2:output ; prefetch-dependencies:0.3:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.5:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
 ## Available workspaces from tasks
-### git-clone:0.1 task workspaces
+### git-clone:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|

@@ -814,7 +814,7 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 			component, err := f.AsKubeAdmin.HasController.GetComponent(symlinkComponentName, testNamespace)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 			gomega.Expect(f.AsKubeAdmin.HasController.WaitForComponentPipelineToBeFinished(component, "", "", "",
-				f.AsKubeAdmin.TektonController, &has.RetryOptions{Retries: 0}, nil)).Should(gomega.MatchError(gomega.ContainSubstring("cloned repository contains symlink pointing outside of the cloned repository")))
+				f.AsKubeAdmin.TektonController, &has.RetryOptions{Retries: 0}, nil)).Should(gomega.MatchError(gomega.ContainSubstring("symlink check: found 1 symlink(s) pointing outside the directory")))
 		})
 
 	})

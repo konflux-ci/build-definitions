@@ -1,0 +1,22 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-fail-for-wrong-url
+  annotations:
+    test/assert-task-failure: "run-task"
+spec:
+  description: |
+    Test the git-clone task with tag
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/user/repo-does-not-exists
+      workspaces:
+        - name: output
+          workspace: tests-workspace

@@ -1,0 +1,35 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-git-clone-no-args
+spec:
+  description: |
+    Test the git-clone task with no arguments
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: run-task
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: https://github.com/konflux-ci/build-definitions
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+    - name: check-result
+      workspaces:
+        - name: output
+          workspace: tests-workspace
+      taskSpec:
+        steps:
+          - name: check-result
+            image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+            script: |
+              #!/usr/bin/env sh
+              set -eux
+              files=$(find "$(workspaces.output.path)/source/" -mindepth 1 -maxdepth 1)
+              test -n "$files"
+      runAfter:
+        - run-task
