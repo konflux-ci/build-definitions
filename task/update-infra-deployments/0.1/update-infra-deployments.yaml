@@ -48,7 +48,7 @@ spec:
     # e.g., when a PR 'A' is merged and it takes a long time to build the container, then PR 'B' is merged and
     # finishes before 'A'. Then 'A' finishes and modifies the update PR to an outdated version
     - name: race-condition-update-check
-      image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:5ae89e3ac5763088c1d346e1cc44c5263f2d2d55668234513b0d2f3fc6b2a6c8
+      image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:d87faca19e29eac45b4be317e8ecc4d5b6f5935195991d4cc715579233e8703a
       env:
         - name: TASKRUN_NAME
           value: $(context.taskRun.name)
@@ -196,7 +196,7 @@ spec:
 
       # Based on https://github.com/tektoncd/catalog/tree/main/task/github-app-token/0.2/
     - name: create-mr
-      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
       # the cluster will set imagePullPolicy to IfNotPresent
       volumeMounts:
