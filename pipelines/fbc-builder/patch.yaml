@@ -118,15 +118,38 @@
 - op: add
   path: /spec/tasks/2
   value:
-    name: run-opm-command
+    name: fbc-inject-lifecycle
     runAfter:
       - clone-repository
+    taskRef:
+      name: fbc-inject-lifecycle-oci-ta
+      version: "0.1"
+    params:
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).lifecycle
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      - name: CONTEXT
+        value: $(params.path-context)
+      - name: DOCKERFILE
+        value: $(params.dockerfile)
+      - name: BUILD_ARGS
+        value:
+          - $(params.build-args[*])
+- op: add
+  path: /spec/tasks/3
+  value:
+    name: run-opm-command
+    runAfter:
+      - fbc-inject-lifecycle
     taskRef:
       name: run-opm-command-oci-ta
       version: "0.1"
     params:
       - name: SOURCE_ARTIFACT
-        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+        value: $(tasks.fbc-inject-lifecycle.results.SOURCE_ARTIFACT)
       - name: ociStorage
         value: $(params.output-image).opm
       - name: ociArtifactExpiresAfter
@@ -138,13 +161,13 @@
       - name: IDMS_PATH
         value: ""
 - op: replace
-  path: /spec/tasks/3/runAfter/0
+  path: /spec/tasks/4/runAfter/0
   value: run-opm-command
 - op: replace
-  path: /spec/tasks/3/params/2/value
+  path: /spec/tasks/4/params/2/value
   value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
 - op: replace
-  path: /spec/tasks/4/runAfter/0
+  path: /spec/tasks/5/runAfter/0
   value: clone-repository
 - op: add
   path: /spec/tasks/-
@@ -158,7 +181,7 @@
       - build-image-index
     taskRef:
       name: validate-fbc
-      version: "0.1"
+      version: "0.2"
     params:
     - name: IMAGE_URL
       value: $(tasks.build-image-index.results.IMAGE_URL)
