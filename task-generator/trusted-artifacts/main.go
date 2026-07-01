@@ -21,7 +21,15 @@ func main() {
 
 	taDir := path.Dir(recipePath)
 
-	taTaskPath := path.Join(taDir, path.Base(path.Dir(taDir))+".yaml")
+	segments := strings.Split(recipePath, "/")
+	var name string
+	for i, s := range segments {
+		if s == "task" && i+1 < len(segments) {
+			name = segments[i+1]
+			break
+		}
+	}
+	taTaskPath := path.Join(taDir, name+".yaml")
 
 	if _, err := os.Stat(taTaskPath); err == nil {
 		existing := expectValue(readTask(taTaskPath))
