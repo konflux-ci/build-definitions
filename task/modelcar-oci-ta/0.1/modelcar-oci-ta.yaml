@@ -246,12 +246,12 @@ spec:
 
         for ((batch_start=0; batch_start<TOTAL; batch_start+=BATCH_SIZE)); do
           batch_end=$((batch_start + BATCH_SIZE))
-          [ $batch_end -gt $TOTAL ] && batch_end=$TOTAL
+          [ "$batch_end" -gt "$TOTAL" ] && batch_end=$TOTAL
           batch_num=$((batch_start / BATCH_SIZE + 1))
 
           echo "[$(date -Ins)] Batch ${batch_num}/${TOTAL_BATCHES}: files $((batch_start+1))-${batch_end} of ${TOTAL}"
           echo "  disk: $(df -h /var/workdir | tail -1 | awk '{print $3"/"$2" used ("$5")"}')"
-          echo "  blobs on disk: $(ls "$BLOBS_DIR" 2>/dev/null | wc -l), models dir: $(du -sh models 2>/dev/null | cut -f1 || echo 0)"
+          echo "  blobs on disk: $(find "$BLOBS_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l), models dir: $(du -sh models 2>/dev/null | cut -f1 || echo 0)"
           echo "  /tmp: $(du -sh /tmp 2>/dev/null | cut -f1), procs: $(ps aux 2>/dev/null | wc -l)"
 
           # ── Parallel download ──
@@ -294,7 +294,7 @@ spec:
             FIRST_BATCH=false
           fi
 
-          ls "$BLOBS_DIR" | sort > /tmp/blobs_before.txt
+          find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > /tmp/blobs_before.txt
 
           olot --verbose --remove-originals default \
             "${MODELCARD_ARG[@]}" \
@@ -309,7 +309,7 @@ spec:
 
           PUSH_PIDS=()
           NEW_BLOBS=()
-          for new_blob in $(comm -13 /tmp/blobs_before.txt <(ls "$BLOBS_DIR" | sort)); do
+          for new_blob in $(comm -13 /tmp/blobs_before.txt <(find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort)); do
             if echo "$LAYER_HASHES" | grep -qx "$new_blob"; then
               NEW_BLOBS+=("$new_blob")
               (
@@ -335,7 +335,7 @@ spec:
           done
 
           echo "[$(date -Ins)] Batch ${batch_num} complete: ${#NEW_BLOBS[@]} blobs pushed"
-          echo "  blobs remaining: $(ls "$BLOBS_DIR" 2>/dev/null | wc -l), OCI dir: $(du -sh "$TARGET_OCI" 2>/dev/null | cut -f1)"
+          echo "  blobs remaining: $(find "$BLOBS_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l), OCI dir: $(du -sh "$TARGET_OCI" 2>/dev/null | cut -f1)"
         done
 
         rm -rf models
