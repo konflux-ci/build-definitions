@@ -21,3 +21,26 @@ description: Rules how to write great tekton tasks and pipelines
 
 ### bash
 - always set "set -euo pipefail" at the beginning of the bash script to prevent unexpected errors
+
+## Task releases
+
+Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.com/konflux-ci/architecture/blob/main/ADR/0054-task-versioning.md). See also the [Versioning section in SHARED-CI.md](SHARED-CI.md#versioning) for CI enforcement details.
+
+### Versioning
+- Each meaningful change to a task must include a version bump in the `app.kubernetes.io/version` label.
+- Tasks at `0.x`: use minor version bumps for breaking changes, patch bumps for non-breaking changes.
+- Tasks at `1.0` or greater: follow [Semantic Versioning](https://semver.org/).
+- The goal is that tasks are only released when their version number changes (without a version bump, the task bundle would not be rebuilt). This is not yet fully enforced by CI.
+
+### Changelog
+- Update the task's `CHANGELOG.md` (at `task/<task_name>/CHANGELOG.md`) with each version bump.
+- Group changes by type (added, changed, fixed, removed). See [Keep a Changelog](https://keepachangelog.com/) for inspiration.
+- Clearly call out breaking changes and include migration instructions when applicable.
+
+### Automated dependency updates (MintMaker)
+- Automated image digest bumps do not necessarily require a version bump or changelog entry.
+- For meaningful dependency updates (e.g., bumping a key tool version like Buildah or Hermeto), update the version and changelog manually.
+
+### Variant tasks
+- When a change applies to multiple variant tasks, apply the same version bump and changelog update to each affected variant (e.g., `git-clone`, `git-clone-oci-ta`, `git-clone-oci-ta-min`, and `pnc-prebuild-git-clone-oci-ta` all use `quay.io/konflux-ci/git-clone`).
+- Differences between variants can sometimes be warranted — use your judgment when a change does not apply equally to all variants.
