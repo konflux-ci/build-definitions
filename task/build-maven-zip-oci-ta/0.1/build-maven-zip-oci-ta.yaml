@@ -98,12 +98,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0aecefdc3714304547e5f4eb90320b32595832e644ca61f605b73b594e021f4b
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c51a3530f239323442e28ea7dace8b88a14638d823d5eaa8514843c33b03c02
       args:
         - use
         - $(params.CACHI2_ARTIFACT)=/var/workdir/cachi2
     - name: prepare
-      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -142,7 +142,7 @@ spec:
         runAsNonRoot: false
         runAsUser: 0
     - name: build
-      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
@@ -229,7 +229,7 @@ spec:
           add:
             - SETFCAP
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /mnt/trusted-ca
