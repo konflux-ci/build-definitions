@@ -111,6 +111,14 @@ spec:
     description: Initialize and fetch git submodules.
     name: submodules
     type: string
+  - default: ""
+    description: |
+      CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match
+      are not checked. Patterns are relative to the checkout directory and must not start with '/'.
+      Use '*' and '?' as wildcards ('*' matches across '/').
+      Quote patterns containing commas using CSV double quotes.
+    name: symlinkCheckIgnorePattern
+    type: string
   - default: main
     description: The target branch to merge into the revision (if mergeTargetBranch
       is true).
@@ -170,6 +178,8 @@ spec:
       value: $(params.sparseCheckoutDirectories)
     - name: KBC_GIT_CLONE_ENABLE_SYMLINK_CHECK
       value: $(params.enableSymlinkCheck)
+    - name: KBC_GIT_CLONE_SYMLINK_CHECK_IGNORE_PATTERN
+      value: $(params.symlinkCheckIgnorePattern)
     - name: KBC_GIT_CLONE_FETCH_TAGS
       value: $(params.fetchTags)
     - name: KBC_GIT_CLONE_MERGE_TARGET_BRANCH

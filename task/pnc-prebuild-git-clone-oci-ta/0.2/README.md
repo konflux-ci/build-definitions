@@ -26,6 +26,7 @@ The pnc-prebuild-git-clone-oci-ta task will clone a repo from the provided url, 
 |sslVerify|Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.|true|false|
 |submodulePaths|Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable. |""|false|
 |submodules|Initialize and fetch git submodules.|true|false|
+|symlinkCheckIgnorePattern|CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. |""|false|
 |targetBranch|The target branch to merge into the revision (if mergeTargetBranch is true).|main|false|
 |url|Repository URL to clone from.||true|
 |BUILD_SCRIPT|Middleware (Maven/Gradle/Ant/SBT) build script to build the project to embed with the Containerfile||true|
