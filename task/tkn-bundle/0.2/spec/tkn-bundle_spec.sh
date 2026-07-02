@@ -354,6 +354,21 @@ spec:
     The output should include 'TASK_FAILED=Failed'
   End
 
+  It 'sets param defaults with PARAM_DEFAULTS'
+    build_and_inspect_param_defaults() {
+      restore_source_files
+      tkn task start tkn-bundle -p IMAGE=registry:5000/bundle:param-defaults -p "PARAM_DEFAULTS=MY_PARAM=custom-value" -p URL=https://example.com -p REVISION=main --use-param-defaults --timeout 15m --showlog -w name=source,claimName=source-pvc
+      tkn bundle list -o=go-template --template '{{range .spec.params}}{{printf "%s=%s\n" .name .default}}{{end}}' localhost:5000/bundle:param-defaults 2>/dev/null
+    }
+
+    When call build_and_inspect_param_defaults
+    The output should include 'Setting param default: MY_PARAM=custom-value'
+    The output should include 'Added Task: test1 to image'
+    The output should include 'Pushed Tekton Bundle to registry:5000/bundle'
+    The output should include 'MY_PARAM=custom-value'
+    The output should not include 'MY_PARAM=original-value'
+  End
+
   It 'replaces named step images with space-separated STEPS_IMAGE_STEP_NAMES'
     build_and_inspect_space_sep() {
       restore_source_files
@@ -384,5 +399,6 @@ End
   #   tkn bundle list localhost:5000/bundle:exclude-one
   #   tkn bundle list localhost:5000/bundle:exclude-multi
   #   tkn bundle list localhost:5000/bundle:no-match
+  #   tkn bundle list localhost:5000/bundle:param-defaults
   #   tkn bundle list localhost:5000/bundle:space-sep
   # Note: mixed-fail has no bundle — the task fails before pushing.
