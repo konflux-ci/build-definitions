@@ -1,0 +1,139 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-vm-image-sbom-fallback
+spec:
+  description: |
+    Test that the build-vm-image task produces a placeholder SBOM with a
+    distinguishing marker when the source container has no SBOM attached.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: setup-source-image
+      taskSpec:
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: push-source-without-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              SOURCE_IMAGE="registry-service.kind-registry/test-source:test"
+
+              echo "Pushing dummy source container image (no SBOM attached)"
+              cd /tmp && echo "source-content-no-sbom" > source.txt
+              oras push --no-tty "${SOURCE_IMAGE}" source.txt
+              echo "Setup complete — source image has no SBOM"
+
+    - name: run-build-vm-image
+      taskRef:
+        name: build-vm-image
+      params:
+        - name: PLATFORM
+          value: linux/amd64
+        - name: OUTPUT_IMAGE
+          value: registry-service.kind-registry/test-disk-image:latest
+        - name: SOURCE_ARTIFACT
+          value: unused
+        - name: IMAGE_TYPE
+          value: qcow2
+        - name: SBOM_TYPE
+          value: spdx
+        - name: SKIP_SBOM_GENERATION
+          value: "false"
+      runAfter:
+        - setup-source-image
+
+    - name: verify-sbom
+      params:
+        - name: IMAGE_URL
+          value: $(tasks.run-build-vm-image.results.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-build-vm-image.results.IMAGE_DIGEST)
+        - name: SBOM_BLOB_URL
+          value: $(tasks.run-build-vm-image.results.SBOM_BLOB_URL)
+      taskSpec:
+        params:
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+          - name: SBOM_BLOB_URL
+        volumes:
+          - name: trusted-ca
+            configMap:
+              name: trusted-ca
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              optional: true
+        steps:
+          - name: check-placeholder-sbom
+            image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+            volumeMounts:
+              - name: trusted-ca
+                mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+                subPath: ca-bundle.crt
+                readOnly: true
+            env:
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+              - name: SBOM_BLOB_URL
+                value: $(params.SBOM_BLOB_URL)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              IMAGE_REF="${IMAGE_URL}@${IMAGE_DIGEST}"
+              echo "Verifying placeholder SBOM on disk image: ${IMAGE_REF}"
+
+              echo "=== Check 1: SBOM can be downloaded ==="
+              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              echo "${SBOM}" | jq .
+
+              echo "=== Check 2: SBOM has placeholder comment ==="
+              if ! echo "${SBOM}" | jq -e '.comment' > /dev/null 2>&1; then
+                echo "FAIL: SBOM has no comment field" && exit 1
+              fi
+              COMMENT=$(echo "${SBOM}" | jq -r '.comment')
+              if [[ "${COMMENT}" != *"placeholder"* ]]; then
+                echo "FAIL: comment does not indicate placeholder: ${COMMENT}" && exit 1
+              fi
+              echo "PASS: SBOM comment indicates placeholder"
+
+              echo "=== Check 3: SBOM has empty packages ==="
+              PKG_COUNT=$(echo "${SBOM}" | jq '.packages | length')
+              if [ "${PKG_COUNT}" -ne 0 ]; then
+                echo "FAIL: expected 0 packages, got ${PKG_COUNT}" && exit 1
+              fi
+              echo "PASS: packages array is empty"
+
+              echo "=== Check 4: SBOM_BLOB_URL is non-empty ==="
+              if [ -z "${SBOM_BLOB_URL}" ]; then
+                echo "FAIL: SBOM_BLOB_URL is empty" && exit 1
+              fi
+              echo "PASS: SBOM_BLOB_URL = ${SBOM_BLOB_URL}"
+
+              echo "=== Check 5: SBOM has valid SPDX structure ==="
+              if ! echo "${SBOM}" | jq -e '.spdxVersion == "SPDX-2.3"' > /dev/null; then
+                echo "FAIL: not a valid SPDX 2.3 document" && exit 1
+              fi
+              echo "PASS: valid SPDX 2.3 document"
+
+              echo "All checks passed"
+      runAfter:
+        - run-build-vm-image
