@@ -70,12 +70,12 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:27ddb820f0d30609dcb8de88219309edbced429896324e474f494470c2f003fb
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7c51a3530f239323442e28ea7dace8b88a14638d823d5eaa8514843c33b03c02
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: modify-task-files
-      image: quay.io/konflux-ci/konflux-test:v1.4.52@sha256:deabe80a01dca3a8a0edb709324e30cbf0baa176f7a181bbb695323f506f7aac
+      image: quay.io/konflux-ci/konflux-test:v1.5.2@sha256:c370a7bc6e172cdbab001f1a19f37ebc95f47c3d8fe2d915fa4641132490ead7
       workingDir: /var/workdir
       env:
         - name: CONTEXT
@@ -203,7 +203,7 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: build
-      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       workingDir: /var/workdir
       env:
         - name: CONTEXT
