@@ -5,7 +5,7 @@ Task that prefetches dependencies for hermetic build.
 ## Configuration
 
 Config file must be passed as a YAML string. For all available config options please check Hermeto
-[settings](https://hermetoproject.github.io/hermeto/#settings) documentation.
+[settings](https://hermetoproject.github.io/hermeto/latest/configuration/#settings) documentation.
 
 Example of setting timeouts:
 
