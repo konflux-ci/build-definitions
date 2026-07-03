@@ -30,3 +30,4 @@ for task_name in "${tasks_names[@]}"; do
         pmt modify -f "$pipeline_file" task "$task_name" add-param logLevel "debug"
     fi
 done
+# dummy change

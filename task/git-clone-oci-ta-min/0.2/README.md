@@ -48,3 +48,4 @@ The git-clone-oci-ta Task will clone a repo from the provided url and store it a
 |ssh-directory|A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. |true|
 
 ## Additional info
+<!-- dummy change -->

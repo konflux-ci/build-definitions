@@ -48,3 +48,4 @@ The git-clone Task will clone a repo from the provided url into the output Works
 |basic-auth|A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. |true|
 
 ## Additional info
+<!-- dummy change -->

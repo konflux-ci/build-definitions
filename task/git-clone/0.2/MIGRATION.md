@@ -12,3 +12,4 @@
 The migration should be done automatically by renovate.
 For users who don't have automatic updates, remove `gitInitImage`, `verbose`, and `userHome` parameters if present.
 Replace `verbose: "true"` with `logLevel: "debug"` if needed.
+<!-- dummy change -->
