@@ -10,7 +10,7 @@ import (
 
 const (
 	COMPONENT_REPO_URLS_ENV string = "COMPONENT_REPO_URLS"
-	PR_CHANGED_FILES_ENV    string = "PR_CHANGED_FILES"
+	SCENARIOS_ENV           string = "SCENARIOS"
 
 	containerImageSource             = "quay.io/redhat-appstudio-qe/busybox-loop@sha256:f698f1f2cf641fe9176d2a277c9052d872f6b1c39e56248a1dd259b96281dda9"
 	gitRepoContainsSymlinkBranchName = "symlink"

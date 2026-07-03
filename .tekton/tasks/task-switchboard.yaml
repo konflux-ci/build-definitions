@@ -9,8 +9,7 @@ metadata:
     tekton.dev/displayName: Task Switchboard
     tekton.dev/platforms: "linux/amd64"
 spec:
-  description: "Computes a set of expressions based on the changed files in the
-  pipeline, used to determine which tasks to run"
+  description: "Computes a set of expressions based on the changed files in the pipeline, used to determine which tasks to run"
   params:
     - name: revision
       type: string
@@ -23,7 +22,7 @@ spec:
       type: array
     - name: run-e2e
       type: string
-    - name: changed_files
+    - name: scenarios
       type: string
   steps:
     - name: evaluate
@@ -71,7 +70,6 @@ spec:
           # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
           # shellcheck disable=SC2086
           .tekton/scripts/determine-if-e2e-execution-needed.py --changed_files ${changed_files} | tr -d '\n' | tee "$(results.run-e2e.path)"
-          echo "${changed_files}" | tr -d '\n' | tee "$(results.changed_files.path)"
         else
           ec opa eval --v1-compatible --data "${rules}" --input \
           <(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path']) \
@@ -83,6 +81,20 @@ spec:
           # StdOut is "execute_e2e" or "dont_execute_e2e" based on files changed in pr
           .tekton/scripts/determine-if-e2e-execution-needed.py --pr_number "${pr_number}" | tr -d '\n' | tee "$(results.run-e2e.path)"
 
-          changed_files=$(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '[.files.[].path'] | jq -r 'join(" ")')
-          echo "${changed_files}" | tr -d '\n' | tee "$(results.changed_files.path)"
+          changed_files=$(gh pr view "https://github.com/konflux-ci/build-definitions/pull/${pr_number}" --json files --jq '.files.[].path' | tr '\n' ' ')
+        fi
+
+        # Check if any hermetic-related files are changed
+        is_hermetic_change=0
+        for file in ${changed_files}; do
+          if [[ "${file}" == "task/buildah"* || "${file}" == "task/prefetch-dependencies"* || "${file}" == "external-task/prefetch-dependencies"* ]]; then
+            is_hermetic_change=1
+            break
+          fi
+        done
+        # set scenarios result to hermetic or basic based on the files changed
+        if [[ "$is_hermetic_change" -eq 1 ]]; then
+            echo -n "hermetic" | tee "$(results.scenarios.path)"
+        else
+            echo -n "basic" | tee "$(results.scenarios.path)"
         fi

@@ -309,26 +309,13 @@ func GetComponentScenarioDetailsFromGitUrl(gitUrl string) ComponentScenarioSpec 
 	return ComponentScenarioSpec{}
 }
 
-// this function returns true if hermeto related files changed, otherwise false
-func DoesHermetoChanged(changedFilesStr string) bool {
-	isHermetoChanged := false
-	changedFiles := strings.Split(changedFilesStr, " ")
-	for _, filePath := range changedFiles {
-		if strings.HasPrefix(filePath, "task/buildah") || strings.HasPrefix(filePath, "task/prefetch-dependencies") {
-			isHermetoChanged = true
-			break
-		}
-	}
-	return isHermetoChanged
-}
-
 // this function returns which scenarios to execute based on changed_files in PR
 func GetScenarios() []string {
-	changedFiles := utils.GetEnv(PR_CHANGED_FILES_ENV, "")
-	if changedFiles == "" {
-		fmt.Println("ChangedFiles is empty")
+	scenarios := utils.GetEnv(SCENARIOS_ENV, "")
+	if scenarios == "" {
+		fmt.Println("scenarios is empty")
 		return componentUrls
-	} else if DoesHermetoChanged(changedFiles) {
+	} else if scenarios == "hermetic" {
 		fmt.Println("Hermeto related files changed, running hermetic scenarios as well")
 		return append(basicScenarioUrls, hermeticScenarioUrls...)
 	} else {
