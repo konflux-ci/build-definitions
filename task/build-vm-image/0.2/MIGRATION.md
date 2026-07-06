@@ -24,12 +24,16 @@ New result:
 
 ### Hardening improvements over 0.1
 
-* `validate-bib-config` now uses `set -euo pipefail` (was `set -e`).
+* `validate-bib-config` renamed to `validate-config` — now validates
+  `IMAGE_TYPE`, `STORAGE_DRIVER`, and `SBOM_TYPE` upfront (before the
+  expensive remote build), and uses `set -euo pipefail` (was `set -e`).
+* `BIB_CONFIG_FILE` path traversal guard added (`realpath` check).
 * Pullspec values written to the shared vars file are escaped with
   `printf %q` to prevent shell metacharacter injection when sourced.
 * Pullspec validation character class now includes `._-` and the regex
   logic is no longer inverted (0.1 had a bug where the `!` negation
   made the check a no-op).
+* Base images updated: `task-runner` 1.6.0 → 2.0.0, `buildah` 9.7 → 9.8.
 
 ## Action from users
 

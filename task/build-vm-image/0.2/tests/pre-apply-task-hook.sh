@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # Patches the build-vm-image task for testing in a kind cluster.
-# Replaces the untestable steps (use-trusted-artifact, validate-bib-config, build)
+# Replaces the untestable steps (use-trusted-artifact, validate-config, build)
 # with lightweight mocks so the real SBOM steps can run against mocked outputs.
 
 TASK_COPY="$1"
 TEST_NS="$2"
 
-export TASK_RUNNER_IMAGE="quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f"
+export TASK_RUNNER_IMAGE="quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b"
 
 # --- Volume fixes ---
 
@@ -36,7 +36,7 @@ yq -i '
   }
 ' "$TASK_COPY"
 
-# 2. Replace validate-bib-config with a mock that writes /var/workdir/vars
+# 2. Replace validate-config with a mock that writes /var/workdir/vars
 export MOCK_VALIDATE_SCRIPT='#!/bin/bash
 set -euo pipefail
 echo "mock: writing test vars to /var/workdir/vars"
@@ -48,8 +48,8 @@ VARS
 cat /var/workdir/vars
 '
 yq -i '
-  (.spec.steps[] | select(.name == "validate-bib-config")) = {
-    "name": "validate-bib-config",
+  (.spec.steps[] | select(.name == "validate-config")) = {
+    "name": "validate-config",
     "image": env(TASK_RUNNER_IMAGE),
     "computeResources": {"limits": {"memory": "64Mi"}, "requests": {"cpu": "50m", "memory": "64Mi"}},
     "script": strenv(MOCK_VALIDATE_SCRIPT)
