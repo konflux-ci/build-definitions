@@ -6,7 +6,7 @@ Version 0.2 adds SBOM propagation and attachment to disk image artifacts.
 
 The task now downloads the SBOM from the source bootc container image and
 attaches it to the built disk image OCI artifact using cosign. Two new
-steps were added: `sbom-download` and `upload-sbom`.
+steps were added: `download-sbom` and `upload-sbom`.
 
 New optional parameters:
 

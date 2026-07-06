@@ -132,9 +132,15 @@ spec:
         # trim any leading slash.
         BIB_CONFIG_FILE=${BIB_CONFIG_FILE#/}
 
-        BIB_IMAGE=$(yq -r .bootc-builder-image /var/workdir/source/$BIB_CONFIG_FILE)
-        SOURCE_IMAGE=$(yq -r  .source-image /var/workdir/source/$BIB_CONFIG_FILE)
-        TAGGED_AS=$(yq -r  ".tagged-as // \"${SOURCE_IMAGE}\"" /var/workdir/source/$BIB_CONFIG_FILE)
+        BIB_CONFIG_PATH="/var/workdir/source/${BIB_CONFIG_FILE}"
+        BIB_CONFIG_REAL="$(realpath -m "${BIB_CONFIG_PATH}")"
+        if [[ "${BIB_CONFIG_REAL}" != /var/workdir/source/* ]]; then
+          echo "BIB_CONFIG_FILE escapes source directory: ${BIB_CONFIG_FILE}" >&2; exit 1
+        fi
+
+        BIB_IMAGE=$(yq -r .bootc-builder-image "${BIB_CONFIG_PATH}")
+        SOURCE_IMAGE=$(yq -r .source-image "${BIB_CONFIG_PATH}")
+        TAGGED_AS=$(yq -r ".tagged-as // \"${SOURCE_IMAGE}\"" "${BIB_CONFIG_PATH}")
 
         # Validate that all keys exist and are plausible pullspecs
         valid_pullspec_characters="0-9a-zA-Z@:/._-"
@@ -456,7 +462,7 @@ spec:
         - mountPath: /activation-key
           name: activation-key
 
-    - name: sbom-download
+    - name: download-sbom
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       computeResources:
         limits:
