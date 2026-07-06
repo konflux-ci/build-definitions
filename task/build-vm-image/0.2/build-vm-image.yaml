@@ -108,7 +108,7 @@ spec:
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
-    - name: validate-bib-config
+    - name: validate-config
       image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
       computeResources:
         limits:
@@ -120,6 +120,21 @@ spec:
         #!/bin/bash
         set -euo pipefail
         set -x
+
+        case "${IMAGE_TYPE}" in
+          iso|qcow2|gce|vhd|raw) ;;
+          *) echo "Invalid IMAGE_TYPE: ${IMAGE_TYPE}. Must be one of: iso, qcow2, gce, vhd, raw." >&2; exit 1 ;;
+        esac
+
+        case "${STORAGE_DRIVER}" in
+          vfs|overlay) ;;
+          *) echo "Invalid STORAGE_DRIVER: ${STORAGE_DRIVER}. Must be one of: vfs, overlay." >&2; exit 1 ;;
+        esac
+
+        case "${SBOM_TYPE}" in
+          spdx|cyclonedx) ;;
+          *) echo "Invalid SBOM_TYPE: ${SBOM_TYPE}. Must be one of: spdx, cyclonedx." >&2; exit 1 ;;
+        esac
 
         # expects a config file like the following as BIB_CONFIG_FILE
         #
@@ -237,16 +252,6 @@ spec:
 
         ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
         echo "ARCH: '${ARCH}'"
-
-        case "${IMAGE_TYPE}" in
-          iso|qcow2|gce|vhd|raw) ;;
-          *) echo "Invalid IMAGE_TYPE: ${IMAGE_TYPE}. Must be one of: iso, qcow2, gce, vhd, raw." >&2; exit 1 ;;
-        esac
-
-        case "${STORAGE_DRIVER}" in
-          vfs|overlay) ;;
-          *) echo "Invalid STORAGE_DRIVER: ${STORAGE_DRIVER}. Must be one of: vfs, overlay." >&2; exit 1 ;;
-        esac
 
         valid_pullspec_characters="0-9a-zA-Z@:/._-"
         if [[ "${OUTPUT_IMAGE}" =~ [^$valid_pullspec_characters] ]]; then
@@ -481,11 +486,6 @@ spec:
           exit 0
         fi
 
-        case "${SBOM_TYPE}" in
-          spdx|cyclonedx) ;;
-          *) echo "Invalid SBOM_TYPE: ${SBOM_TYPE}. Must be one of: spdx, cyclonedx." >&2; exit 1 ;;
-        esac
-
         if [ "${IMAGE_APPEND_PLATFORM}" = "true" ]; then
           OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
         fi
@@ -582,11 +582,6 @@ spec:
           echo -n "" | tee "$(results.SBOM_BLOB_URL.path)"
           exit 0
         fi
-
-        case "${SBOM_TYPE}" in
-          spdx|cyclonedx) ;;
-          *) echo "Invalid SBOM_TYPE: ${SBOM_TYPE}. Must be one of: spdx, cyclonedx." >&2; exit 1 ;;
-        esac
 
         if [ "${IMAGE_APPEND_PLATFORM}" = "true" ]; then
           OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
