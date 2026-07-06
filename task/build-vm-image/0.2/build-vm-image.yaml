@@ -95,6 +95,7 @@ spec:
         name: workdir
       - mountPath: "/var/lib/containers/storage"
         name: varlibcontainers
+    imagePullPolicy: IfNotPresent
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:77563b5fb4b82f9b6a47070ba06e60486567d34e03ea60cd5169be0be53ad5dc
@@ -246,7 +247,7 @@ spec:
 
         # this unquoted heredoc allows expansions for the image name
         cat >scripts/script-build.sh <<REMOTESSHEOF
-        #!/bin/sh
+        #!/bin/bash
         set -euo pipefail
 
         # this prevents the container from using podman-subscripition-mananger magic,
