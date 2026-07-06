@@ -33,7 +33,7 @@ New result:
 * Pullspec validation character class now includes `._-` and the regex
   logic is no longer inverted (0.1 had a bug where the `!` negation
   made the check a no-op).
-* Base images updated: `task-runner` 1.6.0 → 2.0.0, `buildah` 9.7 → 9.8.
+* Base image updated: `task-runner` 1.8.1 → 2.0.0.
 
 ## Action from users
 

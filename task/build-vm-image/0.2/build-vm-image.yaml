@@ -153,6 +153,15 @@ spec:
           echo "BIB_CONFIG_FILE escapes source directory: ${BIB_CONFIG_FILE}" >&2; exit 1
         fi
 
+        if [ -n "${CONFIG_TOML_FILE}" ]; then
+          CONFIG_TOML_FILE_CLEAN="${CONFIG_TOML_FILE#/}"
+          CONFIG_TOML_PATH="/var/workdir/source/${CONFIG_TOML_FILE_CLEAN}"
+          CONFIG_TOML_REAL="$(realpath -m "${CONFIG_TOML_PATH}")"
+          if [[ "${CONFIG_TOML_REAL}" != /var/workdir/source/* ]]; then
+            echo "CONFIG_TOML_FILE escapes source directory: ${CONFIG_TOML_FILE}" >&2; exit 1
+          fi
+        fi
+
         BIB_IMAGE=$(yq -r .bootc-builder-image "${BIB_CONFIG_PATH}")
         SOURCE_IMAGE=$(yq -r .source-image "${BIB_CONFIG_PATH}")
         TAGGED_AS=$(yq -r ".tagged-as // \"${SOURCE_IMAGE}\"" "${BIB_CONFIG_PATH}")
