@@ -237,6 +237,11 @@ spec:
           *) echo "Invalid IMAGE_TYPE: ${IMAGE_TYPE}. Must be one of: iso, qcow2, gce, vhd, raw." >&2; exit 1 ;;
         esac
 
+        case "${STORAGE_DRIVER}" in
+          vfs|overlay) ;;
+          *) echo "Invalid STORAGE_DRIVER: ${STORAGE_DRIVER}. Must be one of: vfs, overlay." >&2; exit 1 ;;
+        esac
+
         valid_pullspec_characters="0-9a-zA-Z@:/._-"
         if [[ "${OUTPUT_IMAGE}" =~ [^$valid_pullspec_characters] ]]; then
           echo "OUTPUT_IMAGE contains invalid characters" >&2; exit 1
