@@ -2,6 +2,10 @@
 
 <!-- Format guidelines: https://keepachangelog.com/en/1.1.0/#how -->
 
+## 0.2.3
+
+- Added `symlinkCheckIgnorePattern` parameter to exclude symlink paths from the checkout symlink check [konflux-build-cli#132](https://github.com/konflux-ci/konflux-build-cli/pull/132)
+
 ## 0.2.2
 
 - Fix SSH setup failing when mounted secrets contain symlinks to directories [konflux-build-cli#165](https://github.com/konflux-ci/konflux-build-cli/pull/165)
@@ -16,7 +20,6 @@
 - Updated base task to git-clone-oci-ta 0.2.
 - Removed `gitInitImage` (deprecated since 0.1), `verbose` (replaced by `logLevel`), and `userHome` (handled by konflux-build-cli) parameters.
 - Added `logLevel` parameter.
-- Added `symlinkCheckIgnorePattern` parameter to exclude symlink paths from the checkout symlink check.
 
 ## 0.1
 

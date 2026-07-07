@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- Added `symlinkCheckIgnorePattern` parameter to exclude symlink paths from the checkout symlink check [konflux-build-cli#132](https://github.com/konflux-ci/konflux-build-cli/pull/132)
+
 ## 0.2.2
 
 - Fix SSH setup failing when mounted secrets contain symlinks to directories [konflux-build-cli#165](https://github.com/konflux-ci/konflux-build-cli/pull/165)
@@ -14,4 +18,3 @@
 - Use git-clone implementation from konflux-build-cli instead of inline Bash.
 - Removed `gitInitImage` (deprecated since 0.1), `verbose` (replaced by `logLevel`), and `userHome` (handled by konflux-build-cli) parameters.
 - Added `logLevel` parameter.
-- Added `symlinkCheckIgnorePattern` parameter to exclude symlink paths from the checkout symlink check.
