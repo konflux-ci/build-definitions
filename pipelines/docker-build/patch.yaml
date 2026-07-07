@@ -64,6 +64,27 @@
     type: string
     default: "false"
 - op: add
+  path: /spec/params/-
+  value:
+    name: source-date-epoch
+    description: Sets the image created time and the SOURCE_DATE_EPOCH build argument. On its own, it does not change file timestamps inside the layers (set rewrite-timestamp to "true" for that). Leave empty to keep the actual build time.
+    type: string
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: rewrite-timestamp
+    description: When "true", clamp file modification times in the image layers to at most source-date-epoch. Does nothing unless source-date-epoch is set.
+    type: string
+    default: "false"
+- op: add
+  path: /spec/params/-
+  value:
+    name: omit-history
+    description: When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.
+    type: string
+    default: "false"
+- op: add
   path: /spec/tasks/3/params
   value:
   - name: IMAGE
@@ -95,3 +116,9 @@
     value: "$(tasks.init.results.http-proxy)"
   - name: NO_PROXY
     value: "$(tasks.init.results.no-proxy)"
+  - name: SOURCE_DATE_EPOCH
+    value: "$(params.source-date-epoch)"
+  - name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"
+  - name: OMIT_HISTORY
+    value: "$(params.omit-history)"

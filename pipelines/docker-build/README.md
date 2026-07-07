@@ -18,13 +18,16 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |git-url| Source Repository URL| None| clone-repository:0.2:url|
 |hermetic| Execute the build with network isolation| false| build-container:0.10:HERMETIC|
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | build-container:0.10:IMAGE_EXPIRES_AFTER|
+|omit-history| When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.| false| build-container:0.10:OMIT_HISTORY|
 |output-image| Fully Qualified Output Image| None| build-container:0.10:IMAGE ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.10:CONTEXT ; push-dockerfile:0.3:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-container:0.10:PREFETCH_INPUT|
 |privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.10:PRIVILEGED_NESTED|
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision|
+|rewrite-timestamp| When "true", clamp file modification times in the image layers to at most source-date-epoch. Does nothing unless source-date-epoch is set.| false| build-container:0.10:REWRITE_TIMESTAMP|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Sets the image created time and the SOURCE_DATE_EPOCH build argument. On its own, it does not change file timestamps inside the layers (set rewrite-timestamp to "true" for that). Leave empty to keep the actual build time.| | build-container:0.10:SOURCE_DATE_EPOCH|
 
 ## Available params from tasks
 ### apply-tags:0.3 task parameters
@@ -77,12 +80,12 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |LOG_LEVEL| Log level for the build command.| info| |
 |NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| '$(tasks.init.results.no-proxy)'|
-|OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| |
+|OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| '$(params.omit-history)'|
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| ""| '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
 |PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| caching-ca-bundle| |
-|REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| |
+|REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| '$(params.rewrite-timestamp)'|
 |SBOM_SKIP_VALIDATION| Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.| true| |
 |SBOM_SOURCE_SCAN_ENABLED| Flag to enable or disable SBOM generation from source code. The scanner of the source code is enabled only for non-hermetic builds and can be disabled if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false positives on source code scanning.| true| |
 |SBOM_SYFT_SELECT_CATALOGERS| Extra option to customize Syft's default catalogers when generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers. The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection| ""| |
@@ -90,7 +93,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SKIP_INJECTIONS| Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.| false| |
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| '$(params.source-date-epoch)'|
 |SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
