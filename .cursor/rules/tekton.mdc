@@ -15,6 +15,11 @@ description: Rules how to write great tekton tasks and pipelines
 ### Security
 - never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script
 
+### Resource optimization
+- Tekton computes pod resource requirements as the sum of all step resource requests, not the maximum — minimize step count to reduce scheduling overhead in resource-constrained clusters
+- consolidate steps that share the same base image and run sequentially, especially lightweight post-processing steps such as result reporting or artifact uploading
+- when a step only writes a Tekton result value (e.g. `$(results.*.path)`), merge it into the preceding step rather than running a separate container
+
 ## Script
 - if a user hasn't specified otherwise, default script language is bash
 - add the shebang of the script language to the script
