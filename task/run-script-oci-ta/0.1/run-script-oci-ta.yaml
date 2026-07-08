@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1.1"
+    app.kubernetes.io/version: "0.1.2"
 spec:
   description: |-
     This task allows to run an script stored on the git repository and stores the resultant directory
@@ -120,7 +120,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: run-script
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:c8d667a4efa2f05e73e2ac36b55928633d78857589165bd919d2628812d7ffcb
+      image: quay.io/konflux-ci/task-runner:2.1.0@sha256:c34c933c269e2401bb042fe69e2999cf288331b6586d4f4eca9c845270d9b1f9
       computeResources:
         limits:
           memory: 5Gi
@@ -135,6 +135,8 @@ spec:
         - mountPath: /var/lib/containers
           name: varlibcontainers
       env:
+        - name: HOME
+          value: /root
         - name: PARAM_ENABLE_SYMLINK_CHECK
           value: $(params.enableSymlinkCheck)
         - name: SCRIPT
@@ -245,6 +247,7 @@ spec:
         # fix permissions after running the script.
         chown -R root:root "$REAL_ARTIFACT_PATH"
       securityContext:
+        runAsUser: 0
         capabilities:
           add:
             - SETFCAP

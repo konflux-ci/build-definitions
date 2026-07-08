@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.1.1"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -143,13 +143,18 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+      image: quay.io/konflux-ci/task-runner:2.1.0@sha256:c34c933c269e2401bb042fe69e2999cf288331b6586d4f4eca9c845270d9b1f9
       computeResources:
         limits:
           memory: 128Mi
         requests:
           cpu: 250m
           memory: 128Mi
+      env:
+      - name: HOME
+        value: /root
+      securityContext:
+        runAsUser: 0
       script: |-
         #!/bin/bash
         set -o verbose
@@ -244,7 +249,7 @@ spec:
         # import retry function
         # remove line with bash
         # shellcheck disable=SC2002
-        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+        cat /usr/local/bin/retry | sed 1d >> scripts/script-build.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
@@ -340,7 +345,7 @@ spec:
         # import retry function
         # remove line with bash
         # shellcheck disable=SC2002
-        cat /usr/bin/retry | sed 1d >> scripts/script-push.sh
+        cat /usr/local/bin/retry | sed 1d >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
