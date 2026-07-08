@@ -1,0 +1,151 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: validate-label-semver
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
+spec:
+  description: >-
+    Validates the semver-like format of a container image label (default: "version").
+    Optionally compares the structural format against a previous image's label to
+    detect unintended version format changes (e.g., segment count differences).
+  params:
+    - name: IMAGE_URL
+      description: Image repository and tag reference of the built image.
+      type: string
+    - name: IMAGE_DIGEST
+      description: Image digest of the built image.
+      type: string
+    - name: PREVIOUS_IMAGE_URL
+      description: >-
+        Previous image reference (repository@digest or repository:tag) to compare
+        against for structural consistency. If empty, structural comparison is skipped.
+      type: string
+      default: ""
+    - name: LABEL_KEY
+      description: The label key to validate.
+      type: string
+      default: "version"
+    - name: CA_TRUST_CONFIG_MAP_NAME
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: CA_TRUST_CONFIG_MAP_KEY
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
+  results:
+    - name: LABEL_VALUE
+      description: The extracted label value from the current image.
+  stepTemplate:
+    volumeMounts:
+      - name: trusted-ca
+        mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        subPath: ca-bundle.crt
+        readOnly: true
+  steps:
+    - name: validate
+      image: quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b
+      computeResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 64Mi
+      env:
+        - name: IMAGE_URL
+          value: $(params.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(params.IMAGE_DIGEST)
+        - name: PREVIOUS_IMAGE_URL
+          value: $(params.PREVIOUS_IMAGE_URL)
+        - name: LABEL_KEY
+          value: $(params.LABEL_KEY)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # Extracts the count of dot-separated numeric version segments from a
+        # label value. Stops at the first segment that contains a dash (build
+        # metadata) or is a 10+ digit number (timestamp).
+        extract_version_segment_count() {
+          local label_value="$1"
+          IFS='.' read -ra all_segments <<< "$label_value"
+
+          local count=0
+          for seg in "${all_segments[@]}"; do
+            if [[ "$seg" == *-* ]]; then
+              break
+            fi
+            if [[ "$seg" =~ ^[0-9]{10,}$ ]]; then
+              break
+            fi
+            if [[ "$seg" =~ ^[0-9]+$ ]]; then
+              count=$((count + 1))
+            else
+              break
+            fi
+          done
+
+          echo "$count"
+        }
+
+        echo "Inspecting current image: docker://${IMAGE_URL}@${IMAGE_DIGEST}"
+        current_label=$(skopeo inspect --no-tags "docker://${IMAGE_URL}@${IMAGE_DIGEST}" \
+          | jq -r --arg key "$LABEL_KEY" '.Labels[$key] // empty')
+
+        if [[ -z "${current_label}" ]]; then
+          echo "ERROR: Label '${LABEL_KEY}' not found on image ${IMAGE_URL}@${IMAGE_DIGEST}."
+          exit 1
+        fi
+
+        echo "Found label ${LABEL_KEY}=${current_label}"
+        printf '%s' "$current_label" > "$(results.LABEL_VALUE.path)"
+
+        current_segment_count=$(extract_version_segment_count "$current_label")
+
+        if [[ "$current_segment_count" -lt 2 ]]; then
+          echo "ERROR: Label '${LABEL_KEY}' value '${current_label}' does not match semver-like format (expected at least MAJOR.MINOR, found ${current_segment_count} numeric segment(s))."
+          exit 1
+        fi
+
+        echo "Version segment count: ${current_segment_count} (valid semver-like format)"
+
+        if [[ -n "${PREVIOUS_IMAGE_URL}" ]]; then
+          echo "Inspecting previous image: docker://${PREVIOUS_IMAGE_URL}"
+          previous_label=$(skopeo inspect --no-tags "docker://${PREVIOUS_IMAGE_URL}" \
+            | jq -r --arg key "$LABEL_KEY" '.Labels[$key] // empty')
+
+          if [[ -z "${previous_label}" ]]; then
+            echo "WARNING: Label '${LABEL_KEY}' not found on previous image ${PREVIOUS_IMAGE_URL}. Skipping structural comparison."
+          else
+            echo "Previous label ${LABEL_KEY}=${previous_label}"
+            previous_segment_count=$(extract_version_segment_count "$previous_label")
+            echo "Previous version segment count: ${previous_segment_count}"
+
+            if [[ "$current_segment_count" -ne "$previous_segment_count" ]]; then
+              echo "ERROR: Version format structural change detected."
+              echo "  Previous '${previous_label}' has ${previous_segment_count} version segment(s)"
+              echo "  Current  '${current_label}' has ${current_segment_count} version segment(s)"
+              exit 1
+            fi
+
+            echo "Structural comparison passed: both have ${current_segment_count} version segment(s)"
+          fi
+        else
+          echo "No previous image provided. Skipping structural comparison."
+        fi
+
+        echo "SUCCESS: Label '${LABEL_KEY}' value '${current_label}' is valid."
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+        items:
+          - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+            path: ca-bundle.crt
+        optional: true
