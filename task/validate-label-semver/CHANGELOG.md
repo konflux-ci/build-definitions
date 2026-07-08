@@ -8,5 +8,7 @@
 
 ## 0.1
 
-- Initial release: validates semver-like format of container image labels.
-- Optional structural comparison against a previous image's label.
+- Initial release: validates container image version labels against a declared
+  semver pattern (VERSION_PATTERN, default `{MAJOR}.{MINOR}.{PATCH}`).
+- Fails the build when the version segment count doesn't match the pattern,
+  preventing PURL inconsistencies that break downstream CVE scanning.

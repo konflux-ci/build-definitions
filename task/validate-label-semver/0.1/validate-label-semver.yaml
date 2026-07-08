@@ -10,14 +10,14 @@ metadata:
     tekton.dev/tags: "konflux"
 spec:
   description: >-
-    Validates the semver-like format of a container image label (default: "version").
-    Optionally compares the structural format against a previous image's label to
-    detect unintended version format changes (e.g., segment count differences).
-    Consistent version formatting is critical because downstream tools use the
-    version label to construct Package URLs (PURLs) for CVE scanning. If the
-    version structure changes unexpectedly (e.g., from MAJOR.MINOR to
-    MAJOR.MINOR.PATCH.BUILD), scanners cannot reliably match affected versions
-    against known vulnerabilities.
+    Validates the version label on a container image against a declared semver
+    pattern. The VERSION_PATTERN parameter defines the expected structure using
+    named placeholders (e.g., {MAJOR}.{MINOR}.{PATCH}). The task counts the
+    dot-separated numeric segments in the label and fails if they don't match
+    the pattern. Consistent version formatting is critical because downstream
+    tools use the version label to construct Package URLs (PURLs) for CVE
+    scanning. If the version structure changes unexpectedly, scanners cannot
+    reliably match affected package versions against known vulnerabilities.
   params:
     - name: IMAGE_URL
       description: Image repository and tag reference of the built image.
@@ -25,12 +25,13 @@ spec:
     - name: IMAGE_DIGEST
       description: Image digest of the built image.
       type: string
-    - name: PREVIOUS_IMAGE_URL
+    - name: VERSION_PATTERN
       description: >-
-        Previous image reference (repository@digest or repository:tag) to compare
-        against for structural consistency. If empty, structural comparison is skipped.
+        Declares the expected version structure using dot-separated named
+        placeholders. Each placeholder represents one required numeric segment.
+        Teams with non-standard versioning must set this to match their scheme.
       type: string
-      default: ""
+      default: "{MAJOR}.{MINOR}.{PATCH}"
     - name: LABEL_KEY
       description: The label key to validate.
       type: string
@@ -66,17 +67,27 @@ spec:
           value: $(params.IMAGE_URL)
         - name: IMAGE_DIGEST
           value: $(params.IMAGE_DIGEST)
-        - name: PREVIOUS_IMAGE_URL
-          value: $(params.PREVIOUS_IMAGE_URL)
+        - name: VERSION_PATTERN
+          value: $(params.VERSION_PATTERN)
         - name: LABEL_KEY
           value: $(params.LABEL_KEY)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
 
-        # Extracts the count of dot-separated numeric version segments from a
-        # label value. Stops at the first segment that contains a dash (build
-        # metadata) or is a 10+ digit number (timestamp).
+        # Count {PLACEHOLDER} tokens in the pattern to determine expected segments.
+        expected_segment_count=$(grep -o '{[^}]*}' <<< "$VERSION_PATTERN" | wc -l)
+
+        if [[ "$expected_segment_count" -lt 1 ]]; then
+          echo "ERROR: VERSION_PATTERN '${VERSION_PATTERN}' contains no {PLACEHOLDER} tokens."
+          exit 1
+        fi
+
+        echo "Version pattern: ${VERSION_PATTERN} (expecting ${expected_segment_count} numeric segment(s))"
+
+        # Count dot-separated numeric version segments in a label value.
+        # Stops at the first segment containing a dash (build metadata)
+        # or a 10+ digit number (timestamp).
         extract_version_segment_count() {
           local label_value="$1"
           IFS='.' read -ra all_segments <<< "$label_value"
@@ -99,7 +110,7 @@ spec:
           echo "$count"
         }
 
-        echo "Inspecting current image: docker://${IMAGE_URL}@${IMAGE_DIGEST}"
+        echo "Inspecting image: docker://${IMAGE_URL}@${IMAGE_DIGEST}"
         current_label=$(skopeo inspect --no-tags "docker://${IMAGE_URL}@${IMAGE_DIGEST}" \
           | jq -r --arg key "$LABEL_KEY" '.Labels[$key] // empty')
 
@@ -111,43 +122,15 @@ spec:
         echo "Found label ${LABEL_KEY}=${current_label}"
         printf '%s' "$current_label" > "$(results.LABEL_VALUE.path)"
 
-        current_segment_count=$(extract_version_segment_count "$current_label")
+        actual_segment_count=$(extract_version_segment_count "$current_label")
 
-        if [[ "$current_segment_count" -lt 2 ]]; then
-          echo "ERROR: Label '${LABEL_KEY}' value '${current_label}' does not match semver-like format (expected at least MAJOR.MINOR, found ${current_segment_count} numeric segment(s))."
-          echo "A valid semver-like version is required to build reliable PURLs for CVE scanning."
+        if [[ "$actual_segment_count" -ne "$expected_segment_count" ]]; then
+          echo "ERROR: Label '${LABEL_KEY}' value '${current_label}' has ${actual_segment_count} version segment(s), but pattern '${VERSION_PATTERN}' requires ${expected_segment_count}."
+          echo "Mismatched version structure breaks PURL consistency, which prevents CVE scanners from reliably matching affected package versions."
           exit 1
         fi
 
-        echo "Version segment count: ${current_segment_count} (valid semver-like format)"
-
-        if [[ -n "${PREVIOUS_IMAGE_URL}" ]]; then
-          echo "Inspecting previous image: docker://${PREVIOUS_IMAGE_URL}"
-          previous_label=$(skopeo inspect --no-tags "docker://${PREVIOUS_IMAGE_URL}" \
-            | jq -r --arg key "$LABEL_KEY" '.Labels[$key] // empty')
-
-          if [[ -z "${previous_label}" ]]; then
-            echo "WARNING: Label '${LABEL_KEY}' not found on previous image ${PREVIOUS_IMAGE_URL}. Skipping structural comparison."
-          else
-            echo "Previous label ${LABEL_KEY}=${previous_label}"
-            previous_segment_count=$(extract_version_segment_count "$previous_label")
-            echo "Previous version segment count: ${previous_segment_count}"
-
-            if [[ "$current_segment_count" -ne "$previous_segment_count" ]]; then
-              echo "ERROR: Version format structural change detected."
-              echo "  Previous '${previous_label}' has ${previous_segment_count} version segment(s)"
-              echo "  Current  '${current_label}' has ${current_segment_count} version segment(s)"
-              echo "This breaks PURL consistency, which prevents CVE scanners from reliably matching affected package versions."
-              exit 1
-            fi
-
-            echo "Structural comparison passed: both have ${current_segment_count} version segment(s)"
-          fi
-        else
-          echo "No previous image provided. Skipping structural comparison."
-        fi
-
-        echo "SUCCESS: Label '${LABEL_KEY}' value '${current_label}' is valid."
+        echo "SUCCESS: Label '${LABEL_KEY}' value '${current_label}' matches pattern '${VERSION_PATTERN}' (${actual_segment_count} segment(s))."
   volumes:
     - name: trusted-ca
       configMap:
