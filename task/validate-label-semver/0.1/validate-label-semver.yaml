@@ -36,11 +36,11 @@ spec:
       description: The label key to validate.
       type: string
       default: "version"
-    - name: CA_TRUST_CONFIG_MAP_NAME
+    - name: caTrustConfigMapName
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
       default: trusted-ca
-    - name: CA_TRUST_CONFIG_MAP_KEY
+    - name: caTrustConfigMapKey
       type: string
       description: The name of the key in the ConfigMap that contains the CA bundle data.
       default: ca-bundle.crt
@@ -86,21 +86,22 @@ spec:
         echo "Version pattern: ${VERSION_PATTERN} (expecting ${expected_segment_count} numeric segment(s))"
 
         # Count dot-separated numeric version segments in a label value.
-        # Stops at the first segment containing a dash (build metadata)
-        # or a 10+ digit number (timestamp).
+        # Strips a leading v/V prefix, then walks segments left-to-right.
+        # Each segment's numeric prefix (before any dash) is evaluated:
+        # stops at a 10+ digit number (timestamp) or non-numeric content.
         extract_version_segment_count() {
           local label_value="$1"
+          label_value="${label_value#v}"
+          label_value="${label_value#V}"
           IFS='.' read -ra all_segments <<< "$label_value"
 
           local count=0
           for seg in "${all_segments[@]}"; do
-            if [[ "$seg" == *-* ]]; then
+            local numeric="${seg%%-*}"
+            if [[ "$numeric" =~ ^[0-9]{10,}$ ]]; then
               break
             fi
-            if [[ "$seg" =~ ^[0-9]{10,}$ ]]; then
-              break
-            fi
-            if [[ "$seg" =~ ^[0-9]+$ ]]; then
+            if [[ "$numeric" =~ ^[0-9]+$ ]]; then
               count=$((count + 1))
             else
               break
@@ -134,8 +135,8 @@ spec:
   volumes:
     - name: trusted-ca
       configMap:
-        name: $(params.CA_TRUST_CONFIG_MAP_NAME)
+        name: $(params.caTrustConfigMapName)
         items:
-          - key: $(params.CA_TRUST_CONFIG_MAP_KEY)
+          - key: $(params.caTrustConfigMapKey)
             path: ca-bundle.crt
         optional: true
