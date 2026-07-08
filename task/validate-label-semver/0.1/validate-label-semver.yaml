@@ -13,6 +13,11 @@ spec:
     Validates the semver-like format of a container image label (default: "version").
     Optionally compares the structural format against a previous image's label to
     detect unintended version format changes (e.g., segment count differences).
+    Consistent version formatting is critical because downstream tools use the
+    version label to construct Package URLs (PURLs) for CVE scanning. If the
+    version structure changes unexpectedly (e.g., from MAJOR.MINOR to
+    MAJOR.MINOR.PATCH.BUILD), scanners cannot reliably match affected versions
+    against known vulnerabilities.
   params:
     - name: IMAGE_URL
       description: Image repository and tag reference of the built image.
@@ -110,6 +115,7 @@ spec:
 
         if [[ "$current_segment_count" -lt 2 ]]; then
           echo "ERROR: Label '${LABEL_KEY}' value '${current_label}' does not match semver-like format (expected at least MAJOR.MINOR, found ${current_segment_count} numeric segment(s))."
+          echo "A valid semver-like version is required to build reliable PURLs for CVE scanning."
           exit 1
         fi
 
@@ -131,6 +137,7 @@ spec:
               echo "ERROR: Version format structural change detected."
               echo "  Previous '${previous_label}' has ${previous_segment_count} version segment(s)"
               echo "  Current  '${current_label}' has ${current_segment_count} version segment(s)"
+              echo "This breaks PURL consistency, which prevents CVE scanners from reliably matching affected package versions."
               exit 1
             fi
 
