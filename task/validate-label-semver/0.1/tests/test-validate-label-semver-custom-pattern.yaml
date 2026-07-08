@@ -1,0 +1,82 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-validate-label-semver-custom-pattern
+spec:
+  description: |
+    Test that a two-segment version passes when using a custom
+    {MAJOR}.{MINOR} pattern.
+  tasks:
+    - name: create-test-image
+      taskSpec:
+        results:
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+              name: trusted-ca
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: build-and-push
+            image: quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+            env:
+              - name: IMAGE_URL
+                value: registry-service.kind-registry/test-validate-semver-custom:latest
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              container=$(buildah from scratch)
+              buildah config --label version=418.94.202604140044-0 "$container"
+              buildah commit "$container" "$IMAGE_URL"
+              buildah push --tls-verify=false "$IMAGE_URL"
+              digest=$(skopeo inspect --no-tags --tls-verify=false "docker://$IMAGE_URL" | jq -r '.Digest')
+              echo -n "$IMAGE_URL" > "$(results.IMAGE_URL.path)"
+              echo -n "$digest" > "$(results.IMAGE_DIGEST.path)"
+    - name: run-task
+      taskRef:
+        name: validate-label-semver
+      params:
+        - name: IMAGE_URL
+          value: $(tasks.create-test-image.results.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(tasks.create-test-image.results.IMAGE_DIGEST)
+        - name: VERSION_PATTERN
+          value: "{MAJOR}.{MINOR}"
+      runAfter:
+        - create-test-image
+    - name: check-result
+      params:
+        - name: LABEL_VALUE
+          value: $(tasks.run-task.results.LABEL_VALUE)
+      taskSpec:
+        params:
+          - name: LABEL_VALUE
+        steps:
+          - name: verify
+            image: quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b
+            env:
+              - name: LABEL_VALUE
+                value: $(params.LABEL_VALUE)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              if [[ "$LABEL_VALUE" != "418.94.202604140044-0" ]]; then
+                echo "FAIL: expected LABEL_VALUE=418.94.202604140044-0, got $LABEL_VALUE"
+                exit 1
+              fi
+              echo "PASS: LABEL_VALUE is correct"
+      runAfter:
+        - run-task
