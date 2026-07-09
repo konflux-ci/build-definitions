@@ -277,6 +277,7 @@ is_migration_file() {
 # inspects changed files from current branch directly.
 list_migration_files() {
     local task_dir_path  # Used as key for TASK_MIGRATIONS
+    local task_name
     local file_list
     file_list=$(git diff --name-status "$(git merge-base HEAD "$DEFAULT_BRANCH")")
     local seen=
@@ -297,6 +298,12 @@ $task_dir_path"
                 fi
                 ;;
             D | M)
+                task_name=$(awk -F '/' '{ print $2 }' <<<"$origin_path")
+                if [[ $status == D && -e "external-task/$task_name" ]]; then
+                    # Deleting the migrations of a task that has moved to a different repo is fine
+                    continue
+                fi
+
                 error "It is not allowed to delete or modify existing migration file: $origin_path"
                 error "Please bump task version in the label '${LABEL_TASK_VERSION}' and create a new migration file."
                 exit 1
