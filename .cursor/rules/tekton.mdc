@@ -12,6 +12,11 @@ description: Rules how to write great tekton tasks and pipelines
 - `quay.io/konflux-ci/task-runner` is usually used as task step image.
   Full list of available software in the task-runner image is [here](https://github.com/konflux-ci/task-runner/blob/main/Installed-Software.md).
 
+### Multi-version tasks
+- Many tasks have multiple active versions (e.g., `task/build-vm-image/0.1/` and `task/build-vm-image/0.2/`). When modifying a task, check all active (non-archived) versions for the same type of change.
+- Image swaps, security fixes, and bug fixes should typically be applied to all active versions unless there is a documented reason to skip one.
+- Version-specific directories under `task/<task-name>/` are active unless moved to `archived-tasks/`.
+
 ### Security
 - never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script
 
