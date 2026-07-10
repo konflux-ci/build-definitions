@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.5
+    app.kubernetes.io/version: 0.10.6
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -74,6 +74,13 @@ spec:
     description: The image is built from this commit.
     name: COMMIT_SHA
     type: string
+  - default: gzip
+    description: 'Compression format: gzip (default), zstd-chunked, or dual. In dual
+      mode both gzip and zstd:chunked variants are bundled in a per-arch OCI index
+      (gzip first). dual requires BUILDAH_FORMAT=oci. Tech preview: dual and zstd-chunked
+      modes are experimental and not yet fully supported by the release pipeline.'
+    name: COMPRESSION_FORMAT
+    type: string
   - default: .
     description: Path to the directory to use as context.
     name: CONTEXT
@@ -94,6 +101,11 @@ spec:
     description: Array of --env values ("env=value" strings)
     name: ENV_VARS
     type: array
+  - default: "false"
+    description: Recompress all layers including base image layers, not just layers
+      created by this build. Only applies to zstd-chunked and dual modes.
+    name: FORCE_COMPRESSION
+    type: string
   - default: "false"
     description: Determines if build will be executed without network access.
     name: HERMETIC
@@ -274,6 +286,11 @@ spec:
     name: IMAGE_APPEND_PLATFORM
     type: string
   results:
+  - description: Comma-separated image manifest references. In dual mode lists the
+      gzip and zstd child manifest references for Chains provenance; otherwise the
+      single manifest reference.
+    name: IMAGES
+    type: string
   - description: Digest of the image just built
     name: IMAGE_DIGEST
   - description: Image reference of the built image
@@ -304,6 +321,8 @@ spec:
       value: $(params.BUILD_ARGS_FILE)
     - name: BUILD_TIMESTAMP
       value: $(params.BUILD_TIMESTAMP)
+    - name: COMPRESSION_FORMAT
+      value: $(params.COMPRESSION_FORMAT)
     - name: CONTEXT
       value: $(params.CONTEXT)
     - name: CONTEXTUALIZE_SBOM
@@ -705,6 +724,7 @@ spec:
           -e ANNOTATIONS_FILE="${ANNOTATIONS_FILE@Q}" \
           -e BUILD_ARGS_FILE="${BUILD_ARGS_FILE@Q}" \
           -e BUILD_TIMESTAMP="${BUILD_TIMESTAMP@Q}" \
+          -e COMPRESSION_FORMAT="${COMPRESSION_FORMAT@Q}" \
           -e CONTEXT="${CONTEXT@Q}" \
           -e CONTEXTUALIZE_SBOM="${CONTEXTUALIZE_SBOM@Q}" \
           -e HERMETIC="${HERMETIC@Q}" \
@@ -806,6 +826,8 @@ spec:
       value: $(params.BUILDAH_FORMAT)
     - name: TASKRUN_NAME
       value: $(context.taskRun.name)
+    - name: FORCE_COMPRESSION
+      value: $(params.FORCE_COMPRESSION)
     image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
     name: push
     script: |
@@ -835,43 +857,165 @@ spec:
         push_format=docker
       fi
 
-      echo "[$(date --utc -Ins)] Push image with unique tag"
+      # dual requires OCI: the zstd annotation is only valid on OCI manifests
+      if [ "${COMPRESSION_FORMAT}" = "dual" ] && [ "$push_format" != "oci" ]; then
+        echo "ERROR: COMPRESSION_FORMAT=dual requires BUILDAH_FORMAT=oci" >&2
+        exit 1
+      fi
+
+      compression_args=()
+      if [ "${COMPRESSION_FORMAT}" = "zstd-chunked" ]; then
+        compression_args+=(--compression-format zstd:chunked)
+      fi
+      if [ "${FORCE_COMPRESSION}" = "true" ] && [ "${COMPRESSION_FORMAT}" != "gzip" ]; then
+        compression_args+=(--force-compression)
+      fi
+
+      case "${COMPRESSION_FORMAT}" in
+      gzip | zstd-chunked | dual) ;;
+      *)
+        echo "ERROR: unsupported COMPRESSION_FORMAT '${COMPRESSION_FORMAT}'" >&2
+        exit 1
+        ;;
+      esac
 
       buildah_retries=3
+      image_repo="${IMAGE%:*}"
 
-      # Push to a unique tag based on the TaskRun name to avoid race conditions
-      echo "Pushing to ${IMAGE%:*}:${TASKRUN_NAME}"
-      if ! retry buildah push \
-        --format="$push_format" \
-        --retry "$buildah_retries" \
-        --tls-verify="$TLSVERIFY" \
-        "$IMAGE" \
-        "docker://${IMAGE%:*}:${TASKRUN_NAME}"; then
-        echo "Failed to push image to ${IMAGE%:*}:${TASKRUN_NAME}"
-        exit 1
+      if [ "${COMPRESSION_FORMAT}" = "dual" ]; then
+        echo "[$(date --utc -Ins)] Push dual-compression per-arch index"
+
+        gzip_tag="${image_repo}:${TASKRUN_NAME}-gzip"
+        gzip_push_args=(
+          --format=oci
+          --retry "$buildah_retries"
+          --tls-verify="$TLSVERIFY"
+          --compression-format gzip
+          --digestfile /tmp/gzip-digest
+        )
+        if [ "${FORCE_COMPRESSION}" = "true" ]; then
+          gzip_push_args+=(--force-compression)
+        fi
+        echo "Pushing gzip variant to ${gzip_tag}"
+        if ! retry buildah push "${gzip_push_args[@]}" "$IMAGE" "docker://${gzip_tag}"; then
+          echo "Failed to push gzip variant to ${gzip_tag}" >&2
+          exit 1
+        fi
+        gzip_digest="$(cat /tmp/gzip-digest)"
+        gzip_ref="${image_repo}@${gzip_digest}"
+
+        zstd_tag="${image_repo}:${TASKRUN_NAME}-zstd"
+        zstd_push_args=(
+          --format=oci
+          --retry "$buildah_retries"
+          --tls-verify="$TLSVERIFY"
+          --compression-format zstd:chunked
+          --digestfile /tmp/zstd-digest
+        )
+        if [ "${FORCE_COMPRESSION}" = "true" ]; then
+          zstd_push_args+=(--force-compression)
+        fi
+        echo "Pushing zstd:chunked variant to ${zstd_tag}"
+        if ! retry buildah push "${zstd_push_args[@]}" "$IMAGE" "docker://${zstd_tag}"; then
+          echo "Failed to push zstd:chunked variant to ${zstd_tag}" >&2
+          exit 1
+        fi
+        zstd_digest="$(cat /tmp/zstd-digest)"
+        zstd_ref="${image_repo}@${zstd_digest}"
+
+        # gzip first in the index for backward compat with older Docker clients
+        per_arch_index="per-arch-index-${TASKRUN_NAME}"
+        echo "Creating per-arch index ${per_arch_index}"
+        buildah manifest create "$per_arch_index"
+        if ! retry buildah manifest add "$per_arch_index" "docker://${gzip_ref}"; then
+          echo "Failed to add gzip variant to ${per_arch_index}" >&2
+          exit 1
+        fi
+        if ! retry buildah manifest add "$per_arch_index" "docker://${zstd_ref}"; then
+          echo "Failed to add zstd variant to ${per_arch_index}" >&2
+          exit 1
+        fi
+
+        buildah manifest inspect "$per_arch_index" >/shared/per-arch-index-manifest.json
+
+        echo "Pushing per-arch index to ${image_repo}:${TASKRUN_NAME}"
+        if ! retry buildah manifest push --all \
+          --format=oci \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          --digestfile "/var/workdir/image-digest" \
+          "$per_arch_index" \
+          "docker://${image_repo}:${TASKRUN_NAME}"; then
+          echo "Failed to push per-arch index to ${image_repo}:${TASKRUN_NAME}" >&2
+          exit 1
+        fi
+
+        echo "Pushing per-arch index to ${IMAGE}"
+        if ! retry buildah manifest push --all \
+          --format=oci \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          "$per_arch_index" \
+          "docker://$IMAGE"; then
+          echo "Failed to push per-arch index to $IMAGE" >&2
+          exit 1
+        fi
+
+        index_digest="$(cat "/var/workdir/image-digest")"
+
+        echo -n "$index_digest" | tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "${IMAGE}@${index_digest}" >"$(results.IMAGE_REF.path)"
+        echo -n "${gzip_ref},${zstd_ref}" >"$(results.IMAGES.path)"
+
+        echo -n "$gzip_digest" >/shared/gzip-digest
+        echo -n "$zstd_digest" >/shared/zstd-digest
+        echo -n "$gzip_ref" >/shared/gzip-ref
+        echo -n "$zstd_ref" >/shared/zstd-ref
+        echo
+      else
+        echo "[$(date --utc -Ins)] Push image with unique tag"
+
+        # Push to a unique tag based on the TaskRun name to avoid race conditions
+        echo "Pushing to ${image_repo}:${TASKRUN_NAME}"
+        if ! retry buildah push \
+          --format="$push_format" \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          "${compression_args[@]}" \
+          "$IMAGE" \
+          "docker://${image_repo}:${TASKRUN_NAME}"; then
+          echo "Failed to push image to ${image_repo}:${TASKRUN_NAME}" >&2
+          exit 1
+        fi
+
+        echo "[$(date --utc -Ins)] Push image with git revision"
+
+        # Push to a tag based on the git revision
+        echo "Pushing to ${IMAGE}"
+        if ! retry buildah push \
+          --format="$push_format" \
+          --retry "$buildah_retries" \
+          --tls-verify="$TLSVERIFY" \
+          "${compression_args[@]}" \
+          --digestfile "/var/workdir/image-digest" "$IMAGE" \
+          "docker://$IMAGE"; then
+          echo "Failed to push image to $IMAGE" >&2
+          exit 1
+        fi
+
+        tee "$(results.IMAGE_DIGEST.path)" <"/var/workdir"/image-digest
+        echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
+        {
+          echo -n "${IMAGE}@"
+          cat "/var/workdir/image-digest"
+        } >"$(results.IMAGE_REF.path)"
+        {
+          echo -n "${IMAGE}@"
+          cat "/var/workdir/image-digest"
+        } >"$(results.IMAGES.path)"
+        echo
       fi
-
-      echo "[$(date --utc -Ins)] Push image with git revision"
-
-      # Push to a tag based on the git revision
-      echo "Pushing to ${IMAGE}"
-      if ! retry buildah push \
-        --format="$push_format" \
-        --retry "$buildah_retries" \
-        --tls-verify="$TLSVERIFY" \
-        --digestfile "/var/workdir/image-digest" "$IMAGE" \
-        "docker://$IMAGE"; then
-        echo "Failed to push image to $IMAGE"
-        exit 1
-      fi
-
-      tee "$(results.IMAGE_DIGEST.path)" <"/var/workdir"/image-digest
-      echo -n "$IMAGE" | tee $(results.IMAGE_URL.path)
-      {
-        echo -n "${IMAGE}@"
-        cat "/var/workdir/image-digest"
-      } >"$(results.IMAGE_REF.path)"
-      echo
 
       # detect if keyless signing is required
       SIGNING_CONFIG='{}'
@@ -939,22 +1083,34 @@ spec:
         SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
         export SIGSTORE_ID_TOKEN
 
-        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
+        # In dual mode, sign all three variants: index, gzip child, zstd child
+        if [ "${COMPRESSION_FORMAT}" = "dual" ]; then
+          index_ref="$(cat "$(results.IMAGE_REF.path)")"
+          refs_to_sign=(
+            "$index_ref"
+            "$(cat /shared/gzip-ref)"
+            "$(cat /shared/zstd-ref)"
+          )
+        else
+          refs_to_sign=("$(cat "$(results.IMAGE_REF.path)")")
+        fi
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-        mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REF}" >/tmp/auth/config.json
+        mkdir -p /tmp/auth && select-oci-auth "${refs_to_sign[0]}" >/tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
         echo "[$(date --utc -Ins)] Sign image"
-        echo "Signing image ${IMAGE_REF} using keyless signing"
-        if ! retry cosign sign -y \
-          --rekor-url="${REKOR_URL}" \
-          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
-          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
-          "${IMAGE_REF}"; then
-          echo "Failed to sign image" >&2
-          exit 1
-        fi
+        for ref in "${refs_to_sign[@]}"; do
+          echo "Signing image ${ref} using keyless signing"
+          if ! retry cosign sign -y \
+            --rekor-url="${REKOR_URL}" \
+            --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+            --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+            "${ref}"; then
+            echo "Failed to sign image ${ref}" >&2
+            exit 1
+          fi
+        done
       elif [ "${configured}" -eq 0 ]; then
         echo "Keyless signing is disabled (none of ${missing} are configured in the konflux-info/cluster-config configmap)"
       else
@@ -1102,52 +1258,69 @@ spec:
 
       echo "[$(date --utc -Ins)] Generate SBOM with mobster"
 
-      mobster_args=(
-        generate
-        --output sbom.json
-      )
+      # All compression variants share the same package list; only the digest differs
+      generate_oci_image_sbom() {
+        local output_file="$1"
+        local image_digest="$2"
+        local image_pullspec="$3"
+        local -a args=(generate --output "$output_file")
+        if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+          args+=(--skip-validation)
+        fi
+        args+=(
+          oci-image
+          --from-syft "/var/workdir/sbom-image.json"
+          --image-pullspec "$image_pullspec"
+          --image-digest "$image_digest"
+          --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
+          --base-image-digest-file "/shared/base_images_digests"
+        )
+        if [ -f "/var/workdir/sbom-source.json" ]; then
+          args+=(--from-syft "/var/workdir/sbom-source.json")
+        fi
+        if [ -f "/var/workdir/sbom-prefetch.json" ]; then
+          args+=(--from-hermeto "/var/workdir/sbom-prefetch.json")
+        fi
+        if [ -n "${TARGET_STAGE}" ]; then
+          args+=(--dockerfile-target "${TARGET_STAGE}")
+        fi
+        for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
+          args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
+        done
+        if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
+          args+=(--contextualize)
+        fi
+        if [ -f "/shared/prefetch-arch" ]; then
+          args+=(--arch "$(cat /shared/prefetch-arch)")
+        fi
+        mobster "${args[@]}"
+      }
 
-      # Validation is a flag for `generate`, not `oci-image`, so we need to
-      # handle it before the oci-image arguments
-      if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
-        echo "Skipping SBOM validation"
-        mobster_args+=(--skip-validation)
+      if [ "${COMPRESSION_FORMAT}" = "dual" ]; then
+        gzip_digest="$(cat /shared/gzip-digest)"
+        zstd_digest="$(cat /shared/zstd-digest)"
+
+        echo "Generating gzip child SBOM (main component digest ${gzip_digest})"
+        generate_oci_image_sbom sbom-gzip.json "$gzip_digest" "$IMAGE"
+
+        echo "Generating zstd child SBOM (main component digest ${zstd_digest})"
+        generate_oci_image_sbom sbom-zstd.json "$zstd_digest" "$IMAGE"
+
+        echo "Generating per-arch index SBOM (main component digest ${IMAGE_DIGEST})"
+        index_args=(generate --output sbom-index.json)
+        if [ "${SBOM_SKIP_VALIDATION}" == "true" ]; then
+          index_args+=(--skip-validation)
+        fi
+        index_args+=(
+          oci-index
+          --index-image-pullspec "$IMAGE_URL"
+          --index-image-digest "$IMAGE_DIGEST"
+          --index-manifest-path "/shared/per-arch-index-manifest.json"
+        )
+        mobster "${index_args[@]}"
+      else
+        generate_oci_image_sbom sbom.json "$IMAGE_DIGEST" "$IMAGE_URL"
       fi
-
-      mobster_args+=(
-        oci-image
-        --from-syft "/var/workdir/sbom-image.json"
-        --image-pullspec "$IMAGE_URL"
-        --image-digest "$IMAGE_DIGEST"
-        --parsed-dockerfile-path "/shared/parsed_dockerfile.json"
-        --base-image-digest-file "/shared/base_images_digests"
-      )
-
-      if [ -f "/var/workdir/sbom-source.json" ]; then
-        mobster_args+=(--from-syft "/var/workdir/sbom-source.json")
-      fi
-
-      if [ -f "/var/workdir/sbom-prefetch.json" ]; then
-        mobster_args+=(--from-hermeto "/var/workdir/sbom-prefetch.json")
-      fi
-
-      if [ -n "${TARGET_STAGE}" ]; then
-        mobster_args+=(--dockerfile-target "${TARGET_STAGE}")
-      fi
-
-      for ADDITIONAL_BASE_IMAGE in "${ADDITIONAL_BASE_IMAGES[@]}"; do
-        mobster_args+=(--additional-base-image "$ADDITIONAL_BASE_IMAGE")
-      done
-
-      if [ "${CONTEXTUALIZE_SBOM}" == "true" ] && [ "${HERMETIC}" == "false" ]; then
-        mobster_args+=(--contextualize)
-      fi
-
-      if [ -f "/shared/prefetch-arch" ]; then
-        mobster_args+=(--arch "$(cat /shared/prefetch-arch)")
-      fi
-
-      mobster "${mobster_args[@]}"
 
       echo "[$(date --utc -Ins)] End prepare-sboms"
     securityContext:
@@ -1184,18 +1357,36 @@ spec:
         update-ca-trust
       fi
 
-      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
-      mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" >/tmp/auth/config.json
-      export DOCKER_CONFIG=/tmp/auth
-      echo "Pushing sbom to registry"
-      if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"; then
-        echo "Failed to push sbom to registry"
-        exit 1
+      # In dual mode each variant gets its own SBOM attached to its own digest
+      if [ "${COMPRESSION_FORMAT}" = "dual" ]; then
+        index_ref="$(cat "$(results.IMAGE_REF.path)")"
+        sbom_files=(sbom-gzip.json sbom-zstd.json sbom-index.json)
+        sbom_refs=("$(cat /shared/gzip-ref)" "$(cat /shared/zstd-ref)" "$index_ref")
+        primary_sbom=sbom-index.json
+      else
+        image_ref="$(cat "$(results.IMAGE_REF.path)")"
+        sbom_files=(sbom.json)
+        sbom_refs=("$image_ref")
+        primary_sbom=sbom.json
       fi
+
+      # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
+      mkdir -p /tmp/auth && select-oci-auth "${sbom_refs[0]}" >/tmp/auth/config.json
+      export DOCKER_CONFIG=/tmp/auth
+
+      for i in "${!sbom_files[@]}"; do
+        sbom_file="${sbom_files[$i]}"
+        ref="${sbom_refs[$i]}"
+        echo "Pushing sbom ${sbom_file} to ${ref}"
+        if ! retry cosign attach sbom --sbom "$sbom_file" --type "$SBOM_TYPE" "$ref"; then
+          echo "Failed to push sbom ${sbom_file} to ${ref}" >&2
+          exit 1
+        fi
+      done
 
       # Remove tag from IMAGE while allowing registry to contain a port number.
       sbom_repo="${IMAGE%:*}"
-      sbom_digest="$(sha256sum sbom.json | cut -d' ' -f1)"
+      sbom_digest="$(sha256sum "$primary_sbom" | cut -d' ' -f1)"
       # The SBOM_BLOB_URL is created by `cosign attach sbom`.
       echo -n "${sbom_repo}@sha256:${sbom_digest}" | tee "$(results.SBOM_BLOB_URL.path)"
 
@@ -1213,8 +1404,6 @@ spec:
         SIGSTORE_ID_TOKEN="$(cat /var/run/sigstore/cosign/oidc-token)"
         export SIGSTORE_ID_TOKEN
 
-        IMAGE_REF="$(cat "$(results.IMAGE_REF.path)")"
-
         ATT_SBOM_TYPE="${SBOM_TYPE}"
         if [ "${ATT_SBOM_TYPE}" = "spdx" ]; then
           # for format cossistency with cyclonedx format, we want to use spdxjson instad of spdx
@@ -1222,16 +1411,20 @@ spec:
           ATT_SBOM_TYPE="spdxjson"
         fi
 
-        echo "[$(date --utc -Ins)] Sign SBOM"
-        echo "Signing and attaching SBOM to ${IMAGE_REF} using keyless signing"
-        if ! retry cosign attest -y --type "${ATT_SBOM_TYPE}" --predicate sbom.json \
-          --rekor-url="${REKOR_URL}" \
-          --fulcio-url="${SIGSTORE_FULCIO_URL}" \
-          --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
-          "${IMAGE_REF}"; then
-          echo "Failed to sign SBOM" >&2
-          exit 1
-        fi
+        for i in "${!sbom_files[@]}"; do
+          sbom_file="${sbom_files[$i]}"
+          ref="${sbom_refs[$i]}"
+          echo "[$(date --utc -Ins)] Sign SBOM"
+          echo "Signing and attaching SBOM ${sbom_file} to ${ref} using keyless signing"
+          if ! retry cosign attest -y --type "${ATT_SBOM_TYPE}" --predicate "$sbom_file" \
+            --rekor-url="${REKOR_URL}" \
+            --fulcio-url="${SIGSTORE_FULCIO_URL}" \
+            --oidc-issuer="${SIGSTORE_OIDC_ISSUER}" \
+            "${ref}"; then
+            echo "Failed to sign SBOM ${sbom_file}" >&2
+            exit 1
+          fi
+        done
       fi
 
       echo

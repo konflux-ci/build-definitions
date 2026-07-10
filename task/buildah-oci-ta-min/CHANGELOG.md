@@ -11,6 +11,18 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.6
+
+### Added
+
+- New parameter `COMPRESSION_FORMAT` (gzip | zstd-chunked | dual, default: gzip).
+  In dual mode, both gzip and zstd:chunked variants are pushed and bundled in a
+  per-arch OCI index with gzip first for backward compatibility. Tech preview.
+- New parameter `FORCE_COMPRESSION` (default: false). Recompress all layers
+  including base image layers in zstd-chunked and dual modes.
+- New result `IMAGES`. Comma-separated image manifest references for Chains
+  provenance. In dual mode, lists the gzip and zstd child manifest references.
+
 ## 0.10.5
 
 ### Added

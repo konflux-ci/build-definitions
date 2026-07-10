@@ -68,11 +68,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |BUILD_TIMESTAMP| Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.| ""| |
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
 |COMMIT_SHA| The image is built from this commit.| ""| '$(tasks.clone-repository.results.commit)'|
+|COMPRESSION_FORMAT| Compression format: gzip (default), zstd-chunked, or dual. In dual mode both gzip and zstd:chunked variants are bundled in a per-arch OCI index (gzip first). dual requires BUILDAH_FORMAT=oci. Tech preview: dual and zstd-chunked modes are experimental and not yet fully supported by the release pipeline.| gzip| |
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |CONTEXTUALIZE_SBOM| Determines if SBOM will be contextualized.| true| |
 |DOCKERFILE| Path to the Dockerfile to build.| ./Dockerfile| '$(params.dockerfile)'|
 |ENTITLEMENT_SECRET| Name of secret which contains the entitlement certificates| etc-pki-entitlement| |
 |ENV_VARS| Array of --env values ("env=value" strings)| []| |
+|FORCE_COMPRESSION| Recompress all layers including base image layers, not just layers created by this build. Only applies to zstd-chunked and dual modes.| false| |
 |HERMETIC| Determines if build will be executed without network access.| false| '$(params.hermetic)'|
 |HTTP_PROXY| HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.| ""| '$(tasks.init.results.http-proxy)'|
 |ICM_KEEP_COMPAT_LOCATION| Whether to keep compatibility location at /root/buildinfo/ for ICM injection| true| |
@@ -295,6 +297,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### buildah-remote-oci-ta:0.10 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
+|IMAGES| Comma-separated image manifest references. In dual mode lists the gzip and zstd child manifest references for Chains provenance; otherwise the single manifest reference.| |
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| build-image-index:0.3:IMAGES|
 |IMAGE_URL| Image repository and tag where the built image was pushed| |

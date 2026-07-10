@@ -20,11 +20,13 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |BUILD_TIMESTAMP|Defines the single build time for all buildah builds in seconds since UNIX epoch. Conflicts with SOURCE_DATE_EPOCH.|""|false|
 |CACHI2_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.|""|false|
 |COMMIT_SHA|The image is built from this commit.|""|false|
+|COMPRESSION_FORMAT|Compression format: gzip (default), zstd-chunked, or dual. In dual mode both gzip and zstd:chunked variants are bundled in a per-arch OCI index (gzip first). dual requires BUILDAH_FORMAT=oci. Tech preview: dual and zstd-chunked modes are experimental and not yet fully supported by the release pipeline.|gzip|false|
 |CONTEXT|Path to the directory to use as context.|.|false|
 |CONTEXTUALIZE_SBOM|Determines if SBOM will be contextualized.|true|false|
 |DOCKERFILE|Path to the Dockerfile to build.|./Dockerfile|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |ENV_VARS|Array of --env values ("env=value" strings)|[]|false|
+|FORCE_COMPRESSION|Recompress all layers including base image layers, not just layers created by this build. Only applies to zstd-chunked and dual modes.|false|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |HTTP_PROXY|HTTP/HTTPS proxy to use for the buildah pull and build operations. Will not be passed through to the container during the build process.|""|false|
 |ICM_KEEP_COMPAT_LOCATION|Whether to keep compatibility location at /root/buildinfo/ for ICM injection|true|false|
@@ -67,6 +69,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 ## Results
 |name|description|
 |---|---|
+|IMAGES|Comma-separated image manifest references. In dual mode lists the gzip and zstd child manifest references for Chains provenance; otherwise the single manifest reference.|
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_REF|Image reference of the built image|
 |IMAGE_URL|Image repository and tag where the built image was pushed|

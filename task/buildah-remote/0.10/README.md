@@ -59,6 +59,8 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |SKIP_INJECTIONS|Don't inject a content-sets.json or a labels.json file. This requires that the canonical Containerfile takes care of this itself.|false|false|
 |LOG_LEVEL|Log level for the build command.|info|false|
 |ALLOW_CROSS_PLATFORM_IMAGES|Allows to use parent images that don't match the build host architecture. This option must be used with caution as it may create incompatible images.|false|false|
+|COMPRESSION_FORMAT|Compression format: gzip (default), zstd-chunked, or dual. In dual mode both gzip and zstd:chunked variants are bundled in a per-arch OCI index (gzip first). dual requires BUILDAH_FORMAT=oci. Tech preview: dual and zstd-chunked modes are experimental and not yet fully supported by the release pipeline.|gzip|false|
+|FORCE_COMPRESSION|Recompress all layers including base image layers, not just layers created by this build. Only applies to zstd-chunked and dual modes.|false|false|
 |PLATFORM|The platform to build on||true|
 |IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
 
@@ -69,6 +71,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |IMAGE_URL|Image repository and tag where the built image was pushed|
 |IMAGE_REF|Image reference of the built image|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
+|IMAGES|Comma-separated image manifest references. In dual mode lists the gzip and zstd child manifest references for Chains provenance; otherwise the single manifest reference.|
 
 ## Workspaces
 |name|description|optional|
