@@ -21,6 +21,7 @@ When prefetch-dependencies task is activated it is using its artifacts to run bu
 |TARGET_STAGE|Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.|""|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
+|RHSM_MOUNT_CA_CERTS|Mount /etc/rhsm/ca from the host machine into the build. Valid values are 'always', 'auto' (default), 'never'.|auto|false|
 |ADDITIONAL_SECRET|Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET|does-not-exist|false|
 |BUILD_ARGS|Array of --build-arg values ("arg=value" strings)|[]|false|
 |ENV_VARS|Array of --env values ("env=value" strings)|[]|false|
