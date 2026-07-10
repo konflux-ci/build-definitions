@@ -72,6 +72,11 @@ spec:
     description: Name of secret which contains subscription activation key
     name: ACTIVATION_KEY
     type: string
+  - default: auto
+    description: Mount /etc/rhsm/ca from the host machine into the build. Valid values
+      are 'always', 'auto' (default), 'never'.
+    name: RHSM_MOUNT_CA_CERTS
+    type: string
   - default: does-not-exist
     description: Name of a secret which will be made available to the build with 'buildah
       build --secret' at /run/secrets/$ADDITIONAL_SECRET
@@ -337,6 +342,8 @@ spec:
       value: $(params.SKIP_INJECTIONS)
     - name: ALLOW_CROSS_PLATFORM_IMAGES
       value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
+    - name: RHSM_MOUNT_CA_CERTS
+      value: $(params.RHSM_MOUNT_CA_CERTS)
     - name: BUILDER_IMAGE
       value: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
     - name: PLATFORM
@@ -577,6 +584,9 @@ spec:
           rhsm_args+=(--rhsm-entitlements=/entitlement)
         fi
       fi
+      if [ "${RHSM_MOUNT_CA_CERTS}" != "auto" ]; then
+        rhsm_args+=(--rhsm-mount-ca-certs="$RHSM_MOUNT_CA_CERTS")
+      fi
 
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
       declare IMAGE
@@ -695,6 +705,7 @@ spec:
           -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SKIP_INJECTIONS="${SKIP_INJECTIONS@Q}" \
           -e ALLOW_CROSS_PLATFORM_IMAGES="${ALLOW_CROSS_PLATFORM_IMAGES@Q}" \
+          -e RHSM_MOUNT_CA_CERTS="${RHSM_MOUNT_CA_CERTS@Q}" \
           -e HOME="${HOME@Q}" \
           -e COMMIT_SHA="${COMMIT_SHA@Q}" \
           -e SOURCE_URL="${SOURCE_URL@Q}" \

@@ -169,6 +169,11 @@ spec:
         Does nothing if SOURCE_DATE_EPOCH is not defined.
       type: string
       default: "false"
+    - name: RHSM_MOUNT_CA_CERTS
+      description: Mount /etc/rhsm/ca from the host machine into the build.
+        Valid values are 'always', 'auto' (default), 'never'.
+      type: string
+      default: auto
     - name: SBOM_SKIP_VALIDATION
       description: Flag to enable or disable SBOM validation before save.
         Validation is optional - use this if you are experiencing performance
@@ -357,6 +362,8 @@ spec:
         value: $(params.LOG_LEVEL)
       - name: PRIVILEGED_NESTED
         value: $(params.PRIVILEGED_NESTED)
+      - name: RHSM_MOUNT_CA_CERTS
+        value: $(params.RHSM_MOUNT_CA_CERTS)
       - name: SBOM_SKIP_VALIDATION
         value: $(params.SBOM_SKIP_VALIDATION)
       - name: SBOM_SOURCE_SCAN_ENABLED
@@ -574,6 +581,9 @@ spec:
           elif find /entitlement -name "*.pem" >/dev/null; then
             rhsm_args+=(--rhsm-entitlements=/entitlement)
           fi
+        fi
+        if [ "${RHSM_MOUNT_CA_CERTS}" != "auto" ]; then
+          rhsm_args+=(--rhsm-mount-ca-certs="$RHSM_MOUNT_CA_CERTS")
         fi
 
         # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.

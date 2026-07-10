@@ -86,6 +86,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
 |PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| caching-ca-bundle| |
 |REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| '$(params.rewrite-timestamp)'|
+|RHSM_MOUNT_CA_CERTS| Mount /etc/rhsm/ca from the host machine into the build. Valid values are 'always', 'auto' (default), 'never'.| auto| |
 |SBOM_SKIP_VALIDATION| Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.| true| |
 |SBOM_SOURCE_SCAN_ENABLED| Flag to enable or disable SBOM generation from source code. The scanner of the source code is enabled only for non-hermetic builds and can be disabled if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false positives on source code scanning.| true| |
 |SBOM_SYFT_SELECT_CATALOGERS| Extra option to customize Syft's default catalogers when generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers. The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection| ""| |

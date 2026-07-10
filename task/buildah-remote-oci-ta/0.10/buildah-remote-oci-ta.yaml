@@ -163,6 +163,11 @@ spec:
       if SOURCE_DATE_EPOCH is not defined.
     name: REWRITE_TIMESTAMP
     type: string
+  - default: auto
+    description: Mount /etc/rhsm/ca from the host machine into the build. Valid values
+      are 'always', 'auto' (default), 'never'.
+    name: RHSM_MOUNT_CA_CERTS
+    type: string
   - default: "true"
     description: Flag to enable or disable SBOM validation before save. Validation
       is optional - use this if you are experiencing performance issues.
@@ -314,6 +319,8 @@ spec:
       value: $(params.LOG_LEVEL)
     - name: PRIVILEGED_NESTED
       value: $(params.PRIVILEGED_NESTED)
+    - name: RHSM_MOUNT_CA_CERTS
+      value: $(params.RHSM_MOUNT_CA_CERTS)
     - name: SBOM_SKIP_VALIDATION
       value: $(params.SBOM_SKIP_VALIDATION)
     - name: SBOM_SOURCE_SCAN_ENABLED
@@ -600,6 +607,9 @@ spec:
           rhsm_args+=(--rhsm-entitlements=/entitlement)
         fi
       fi
+      if [ "${RHSM_MOUNT_CA_CERTS}" != "auto" ]; then
+        rhsm_args+=(--rhsm-mount-ca-certs="$RHSM_MOUNT_CA_CERTS")
+      fi
 
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
       declare IMAGE
@@ -702,6 +712,7 @@ spec:
           -e INHERIT_BASE_IMAGE_LABELS="${INHERIT_BASE_IMAGE_LABELS@Q}" \
           -e KBC_LOG_LEVEL="${KBC_LOG_LEVEL@Q}" \
           -e PRIVILEGED_NESTED="${PRIVILEGED_NESTED@Q}" \
+          -e RHSM_MOUNT_CA_CERTS="${RHSM_MOUNT_CA_CERTS@Q}" \
           -e SBOM_SKIP_VALIDATION="${SBOM_SKIP_VALIDATION@Q}" \
           -e SBOM_SOURCE_SCAN_ENABLED="${SBOM_SOURCE_SCAN_ENABLED@Q}" \
           -e SBOM_SYFT_SELECT_CATALOGERS="${SBOM_SYFT_SELECT_CATALOGERS@Q}" \

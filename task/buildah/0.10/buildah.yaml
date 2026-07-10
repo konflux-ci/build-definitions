@@ -66,6 +66,11 @@ spec:
     default: activation-key
     description: Name of secret which contains subscription activation key
     type: string
+  - default: auto
+    description: Mount /etc/rhsm/ca from the host machine into the build. Valid values
+      are 'always', 'auto' (default), 'never'.
+    name: RHSM_MOUNT_CA_CERTS
+    type: string
   - name: ADDITIONAL_SECRET
     description: Name of a secret which will be made available to the build with 'buildah build --secret' at /run/secrets/$ADDITIONAL_SECRET
     type: string
@@ -318,6 +323,8 @@ spec:
       value: $(params.SKIP_INJECTIONS)
     - name: ALLOW_CROSS_PLATFORM_IMAGES
       value: $(params.ALLOW_CROSS_PLATFORM_IMAGES)
+    - name: RHSM_MOUNT_CA_CERTS
+      value: $(params.RHSM_MOUNT_CA_CERTS)
     imagePullPolicy: IfNotPresent
   steps:
   - image: quay.io/konflux-ci/konflux-build-cli:latest@sha256:0415613f955ef8f7c6fc821a6738dcf062d9a3582441042b87a2391c375d7f54
@@ -481,6 +488,9 @@ spec:
         elif find /entitlement -name "*.pem" > /dev/null; then
           rhsm_args+=(--rhsm-entitlements=/entitlement)
         fi
+      fi
+      if [ "${RHSM_MOUNT_CA_CERTS}" != "auto" ]; then
+        rhsm_args+=(--rhsm-mount-ca-certs="$RHSM_MOUNT_CA_CERTS")
       fi
 
       # Prevent ShellCheck from giving a warning because 'image' is defined and 'IMAGE' is not.
