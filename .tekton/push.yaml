@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.2/git-clone.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -41,7 +41,14 @@ spec:
           - name: depth
             value: "0"
         taskRef:
-          name: git-clone
+          resolver: bundles
+          params:
+            - name: bundle
+              value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.4@sha256:bb787553da840e226ea72147a7ccbe8553f887efef2ca24664c9ba2052018adf
+            - name: name
+              value: git-clone
+            - name: kind
+              value: task
         workspaces:
           - name: output
             workspace: workspace
