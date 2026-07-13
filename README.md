@@ -48,7 +48,7 @@ Prerequisites:
 - An account in [quay.io](https://quay.io) (or other container registry)
 - Any container CLI tool that has a `login` command, e.g. `podman`
 
-How-to (example for pushing the `git-clone-oci-ta` task to quay.io):
+How-to (example for pushing a task to quay.io):
 
 1. Build the task bundle and push it to quay.io
 
@@ -56,21 +56,21 @@ How-to (example for pushing the `git-clone-oci-ta` task to quay.io):
     podman login quay.io
 
     tkn bundle push \
-      -f task/git-clone-oci-ta/0.1/git-clone-oci-ta.yaml \
-      quay.io/<USERNAME>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+      -f task/<TASK-NAME>/0.1/<TASK-NAME>.yaml \
+      quay.io/<USERNAME>/tekton-catalog/task-<TASK-NAME>:my-bugfix
     ```
 
-2. Go to <https://quay.io/USERNAME/tekton-catalog/task-git-clone-oci-ta>
+2. Go to <https://quay.io/USERNAME/tekton-catalog/task-TASK-NAME>
    and make the repository public (in the settings)
 
 3. Use the task bundle in a Konflux Pipeline
 
     ```diff
            - name: name
-             value: git-clone-oci-ta
+             value: <TASK-NAME>
            - name: bundle
-    -        value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:aab5f0f4906ba2c2a64a67b591c7ecf57018d066f1206ebc56158476e29f2cf3
-    +        value: quay.io/<username>/tekton-catalog/task-git-clone-oci-ta:my-bugfix
+    -        value: quay.io/konflux-ci/tekton-catalog/task-<TASK-NAME>:0.1@sha256:aab5f0f4906ba2c2a64a67b591c7ecf57018d066f1206ebc56158476e29f2cf3
+    +        value: quay.io/<username>/tekton-catalog/task-<TASK-NAME>:my-bugfix
            - name: kind
              value: task
            resolver: bundles
@@ -240,13 +240,13 @@ When a pull request is opened, CI will run the tests (if they exist) for the tas
 Tests are defined as Tekton Pipelines inside the `tests` subdirectory of the task directory. The test filenames must match `test-*.yaml` format and
 a test file should contain a single Pipeline.
 
-E.g., to add a test pipeline for the `task/git-clone/0.1` task, you can add a pipeline such as `task/git-clone/0.1/tests/test-git-clone-run-with-tag.yaml`.
+E.g., to add a test pipeline for the `task/<TASK-NAME>/0.1` task, you can add a pipeline such as `task/<TASK-NAME>/0.1/tests/test-<TASK-NAME>-run-with-tag.yaml`.
 
 Refer to the task-under-test in a test pipeline by task name. For example:
 ```
   - name: run-task
     taskRef:
-      name: git-clone
+      name: <TASK-NAME>
 ```
 
 ### Testing scenarios where the Task is expected to fail
@@ -260,7 +260,7 @@ You can do this by adding the annotation `test/assert-task-failure` to the test 
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: test-git-clone-fail-for-wrong-url
+  name: test-<TASK-NAME>-fail-for-wrong-url
   annotations:
     test/assert-task-failure: "run-task"
 ```
@@ -291,13 +291,13 @@ For more details and example, refer [here](https://github.com/konflux-ci/release
 
 You can run the test script locally. To run tests for a particular task, pass the task directories as arguments, e.g.
 ```
-./.github/scripts/test_tekton_tasks.sh task/git-clone/0.1
+./.github/scripts/test_tekton_tasks.sh task/<TASK-NAME>/0.1
 ```
 This will install the task and run all test pipelines matching `tests/test-*.yaml` under the task directory.
 
 Another option is to run one or more tests directly by specifying them as arguments:
 ```
-./.github/scripts/test_tekton_tasks.sh task/git-clone/0.1/tests/test-git-clone-run-with-tag.yaml
+./.github/scripts/test_tekton_tasks.sh task/<TASK-NAME>/0.1/tests/test-<TASK-NAME>-run-with-tag.yaml
 ```
 It will then run only the specified test pipeline.
 
