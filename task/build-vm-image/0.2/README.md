@@ -9,7 +9,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |IMAGE_APPEND_PLATFORM|Whether to append a sanitized platform architecture on the IMAGE tag|false|false|
 |OUTPUT_IMAGE|The output manifest list that points to the OCI artifact of the zipped image||true|
 |SOURCE_ARTIFACT|||true|
-|IMAGE_TYPE|The type of VM image to build, valid values are iso, qcow2, gce, vhd and raw||true|
+|IMAGE_TYPE|The type of VM image to build, valid values are ami, anaconda-iso, bootc-installer, gce, iso, ova, pxe-tar-xz, qcow2, raw, vhd and vmdk||true|
 |BIB_CONFIG_FILE|The config file specifying what to build and the builder to build it with|bib.yaml|false|
 |CONFIG_TOML_FILE|The path for the config.toml file within the source repository|""|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|

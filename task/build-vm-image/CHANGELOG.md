@@ -9,11 +9,15 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+*Nothing yet.*
+
+## 0.2.2
+
 ### Fixed
 
-- Added `ami`, `anaconda-iso`, `bootc-installer`, and `vmdk` to `IMAGE_TYPE` validation allowlist.
-  The `ami` type was rejected despite being a valid bootc-image-builder output type, breaking AWS
-  disk image builds.
+- Expanded `IMAGE_TYPE` validation to support all bootc-image-builder types: `ami`, `anaconda-iso`, `bootc-installer`, `gce`, `iso`, `ova`, `pxe-tar-xz`, `qcow2`, `raw`, `vhd`, `vmdk`. The `ami` type was rejected despite being a valid bootc-image-builder output type, breaking AWS disk image builds.
+- Added push-script handling for `vmdk`, `ova`, and `pxe-tar-xz` output artifacts.
+- Added explicit failure when no output artifact is found, instead of silently pushing an empty manifest.
 
 ## 0.2.1
 

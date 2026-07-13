@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.2.1"
+    app.kubernetes.io/version: "0.2.2"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -25,7 +25,7 @@ spec:
       type: string
     - name: IMAGE_TYPE
       type: string
-      description: The type of VM image to build, valid values are ami, anaconda-iso, bootc-installer, gce, iso, qcow2, raw, vhd and vmdk
+      description: The type of VM image to build, valid values are ami, anaconda-iso, bootc-installer, gce, iso, ova, pxe-tar-xz, qcow2, raw, vhd and vmdk
     - name: BIB_CONFIG_FILE
       default: bib.yaml
       type: string
@@ -122,8 +122,8 @@ spec:
         set -x
 
         case "${IMAGE_TYPE}" in
-          ami|anaconda-iso|bootc-installer|gce|iso|qcow2|raw|vhd|vmdk) ;;
-          *) echo "Invalid IMAGE_TYPE: ${IMAGE_TYPE}. Must be one of: ami, anaconda-iso, bootc-installer, gce, iso, qcow2, raw, vhd, vmdk." >&2; exit 1 ;;
+          ami|anaconda-iso|bootc-installer|gce|iso|ova|pxe-tar-xz|qcow2|raw|vhd|vmdk) ;;
+          *) echo "Invalid IMAGE_TYPE: ${IMAGE_TYPE}. Must be one of: ami, anaconda-iso, bootc-installer, gce, iso, ova, pxe-tar-xz, qcow2, raw, vhd, vmdk." >&2; exit 1 ;;
         esac
 
         case "${STORAGE_DRIVER}" in
@@ -388,6 +388,7 @@ spec:
         set -euxo pipefail
 
         export OUTPUT_IMAGE="$OUTPUT_IMAGE"
+        export IMAGE_TYPE="$IMAGE_TYPE"
 
         REMOTESSHEOF
 
@@ -398,7 +399,7 @@ spec:
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
-        dnf -y install buildah skopeo pigz jq
+        dnf -y install buildah skopeo pigz jq tar xz
 
         # Build an image index of length 1 referring to an image manifest with the content
         buildah manifest create "$OUTPUT_IMAGE"
@@ -426,6 +427,39 @@ spec:
           echo -e "Found gce image."
           # already compressed.
           buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
+        elif [ -f "/output/vmdk/disk.vmdk" ]; then
+          echo -e "Found vmdk image."
+          pigz /output/vmdk/disk.vmdk
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vmdk.gzip $OUTPUT_IMAGE /output/vmdk/disk.vmdk.gz
+        elif [ -f "/output/archive/image.ova" ]; then
+          echo -e "Found ova image."
+          pigz /output/archive/image.ova
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.ova.gzip $OUTPUT_IMAGE /output/archive/image.ova.gz
+        # NOTE: pxe-tar-xz handling covers two different bootc-image-builder versions:
+        #
+        # 1. New image-builder multicall binary (osbuild/image-builder):
+        #    Exports the "xz" pipeline → /output/xz/pxe.tar.xz (pre-compressed)
+        #    No container builds exist for this variant yet (as of July 2026).
+        #
+        # 2. Old bootc-image-builder (osbuild/bootc-image-builder, archived June 2026):
+        #    Exports the "bootc-pxe-tree" pipeline → /output/bootc-pxe-tree/ which is
+        #    a raw directory tree containing vmlinuz, initrd.img, rootfs.img, EFI/,
+        #    grub.cfg, and README. This is what current BIB containers actually produce.
+        #    The task must create the tar.xz archive itself before pushing.
+        #
+        # Check for the new pre-compressed output first, fall back to creating
+        # the archive from the old raw tree.
+        elif [ -f "/output/xz/pxe.tar.xz" ]; then
+          echo -e "Found pxe-tar-xz image (new image-builder)."
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/xz/pxe.tar.xz
+        elif [ -d "/output/bootc-pxe-tree" ]; then
+          echo -e "Found pxe tree directory (old BIB), creating tar.xz archive."
+          tar -cJf /output/bootc-pxe-tree.tar.xz -C /output/bootc-pxe-tree .
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/bootc-pxe-tree.tar.xz
+        else
+          echo "No output artifact found for IMAGE_TYPE=${IMAGE_TYPE}. Check BIB output in /output." >&2
+          ls -alR /output >&2
+          exit 1
         fi
 
         buildah_retries=3
