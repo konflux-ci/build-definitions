@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.4
+    app.kubernetes.io/version: 0.10.5
     build.appstudio.redhat.com/build_type: docker
   name: buildah-remote-oci-ta
 spec:
@@ -538,6 +538,17 @@ spec:
         exit 1
       fi
 
+      # Support per-Dockerfile ignore files (BuildKit convention, since Docker 19.03).
+      # Check for <Dockerfile>.containerignore first, then <Dockerfile>.dockerignore.
+      ignorefile_args=()
+      if [ -f "${dockerfile_path}.containerignore" ]; then
+        ignorefile_args=(-- --ignorefile "${dockerfile_path}.containerignore")
+        echo "Using per-Dockerfile ignore file: ${dockerfile_path}.containerignore"
+      elif [ -f "${dockerfile_path}.dockerignore" ]; then
+        ignorefile_args=(-- --ignorefile "${dockerfile_path}.dockerignore")
+        echo "Using per-Dockerfile ignore file: ${dockerfile_path}.dockerignore"
+      fi
+
       if [ -n "${ANNOTATIONS_FILE}" ] && [ -f "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}" ]; then
         ANNOTATIONS_FILE=$(realpath "${SOURCE_CODE_DIR}/${ANNOTATIONS_FILE}")
       fi
@@ -644,6 +655,7 @@ spec:
         --dest-tls-verify="$TLSVERIFY"
         --allow-cross-platform-images="$ALLOW_CROSS_PLATFORM_IMAGES"
         "$@" # --annotations, --labels, --envs, --build-args
+        "${ignorefile_args[@]}"
       )
 
       echo "[$(date --utc -Ins)] $(printf '%q ' "${cmd[@]}")"

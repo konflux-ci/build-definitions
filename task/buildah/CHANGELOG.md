@@ -11,6 +11,17 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.5
+
+### Added
+
+- Support for per-Dockerfile ignore files (BuildKit convention, since
+  Docker 19.03). When `<Dockerfile>.containerignore` or
+  `<Dockerfile>.dockerignore` exists alongside the Dockerfile, it is
+  passed to buildah via `--ignorefile`. Fixes [#3699].
+
+[#3699]: https://github.com/konflux-ci/build-definitions/issues/3699
+
 ## 0.10.4
 
 ### Fixed
