@@ -136,7 +136,6 @@ The StepActions can be found in the `stepactions` directory. StepActions are not
 When a task update changes the interface (e.g., change of parameters, workspaces or results names), a new version of the task should be created.
 We restructure the task definitions so that each version is maintained in its own directory. Instead of a single flat task file, the task is now versioned by placing its YAML into a version-specific folder.
 Within the newly versioned YAMLs a label should be added to the task's metadata for identifying the specific version of the task.
-The folder with the new version must contain `MIGRATION.md` with instructions on how to update the current pipeline file in user's `.tekton` folder.
 Since tasks are now organized by version, any pipelines that reference these tasks must be updated to point to the newly versioned path.
 
 If the task update affects the results which are checked by [e2e tests](https://github.com/konflux-ci/e2e-tests/tree/main),
@@ -322,10 +321,10 @@ pipelines according to the task updates. By creating migrations, task
 maintainers are able to add/remove/update task parameters, change task
 execution order, add/remove mandatory tasks to/from pipelines, etc.
 
-Historically, task maintainers write `MIGRATION.md` to notify users what changes
-have to be made to the pipeline. This mechanism is not deprecated. Besides
-writing the document, it is also recommended to write a migration script so that the
-updates can be applied to user pipelines automatically, that is done by the
+Historically, task maintainers would write `MIGRATION.md` to notify users what changes
+have to be made to the pipeline. This mechanism is deprecated in favor of `CHANGELOG.md`.
+Besides updating the changelog, it is also recommended to write a migration script so that
+the updates can be applied to user pipelines automatically, that is done by the
 [pipeline-migration-tool](https://github.com/konflux-ci/pipeline-migration-tool).
 
 Task migrations are Bash scripts defined in version-specific task
