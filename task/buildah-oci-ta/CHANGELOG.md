@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.10.5
+
+### Added
+
+- Added a new parameter RHSM_MOUNT_CA_CERTS to allow setting [konflux-build-cli]'s
+  `--rhsm-mount-ca-certs` option.
+
 ## 0.10.4
 
 ### Fixed

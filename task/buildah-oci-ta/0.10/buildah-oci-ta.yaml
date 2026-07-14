@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.10.4
+    app.kubernetes.io/version: 0.10.5
     build.appstudio.redhat.com/build_type: docker
 spec:
   description: |-
@@ -171,7 +171,8 @@ spec:
       default: "false"
     - name: RHSM_MOUNT_CA_CERTS
       description: Mount /etc/rhsm/ca from the host machine into the build.
-        Valid values are 'always', 'auto' (default), 'never'.
+        Valid values are 'always', 'auto' (default), 'never'. Only effective
+        if HERMETIC=false and ACTIVATION_KEY or ENTITLEMENT_SECRET is set.
       type: string
       default: auto
     - name: SBOM_SKIP_VALIDATION

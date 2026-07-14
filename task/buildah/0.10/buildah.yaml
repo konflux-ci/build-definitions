@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   labels:
-    app.kubernetes.io/version: "0.10.4"
+    app.kubernetes.io/version: "0.10.5"
     build.appstudio.redhat.com/build_type: "docker"
   annotations:
     tekton.dev/pipelines.minVersion: "0.12.1"
@@ -68,7 +68,8 @@ spec:
     type: string
   - default: auto
     description: Mount /etc/rhsm/ca from the host machine into the build. Valid values
-      are 'always', 'auto' (default), 'never'.
+      are 'always', 'auto' (default), 'never'. Only effective if HERMETIC=false and
+      ACTIVATION_KEY or ENTITLEMENT_SECRET is set.
     name: RHSM_MOUNT_CA_CERTS
     type: string
   - name: ADDITIONAL_SECRET
