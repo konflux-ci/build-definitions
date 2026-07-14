@@ -315,7 +315,6 @@ spec:
           mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/entitlement
           mkdir -p $BUILD_DIR/rhsm-tmp/etc/pki/consumer
 
-          export RETRY_MAX_TRIES=6
           # Run subscription-manager inside a container where we're root (no password needed)
           if ! retry sudo podman run --rm \
             -v $BUILD_DIR/activation-key:/activation-key:Z \
@@ -327,7 +326,6 @@ spec:
             echo "Subscription-manager register failed on remote VM"
             exit 1
           fi
-          unset RETRY_MAX_TRIES
 
           # Unregister on exit using a container
           trap 'sudo podman run --rm -v $BUILD_DIR/rhsm-tmp/etc/pki/entitlement:/etc/pki/entitlement:Z -v $BUILD_DIR/rhsm-tmp/etc/pki/consumer:/etc/pki/consumer:Z "$BUILDAH_IMAGE" /bin/bash -c "subscription-manager unregister || true"' EXIT
