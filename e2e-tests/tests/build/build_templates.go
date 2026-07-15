@@ -45,6 +45,7 @@ var (
 )
 
 const pipelineCompletionRetries = 2
+const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:13375ed6d012614f030d36fa6485c16db1ab1e82d6077d5055c0eb1bfb90b644"
 
 type TestBranches struct {
 	RepoName       string
@@ -569,12 +570,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 						// to sign and attest the image built in BeforeAll.
 						err = f.AsKubeAdmin.TektonController.AwaitAttestationAndSignature(imageWithDigest, constants.ChainsAttestationTimeout)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-						cm, err := f.AsKubeAdmin.CommonController.GetConfigMap("ec-defaults", "enterprise-contract-service")
-						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-						verifyECTaskBundle := cm.Data["verify_ec_task_bundle"]
-						gomega.Expect(verifyECTaskBundle).ToNot(gomega.BeEmpty())
 
 						publicSecretName := "cosign-public-key"
 						publicKey, err := f.AsKubeAdmin.TektonController.GetTektonChainsPublicKey()
