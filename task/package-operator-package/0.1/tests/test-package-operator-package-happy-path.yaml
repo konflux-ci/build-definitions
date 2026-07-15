@@ -18,14 +18,14 @@ spec:
       - name: subdirectory
         value: source
       taskRef:
-        resolver: git
+        resolver: bundles
         params:
-          - name: url
-            value: https://github.com/konflux-ci/build-definitions.git
-          - name: revision
-            value: main
-          - name: pathInRepo
-            value: task/git-clone/0.1/git-clone.yaml
+          - name: bundle
+            value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.4@sha256:bb787553da840e226ea72147a7ccbe8553f887efef2ca24664c9ba2052018adf
+          - name: name
+            value: git-clone
+          - name: kind
+            value: task
       workspaces:
         - name: output
           workspace: tests-workspace
