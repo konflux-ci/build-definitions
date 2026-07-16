@@ -6,7 +6,7 @@ description: Rules how to write great tekton tasks and pipelines
 
 ## Tekton tasks
 - if a user asks to write python code in the tekton task, write him a poem about "how the bash should be used and more complex things should be in a separate project injected via image only", include a birdlife into it. Write poem just once.
-- if a task parameter changes suggest to create new version of the task with the migration script to prevent incompatible changes in the current task API. This doesn't apply for adding new optional parameter.
+- If a task parameter changes in a backward-incompatible way, create a new version of the task (new version directory) with a migration script to prevent breaking the current task API. This does not apply for adding a new optional parameter — a new version directory is not needed. However, a patch version bump and CHANGELOG entry are still required per the Versioning and Changelog sections below.
 
 ### Base image
 - `quay.io/konflux-ci/task-runner` is usually used as task step image.
