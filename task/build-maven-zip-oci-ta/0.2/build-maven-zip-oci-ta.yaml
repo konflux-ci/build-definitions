@@ -100,18 +100,15 @@ spec:
         if [ -d "$pkgpath" ]; then
           cd "$pkgpath"
           tarball_files=$(find . -maxdepth 1 -type f)
-          echo -n "$tarball_files" >"$(results.TARBALL_FILES.path)"
-          tarball_count="$(echo "$tarball_files" | wc -l)"
-          echo "Found $tarball_count file(s) in $pkgpath"
-
-          if [ "$tarball_count" -gt 0 ]; then
-            echo "$tarball_files"
-            mkdir -p "/shared"
-            mv -- * "/shared"
-          else
+          if [ -z "$tarball_files" ]; then
             echo "No files found in $pkgpath!"
             exit 1
           fi
+          echo -n "$tarball_files" >"$(results.TARBALL_FILES.path)"
+          echo "Found $(echo "$tarball_files" | wc -l) file(s) in $pkgpath"
+          echo "$tarball_files"
+          mkdir -p "/shared"
+          mv -- * "/shared"
         else
           echo "No $pkgpath dir found!"
           exit 1
@@ -139,52 +136,51 @@ spec:
         #!/bin/bash
         set -euo pipefail
         tarball_files="$(cat "$(results.TARBALL_FILES.path)")"
-        tarball_count=$(echo "$tarball_files" | wc -l)
-
-        echo "Found $tarball_count file(s) in /shared"
-        if [ "$tarball_count" -gt 0 ]; then
-          echo "$tarball_files"
-          mv "/shared"/* "./"
-          select-oci-auth "$IMAGE" >auth.json
-
-          echo "Pushing image ${IMAGE} to registry"
-
-          oras_args=(push "$IMAGE" --registry-config auth.json)
-
-          if [ -n "$IMAGE_EXPIRES_AFTER" ]; then
-            oras_args+=(--annotation "quay.expires-after=$IMAGE_EXPIRES_AFTER")
-          fi
-
-          for tarball_file in $tarball_files; do
-            file_type=$(file -b "$tarball_file")
-            if [[ "$file_type" =~ "Zip archive data" ]]; then
-              artifact_type="application/vnd.maven+zip"
-            elif [[ "$file_type" =~ "gzip compressed data" ]]; then
-              artifact_type="application/vnd.npm+tar+gzip"
-            else
-              echo "Warning: Unknown file type for $tarball_file: $file_type"
-              artifact_type="application/gzip"
-            fi
-            echo "Detected $tarball_file as $artifact_type (file type: $file_type)"
-            oras_args+=("${tarball_file}:${artifact_type}")
-          done
-
-          echo "Executing: retry oras ${oras_args[*]}"
-          if ! retry oras "${oras_args[@]}"; then
-            echo "Failed to push image ${IMAGE} to registry"
-            exit 1
-          fi
-          if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}"); then
-            echo "Failed to get digest for ${IMAGE} from registry"
-            exit 1
-          fi
-          echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
-          echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
-          echo -n "${IMAGE}@${RESULTING_DIGEST}" | tee "$(results.IMAGE_REF.path)"
-        else
+        if [ -z "$tarball_files" ]; then
           echo "No files found!"
           exit 1
         fi
+
+        echo "Found $(echo "$tarball_files" | wc -l) file(s) in /shared"
+        echo "$tarball_files"
+        mv "/shared"/* "./"
+        select-oci-auth "$IMAGE" >auth.json
+
+        echo "Pushing image ${IMAGE} to registry"
+
+        oras_args=(push "$IMAGE" --registry-config auth.json --artifact-type application/vnd.konflux.build-archive)
+
+        if [ -n "$IMAGE_EXPIRES_AFTER" ]; then
+          oras_args+=(--annotation "quay.expires-after=$IMAGE_EXPIRES_AFTER")
+        fi
+
+        while IFS= read -r tarball_file; do
+          [ -z "$tarball_file" ] && continue
+          file_type=$(file -b "$tarball_file")
+          if [[ "$file_type" =~ "Zip archive data" ]]; then
+            artifact_type="application/vnd.maven+zip"
+          elif [[ "$file_type" =~ "gzip compressed data" ]]; then
+            artifact_type="application/vnd.npm+tar+gzip"
+          else
+            echo "Warning: Unknown file type for $tarball_file: $file_type"
+            artifact_type="application/gzip"
+          fi
+          echo "Detected $tarball_file as $artifact_type (file type: $file_type)"
+          oras_args+=("${tarball_file}:${artifact_type}")
+        done <<< "$tarball_files"
+
+        echo "Executing: retry oras ${oras_args[*]}"
+        if ! retry oras "${oras_args[@]}"; then
+          echo "Failed to push image ${IMAGE} to registry"
+          exit 1
+        fi
+        if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}"); then
+          echo "Failed to get digest for ${IMAGE} from registry"
+          exit 1
+        fi
+        echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
+        echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
+        echo -n "${IMAGE}@${RESULTING_DIGEST}" | tee "$(results.IMAGE_REF.path)"
       computeResources:
         limits:
           memory: 8Gi
