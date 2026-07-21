@@ -54,6 +54,5 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 
 ### Pipeline propagation model
 - Pipeline definitions in `pipelines/` are copied into user repositories at Konflux onboarding time. After onboarding, changes to pipeline definitions here do NOT automatically propagate to existing users.
-- When adding or modifying pipeline parameters, a migration script must be created in the `konflux-ci/build-pipeline-tasks` repo (typically under `task/init/migrations/`) to update existing user pipelines. See https://github.com/konflux-ci/build-pipeline-tasks/blob/main/task/init/migrations/ for examples.
-- When reviewing PRs that add pipeline parameters, flag the need for a companion migration script if one is not mentioned in the PR description or linked as a follow-up.
-- New parameters should be appended to the end of parameter lists to avoid breaking index-addressed kustomize patches in downstream pipeline variants (core-services, fbc-builder).
+- When adding or modifying pipeline parameters, existing user pipelines need a migration mechanism so the change reaches them. How that migration is delivered varies by team (e.g., the build-maintainers use scripts under `konflux-ci/build-pipeline-tasks task/init/migrations/`).
+- When modifying pipeline parameters, verify that kustomize outputs for downstream pipeline variants (core-services, fbc-builder) still look as expected — the diffs will be visible in the PR.
