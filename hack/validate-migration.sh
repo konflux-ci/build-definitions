@@ -323,6 +323,7 @@ declare -r K8S_TEST_NS
 # This check requires a created cluster with tekton installed.
 # An easy way to set up a local cluster is running `kind create cluster'.
 check_apply_in_real_cluster() {
+    local -r migration_file=$1
     if [ -z "$IN_CLUSTER" ]; then
         info "environment variable IN_CLUSTER is not set, skip ${FUNCNAME[0]}"
         return 0
@@ -343,7 +344,7 @@ check_apply_in_real_cluster() {
     apply_logfile=$(mktemp --suffix="-${FUNCNAME[0]}")
     modified_pipeline_files=$(find "${WORK_DIR}/pipelines" -type f -name "*.modified")
     if [ -z "$modified_pipeline_files" ]; then
-        info "No modified pipeline file is found. Skipping in-cluster validation."
+        echo "::notice file=${migration_file},line=1::Migration script doesn't modify any of the pipeline files referenced in $BUILD_PIPELINE_CONFIG. Skipping in-cluster validation."
         return 0
     fi
     while read -r pl_file; do
@@ -464,7 +465,7 @@ main() {
         check_apply_on_pipelines "$migration_file"
 
         info "check apply pipelines with migrations into a cluster"
-        check_apply_in_real_cluster
+        check_apply_in_real_cluster "$migration_file"
     done
 }
 

@@ -21,14 +21,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout this Repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: "${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
           path: self
 
       - name: Get all changed files in the PR from task directory
         id: changed-task-dirs
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             # Any task yaml or script (including its tests) is changed
@@ -64,15 +64,15 @@ jobs:
 
       - name: Checkout konflux-ci/konflux-ci Repository
         if: steps.changed-task-dirs.outputs.any_changed == 'true'
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: 'konflux-ci/konflux-ci'
           path: konflux-ci
-          ref: 3a694f8d7b49e74f476bb9414fc3e6d03d50ae37
+          ref: f534315051ccafa8197ea6491a0fdc5ba88ec793
 
       - name: Create k8s Kind Cluster
         if: steps.changed-task-dirs.outputs.any_changed == 'true'
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           config: konflux-ci/kind-config.yaml
 

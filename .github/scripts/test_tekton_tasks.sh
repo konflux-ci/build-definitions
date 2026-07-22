@@ -31,7 +31,14 @@ shopt -s nullglob
 
 WORKSPACE_TEMPLATE=${BASH_SOURCE%/*/*}/resources/workspace-template.yaml
 
-if [[ $# -eq 0 || ${1} == "-h" ]]; then
+if [ $# -gt 0 ]; then
+  TEST_ITEMS=("$@")
+else
+  # shellcheck disable=SC2128 # TEST_ITEMS is a plain string from env, not yet an array
+  read -r -a TEST_ITEMS <<< "${TEST_ITEMS:-}"
+fi
+
+if [[ ${1:-} == "-h" ]] || [[ ${#TEST_ITEMS[@]} -eq 0 ]]; then
     cat <<EOF
 Error: No task directories.
 
@@ -50,13 +57,6 @@ $0
 Items can be task directories (e.g., task/hello, task/git-clone/0.1) or paths to task test yaml files (useful when working on a single test)
 EOF
   exit 1
-fi
-
-if [ $# -gt 0 ]; then
-  TEST_ITEMS=("$@")
-else
-  # shellcheck disable=SC2128 # TEST_ITEMS is a plain string from env, not yet an array
-  read -r -a TEST_ITEMS <<< "$TEST_ITEMS"
 fi
 
 # Check that all directories or test yamls exist. If not, fail
