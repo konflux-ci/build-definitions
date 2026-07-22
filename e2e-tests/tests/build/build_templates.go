@@ -151,7 +151,7 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 			"build.appstudio.openshift.io/pipeline": fmt.Sprintf(`{"name":"%s", "bundle": "%s"}`, pipelineBundleName, customBuildBundle),
 		}
 	}
-	c, err := ctrl.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(constants.ComponentPaCRequestAnnotation, buildPipelineAnnotation))
+	c, err := ctrl.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(utils.MergeMaps(constants.ComponentPaCRequestAnnotation, constants.ImageControllerAnnotationRequestPublicRepo), buildPipelineAnnotation))
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	gomega.Expect(c.Name).Should(gomega.Equal(componentName))
 
