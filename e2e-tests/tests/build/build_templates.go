@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	appservice "github.com/konflux-ci/application-api/api/v1alpha1"
-	"github.com/konflux-ci/e2e-tests/pkg/clients/common"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/has"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/ociregistry"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/oras"
@@ -56,7 +55,10 @@ type TestBranches struct {
 
 var pacAndBaseBranches []TestBranches
 
-func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController, applicationName, componentName, namespace string, scenario ComponentScenarioSpec) error {
+var gitlabPacAndBaseBranches []TestBranches
+var gitlabBasicAuthSecretName = "gitlab-basic-auth-secret"
+
+func CreateComponent(f *framework.Framework, applicationName, componentName, namespace string, scenario ComponentScenarioSpec) error {
 	var err error
 	var buildPipelineAnnotation map[string]string
 	var baseBranchName, pacBranchName string
@@ -109,9 +111,30 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 	baseBranchName = fmt.Sprintf("base-%s", util.GenerateRandomString(6))
 	pacBranchName = constants.PaCPullRequestBranchPrefix + componentName
 
-	if scenario.Revision == gitRepoContainsSymlinkBranchName {
+	if strings.Contains(scenario.GitURL, "gitlab.com") && scenario.AuthMode == "basic-auth" {
+		repoName := utils.GetRepoName(scenario.GitURL)
+		projectID := fmt.Sprintf("%s/%s", gitlabOrg, repoName)
+		scenario.GitURL = "https://gitlab.com/" + gitlabOrg + "/" + repoName
+		err = f.AsKubeAdmin.CommonController.Gitlab.CreateGitlabNewBranch(projectID, baseBranchName, scenario.Revision, scenario.DefaultBranch)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create new branch in gitlab")
+		// create basic-auth build secret
+		gitlabToken := utils.GetEnv(constants.GITLAB_BOT_TOKEN_ENV, "")
+		if gitlabToken == "" {
+			return fmt.Errorf("gitlab token env is empty, must be set for running the gitlab scenario")
+		}
+		secretAnnotations := map[string]string{}
+		err = build.CreateGitlabBuildSecret(f, gitlabBasicAuthSecretName, secretAnnotations, gitlabToken)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create basic auth secret")
+		gitlabPacAndBaseBranches = append(gitlabPacAndBaseBranches, TestBranches{
+			RepoName:       projectID,
+			BranchName:     scenario.DefaultBranch,
+			PacBranchName:  pacBranchName,
+			BaseBranchName: baseBranchName,
+		})
+
+	} else if scenario.Revision == gitRepoContainsSymlinkBranchName {
 		revision := symlinkBranchRevision
-		err = commonCtrl.Github.CreateRef(utils.GetRepoName(scenario.GitURL), gitRepoContainsSymlinkBranchName, revision, baseBranchName)
+		err = f.AsKubeAdmin.CommonController.Github.CreateRef(utils.GetRepoName(scenario.GitURL), gitRepoContainsSymlinkBranchName, revision, baseBranchName)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 		pacAndBaseBranches = append(pacAndBaseBranches, TestBranches{
 			RepoName:       utils.GetRepoName(scenario.GitURL),
@@ -120,7 +143,7 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 			BaseBranchName: baseBranchName,
 		})
 	} else {
-		err = commonCtrl.Github.CreateRef(utils.GetRepoName(scenario.GitURL), "main", scenario.Revision, baseBranchName)
+		err = f.AsKubeAdmin.CommonController.Github.CreateRef(utils.GetRepoName(scenario.GitURL), "main", scenario.Revision, baseBranchName)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 		pacAndBaseBranches = append(pacAndBaseBranches, TestBranches{
 			RepoName:       utils.GetRepoName(scenario.GitURL),
@@ -151,7 +174,7 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 			"build.appstudio.openshift.io/pipeline": fmt.Sprintf(`{"name":"%s", "bundle": "%s"}`, pipelineBundleName, customBuildBundle),
 		}
 	}
-	c, err := ctrl.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(utils.MergeMaps(constants.ComponentPaCRequestAnnotation, constants.ImageControllerAnnotationRequestPublicRepo), buildPipelineAnnotation))
+	c, err := f.AsKubeAdmin.HasController.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(utils.MergeMaps(constants.ComponentPaCRequestAnnotation, constants.ImageControllerAnnotationRequestPublicRepo), buildPipelineAnnotation))
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	gomega.Expect(c.Name).Should(gomega.Equal(componentName))
 
@@ -260,11 +283,11 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			for componentName, scenario := range components {
-				err = CreateComponent(f.AsKubeAdmin.CommonController, f.AsKubeAdmin.HasController, applicationName, componentName, testNamespace, scenario)
+				err = CreateComponent(f, applicationName, componentName, testNamespace, scenario)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to create component for scenario: %s", scenario.Name))
 			}
 			// Create the symlink component
-			err = CreateComponent(f.AsKubeAdmin.CommonController, f.AsKubeAdmin.HasController, applicationName, symlinkComponentName, testNamespace, symlinkScenario)
+			err = CreateComponent(f, applicationName, symlinkComponentName, testNamespace, symlinkScenario)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create component for symlink scenario")
 
 		})
@@ -320,6 +343,24 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 				for _, branches := range pacAndBaseBranches {
 					gomega.Expect(build.CleanupWebhooks(f, branches.RepoName)).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to cleanup webhooks for repo: %s", branches.RepoName))
 				}
+			}
+
+			// Cleanup gitlab related branches
+			for _, branches := range gitlabPacAndBaseBranches {
+				err = f.AsKubeAdmin.CommonController.Gitlab.DeleteBranch(branches.RepoName, branches.PacBranchName)
+				if err != nil {
+					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
+				}
+				err = f.AsKubeAdmin.CommonController.Gitlab.DeleteBranch(branches.RepoName, branches.BaseBranchName)
+				if err != nil {
+					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
+				}
+			}
+
+			// Cleanup gitlab secret
+			err = f.AsKubeAdmin.CommonController.DeleteSecret(testNamespace, gitlabBasicAuthSecretName)
+			if err != nil {
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring("not found"))
 			}
 		})
 

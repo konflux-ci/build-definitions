@@ -12,6 +12,8 @@ type ComponentScenarioSpec struct {
 	Name                string
 	GitURL              string
 	Revision            string
+	DefaultBranch       string
+	AuthMode            string
 	ContextDir          string
 	DockerFilePath      string
 	PipelineBundleNames []constants.BuildPipelineType
@@ -30,6 +32,8 @@ func (s ComponentScenarioSpec) DeepCopy() ComponentScenarioSpec {
 		Name:                s.Name,
 		GitURL:              s.GitURL,
 		Revision:            s.Revision,
+		DefaultBranch:       s.DefaultBranch,
+		AuthMode:            s.AuthMode,
 		ContextDir:          s.ContextDir,
 		DockerFilePath:      s.DockerFilePath,
 		PipelineBundleNames: pipelineBundleNames,
@@ -49,7 +53,7 @@ var componentScenarios = []ComponentScenarioSpec{
 		Revision:            "47fc22092005aabebce233a9b6eab994a8152bbd",
 		ContextDir:          ".",
 		DockerFilePath:      constants.DockerFilePath,
-		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuild, constants.DockerBuildOciTA, constants.DockerBuildOciTAMin},
+		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuild, constants.DockerBuildOciTA},
 		EnableHermetic:      false,
 		PrefetchInput:       "",
 		ManifestMediaType:   "oci",
@@ -87,6 +91,18 @@ var componentScenarios = []ComponentScenarioSpec{
 		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuildMultiPlatformOciTa},
 		EnableHermetic:      false,
 		PrefetchInput:       "",
+		ManifestMediaType:   "docker",
+	},
+	{
+		Name:                "sample-gitlab-basic-auth",
+		GitURL:              "https://gitlab.com/konflux-qe/sample-python-basic",
+		Revision:            "47fc22092005aabebce233a9b6eab994a8152bbd",
+		DefaultBranch:       "main",
+		AuthMode:            "basic-auth",
+		ContextDir:          ".",
+		DockerFilePath:      constants.DockerFilePath,
+		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuildOciTAMin},
+		EnableHermetic:      false,
 		ManifestMediaType:   "docker",
 	},
 	{
