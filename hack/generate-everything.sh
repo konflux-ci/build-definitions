@@ -16,7 +16,6 @@ yq --version | grep -q mikefarah/yq || {
 hack/build-manifests.sh
 hack/generate-ta-tasks.sh
 hack/build-manifests.sh  # for oci-ta-min variants generated from oci-ta tasks
-hack/generate-buildah-remote.sh
 
 hack/generate-pipelines-readme.py
 
