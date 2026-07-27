@@ -289,18 +289,38 @@ spec:
           done
 
           # ── olot: add all files in batch as layers ──
-          MODELCARD_ARG=()
+          MODELCARD_ARG=""
           if [ "$FIRST_BATCH" = true ]; then
-            MODELCARD_ARG+=(-m "$MODELCARD_PATH")
+            MODELCARD_ARG="$MODELCARD_PATH"
             FIRST_BATCH=false
           fi
 
           find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > /tmp/blobs_before.txt
 
-          olot --verbose --remove-originals default \
-            "${MODELCARD_ARG[@]}" \
-            "$TARGET_OCI" \
-            "${BATCH_FILES[@]}"
+          # Call olot's Python API directly instead of its CLI so we can pass
+          # root_dir="models". Without it, olot derives each layer's in-image
+          # path from the file's basename only, so files that share a
+          # basename in different subdirectories (e.g. "config.json" at the
+          # model root and "inference/config.json") both collapse to
+          # "/models/config.json" and silently overwrite each other. Passing
+          # root_dir="models" makes olot preserve each file's path relative
+          # to that root instead.
+          TARGET_OCI="$TARGET_OCI" MODELCARD_ARG="$MODELCARD_ARG" \
+          python3 - "${BATCH_FILES[@]}" <<'PYEOF'
+        import os
+        import sys
+
+        from olot.basics import oci_layers_on_top
+        from olot.enums import RemoveOriginals
+
+        oci_layers_on_top(
+            os.environ["TARGET_OCI"],
+            sys.argv[1:],
+            os.environ.get("MODELCARD_ARG") or None,
+            root_dir="models",
+            remove_originals=RemoveOriginals.DEFAULT,
+        )
+        PYEOF
 
           rm -f "${BATCH_FILES[@]}"
 
