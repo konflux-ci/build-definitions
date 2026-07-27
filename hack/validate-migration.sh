@@ -298,9 +298,14 @@ $task_dir_path"
                 fi
                 ;;
             D | M)
+                # Migration immutability applies to active tasks under task/ only.
+                # Deleting archived migrations, or migrations of a task moved to
+                # external-task/, is fine.
+                if [[ "$origin_path" != task/* ]]; then
+                    continue
+                fi
                 task_name=$(awk -F '/' '{ print $2 }' <<<"$origin_path")
                 if [[ $status == D && -e "external-task/$task_name" ]]; then
-                    # Deleting the migrations of a task that has moved to a different repo is fine
                     continue
                 fi
 
