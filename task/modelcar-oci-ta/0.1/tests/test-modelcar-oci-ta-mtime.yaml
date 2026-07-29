@@ -75,9 +75,12 @@ spec:
               set -euo pipefail
               # Kind registry uses a cluster-local CA that is not reliably in
               # the task trust store under deploy-local CI; skip verify here.
+              # Push files explicitly so layer titles keep paths like
+              # source/models/model.bin (directory push can collapse to one layer).
+              mapfile -t files < <(find source -type f | sort)
               oras push --insecure --no-tty \
                 --annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z" \
-                "$(params.modelPath)" source/
+                "$(params.modelPath)" "${files[@]}"
           - name: record-model-digest
             image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             script: |
