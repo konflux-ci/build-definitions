@@ -75,8 +75,8 @@ spec:
               set -euo pipefail
               # Kind registry uses a cluster-local CA that is not reliably in
               # the task trust store under deploy-local CI; skip verify here.
-              # Push files explicitly so layer titles keep paths like
-              # source/models/model.bin (directory push can collapse to one layer).
+              # Push files explicitly (directory push can collapse to one layer).
+              # oras titles use basenames, so files land under /models/<basename>.
               mapfile -t files < <(find source -type f | sort)
               oras push --insecure --no-tty "$(params.modelPath)" "${files[@]}"
           - name: record-model-digest
@@ -200,7 +200,7 @@ spec:
               echo "Confirm the contents of the filesystem"
               mkdir contents/ && pushd contents/
               oc image extract --insecure=true "$IMAGE_REF"
-              for filename in usr/bin/ls models/source/models/model.bin; do
+              for filename in usr/bin/ls models/model.bin; do
                 if [ -f "$filename" ]; then
                     echo "File $filename found as expected."
                 else
