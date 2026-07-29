@@ -56,9 +56,9 @@ type TestBranches struct {
 var pacAndBaseBranches []TestBranches
 
 var gitlabPacAndBaseBranches []TestBranches
-var gitlabBasicAuthSecretName = "gitlab-basic-auth-secret"
+var gitlabBasicAuthSecretName = "gitlab-basic-auth-secret-" + util.GenerateRandomString(4)
 
-func CreateComponent(f *framework.Framework, applicationName, componentName, namespace string, scenario ComponentScenarioSpec) error {
+func CreateComponent(f *framework.Framework, applicationName, componentName, namespace string, scenario ComponentScenarioSpec, application *appservice.Application) error {
 	var err error
 	var buildPipelineAnnotation map[string]string
 	var baseBranchName, pacBranchName string
@@ -123,7 +123,7 @@ func CreateComponent(f *framework.Framework, applicationName, componentName, nam
 			return fmt.Errorf("gitlab token env is empty, must be set for running the gitlab scenario")
 		}
 		secretAnnotations := map[string]string{}
-		err = build.CreateGitlabBuildSecret(f, gitlabBasicAuthSecretName, secretAnnotations, gitlabToken)
+		err = CreateGitlabBuildSecret(f, gitlabBasicAuthSecretName, secretAnnotations, gitlabToken, application)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create basic auth secret")
 		gitlabPacAndBaseBranches = append(gitlabPacAndBaseBranches, TestBranches{
 			RepoName:       projectID,
@@ -236,6 +236,7 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 		var applicationName, symlinkPRunName, testNamespace string
 		components := make(map[string]ComponentScenarioSpec)
 		var pipelineRunsWithE2eFinalizer []string
+		var application *appservice.Application
 
 		for _, gitUrl := range GetScenarios() {
 			scenario := GetComponentScenarioDetailsFromGitUrl(gitUrl)
@@ -279,15 +280,15 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 					return errors.IsNotFound(err)
 				}, time.Minute*5, time.Second*1).Should(gomega.BeTrue(), fmt.Sprintf("timed out when waiting for the app %s to be deleted in %s namespace", applicationName, testNamespace))
 			}
-			_, err = f.AsKubeAdmin.HasController.CreateApplication(applicationName, testNamespace)
+			application, err = f.AsKubeAdmin.HasController.CreateApplication(applicationName, testNamespace)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			for componentName, scenario := range components {
-				err = CreateComponent(f, applicationName, componentName, testNamespace, scenario)
+				err = CreateComponent(f, applicationName, componentName, testNamespace, scenario, application)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to create component for scenario: %s", scenario.Name))
 			}
 			// Create the symlink component
-			err = CreateComponent(f, applicationName, symlinkComponentName, testNamespace, symlinkScenario)
+			err = CreateComponent(f, applicationName, symlinkComponentName, testNamespace, symlinkScenario, application)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create component for symlink scenario")
 
 		})
@@ -355,12 +356,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 				if err != nil {
 					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
 				}
-			}
-
-			// Cleanup gitlab secret
-			err = f.AsKubeAdmin.CommonController.DeleteSecret(testNamespace, gitlabBasicAuthSecretName)
-			if err != nil {
-				gomega.Expect(err.Error()).To(gomega.ContainSubstring("not found"))
 			}
 		})
 
