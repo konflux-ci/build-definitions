@@ -122,6 +122,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|PARAM_DEFAULTS| Optional space-separated list of PARAM_NAME=VALUE entries. Each entry sets the default value of the named param in the task YAML files.| ""| |
 |REVISION| Revision| None| '$(params.revision)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
