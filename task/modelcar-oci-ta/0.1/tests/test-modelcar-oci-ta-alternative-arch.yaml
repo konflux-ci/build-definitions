@@ -38,12 +38,6 @@ spec:
           - name: ociStorage
           - name: modelPath
         stepTemplate:
-          env:
-            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
-            - name: SSL_CERT_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
-            - name: CA_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -76,12 +70,12 @@ spec:
           - name: mock-model
             image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             workingDir: $(workspaces.tests-workspace.path)
-            command: ["oras"]
-            args:
-              - push
-              - --no-tty
-              - $(params.modelPath)
-              - source/
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              # Kind registry uses a cluster-local CA that is not reliably in
+              # the task trust store under deploy-local CI; skip verify here.
+              oras push --insecure --no-tty "$(params.modelPath)" source/
           - name: record-model-digest
             image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             script: |
@@ -89,12 +83,18 @@ spec:
               set -euo pipefail
 
               echo "Find digest of the mocked model"
-              digest=$(oras resolve "$(params.modelPath)")
+              digest=$(oras resolve --insecure "$(params.modelPath)")
 
               echo "Share location of the mocked model"
               echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
             image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            env:
+              # Consumed by oras_opts.sh inside build-trusted-artifacts.
+              - name: ORAS_OPTIONS
+                value: --insecure
+              - name: CA_FILE
+                value: /etc/pki/tls/certs/ca-custom-bundle.crt
             args:
               - create
               - --store
@@ -157,12 +157,6 @@ spec:
                   path: ca-bundle.crt
               name: $(params.caTrustConfigMapName)
         stepTemplate:
-          env:
-            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
-            - name: SSL_CERT_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
-            - name: CA_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -186,23 +180,23 @@ spec:
               set -eu
 
               echo "Confirm we can inspect the image with an archful tag"
-              skopeo inspect "docker://${IMAGE_REF//:latest-linux-s390x/}"
+              skopeo inspect --tls-verify=false "docker://${IMAGE_REF//:latest-linux-s390x/}"
 
               echo "Confirm the image is single-arch; multiarch not supported"
-              mediaType=$(skopeo inspect --raw "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .mediaType)
+              mediaType=$(skopeo inspect --tls-verify=false --raw "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .mediaType)
               if [ "$mediaType" != "application/vnd.oci.image.manifest.v1+json" ]; then
                   echo "Image is not single-arch." && exit 1
               fi
 
               echo "Confirm the image is s390x - the one we asked for"
-              mediaType=$(skopeo inspect "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .Architecture)
+              mediaType=$(skopeo inspect --tls-verify=false "docker://${IMAGE_REF//:latest-linux-s390x/}" | jq -r .Architecture)
               if [ "$mediaType" != "s390x" ]; then
                   echo "Image is not s390x." && exit 1
               fi
 
               echo "Confirm the contents of the filesystem"
               mkdir contents/ && pushd contents/
-              oc image extract "$IMAGE_REF"
+              oc image extract --insecure=true "$IMAGE_REF"
               for filename in usr/bin/ls models/source/models/model.bin; do
                 if [ -f "$filename" ]; then
                     echo "File $filename found as expected."
@@ -213,7 +207,7 @@ spec:
               popd
 
               echo "Confirm the sbom exists as json"
-              packages=$(cosign download sbom "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
+              packages=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
               for purl in pkg:oci/test-modelcar pkg:oci/ubi pkg:oci/test-model; do
                 if [[ "$packages" == *"${purl}@sha256"* ]]; then
                   echo "$purl found as expected."
