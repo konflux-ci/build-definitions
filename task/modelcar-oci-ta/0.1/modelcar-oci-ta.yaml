@@ -175,6 +175,10 @@ spec:
         set -eu
         set -o pipefail
 
+        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          export SSL_CERT_FILE="${CA_FILE}"
+        fi
+
         BASE_IMAGE="${BASE_IMAGE//:*@/@}"  # Strip tag, only if it is infixed before the digest
         arch="${PLATFORM//*\//}"
         os="${PLATFORM//\/*/}"
@@ -465,6 +469,10 @@ spec:
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          export SSL_CERT_FILE="${CA_FILE}"
+        fi
 
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
