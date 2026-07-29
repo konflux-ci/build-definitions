@@ -227,14 +227,11 @@ spec:
 
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
           ORAS_TLS_OPTS=(--insecure)
-          COSIGN_TLS_OPTS=(--allow-insecure-registry)
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
           export SSL_CERT_FILE="${CA_FILE}"
           ORAS_TLS_OPTS=()
-          COSIGN_TLS_OPTS=()
         else
           ORAS_TLS_OPTS=()
-          COSIGN_TLS_OPTS=()
         fi
 
         # ─── Resolve destination image ───
