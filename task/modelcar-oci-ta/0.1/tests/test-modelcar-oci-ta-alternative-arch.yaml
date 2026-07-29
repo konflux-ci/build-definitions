@@ -38,6 +38,12 @@ spec:
           - name: ociStorage
           - name: modelPath
         stepTemplate:
+          env:
+            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
+            - name: SSL_CERT_FILE
+              value: /etc/pki/tls/certs/ca-custom-bundle.crt
+            - name: CA_FILE
+              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -151,6 +157,12 @@ spec:
                   path: ca-bundle.crt
               name: $(params.caTrustConfigMapName)
         stepTemplate:
+          env:
+            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
+            - name: SSL_CERT_FILE
+              value: /etc/pki/tls/certs/ca-custom-bundle.crt
+            - name: CA_FILE
+              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt

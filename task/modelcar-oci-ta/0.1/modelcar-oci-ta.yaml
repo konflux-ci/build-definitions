@@ -80,6 +80,15 @@ spec:
       description: CPE identifier label required for on-prem product releases
       type: string
       default: ""
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -128,6 +137,10 @@ spec:
         value: $(params.IMAGE_APPEND_PLATFORM)
       - name: TARGET_OCI
         value: "/var/workdir/modelcar-oci"
+      # Used by Go tools (oras/cosign). Only takes effect when the mounted
+      # bundle is non-empty; scripts also guard before exporting.
+      - name: CA_FILE
+        value: /etc/pki/tls/certs/ca-custom-bundle.crt
     imagePullPolicy: IfNotPresent
     volumeMounts:
       - mountPath: /var/workdir
@@ -211,6 +224,10 @@ spec:
         #!/bin/bash
         set -eu
         set -o pipefail
+
+        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          export SSL_CERT_FILE="${CA_FILE}"
+        fi
 
         # ─── Resolve destination image ───
         if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
@@ -468,6 +485,10 @@ spec:
       script: |
         #!/bin/bash
         set -e
+
+        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          export SSL_CERT_FILE="${CA_FILE}"
+        fi
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
