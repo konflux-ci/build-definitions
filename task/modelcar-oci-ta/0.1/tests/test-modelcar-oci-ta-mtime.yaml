@@ -38,12 +38,6 @@ spec:
           - name: ociStorage
           - name: modelPath
         stepTemplate:
-          env:
-            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
-            - name: SSL_CERT_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
-            - name: CA_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -76,14 +70,14 @@ spec:
           - name: mock-model
             image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             workingDir: $(workspaces.tests-workspace.path)
-            command: ["oras"]
-            args:
-              - push
-              - --no-tty
-              - --annotation
-              - "org.opencontainers.image.created=2026-03-13T10:30:00Z"
-              - $(params.modelPath)
-              - source/
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              # Kind registry uses a cluster-local CA that is not reliably in
+              # the task trust store under deploy-local CI; skip verify here.
+              oras push --insecure --no-tty \
+                --annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z" \
+                "$(params.modelPath)" source/
           - name: record-model-digest
             image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
             script: |
@@ -91,12 +85,18 @@ spec:
               set -euo pipefail
 
               echo "Find digest of the mocked model"
-              digest=$(oras resolve "$(params.modelPath)")
+              digest=$(oras resolve --insecure "$(params.modelPath)")
 
               echo "Share location of the mocked model"
               echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
             image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            env:
+              # Consumed by oras_opts.sh inside build-trusted-artifacts.
+              - name: ORAS_OPTIONS
+                value: --insecure
+              - name: CA_FILE
+                value: /etc/pki/tls/certs/ca-custom-bundle.crt
             args:
               - create
               - --store
@@ -147,12 +147,6 @@ spec:
                   path: ca-bundle.crt
               name: $(params.caTrustConfigMapName)
         stepTemplate:
-          env:
-            # Kind registry uses a cluster CA; Go/oras need SSL_CERT_FILE to trust it.
-            - name: SSL_CERT_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
-            - name: CA_FILE
-              value: /etc/pki/tls/certs/ca-custom-bundle.crt
           volumeMounts:
             - name: trusted-ca
               mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -173,7 +167,7 @@ spec:
 
               echo "Extract the image filesystem"
               mkdir contents/ && pushd contents/
-              oc image extract "$IMAGE_REF"
+              oc image extract --insecure=true "$IMAGE_REF"
 
               echo "Confirm model files have the expected mtime from OCI annotation"
               # The annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z"
