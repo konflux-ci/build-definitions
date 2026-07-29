@@ -102,9 +102,16 @@ jobs:
 
       - name: Deploying Konflux
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
+        env:
+          # Kind cluster already created by kind-action above.
+          DEPLOY_LOCAL_SKIP_KIND: "1"
+          # Install operator + Konflux CR from the latest GitHub release.
+          OPERATOR_INSTALL_METHOD: release
+          # Task tests do not need GitHub App / Quay secrets.
+          SKIP_SECRETS: "true"
         run: |
           cd $GITHUB_WORKSPACE/konflux-ci
-          ./deploy-konflux.sh
+          ./scripts/deploy-local.sh
 
       - name: List namespaces
         if: steps.tasks-to-be-tested.outputs.tasklist != ''
