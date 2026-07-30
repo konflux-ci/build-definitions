@@ -186,7 +186,7 @@ spec:
               runAsNonRoot: false
             script: |
               #!/usr/bin/env bash
-              set -eu
+              set -euo pipefail
 
               echo "Confirm we can inspect the image with an archful tag"
               skopeo inspect --tls-verify=false "docker://${IMAGE_REF//:latest-linux-s390x/}"

@@ -182,7 +182,7 @@ spec:
               runAsNonRoot: false
             script: |
               #!/usr/bin/env bash
-              set -eu
+              set -euo pipefail
 
               echo "Confirm we can inspect the image"
               skopeo inspect --tls-verify=false "docker://${IMAGE_REF//:latest/}"
