@@ -487,8 +487,12 @@ spec:
         #!/bin/bash
         set -euo pipefail
 
-        # Import custom CAs into the system store so public roots stay trusted.
-        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          # modelcar generate builds the SBOM from image refs; no oras/cosign
+          # TLS opts to pass. Still skip CA import to match other steps.
+          :
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
           echo "INFO: Using mounted CA bundle: ${CA_FILE}"
           cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
           update-ca-trust
