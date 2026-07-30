@@ -179,7 +179,8 @@ spec:
         set -o pipefail
 
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
-          ORAS_TLS_OPTS=(--insecure)
+          # release-service-utils oras uses --from-insecure (not --insecure).
+          ORAS_TLS_OPTS=(--from-insecure)
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
           # Import custom CAs into the system store so public roots stay trusted.
           echo "INFO: Using mounted CA bundle: ${CA_FILE}"
