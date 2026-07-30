@@ -137,8 +137,8 @@ spec:
         value: $(params.IMAGE_APPEND_PLATFORM)
       - name: TARGET_OCI
         value: "/var/workdir/modelcar-oci"
-      # Used by Go tools (oras/cosign). Only takes effect when the mounted
-      # bundle is non-empty; scripts also guard before exporting.
+      # Mounted custom CA bundle path. Scripts import it into the OS trust
+      # store when non-empty (do not set SSL_CERT_FILE to this alone).
       - name: CA_FILE
         value: /etc/pki/tls/certs/ca-custom-bundle.crt
     imagePullPolicy: IfNotPresent
@@ -169,14 +169,20 @@ spec:
           cpu: 50m
         limits:
           memory: 512Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
 
+        # Import custom CAs into the system store so public roots stay trusted.
         if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
-          export SSL_CERT_FILE="${CA_FILE}"
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
         fi
 
         BASE_IMAGE="${BASE_IMAGE//:*@/@}"  # Strip tag, only if it is infixed before the digest
@@ -232,7 +238,10 @@ spec:
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
           ORAS_TLS_OPTS=(--insecure)
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
-          export SSL_CERT_FILE="${CA_FILE}"
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
           ORAS_TLS_OPTS=()
         else
           ORAS_TLS_OPTS=()
@@ -465,13 +474,19 @@ spec:
           cpu: 50m
         limits:
           memory: 64Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -euo pipefail
 
+        # Import custom CAs into the system store so public roots stay trusted.
         if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
-          export SSL_CERT_FILE="${CA_FILE}"
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
         fi
 
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
@@ -494,6 +509,9 @@ spec:
           cpu: 50m
         limits:
           memory: 64Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -502,7 +520,10 @@ spec:
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
           COSIGN_TLS_OPTS=(--allow-insecure-registry)
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
-          export SSL_CERT_FILE="${CA_FILE}"
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
           COSIGN_TLS_OPTS=()
         else
           COSIGN_TLS_OPTS=()
