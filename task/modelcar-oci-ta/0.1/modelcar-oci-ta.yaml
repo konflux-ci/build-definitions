@@ -178,11 +178,16 @@ spec:
         set -eu
         set -o pipefail
 
-        # Import custom CAs into the system store so public roots stay trusted.
-        if [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          ORAS_TLS_OPTS=(--insecure)
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
           echo "INFO: Using mounted CA bundle: ${CA_FILE}"
           cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
           update-ca-trust
+          ORAS_TLS_OPTS=()
+        else
+          ORAS_TLS_OPTS=()
         fi
 
         BASE_IMAGE="${BASE_IMAGE//:*@/@}"  # Strip tag, only if it is infixed before the digest
@@ -196,7 +201,7 @@ spec:
 
         ARCHFUL_BASE_IMAGE="${BASE_IMAGE//@*/}@${base_image_digest}"
 
-        oras copy --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
+        oras copy "${ORAS_TLS_OPTS[@]}" --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
         chmod -R g+w "$TARGET_OCI"
 
         echo "Recording base image used:"
