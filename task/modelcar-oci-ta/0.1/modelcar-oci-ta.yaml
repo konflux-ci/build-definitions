@@ -201,7 +201,7 @@ spec:
 
         ARCHFUL_BASE_IMAGE="${BASE_IMAGE//@*/}@${base_image_digest}"
 
-        oras copy "${ORAS_TLS_OPTS[@]}" --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
+        oras copy ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
         chmod -R g+w "$TARGET_OCI"
 
         echo "Recording base image used:"
@@ -262,7 +262,7 @@ spec:
         BLOBS_DIR="${TARGET_OCI}/blobs/sha256"
 
         # ─── Fetch model manifest for mtime + layer list ───
-        MODEL_MANIFEST=$(oras manifest fetch "${ORAS_TLS_OPTS[@]}" "$MODEL_IMAGE" \
+        MODEL_MANIFEST=$(oras manifest fetch ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson)
         MODEL_REF="${MODEL_IMAGE%%@*}"
 
@@ -305,7 +305,7 @@ spec:
             BATCH_FILES+=("models/${title}")
 
             (
-              retry oras blob fetch "${ORAS_TLS_OPTS[@]}" \
+              retry oras blob fetch ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} \
                 --registry-config /model-secret/.dockerconfigjson \
                 -o "models/${title}" \
                 "${MODEL_REF}@${blob_digest}" \
@@ -354,7 +354,7 @@ spec:
             if echo "$LAYER_HASHES" | grep -qx "$new_blob"; then
               NEW_BLOBS+=("$new_blob")
               (
-                retry oras blob push "${ORAS_TLS_OPTS[@]}" --registry-config auth.json \
+                retry oras blob push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json \
                   "$DEST_REPO" "$BLOBS_DIR/$new_blob" \
                 && echo "  Pushed sha256:${new_blob}"
               ) &
@@ -448,11 +448,11 @@ spec:
           blob_name=$(basename "$blob_file")
           [ "$blob_name" = "$MANIFEST_HASH" ] && continue
           echo "Pushing blob sha256:${blob_name}..."
-          retry oras blob push "${ORAS_TLS_OPTS[@]}" --registry-config auth.json "$DEST_REPO" "$blob_file"
+          retry oras blob push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json "$DEST_REPO" "$blob_file"
         done
 
         echo "Pushing manifest to ${IMAGE}..."
-        if ! retry oras manifest push "${ORAS_TLS_OPTS[@]}" --registry-config auth.json \
+        if ! retry oras manifest push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json \
           "$IMAGE" "$BLOBS_DIR/$MANIFEST_HASH"
         then
           echo "Failed to push manifest to ${IMAGE}"
@@ -460,7 +460,7 @@ spec:
         fi
         echo "Push complete!"
 
-        if ! RESULTING_DIGEST=$(retry oras resolve "${ORAS_TLS_OPTS[@]}" --registry-config auth.json "${IMAGE}")
+        if ! RESULTING_DIGEST=$(retry oras resolve ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json "${IMAGE}")
         then
           echo "Failed to get digest for ${IMAGE} from registry"
           exit 1
@@ -539,7 +539,7 @@ spec:
         export DOCKER_CONFIG=/tmp/auth
 
         echo "Pushing sbom to registry"
-        if ! retry cosign attach sbom "${COSIGN_TLS_OPTS[@]}" --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        if ! retry cosign attach sbom ${COSIGN_TLS_OPTS[@]+"${COSIGN_TLS_OPTS[@]}"} --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
         then
             echo "Failed to push sbom to registry"
             exit 1
