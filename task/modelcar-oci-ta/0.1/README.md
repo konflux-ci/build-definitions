@@ -29,6 +29,8 @@ generated in the process.
 |IMAGE_EXPIRES_AFTER|Image tag expiration time for quay.expires-after label|""|false|
 |SOURCE_DATE_EPOCH|Timestamp in seconds since Unix epoch for reproducible builds. Sets org.opencontainers.image.created and build-date labels.|""|false|
 |CPE|CPE identifier label required for on-prem product releases|""|false|
+|caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 
 ## Results
 |name|description|
