@@ -9,6 +9,14 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+## 0.2.4
+
+### Removed
+
+- Unused `build-source-image` pipeline parameter from tekton-bundle-builder
+  pipelines via migration. Source image builds are not applicable to tekton
+  bundle builds.
+
 ## 0.2.3
 
 ### Removed
