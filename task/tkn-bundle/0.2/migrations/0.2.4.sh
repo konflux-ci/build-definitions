@@ -15,18 +15,17 @@ if ! yq -e "${PARAMS_SELECTOR} | select(.name == \"build-source-image\")" "$pipe
   exit 0
 fi
 
-# restrict to only run if pipeline uses task with name tkn-bundle or tkn-bundle-oci-ta
+# Match catalog taskRef.name and real PipelineRun bundles-resolver taskRef.params
 if ! yq -e "${TASKS_SELECTOR} | select(
   .taskRef.name == \"tkn-bundle\" or
   .taskRef.name == \"tkn-bundle-oci-ta\" or
-  (.taskRef.params[]? | .name == \"name\" and (.value == \"tkn-bundle\" or .value == \"tkn-bundle-oci-ta\"))
+  (.taskRef.params[] | select(.name == \"name\" and (.value == \"tkn-bundle\" or .value == \"tkn-bundle-oci-ta\")))
 )" "$pipeline_file" >/dev/null 2>&1; then
   echo "not a tekton-bundle-builder pipeline, skipping"
   exit 0
 fi
 
-param_path=$(yq -o=json "${PARAMS_SELECTOR} | select(.name == \"build-source-image\") | path " "$pipeline_file")
-
+param_path=$(yq -o=json "${PARAMS_SELECTOR} | select(.name == \"build-source-image\") | path" "$pipeline_file")
 
 pmt modify -f "$pipeline_file" \
     generic remove "$param_path"
