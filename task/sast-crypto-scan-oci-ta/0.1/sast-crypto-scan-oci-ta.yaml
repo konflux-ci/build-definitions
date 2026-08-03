@@ -1,15 +1,16 @@
+---
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: sast-crypto-scan-oci-ta
   annotations:
-    tekton.dev/pipelines.minVersion: 0.12.1
-    tekton.dev/tags: konflux
+    tekton.dev/pipelines.minVersion: "0.12.1"
+    tekton.dev/tags: "konflux"
   labels:
     app.kubernetes.io/version: "0.1"
 spec:
   description: >-
-    The sast-crypto-scan-oci-ta task uses [rh-crypto-scanner-image](https://gitlab.cee.redhat.com/security-guild/crypto-scanning/rh-crypto-scanner-image) tool to perform Static Code Analysis in order to detect crypto assets being used.
+    The sast-crypto-scan-oci-ta task uses [crypto-finder-image](https://github.com/rh-pvsec/crypto-finder-image) tool to perform Static Code Analysis in order to detect crypto assets being used.
     It reports crypto algorithms in a CycloneDX format (cbom.json).
   params:
     - name: CACHI2_ARTIFACT
@@ -22,24 +23,15 @@ spec:
         the application source code.
       type: string
     - name: TARGET_DIRS
-      description: Target directories in component's source code. Multiple
-        values should be separated with commas.
+      description: Target directories in component's source code. Multiple values should be separated with commas.
       type: string
       default: "."
-    - name: ADDITIONAL_RULES_IMAGE
-      description: URI pointing to an additional image with rules
-      type: string
-      default: ""
-    - name: ROBOT_ACCOUNT
-      description: Robot account used to pull the ADDITIONAL_RULES_IMAGE
-      type: string
-      default: ""
     - name: SKIP_SBOM_GENERATION
       description: Skip SBOM-related operations. This will likely cause EC policies to fail if enabled
       type: string
       default: "false"
     - name: SCAN_TIMEOUT
-      description: Timeout scan if it takes more than the time specified
+      description: Timeout scan if it takes more than the time specified.
       type: string
       default: "30m"
     - name: caTrustConfigMapName
@@ -47,8 +39,7 @@ spec:
       type: string
       default: trusted-ca
     - name: caTrustConfigMapKey
-      description: The name of the key in the ConfigMap that contains the
-        CA bundle data.
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
       type: string
       default: ca-bundle.crt
     - name: image-url
@@ -56,7 +47,7 @@ spec:
       type: string
       default: ""
     - name: image-digest
-      description: Image digest to report findings for.
+      description: Digest of the image to scan.
       type: string
       default: ""
   results:
@@ -86,6 +77,10 @@ spec:
   steps:
     - name: use-trusted-artifact
       image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:d6d6048bdb5a73697ff88734a3f33c54193405b901d3f5192b8251a878623906
+      when:
+        - input: "$(params.SKIP_SBOM_GENERATION)"
+          operator: in
+          values: [ "false" ]
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -98,40 +93,38 @@ spec:
 
     - name: pull-rules
       image: quay.io/konflux-ci/task-runner:2.1.0@sha256:c34c933c269e2401bb042fe69e2999cf288331b6586d4f4eca9c845270d9b1f9
+      when:
+        - input: "$(params.SKIP_SBOM_GENERATION)"
+          operator: in
+          values: [ "false" ]
       volumeMounts:
         - name: bound-token
           mountPath: /var/run/secrets/tokens
           readOnly: true
-      env:
-        - name: ADDITIONAL_RULES_IMAGE
-          value: $(params.ADDITIONAL_RULES_IMAGE)
-        - name: ROBOT_ACCOUNT
-          value: $(params.ROBOT_ACCOUNT)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
 
-        CONSOLE=$(oc whoami --show-console | sed -E 's|^.*api\.([^.:]*)\..*:?.*$|\1|')
+        CONSOLE=$(oc whoami --show-console | sed -E 's|^https://console-openshift-console\.apps\.([^.:]*)\..*:?.*$|\1|')
         echo "Running on: $CONSOLE"
 
-        if [ -z "${ADDITIONAL_RULES_IMAGE}" ] ; then
-          if [[ "${CONSOLE}" =~ (stone-stage-p01|stone-stg-rh01|stone-prod-p01|stone-prod-p02|kflux-prd-rh02) ]] ; then
-            ADDITIONAL_RULES_IMAGE="quay.io/exd-guild-security/crypto-rules-image:latest"
-            ROBOT_ACCOUNT="exd-guild-security+konflux_crypto_rules_pull"
-          else
-            echo "No ADDITIONAL_RULES_IMAGE set, and no supported cluster detected"
-            exit 0
-          fi
+        if [[ "${CONSOLE}" =~ ^(kflux-prd-rh03|kflux-prd-rh02|kflux-prd-rh01|stone-prod-p02|stone-prod-p01|kflux-ocp-p01|kflux-rhel-p01|kflux-osp-p01|stone-stg-rh01|stone-stage-p01)$ ]] ; then
+          # This unpinned image contain the latest rolling rules
+          ADDITIONAL_RULES_IMAGE="quay.io/exd-guild-security/crypto-rules-image:latest"
+          ROBOT_ACCOUNT="exd-guild-security+konflux_crypto_rules_pull"
+        else
+          echo "No ADDITIONAL_RULES_IMAGE set, and no supported cluster detected"
+          exit 0
         fi
 
         REGISTRY_HOSTNAME=${ADDITIONAL_RULES_IMAGE%%/*}
         TOKEN=$(cat /var/run/secrets/tokens/quay-token)
         if [ -z "${TOKEN}" ]; then
-          echo "Not bound token available"
+          echo "No bound token available"
           exit 1
         fi
 
-        SL_TOKEN=$(curl -s \
+        SL_TOKEN=$(curl -s --fail \
           --user "${ROBOT_ACCOUNT}:${TOKEN}" \
           "https://${REGISTRY_HOSTNAME}/oauth2/federation/robot/token" \
           | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
@@ -142,17 +135,13 @@ spec:
         fi
 
         export XDG_RUNTIME_DIR=/tmp/oc-run
-        mkdir -p ${XDG_RUNTIME_DIR}
+        mkdir -p -m 0700 "${XDG_RUNTIME_DIR}"
 
         echo "About to download image ${ADDITIONAL_RULES_IMAGE}"
         oc registry login --registry="${REGISTRY_HOSTNAME}" --auth-basic="${ROBOT_ACCOUNT}:${SL_TOKEN}"
 
         mkdir /workspace/rules
         retry oc image extract "${ADDITIONAL_RULES_IMAGE}" --path="/rules/:/workspace/rules"
-        if [ $? -ne 0 ]; then
-          echo "Unable to extract image"
-          exit 0
-        fi
 
     - name: rh-crypto-scanner
       # TEST IMAGE, it should be stored under konflux-ci and pinned
@@ -163,18 +152,15 @@ spec:
           value: $(params.TARGET_DIRS)
         - name: SCAN_TIMEOUT
           value: $(params.SCAN_TIMEOUT)
+        - name: SKIP_SBOM_GENERATION
+          value: $(params.SKIP_SBOM_GENERATION)
         - name: BUILD_PLR_LOG_URL
           valueFrom:
             fieldRef:
               fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
       script: |
         #!/usr/bin/env bash
-        set -e
-
-        if [ "${SKIP_SBOM_GENERATION}" = "true" ]; then
-          echo "Skipping SBOM generation"
-          exit 0
-        fi
+        set -euo pipefail
 
         echo "Using crypto-finder version:"
         crypto-finder version
@@ -193,7 +179,7 @@ spec:
           resolved_path=$(realpath -m "$potential_path")
 
           # ensure resolved path is still within SOURCE_CODE_DIR
-          if [[ "$resolved_path" == "$SOURCE_CODE_DIR"* ]]; then
+          if [[ "$resolved_path" == "${SOURCE_CODE_DIR}/"* || "$resolved_path" == "$SOURCE_CODE_DIR" ]]; then
             ALL_TARGETS+=("$resolved_path")
           else
             echo "Error: path traversal attempt, '$potential_path' is outside '$SOURCE_CODE_DIR'"
@@ -213,18 +199,31 @@ spec:
           fi
         done
 
-        echo "Running crypto scanner on the specified targets"
-        crypto-finder \
-          scan \
-          --no-remote-rules \
-          "${RULES_ARGUMENTS[@]}" \
-          --format cyclonedx \
-          --timeout ${SCAN_TIMEOUT} \
-          ${ALL_TARGETS[@]} > ${OUTPUT_FILE}
-
-        TEST_OUTPUT=$(echo "{\"result\":\"SUCCESS\",\"timestamp\":\"$(date -u --iso-8601=seconds)\",\"failures\":0,\"successes\":1,\"warnings\":0}")
+        if [ "${SKIP_SBOM_GENERATION}" != "false" ]; then
+          RESULT="SKIPPED"
+          SUCCESSES="0"
+          FAILURES="0"
+        elif [ ${#RULES_ARGUMENTS[@]} -eq 0 ]; then
+          echo "Error: no rules detected"
+          RESULT="ERROR"
+          SUCCESSES="0"
+          FAILURES="1"
+        else
+          RESULT="SUCCESS"
+          SUCCESSES="1"
+          FAILURES="0"
+          echo "Running crypto scanner on the specified targets"
+          crypto-finder \
+            scan \
+            --no-remote-rules \
+            "${RULES_ARGUMENTS[@]}" \
+            --format cyclonedx \
+            --timeout "${SCAN_TIMEOUT}" \
+            "${ALL_TARGETS[@]}" > "${OUTPUT_FILE}"
+        fi
+        TEST_OUTPUT=$(echo "{\"result\":\"${RESULT}\",\"timestamp\":\"$(date -u --iso-8601=seconds)\",\"failures\":${FAILURES},\"successes\":${SUCCESSES},\"warnings\":0}")
         echo "${TEST_OUTPUT}" | tee "$(results.TEST_OUTPUT.path)"
-        echo "Task $(context.task.name) completed successfully."
+        echo "Task $(context.task.name) completed."
       computeResources:
         limits:
           cpu: "8"
@@ -234,6 +233,10 @@ spec:
           memory: 4Gi
     - name: upload
       image: quay.io/konflux-ci/oras:latest@sha256:da693a7dcbadafc9f4422ae6600b41b2847944f7f14c5622827d6f58c727cf08
+      when:
+        - input: "$(params.SKIP_SBOM_GENERATION)"
+          operator: in
+          values: [ "false" ]
       workingDir: /var/workdir/source
       volumeMounts:
         - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
@@ -247,7 +250,7 @@ spec:
           value: $(params.image-digest)
       script: |
         #!/usr/bin/env bash
-        set -e
+        set -euo pipefail
 
         if [ -z "${IMAGE_URL}" ] || [ -z "${IMAGE_DIGEST}" ]; then
           echo 'No image-url or image-digest param provided. Skipping upload.'
