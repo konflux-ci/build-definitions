@@ -25,6 +25,21 @@ spec:
     workspaces:
       - name: workspace
     tasks:
+      - name: stale-secret-cleanup
+        params:
+          - name: e2e_test_namespace
+            value: $(params.e2e_test_namespace)
+        taskSpec:
+          params:
+            - name: e2e_test_namespace
+              type: string
+          steps:
+            - name: secret-cleanup
+              image: registry.redhat.io/openshift4/ose-cli:v4.15.0-202607210241.p2.g8231637.assembly.stream.el8
+              script: |
+                #!/usr/bin/env bash
+                # Perform cleanup of stale secret
+                oc delete secret gitlab-basic-auth-secret -n $(params.e2e_test_namespace)
       - name: clone-repository
         taskRef:
           resolver: bundles
