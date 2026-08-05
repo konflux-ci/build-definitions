@@ -206,7 +206,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap containing the CA bundle for TLS verification.| trusted-ca| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts. Empty string means no expiration.| None| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).opm'|
-### validate-fbc:0.2 task parameters
+### validate-fbc:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |IMAGE_DIGEST| Image digest.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
@@ -224,9 +224,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; apply-tags:0.3:IMAGE_DIGEST ; validate-fbc:0.2:IMAGE_DIGEST ; fbc-target-index-pruning-check:0.1:IMAGE_DIGEST ; fbc-fips-check-oci-ta:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; apply-tags:0.3:IMAGE_DIGEST ; validate-fbc:0.3:IMAGE_DIGEST ; fbc-target-index-pruning-check:0.1:IMAGE_DIGEST ; fbc-fips-check-oci-ta:0.1:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.3:IMAGE_URL ; validate-fbc:0.2:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; apply-tags:0.3:IMAGE_URL ; validate-fbc:0.3:IMAGE_URL ; fbc-target-index-pruning-check:0.1:IMAGE_URL ; fbc-fips-check-oci-ta:0.1:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
 ### buildah-remote-oci-ta:0.10 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -280,7 +280,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code with generated file-based catalog from catalog-template.yml.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
-### validate-fbc:0.2 task results
+### validate-fbc:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
