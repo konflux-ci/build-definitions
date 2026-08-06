@@ -4,7 +4,6 @@
 |name|description|default value|used in (taskname:taskrefversion:taskparam)|
 |---|---|---|---|
 |build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
-|build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
 |enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|

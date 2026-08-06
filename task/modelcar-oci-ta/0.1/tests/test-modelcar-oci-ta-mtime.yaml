@@ -45,7 +45,7 @@ spec:
               readOnly: true
         steps:
           - name: mock-source
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -68,29 +68,44 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             workingDir: $(workspaces.tests-workspace.path)
-            command: ["oras"]
-            args:
-              - push
-              - --no-tty
-              - --annotation
-              - "org.opencontainers.image.created=2026-03-13T10:30:00Z"
-              - $(params.modelPath)
-              - source/
+            env:
+              - name: MODEL_PATH
+                value: $(params.modelPath)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              # Kind registry uses a cluster-local CA that is not reliably in
+              # the task trust store under deploy-local CI; skip verify here.
+              # Push files explicitly (directory push can collapse to one layer).
+              # oras titles use basenames, so files land under /models/<basename>.
+              mapfile -t files < <(find source -type f | sort)
+              oras push --insecure --no-tty \
+                --annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z" \
+                "${MODEL_PATH}" "${files[@]}"
           - name: record-model-digest
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
+            env:
+              - name: MODEL_PATH
+                value: $(params.modelPath)
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
 
               echo "Find digest of the mocked model"
-              digest=$(oras resolve "$(params.modelPath)")
+              digest=$(oras resolve --insecure "${MODEL_PATH}")
 
               echo "Share location of the mocked model"
-              echo -n "$(params.modelPath)@${digest}" > "$(results.MODEL_PATH.path)"
+              echo -n "${MODEL_PATH}@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
             image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            env:
+              # Consumed by oras_opts.sh inside build-trusted-artifacts.
+              - name: ORAS_OPTIONS
+                value: --insecure
+              - name: CA_FILE
+                value: /etc/pki/tls/certs/ca-custom-bundle.crt
             args:
               - create
               - --store
@@ -151,23 +166,23 @@ spec:
             env:
               - name: IMAGE_REF
                 value: $(params.IMAGE_REF)
-            image: quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             securityContext:
               runAsUser: 0
               runAsNonRoot: false
             script: |
               #!/usr/bin/env bash
-              set -eu
+              set -euo pipefail
 
               echo "Extract the image filesystem"
               mkdir contents/ && pushd contents/
-              oc image extract "$IMAGE_REF"
+              oc image extract --insecure=true "$IMAGE_REF"
 
               echo "Confirm model files have the expected mtime from OCI annotation"
               # The annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z"
               # is converted by the task to touch -t format: 202603131030.00
               # Expected: Mar 13 2026 10:30 UTC
-              mtime=$(stat -c '%Y' models/source/models/model.bin)
+              mtime=$(stat -c '%Y' models/model.bin)
               expected_epoch=1773397800
               if [ "$mtime" -ne "$expected_epoch" ]; then
                   echo "Expected mtime epoch $expected_epoch but got $mtime" && exit 1

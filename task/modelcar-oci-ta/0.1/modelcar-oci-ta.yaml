@@ -80,6 +80,15 @@ spec:
       description: CPE identifier label required for on-prem product releases
       type: string
       default: ""
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the
+        CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
   results:
     - name: IMAGE_DIGEST
       description: Digest of the artifact just pushed
@@ -128,6 +137,10 @@ spec:
         value: $(params.IMAGE_APPEND_PLATFORM)
       - name: TARGET_OCI
         value: "/var/workdir/modelcar-oci"
+      # Mounted custom CA bundle path. Scripts import it into the OS trust
+      # store when non-empty (do not set SSL_CERT_FILE to this alone).
+      - name: CA_FILE
+        value: /etc/pki/tls/certs/ca-custom-bundle.crt
     imagePullPolicy: IfNotPresent
     volumeMounts:
       - mountPath: /var/workdir
@@ -156,11 +169,27 @@ spec:
           cpu: 50m
         limits:
           memory: 512Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -eu
         set -o pipefail
+
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          # release-service-utils oras uses --from-insecure (not --insecure).
+          ORAS_TLS_OPTS=(--from-insecure)
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
+          ORAS_TLS_OPTS=()
+        else
+          ORAS_TLS_OPTS=()
+        fi
 
         BASE_IMAGE="${BASE_IMAGE//:*@/@}"  # Strip tag, only if it is infixed before the digest
         arch="${PLATFORM//*\//}"
@@ -173,14 +202,14 @@ spec:
 
         ARCHFUL_BASE_IMAGE="${BASE_IMAGE//@*/}@${base_image_digest}"
 
-        oras copy --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
+        oras copy ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --to-oci-layout "$ARCHFUL_BASE_IMAGE" "${TARGET_OCI}:latest"
         chmod -R g+w "$TARGET_OCI"
 
         echo "Recording base image used:"
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: build-and-push
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 2Gi
@@ -212,6 +241,18 @@ spec:
         set -eu
         set -o pipefail
 
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          ORAS_TLS_OPTS=(--insecure)
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
+          ORAS_TLS_OPTS=()
+        else
+          ORAS_TLS_OPTS=()
+        fi
+
         # ─── Resolve destination image ───
         if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
           IMAGE="${IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
@@ -222,7 +263,7 @@ spec:
         BLOBS_DIR="${TARGET_OCI}/blobs/sha256"
 
         # ─── Fetch model manifest for mtime + layer list ───
-        MODEL_MANIFEST=$(oras manifest fetch "$MODEL_IMAGE" \
+        MODEL_MANIFEST=$(oras manifest fetch ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} "$MODEL_IMAGE" \
           --registry-config /model-secret/.dockerconfigjson)
         MODEL_REF="${MODEL_IMAGE%%@*}"
 
@@ -265,7 +306,7 @@ spec:
             BATCH_FILES+=("models/${title}")
 
             (
-              retry oras blob fetch \
+              retry oras blob fetch ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} \
                 --registry-config /model-secret/.dockerconfigjson \
                 -o "models/${title}" \
                 "${MODEL_REF}@${blob_digest}" \
@@ -314,7 +355,7 @@ spec:
             if echo "$LAYER_HASHES" | grep -qx "$new_blob"; then
               NEW_BLOBS+=("$new_blob")
               (
-                retry oras blob push --registry-config auth.json \
+                retry oras blob push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json \
                   "$DEST_REPO" "$BLOBS_DIR/$new_blob" \
                 && echo "  Pushed sha256:${new_blob}"
               ) &
@@ -408,11 +449,11 @@ spec:
           blob_name=$(basename "$blob_file")
           [ "$blob_name" = "$MANIFEST_HASH" ] && continue
           echo "Pushing blob sha256:${blob_name}..."
-          retry oras blob push --registry-config auth.json "$DEST_REPO" "$blob_file"
+          retry oras blob push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json "$DEST_REPO" "$blob_file"
         done
 
         echo "Pushing manifest to ${IMAGE}..."
-        if ! retry oras manifest push --registry-config auth.json \
+        if ! retry oras manifest push ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json \
           "$IMAGE" "$BLOBS_DIR/$MANIFEST_HASH"
         then
           echo "Failed to push manifest to ${IMAGE}"
@@ -420,7 +461,7 @@ spec:
         fi
         echo "Push complete!"
 
-        if ! RESULTING_DIGEST=$(retry oras resolve --registry-config auth.json "${IMAGE}")
+        if ! RESULTING_DIGEST=$(retry oras resolve ${ORAS_TLS_OPTS[@]+"${ORAS_TLS_OPTS[@]}"} --registry-config auth.json "${IMAGE}")
         then
           echo "Failed to get digest for ${IMAGE} from registry"
           exit 1
@@ -439,10 +480,24 @@ spec:
           cpu: 50m
         limits:
           memory: 64Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -euo pipefail
+
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          # modelcar generate builds the SBOM from image refs; no oras/cosign
+          # TLS opts to pass. Still skip CA import to match other steps.
+          :
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
+        fi
 
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
@@ -457,30 +512,45 @@ spec:
           --sbom-type "$SBOM_TYPE"
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi
           cpu: 50m
         limits:
           memory: 64Mi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
       workingDir: /var/workdir
       script: |
         #!/bin/bash
         set -e
+
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          COSIGN_TLS_OPTS=(--allow-insecure-registry)
+        elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
+          # Import custom CAs into the system store so public roots stay trusted.
+          echo "INFO: Using mounted CA bundle: ${CA_FILE}"
+          cp -vf "${CA_FILE}" /etc/pki/ca-trust/source/anchors/
+          update-ca-trust
+          COSIGN_TLS_OPTS=()
+        else
+          COSIGN_TLS_OPTS=()
+        fi
 
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
         mkdir -p /tmp/auth && select-oci-auth "$(cat "$(results.IMAGE_REF.path)")" > /tmp/auth/config.json
         export DOCKER_CONFIG=/tmp/auth
 
         echo "Pushing sbom to registry"
-        if ! retry cosign attach sbom --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
+        if ! retry cosign attach sbom ${COSIGN_TLS_OPTS[@]+"${COSIGN_TLS_OPTS[@]}"} --sbom sbom.json --type "$SBOM_TYPE" "$(cat "$(results.IMAGE_REF.path)")"
         then
             echo "Failed to push sbom to registry"
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi
