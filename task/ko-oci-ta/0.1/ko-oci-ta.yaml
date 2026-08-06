@@ -91,7 +91,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:fb7ce11be542bc524be2c5ea78fd73c87a8a8cbf333905fcdf8b7cb700ad178a
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:0fa7f2a5cd87d6d47ac5dbedc81687805c8e6bc24c6aca620242e9134eed9633
       computeResources:
         requests:
           memory: 4Gi
@@ -174,7 +174,7 @@ spec:
         echo -n "${url}" >"$(results.IMAGE_URL.path)"
         echo "Completed."
     - name: prepare-sbom
-      image: quay.io/konflux-ci/mobster@sha256:ae9455b489a96d0227171778e115744ffa880c55dafda16886d931de78d37a66
+      image: quay.io/konflux-ci/mobster@sha256:af392f0549fd2369a8dc9f20d6d7bbdb0235ad4e1af575f72a1caccb39a41d70
       args:
         - --additional-base-images
         - $(params.ADDITIONAL_BASE_IMAGES[*])
@@ -234,7 +234,7 @@ spec:
 
         echo "[$(date --utc -Ins)] End prepare-sboms"
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:1.6.0@sha256:1abfe4e50d4e961d0fd9790202565f93ee650fe8dfc50932c94989acba10485f
+      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
       workingDir: /var/workdir/source
       securityContext:
         runAsUser: 0
