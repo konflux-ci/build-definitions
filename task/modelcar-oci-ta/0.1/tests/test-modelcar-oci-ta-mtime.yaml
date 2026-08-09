@@ -79,7 +79,8 @@ spec:
               # Kind registry uses a cluster-local CA that is not reliably in
               # the task trust store under deploy-local CI; skip verify here.
               # Push files explicitly (directory push can collapse to one layer).
-              # oras titles use basenames, so files land under /models/<basename>.
+              # oras titles keep relative paths (e.g. source/models/model.bin);
+              # with --root-dir models, files land under /models/<title>.
               mapfile -t files < <(find source -type f | sort)
               oras push --insecure --no-tty \
                 --annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z" \
@@ -182,7 +183,7 @@ spec:
               # The annotation "org.opencontainers.image.created=2026-03-13T10:30:00Z"
               # is converted by the task to touch -t format: 202603131030.00
               # Expected: Mar 13 2026 10:30 UTC
-              mtime=$(stat -c '%Y' models/model.bin)
+              mtime=$(stat -c '%Y' models/source/models/model.bin)
               expected_epoch=1773397800
               if [ "$mtime" -ne "$expected_epoch" ]; then
                   echo "Expected mtime epoch $expected_epoch but got $mtime" && exit 1
