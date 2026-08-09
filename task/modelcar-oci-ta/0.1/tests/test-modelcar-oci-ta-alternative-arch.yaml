@@ -77,11 +77,14 @@ spec:
               set -euo pipefail
               # Kind registry uses a cluster-local CA that is not reliably in
               # the task trust store under deploy-local CI; skip verify here.
-              # Push files explicitly (directory push can collapse to one layer).
-              # oras titles keep relative paths (e.g. source/model.bin);
-              # with --root-dir models, files land under /models/<title>.
-              mapfile -t files < <(find source -type f | sort)
-              oras push --insecure --no-tty "${MODEL_PATH}" "${files[@]}"
+              # Push from inside source/ so layer titles are paths relative to
+              # the model root (e.g. model.bin), not source/model.bin.
+              # With --root-dir models, files land under /models/<title>.
+              mapfile -t files < <(find source -type f -printf '%P\n' | sort)
+              (
+                cd source
+                oras push --insecure --no-tty "${MODEL_PATH}" "${files[@]}"
+              )
           - name: record-model-digest
             image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
             env:
@@ -206,7 +209,7 @@ spec:
               echo "Confirm the contents of the filesystem"
               mkdir contents/ && pushd contents/
               oc image extract --insecure=true "$IMAGE_REF"
-              for filename in usr/bin/ls models/source/model.bin; do
+              for filename in usr/bin/ls models/model.bin; do
                 if [ -f "$filename" ]; then
                     echo "File $filename found as expected."
                 else
