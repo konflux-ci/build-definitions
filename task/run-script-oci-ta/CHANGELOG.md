@@ -4,12 +4,15 @@
 
 ## Unreleased
 
-<!--
-When you make changes without bumping the version right away, document them here.
-If that's not something you ever plan to do, consider removing this section.
--->
-
 *Nothing yet.*
+
+## 0.1.3
+
+### Added
+
+- New optional `ADDITIONAL_SECRET` parameter to mount a Kubernetes secret into the
+  script container at `/var/run/secrets/additional-secret`. Useful for passing
+  registry credentials, AWS keys, or other tokens the script needs at runtime.
 
 ## 0.1.2
 
