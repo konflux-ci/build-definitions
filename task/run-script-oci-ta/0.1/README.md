@@ -17,6 +17,7 @@ to use it later.
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |HERMETIC|Determines if build will be executed without network access.|false|false|
 |SOURCE_ARTIFACT|The Trusted Artifact URI pointing to the artifact with the application source code.||true|
+|ADDITIONAL_SECRET|Name of a Kubernetes secret to mount into the script container at /var/run/secrets/additional-secret. The script is responsible for reading the secret keys.|does-not-exist|false|
 |caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
 |caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 
