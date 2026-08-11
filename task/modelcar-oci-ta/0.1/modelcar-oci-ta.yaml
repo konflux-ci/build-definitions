@@ -508,19 +508,6 @@ spec:
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
 
-        case "$SBOM_TYPE" in
-          cyclonedx) SYFT_OUTPUT=cyclonedx-json ;;
-          spdx) SYFT_OUTPUT=spdx-json@2.3 ;;
-          *)
-            echo "Unsupported SBOM_TYPE: $SBOM_TYPE" >&2
-            exit 1
-            ;;
-        esac
-
-        # Scan the base image only — model layers are huge weight blobs, not RPM/Python inventory.
-        echo "Scanning base image with syft: $BASE_IMAGE_REF"
-        syft scan "$BASE_IMAGE_REF" -o "$SYFT_OUTPUT" > sbom-base-syft.json
-
         echo "Generating modelcar composition SBOM for $MODELCAR_IMAGE"
         mobster generate  \
           --output sbom-modelcar.json \
@@ -530,12 +517,24 @@ spec:
           --model-image "$MODEL_IMAGE" \
           --sbom-type "$SBOM_TYPE"
 
+        # Syft package merge is SPDX-only (ModelCars use the default). CycloneDX
+        # keeps the composition SBOM until mobster modelcar supports --from-syft.
+        if [ "$SBOM_TYPE" != "spdx" ]; then
+          echo "Skipping Syft merge for SBOM_TYPE=$SBOM_TYPE (supported for spdx only)"
+          cp sbom-modelcar.json sbom.json
+          exit 0
+        fi
+
+        # Scan the base image only — model layers are huge weight blobs, not RPM/Python inventory.
+        echo "Scanning base image with syft: $BASE_IMAGE_REF"
+        syft scan "$BASE_IMAGE_REF" -o spdx-json@2.3 > sbom-base-syft.json
+
         echo "Merging base-image Syft packages into modelcar SBOM"
-        python3 - "$SBOM_TYPE" sbom-modelcar.json sbom-base-syft.json sbom.json <<'PY'
+        python3 - sbom-modelcar.json sbom-base-syft.json sbom.json <<'PY'
         import json
         import sys
 
-        sbom_type, modelcar_path, syft_path, out_path = sys.argv[1:5]
+        modelcar_path, syft_path, out_path = sys.argv[1:4]
         with open(modelcar_path, encoding="utf-8") as f:
             modelcar = json.load(f)
         with open(syft_path, encoding="utf-8") as f:
@@ -548,73 +547,38 @@ spec:
                 if ref.get("referenceType") == "purl"
             ]
 
-        if sbom_type == "spdx":
-            existing_ids = {p["SPDXID"] for p in modelcar.get("packages", [])}
-            existing_purls = {
-                purl for p in modelcar.get("packages", []) for purl in spdx_purls(p)
-            }
-            root_id = next(
-                (
-                    r["relatedSpdxElement"]
-                    for r in modelcar.get("relationships", [])
-                    if r.get("relationshipType") == "DESCRIBES"
-                ),
-                None,
-            )
-            for pkg in syft.get("packages", []):
-                purls = spdx_purls(pkg)
-                if purls and any(p in existing_purls for p in purls):
-                    continue
-                pkg = dict(pkg)
-                spdx_id = pkg["SPDXID"]
-                if spdx_id in existing_ids:
-                    spdx_id = f"{spdx_id}-from-syft"
-                    pkg["SPDXID"] = spdx_id
-                modelcar.setdefault("packages", []).append(pkg)
-                existing_ids.add(spdx_id)
-                existing_purls.update(purls)
-                if root_id:
-                    modelcar.setdefault("relationships", []).append(
-                        {
-                            "spdxElementId": root_id,
-                            "relationshipType": "CONTAINS",
-                            "relatedSpdxElement": spdx_id,
-                        }
-                    )
-        else:
-            existing_refs = {
-                c.get("bom-ref") for c in modelcar.get("components", []) if c.get("bom-ref")
-            }
-            existing_purls = {
-                c["purl"] for c in modelcar.get("components", []) if c.get("purl")
-            }
-            root_ref = (modelcar.get("metadata") or {}).get("component", {}).get("bom-ref")
-            deps = modelcar.setdefault("dependencies", [])
-            root_dep = next((d for d in deps if d.get("ref") == root_ref), None)
-            if root_ref and root_dep is None:
-                root_dep = {"ref": root_ref, "dependsOn": []}
-                deps.append(root_dep)
-            if root_dep is not None:
-                root_dep.setdefault("dependsOn", [])
-
-            for comp in syft.get("components", []):
-                purl = comp.get("purl")
-                if purl and purl in existing_purls:
-                    continue
-                comp = dict(comp)
-                ref = comp.get("bom-ref") or f"syft-{comp.get('name', 'component')}"
-                base_ref = ref
-                suffix = 0
-                while ref in existing_refs:
-                    suffix += 1
-                    ref = f"{base_ref}-from-syft" if suffix == 1 else f"{base_ref}-from-syft-{suffix}"
-                comp["bom-ref"] = ref
-                modelcar.setdefault("components", []).append(comp)
-                existing_refs.add(ref)
-                if purl:
-                    existing_purls.add(purl)
-                if root_dep is not None and ref not in root_dep["dependsOn"]:
-                    root_dep["dependsOn"].append(ref)
+        existing_ids = {p["SPDXID"] for p in modelcar.get("packages", [])}
+        existing_purls = {
+            purl for p in modelcar.get("packages", []) for purl in spdx_purls(p)
+        }
+        root_id = next(
+            (
+                r["relatedSpdxElement"]
+                for r in modelcar.get("relationships", [])
+                if r.get("relationshipType") == "DESCRIBES"
+            ),
+            None,
+        )
+        for pkg in syft.get("packages", []):
+            purls = spdx_purls(pkg)
+            if purls and any(p in existing_purls for p in purls):
+                continue
+            pkg = dict(pkg)
+            spdx_id = pkg["SPDXID"]
+            if spdx_id in existing_ids:
+                spdx_id = f"{spdx_id}-from-syft"
+                pkg["SPDXID"] = spdx_id
+            modelcar.setdefault("packages", []).append(pkg)
+            existing_ids.add(spdx_id)
+            existing_purls.update(purls)
+            if root_id:
+                modelcar.setdefault("relationships", []).append(
+                    {
+                        "spdxElementId": root_id,
+                        "relationshipType": "CONTAINS",
+                        "relatedSpdxElement": spdx_id,
+                    }
+                )
 
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(modelcar, f)
