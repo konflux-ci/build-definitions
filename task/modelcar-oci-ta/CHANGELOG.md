@@ -6,9 +6,6 @@
 
 - Merge Syft-scanned base-image packages into the ModelCar composition SBOM
   (`mobster generate modelcar`) so release can populate the package database.
-- Convert Docker-distribution manifests in the base OCI layout once before the
-  multi-batch olot loop (workaround for
-  [containers/olot#216](https://github.com/containers/olot/pull/216)).
 
 ### Changed
 
