@@ -12,6 +12,7 @@
 
 ### Changed
 
-- Keep task-runner 3.1.1 with olot `--root-dir models` so nested model paths are
-  preserved. The Docker→OCI pre-batch convert replaces the temporary 3.0.0 /
-  no-`--root-dir` pin.
+- Temporarily pin task-runner 3.0.0 and drop olot `--root-dir` until
+  [containers/olot#216](https://github.com/containers/olot/pull/216) lands.
+  Nested model paths flatten to basenames meanwhile; restore `--root-dir` with
+  task-runner >= 3.1.1 after the upstream fix.
