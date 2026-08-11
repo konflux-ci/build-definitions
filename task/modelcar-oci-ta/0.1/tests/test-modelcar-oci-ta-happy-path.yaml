@@ -218,7 +218,8 @@ spec:
               popd
 
               echo "Confirm the sbom exists as json"
-              packages=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
+              sbom=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF")
+              packages=$(echo "$sbom" | jq -r '.packages[].externalRefs[]?.referenceLocator // empty')
               for purl in pkg:oci/test-modelcar pkg:oci/ubi pkg:oci/test-model; do
                 if [[ "$packages" == *"${purl}@sha256"* ]]; then
                   echo "$purl found as expected."
@@ -227,8 +228,16 @@ spec:
                 fi
               done
 
+              echo "Confirm base-image RPM packages were merged from Syft"
+              rpm_count=$(echo "$sbom" | jq '[.packages[].externalRefs[]? | select(.referenceType=="purl" and (.referenceLocator|startswith("pkg:rpm")))] | length')
+              if [[ "$rpm_count" -gt 0 ]]; then
+                echo "Found ${rpm_count} RPM purls in SBOM as expected."
+              else
+                echo "Expected RPM packages from Syft base scan, found none." && exit 1
+              fi
+
               echo "Confirm the sbom has a reasonable name"
-              sbom_name=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF" | jq -r '.name')
+              sbom_name=$(echo "$sbom" | jq -r '.name')
               if [[ "$sbom_name" == "$IMAGE_REF" ]]; then
                 echo "SBOM name $sbom_name is as expected."
               else
