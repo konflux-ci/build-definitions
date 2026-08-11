@@ -282,6 +282,49 @@ spec:
 
         echo "[$(date -Ins)] Model artifact has ${TOTAL} named layer(s), processing in batches of ${BATCH_SIZE}"
 
+        # oras copy --to-oci-layout can leave Docker-distribution manifests in the
+        # OCI layout. olot converts those on first use but keeps the old Docker
+        # blobs on disk; the next batch then re-enters conversion and KeyErrors
+        # because index.json already points at OCI digests. Convert once and
+        # delete leftover Docker manifest blobs before batching.
+        python3 - "$TARGET_OCI" <<'PY'
+        import json
+        import sys
+        from pathlib import Path
+
+        from olot.dockerdist.convert import (
+            DOCKER_LIST_V2,
+            DOCKER_MANIFEST_V2,
+            check_if_oci_layout_contains_docker_manifests,
+            convert_docker_manifests_to_oci,
+        )
+
+        oci = Path(sys.argv[1])
+        if not check_if_oci_layout_contains_docker_manifests(oci):
+            print("Base OCI layout has no Docker manifests; skipping conversion")
+            raise SystemExit(0)
+
+        converted = convert_docker_manifests_to_oci(oci)
+        blobs = oci / "blobs" / "sha256"
+        for old_hash, new_hash in converted.items():
+            if old_hash != new_hash:
+                (blobs / old_hash).unlink(missing_ok=True)
+                print(f"Removed leftover Docker manifest blob {old_hash} (now {new_hash})")
+
+        # Belt-and-suspenders: drop any remaining Docker manifest/list blobs.
+        for blob in blobs.iterdir():
+            if not blob.is_file():
+                continue
+            try:
+                media_type = json.loads(blob.read_text()).get("mediaType")
+            except Exception:
+                continue
+            if media_type in (DOCKER_MANIFEST_V2, DOCKER_LIST_V2):
+                blob.unlink(missing_ok=True)
+                print(f"Removed leftover Docker blob {blob.name} ({media_type})")
+        print("Docker→OCI conversion complete")
+        PY
+
         # ─── Download, layer, and push model files in batches ───
         mkdir -p models
         FIRST_BATCH=true
