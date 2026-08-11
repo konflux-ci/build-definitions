@@ -22,7 +22,8 @@ spec:
     MODEL_IMAGE parameter are copied on top.
 
     An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
-    generated in the process.
+    generated in the process. Packages from the base image (via Syft) are merged into that SBOM so
+    release can populate the package database.
   params:
     - name: MODEL_IMAGE_AUTH
       description: Name of secret required to pull the model OCI artifact
@@ -223,7 +224,7 @@ spec:
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: build-and-push
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 2Gi
@@ -356,14 +357,11 @@ spec:
 
           find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > /tmp/blobs_before.txt
 
-          # --root-dir preserves each file's subdirectory structure (relative
-          # to models/) in its resulting layer path, instead of flattening to
-          # just the basename. Without it, files with the same basename in
-          # different subdirectories (e.g. a root config.json and an
-          # inference/config.json) collide on the same in-image path and
-          # silently overwrite each other. Requires olot >= 1.2.0 (task-runner
-          # >= 3.1.0; see https://github.com/containers/olot/pull/209).
-          olot --verbose --remove-originals default --root-dir models \
+          # TEMP: pin task-runner 3.0.0 / olot without --root-dir until
+          # https://github.com/containers/olot/pull/216 lands (olot 1.2.0
+          # Docker→OCI multi-batch KeyError). Nested titles flatten to basename;
+          # restore --root-dir models with task-runner >= 3.1.1 after the fix.
+          olot --verbose --remove-originals default \
             "${MODELCARD_ARG[@]}" \
             "$TARGET_OCI" \
             "${BATCH_FILES[@]}"
@@ -512,13 +510,14 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
+      # mobster image includes mobster, syft, and python3 used by this step
       image: quay.io/konflux-ci/mobster:1.2.1-1782136886@sha256:1374bc35c71781987cce00ef5efe2be42923f83def19b60a570e947189b90d15
       computeResources:
         requests:
-          memory: 64Mi
-          cpu: 50m
+          memory: 512Mi
+          cpu: 100m
         limits:
-          memory: 64Mi
+          memory: 1Gi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
@@ -530,7 +529,9 @@ spec:
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
           # modelcar generate builds the SBOM from image refs; no oras/cosign
           # TLS opts to pass. Still skip CA import to match other steps.
-          :
+          # Syft needs explicit insecure-registry env when scanning the base image.
+          export SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true
+          export SYFT_REGISTRY_INSECURE_USE_HTTP=true
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
           # Import custom CAs into the system store so public roots stay trusted.
           echo "INFO: Using mounted CA bundle: ${CA_FILE}"
@@ -541,17 +542,88 @@ spec:
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
 
-        echo "manifest_data.json does not exist. $MODELCAR_IMAGE is a single-arch image";
+        echo "Generating modelcar composition SBOM for $MODELCAR_IMAGE"
         mobster generate  \
-          --output sbom.json \
+          --output sbom-modelcar.json \
           modelcar \
           --modelcar-image "$MODELCAR_IMAGE" \
           --base-image "$BASE_IMAGE_REF" \
           --model-image "$MODEL_IMAGE" \
           --sbom-type "$SBOM_TYPE"
 
+        # Syft package merge is SPDX-only (ModelCars use the default). CycloneDX
+        # keeps the composition SBOM until mobster modelcar supports --from-syft.
+        if [ "$SBOM_TYPE" != "spdx" ]; then
+          echo "Skipping Syft merge for SBOM_TYPE=$SBOM_TYPE (supported for spdx only)"
+          cp sbom-modelcar.json sbom.json
+          exit 0
+        fi
+
+        # Scan the base image only — model layers are huge weight blobs, not RPM/Python inventory.
+        echo "Scanning base image with syft: $BASE_IMAGE_REF"
+        syft scan "$BASE_IMAGE_REF" -o spdx-json@2.3 > sbom-base-syft.json
+
+        echo "Merging base-image Syft packages into modelcar SBOM"
+        python3 - sbom-modelcar.json sbom-base-syft.json sbom.json <<'PY'
+        import json
+        import sys
+
+        modelcar_path, syft_path, out_path = sys.argv[1:4]
+        with open(modelcar_path, encoding="utf-8") as f:
+            modelcar = json.load(f)
+        with open(syft_path, encoding="utf-8") as f:
+            syft = json.load(f)
+
+        def spdx_purls(pkg):
+            return [
+                ref["referenceLocator"]
+                for ref in pkg.get("externalRefs", [])
+                if ref.get("referenceType") == "purl"
+            ]
+
+        existing_ids = {p["SPDXID"] for p in modelcar.get("packages", [])}
+        existing_purls = {
+            purl for p in modelcar.get("packages", []) for purl in spdx_purls(p)
+        }
+        root_id = next(
+            (
+                r["relatedSpdxElement"]
+                for r in modelcar.get("relationships", [])
+                if r.get("relationshipType") == "DESCRIBES"
+            ),
+            None,
+        )
+        for pkg in syft.get("packages", []):
+            purls = spdx_purls(pkg)
+            if purls and any(p in existing_purls for p in purls):
+                continue
+            pkg = dict(pkg)
+            original_id = pkg["SPDXID"]
+            spdx_id = original_id
+            counter = 0
+            while spdx_id in existing_ids:
+                suffix = "-from-syft" if counter == 0 else f"-from-syft-{counter}"
+                spdx_id = f"{original_id}{suffix}"
+                counter += 1
+            pkg["SPDXID"] = spdx_id
+            modelcar.setdefault("packages", []).append(pkg)
+            existing_ids.add(spdx_id)
+            existing_purls.update(purls)
+            if root_id:
+                modelcar.setdefault("relationships", []).append(
+                    {
+                        "spdxElementId": root_id,
+                        "relationshipType": "CONTAINS",
+                        "relatedSpdxElement": spdx_id,
+                    }
+                )
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(modelcar, f)
+        PY
+
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi
@@ -589,7 +661,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi

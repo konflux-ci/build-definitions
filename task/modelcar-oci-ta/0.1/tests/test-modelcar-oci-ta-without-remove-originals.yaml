@@ -45,7 +45,7 @@ spec:
               readOnly: true
         steps:
           - name: mock-source
-            image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -67,7 +67,7 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             workingDir: $(workspaces.tests-workspace.path)
             env:
               - name: MODEL_PATH
@@ -79,14 +79,14 @@ spec:
               # the task trust store under deploy-local CI; skip verify here.
               # Push from inside source/ so layer titles are paths relative to
               # the model root (e.g. model.bin), not source/model.bin.
-              # With --root-dir models, files land under /models/<title>.
+              # oras titles use basenames, so files land under /models/<basename>.
               mapfile -t files < <(find source -type f -printf '%P\n' | sort)
               (
                 cd source
                 oras push --insecure --no-tty "${MODEL_PATH}" "${files[@]}"
               )
           - name: record-model-digest
-            image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             env:
               - name: MODEL_PATH
                 value: $(params.modelPath)
@@ -179,7 +179,7 @@ spec:
                 value: $(params.IMAGE_URL)
               - name: SBOM_BLOB_URL
                 value: $(params.SBOM_BLOB_URL)
-            image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+            image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
             securityContext:
               runAsUser: 0
               runAsNonRoot: false
@@ -215,7 +215,7 @@ spec:
               popd
 
               echo "Confirm the sbom exists as json"
-              packages=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF" | jq -r '.packages[].externalRefs[].referenceLocator')
+              packages=$(cosign download sbom --allow-insecure-registry "$IMAGE_REF" | jq -r '.packages[].externalRefs[]?.referenceLocator // empty')
               for purl in pkg:oci/test-modelcar pkg:oci/ubi pkg:oci/test-model; do
                 if [[ "$packages" == *"${purl}@sha256"* ]]; then
                   echo "$purl found as expected."
