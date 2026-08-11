@@ -22,7 +22,8 @@ spec:
     MODEL_IMAGE parameter are copied on top.
 
     An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
-    generated in the process.
+    generated in the process. Packages from the base image (via Syft) are merged into that SBOM so
+    release can populate the package database.
   params:
     - name: MODEL_IMAGE_AUTH
       description: Name of secret required to pull the model OCI artifact
@@ -483,10 +484,10 @@ spec:
       image: quay.io/konflux-ci/mobster:1.2.1-1782136886@sha256:1374bc35c71781987cce00ef5efe2be42923f83def19b60a570e947189b90d15
       computeResources:
         requests:
-          memory: 64Mi
-          cpu: 50m
+          memory: 512Mi
+          cpu: 100m
         limits:
-          memory: 64Mi
+          memory: 1Gi
       securityContext:
         runAsUser: 0
         runAsNonRoot: false
@@ -509,14 +510,114 @@ spec:
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
 
-        echo "manifest_data.json does not exist. $MODELCAR_IMAGE is a single-arch image";
+        case "$SBOM_TYPE" in
+          cyclonedx) SYFT_OUTPUT=cyclonedx-json ;;
+          spdx) SYFT_OUTPUT=spdx-json@2.3 ;;
+          *)
+            echo "Unsupported SBOM_TYPE: $SBOM_TYPE" >&2
+            exit 1
+            ;;
+        esac
+
+        # Scan the base image only — model layers are huge weight blobs, not RPM/Python inventory.
+        echo "Scanning base image with syft: $BASE_IMAGE_REF"
+        syft scan "$BASE_IMAGE_REF" -o "$SYFT_OUTPUT" > sbom-base-syft.json
+
+        echo "Generating modelcar composition SBOM for $MODELCAR_IMAGE"
         mobster generate  \
-          --output sbom.json \
+          --output sbom-modelcar.json \
           modelcar \
           --modelcar-image "$MODELCAR_IMAGE" \
           --base-image "$BASE_IMAGE_REF" \
           --model-image "$MODEL_IMAGE" \
           --sbom-type "$SBOM_TYPE"
+
+        echo "Merging base-image Syft packages into modelcar SBOM"
+        python3 - "$SBOM_TYPE" sbom-modelcar.json sbom-base-syft.json sbom.json <<'PY'
+        import json
+        import sys
+
+        sbom_type, modelcar_path, syft_path, out_path = sys.argv[1:5]
+        with open(modelcar_path, encoding="utf-8") as f:
+            modelcar = json.load(f)
+        with open(syft_path, encoding="utf-8") as f:
+            syft = json.load(f)
+
+        def spdx_purls(pkg):
+            return [
+                ref["referenceLocator"]
+                for ref in pkg.get("externalRefs", [])
+                if ref.get("referenceType") == "purl"
+            ]
+
+        if sbom_type == "spdx":
+            existing_ids = {p["SPDXID"] for p in modelcar.get("packages", [])}
+            existing_purls = {
+                purl for p in modelcar.get("packages", []) for purl in spdx_purls(p)
+            }
+            root_id = next(
+                (
+                    r["relatedSpdxElement"]
+                    for r in modelcar.get("relationships", [])
+                    if r.get("relationshipType") == "DESCRIBES"
+                ),
+                None,
+            )
+            for pkg in syft.get("packages", []):
+                purls = spdx_purls(pkg)
+                if purls and any(p in existing_purls for p in purls):
+                    continue
+                pkg = dict(pkg)
+                spdx_id = pkg["SPDXID"]
+                if spdx_id in existing_ids:
+                    spdx_id = f"{spdx_id}-from-syft"
+                    pkg["SPDXID"] = spdx_id
+                modelcar.setdefault("packages", []).append(pkg)
+                existing_ids.add(spdx_id)
+                existing_purls.update(purls)
+                if root_id:
+                    modelcar.setdefault("relationships", []).append(
+                        {
+                            "spdxElementId": root_id,
+                            "relationshipType": "CONTAINS",
+                            "relatedSpdxElement": spdx_id,
+                        }
+                    )
+        else:
+            existing_refs = {
+                c.get("bom-ref") for c in modelcar.get("components", []) if c.get("bom-ref")
+            }
+            existing_purls = {
+                c["purl"] for c in modelcar.get("components", []) if c.get("purl")
+            }
+            root_ref = (modelcar.get("metadata") or {}).get("component", {}).get("bom-ref")
+            deps = modelcar.setdefault("dependencies", [])
+            root_dep = next((d for d in deps if d.get("ref") == root_ref), None)
+            if root_ref and root_dep is None:
+                root_dep = {"ref": root_ref, "dependsOn": []}
+                deps.append(root_dep)
+            if root_dep is not None:
+                root_dep.setdefault("dependsOn", [])
+
+            for comp in syft.get("components", []):
+                purl = comp.get("purl")
+                if purl and purl in existing_purls:
+                    continue
+                comp = dict(comp)
+                ref = comp.get("bom-ref") or f"syft-{comp.get('name', 'component')}"
+                if ref in existing_refs:
+                    ref = f"{ref}-from-syft"
+                comp["bom-ref"] = ref
+                modelcar.setdefault("components", []).append(comp)
+                existing_refs.add(ref)
+                if purl:
+                    existing_purls.add(purl)
+                if root_dep is not None and ref not in root_dep["dependsOn"]:
+                    root_dep["dependsOn"].append(ref)
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(modelcar, f)
+        PY
 
     - name: upload-sbom
       image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
