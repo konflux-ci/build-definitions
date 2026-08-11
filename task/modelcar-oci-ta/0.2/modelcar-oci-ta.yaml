@@ -497,7 +497,9 @@ spec:
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
           # modelcar generate builds the SBOM from image refs; no oras/cosign
           # TLS opts to pass. Still skip CA import to match other steps.
-          :
+          # Syft needs explicit insecure-registry env when scanning the base image.
+          export SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true
+          export SYFT_REGISTRY_INSECURE_USE_HTTP=true
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
           # Import custom CAs into the system store so public roots stay trusted.
           echo "INFO: Using mounted CA bundle: ${CA_FILE}"
@@ -564,10 +566,14 @@ spec:
             if purls and any(p in existing_purls for p in purls):
                 continue
             pkg = dict(pkg)
-            spdx_id = pkg["SPDXID"]
-            if spdx_id in existing_ids:
-                spdx_id = f"{spdx_id}-from-syft"
-                pkg["SPDXID"] = spdx_id
+            original_id = pkg["SPDXID"]
+            spdx_id = original_id
+            counter = 0
+            while spdx_id in existing_ids:
+                suffix = "-from-syft" if counter == 0 else f"-from-syft-{counter}"
+                spdx_id = f"{original_id}{suffix}"
+                counter += 1
+            pkg["SPDXID"] = spdx_id
             modelcar.setdefault("packages", []).append(pkg)
             existing_ids.add(spdx_id)
             existing_purls.update(purls)
