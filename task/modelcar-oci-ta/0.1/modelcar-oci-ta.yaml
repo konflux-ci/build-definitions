@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.2"
     build.appstudio.redhat.com/build_type: modelcar
   name: modelcar-oci-ta
 spec:
@@ -224,7 +224,7 @@ spec:
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: build-and-push
-      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
+      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
       computeResources:
         requests:
           memory: 2Gi
@@ -306,6 +306,7 @@ spec:
         # blobs on disk; the next batch then re-enters conversion and KeyErrors
         # because index.json already points at OCI digests. Convert once and
         # delete leftover Docker manifest blobs before batching.
+        # Workaround until https://github.com/containers/olot/pull/216 lands.
         python3 - "$TARGET_OCI" <<'PY'
         import json
         import sys
@@ -331,11 +332,13 @@ spec:
                 print(f"Removed leftover Docker manifest blob {old_hash} (now {new_hash})")
 
         # Belt-and-suspenders: drop any remaining Docker manifest/list blobs.
+        # Only sniff the start of each blob — layer tarballs are huge.
         for blob in blobs.iterdir():
             if not blob.is_file():
                 continue
             try:
-                media_type = json.loads(blob.read_text()).get("mediaType")
+                head = blob.read_bytes()[:4096]
+                media_type = json.loads(head).get("mediaType")
             except Exception:
                 continue
             if media_type in (DOCKER_MANIFEST_V2, DOCKER_LIST_V2):
@@ -400,9 +403,16 @@ spec:
 
           find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > /tmp/blobs_before.txt
 
-          # TEMP: task-runner 3.0.0 / olot without --root-dir (avoids olot 1.2.0
-          # Docker→OCI multi-batch KeyError). Nested titles flatten to basename.
-          olot --verbose --remove-originals default \
+          # --root-dir preserves each file's subdirectory structure (relative
+          # to models/) in its resulting layer path, instead of flattening to
+          # just the basename. Without it, files with the same basename in
+          # different subdirectories (e.g. a root config.json and an
+          # inference/config.json) collide on the same in-image path and
+          # silently overwrite each other. Requires olot >= 1.2.0 (task-runner
+          # >= 3.1.0; see https://github.com/containers/olot/pull/209).
+          # Multi-batch Docker→OCI KeyError is handled by converting once before
+          # the batch loop (workaround until https://github.com/containers/olot/pull/216).
+          olot --verbose --remove-originals default --root-dir models \
             "${MODELCARD_ARG[@]}" \
             "$TARGET_OCI" \
             "${BATCH_FILES[@]}"
@@ -551,6 +561,7 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
+      # mobster image includes mobster, syft, and python3 used by this step
       image: quay.io/konflux-ci/mobster:1.2.1-1782136886@sha256:1374bc35c71781987cce00ef5efe2be42923f83def19b60a570e947189b90d15
       computeResources:
         requests:
@@ -675,8 +686,11 @@ spec:
                     continue
                 comp = dict(comp)
                 ref = comp.get("bom-ref") or f"syft-{comp.get('name', 'component')}"
-                if ref in existing_refs:
-                    ref = f"{ref}-from-syft"
+                base_ref = ref
+                suffix = 0
+                while ref in existing_refs:
+                    suffix += 1
+                    ref = f"{base_ref}-from-syft" if suffix == 1 else f"{base_ref}-from-syft-{suffix}"
                 comp["bom-ref"] = ref
                 modelcar.setdefault("components", []).append(comp)
                 existing_refs.add(ref)
@@ -690,7 +704,7 @@ spec:
         PY
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
+      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
       computeResources:
         requests:
           memory: 64Mi
@@ -728,7 +742,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
+      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
       computeResources:
         requests:
           memory: 64Mi
