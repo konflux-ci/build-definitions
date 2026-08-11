@@ -224,7 +224,7 @@ spec:
         echo "$ARCHFUL_BASE_IMAGE" | tee "$(results.BASE_IMAGE_REF.path)"
 
     - name: build-and-push
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 2Gi
@@ -403,16 +403,11 @@ spec:
 
           find "$BLOBS_DIR" -maxdepth 1 -type f -printf '%f\n' | sort > /tmp/blobs_before.txt
 
-          # --root-dir preserves each file's subdirectory structure (relative
-          # to models/) in its resulting layer path, instead of flattening to
-          # just the basename. Without it, files with the same basename in
-          # different subdirectories (e.g. a root config.json and an
-          # inference/config.json) collide on the same in-image path and
-          # silently overwrite each other. Requires olot >= 1.2.0 (task-runner
-          # >= 3.1.0; see https://github.com/containers/olot/pull/209).
-          # Multi-batch Docker→OCI KeyError is handled by converting once before
-          # the batch loop (workaround until https://github.com/containers/olot/pull/216).
-          olot --verbose --remove-originals default --root-dir models \
+          # TEMP: pin task-runner 3.0.0 / olot without --root-dir until
+          # https://github.com/containers/olot/pull/216 lands (olot 1.2.0
+          # Docker→OCI multi-batch KeyError). Nested titles flatten to basename;
+          # restore --root-dir models with task-runner >= 3.1.1 after the fix.
+          olot --verbose --remove-originals default \
             "${MODELCARD_ARG[@]}" \
             "$TARGET_OCI" \
             "${BATCH_FILES[@]}"
@@ -704,7 +699,7 @@ spec:
         PY
 
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi
@@ -742,7 +737,7 @@ spec:
             exit 1
         fi
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:3.1.1@sha256:790df1bb5ea7a9ce4c1717ff341398ff72c99faed1c2e939a3b4a15ff8f4a493
+      image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
       computeResources:
         requests:
           memory: 64Mi
