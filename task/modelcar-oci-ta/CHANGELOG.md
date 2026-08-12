@@ -4,9 +4,9 @@
 
 ### Added
 
-- Merge Syft-scanned base-image packages into the ModelCar composition SBOM
-  (`mobster generate modelcar`) so release can populate the package database.
-  Merge is SPDX-only (the default); CycloneDX keeps the composition SBOM.
+- Rely on Mobster's built-in base-image Syft scan when generating the ModelCar
+  SBOM (`mobster generate modelcar`), so packages land under the base image
+  node (SPDX and CycloneDX) and release can populate the package database.
 
 ### Changed
 

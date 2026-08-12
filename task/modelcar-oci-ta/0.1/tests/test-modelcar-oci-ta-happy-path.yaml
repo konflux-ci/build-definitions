@@ -228,12 +228,25 @@ spec:
                 fi
               done
 
-              echo "Confirm base-image RPM packages were merged from Syft"
+              echo "Confirm base-image RPM packages were merged from Syft under the base"
               rpm_count=$(echo "$sbom" | jq '[.packages[].externalRefs[]? | select(.referenceType=="purl" and (.referenceLocator|startswith("pkg:rpm")))] | length')
               if [[ "$rpm_count" -gt 0 ]]; then
                 echo "Found ${rpm_count} RPM purls in SBOM as expected."
               else
                 echo "Expected RPM packages from Syft base scan, found none." && exit 1
+              fi
+              base_spdx_id=$(echo "$sbom" | jq -r '
+                .packages[]
+                | select((.externalRefs // [])[]?.referenceLocator | startswith("pkg:oci/ubi@"))
+                | .SPDXID' | head -n1)
+              contains_under_base=$(echo "$sbom" | jq --arg base "$base_spdx_id" '
+                [.relationships[]?
+                 | select(.relationshipType=="CONTAINS" and .spdxElementId==$base)]
+                | length')
+              if [[ -n "$base_spdx_id" && "$contains_under_base" -gt 0 ]]; then
+                echo "Found ${contains_under_base} CONTAINS edges under base ${base_spdx_id}."
+              else
+                echo "Expected Syft packages CONTAINED by base image, found none." && exit 1
               fi
 
               echo "Confirm the sbom has a reasonable name"

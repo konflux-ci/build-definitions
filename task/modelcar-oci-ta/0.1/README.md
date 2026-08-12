@@ -12,8 +12,8 @@ OCI image layout directory. Then all files included in the OCI artifact specifie
 MODEL_IMAGE parameter are copied on top.
 
 An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
-generated in the process. Packages discovered in the base image with Syft are merged into that
-SBOM so release can populate the package database.
+generated in the process. Mobster Syft-scans the base image and merges those packages under the
+base image node so release can populate the package database.
 
 ## Parameters
 |name|description|default value|required|

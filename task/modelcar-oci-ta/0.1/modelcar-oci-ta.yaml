@@ -22,8 +22,8 @@ spec:
     MODEL_IMAGE parameter are copied on top.
 
     An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
-    generated in the process. Packages from the base image (via Syft) are merged into that SBOM so
-    release can populate the package database.
+    generated in the process. Mobster Syft-scans the base image and merges those packages under the
+    base image node so release can populate the package database.
   params:
     - name: MODEL_IMAGE_AUTH
       description: Name of secret required to pull the model OCI artifact
@@ -510,8 +510,10 @@ spec:
         echo -n "${IMAGE}@${RESULTING_DIGEST}" > "$(results.IMAGE_REF.path)"
 
     - name: sbom-generate
-      # mobster image includes mobster, syft, and python3 used by this step
-      image: quay.io/konflux-ci/mobster:1.2.1-1782136886@sha256:1374bc35c71781987cce00ef5efe2be42923f83def19b60a570e947189b90d15
+      # TEMP: pin to the Konflux component build of mobster#481 (auto-scan base
+      # with Syft) until quay.io/konflux-ci/mobster mirrors that revision.
+      # Restore quay.io/konflux-ci/mobster:<tag>@sha256:… after the mirror.
+      image: quay.io/redhat-user-workloads/the-collective-tenant/mobster-f7a65:38608f55d420cbd559c2c0162cfb2aea884ac986@sha256:40821fdd0e128a609e0db07564f7358b0bbd58f917eb3951f5cbb8ae58c1ff14
       computeResources:
         requests:
           memory: 512Mi
@@ -527,9 +529,8 @@ spec:
         set -euo pipefail
 
         if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
-          # modelcar generate builds the SBOM from image refs; no oras/cosign
-          # TLS opts to pass. Still skip CA import to match other steps.
-          # Syft needs explicit insecure-registry env when scanning the base image.
+          # Mobster invokes Syft against the base image; Syft needs these when
+          # the registry is insecure. Still skip CA import to match other steps.
           export SYFT_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true
           export SYFT_REGISTRY_INSECURE_USE_HTTP=true
         elif [ -n "${CA_FILE:-}" ] && [ -s "${CA_FILE}" ]; then
@@ -542,85 +543,16 @@ spec:
         MODELCAR_IMAGE=$(cat "$(results.IMAGE_REF.path)")
         BASE_IMAGE_REF=$(cat "$(results.BASE_IMAGE_REF.path)")
 
-        echo "Generating modelcar composition SBOM for $MODELCAR_IMAGE"
+        # Mobster builds the composition SBOM then Syft-scans the base image and
+        # merges packages under the base node (SPDX and CycloneDX).
+        echo "Generating modelcar SBOM for $MODELCAR_IMAGE (base Syft merge included)"
         mobster generate  \
-          --output sbom-modelcar.json \
+          --output sbom.json \
           modelcar \
           --modelcar-image "$MODELCAR_IMAGE" \
           --base-image "$BASE_IMAGE_REF" \
           --model-image "$MODEL_IMAGE" \
           --sbom-type "$SBOM_TYPE"
-
-        # Syft package merge is SPDX-only (ModelCars use the default). CycloneDX
-        # keeps the composition SBOM until mobster modelcar supports --from-syft.
-        if [ "$SBOM_TYPE" != "spdx" ]; then
-          echo "Skipping Syft merge for SBOM_TYPE=$SBOM_TYPE (supported for spdx only)"
-          cp sbom-modelcar.json sbom.json
-          exit 0
-        fi
-
-        # Scan the base image only — model layers are huge weight blobs, not RPM/Python inventory.
-        echo "Scanning base image with syft: $BASE_IMAGE_REF"
-        syft scan "$BASE_IMAGE_REF" -o spdx-json@2.3 > sbom-base-syft.json
-
-        echo "Merging base-image Syft packages into modelcar SBOM"
-        python3 - sbom-modelcar.json sbom-base-syft.json sbom.json <<'PY'
-        import json
-        import sys
-
-        modelcar_path, syft_path, out_path = sys.argv[1:4]
-        with open(modelcar_path, encoding="utf-8") as f:
-            modelcar = json.load(f)
-        with open(syft_path, encoding="utf-8") as f:
-            syft = json.load(f)
-
-        def spdx_purls(pkg):
-            return [
-                ref["referenceLocator"]
-                for ref in pkg.get("externalRefs", [])
-                if ref.get("referenceType") == "purl"
-            ]
-
-        existing_ids = {p["SPDXID"] for p in modelcar.get("packages", [])}
-        existing_purls = {
-            purl for p in modelcar.get("packages", []) for purl in spdx_purls(p)
-        }
-        root_id = next(
-            (
-                r["relatedSpdxElement"]
-                for r in modelcar.get("relationships", [])
-                if r.get("relationshipType") == "DESCRIBES"
-            ),
-            None,
-        )
-        for pkg in syft.get("packages", []):
-            purls = spdx_purls(pkg)
-            if purls and any(p in existing_purls for p in purls):
-                continue
-            pkg = dict(pkg)
-            original_id = pkg["SPDXID"]
-            spdx_id = original_id
-            counter = 0
-            while spdx_id in existing_ids:
-                suffix = "-from-syft" if counter == 0 else f"-from-syft-{counter}"
-                spdx_id = f"{original_id}{suffix}"
-                counter += 1
-            pkg["SPDXID"] = spdx_id
-            modelcar.setdefault("packages", []).append(pkg)
-            existing_ids.add(spdx_id)
-            existing_purls.update(purls)
-            if root_id:
-                modelcar.setdefault("relationships", []).append(
-                    {
-                        "spdxElementId": root_id,
-                        "relationshipType": "CONTAINS",
-                        "relatedSpdxElement": spdx_id,
-                    }
-                )
-
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(modelcar, f)
-        PY
 
     - name: upload-sbom
       image: quay.io/konflux-ci/task-runner:3.0.0@sha256:9f4151ff21f4c14b9151582c91a5542140bbbb6dca7861cd42081006840bec05
