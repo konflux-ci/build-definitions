@@ -1,0 +1,77 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: simple-build-oci-ta
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: A simple build task
+  params:
+    - name: Dockerfile
+      description: Path to a Dockerfile
+      type: string
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+    - name: ociArtifactExpiresAfter
+      description: Expiration date for the trusted artifacts created in the
+        OCI repository. An empty string means the artifacts do not expire.
+      type: string
+      default: ""
+    - name: ociStorage
+      description: The OCI repository where the Trusted Artifacts are stored.
+      type: string
+  results:
+    - name: SOURCE_ARTIFACT
+      description: The Trusted Artifact URI pointing to the artifact with
+        the application source code.
+      type: string
+  volumes:
+    - name: workdir
+      emptyDir: {}
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      when:
+        - input: $(params.Dockerfile)
+          operator: notin
+          values:
+            - ""
+    - name: build
+      image: quay.io/konflux-ci/task-runner:latest
+      volumeMounts:
+        - mountPath: /var/workdir
+          name: workdir
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+        echo "Building ${IMAGE}"
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:resolved
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      volumeMounts:
+        - mountPath: /var/workdir
+          name: workdir
+      env:
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        limits:
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 3Gi
+      when:
+        - input: $(params.Dockerfile)
+          operator: in
+          values:
+            - ""

@@ -1,0 +1,14 @@
+---
+base: base.yaml
+add:
+  - use-source
+  - create-source
+stepWhen:
+  use-trusted-artifact:
+    - input: $(params.Dockerfile)
+      operator: notin
+      values: [""]
+  create-trusted-artifact:
+    - input: $(params.Dockerfile)
+      operator: in
+      values: [""]
