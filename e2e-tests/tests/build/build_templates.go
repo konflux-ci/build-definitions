@@ -44,7 +44,7 @@ var (
 )
 
 const pipelineCompletionRetries = 2
-const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:13375ed6d012614f030d36fa6485c16db1ab1e82d6077d5055c0eb1bfb90b644"
+const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:e86e0c7c0dfec6aad4b40ff8a4eac3c023cdb2ccbd8e5709800ebbfd5579afb2"
 
 type TestBranches struct {
 	RepoName       string
@@ -620,8 +620,8 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 						ecpSource := ecp.Source{
 							Config: &ecp.SourceConfig{
 								Include: []string{"@redhat"},
-								Exclude: []string{"cve", "hermetic_task", "labels", "trusted_task", "test", "base_image_registries.base_image_permitted:docker.io/library/ibmjava", "base_image_registries.base_image_permitted:docker.io/library/node",
-									"tasks.pinned_task_refs", "tasks.required_tasks_found", "tasks.required_untrusted_task_found", "slsa_build_scripted_build.image_built_by_trusted_task", "source_image.exists",
+								Exclude: []string{"cve", "hermetic_task", "labels", "trusted_task", "test", "base_image_registries.allowed_registries_provided", "base_image_registries.base_image_permitted:docker.io/library/ibmjava", "base_image_registries.base_image_permitted:docker.io/library/node",
+									"tasks.pinned_task_refs", "tasks.required_tasks_found", "tasks.required_untrusted_task_found", "slsa_build_scripted_build.image_built_by_trusted_task", "source_image.exists", "sbom_spdx.hermeto_attribution_required",
 									"sbom_spdx.allowed_package_sources:pkg:pypi/dockerfile-parse?checksum=sha256:36e4469abb0d96b0e3cd656284d5016e8a674cd57b8ebe5af64786fe63b8184d&download_url=https://github.com/containerbuildsystem/dockerfile-parse/archive/refs/tags/2.0.0.tar.gz",
 									"sbom_spdx.allowed_package_sources:pkg:generic/dependency-check.zip?checksum=sha256:c5b5b9e592682b700e17c28f489fe50644ef54370edeb2c53d18b70824de1e22&download_url=https://github.com/jeremylong/DependencyCheck/releases/download/v11.1.0/dependency-check-11.1.0-release.zip"},
 							},
