@@ -10,8 +10,8 @@
 
 ### Changed
 
-- Keep task-runner 3.1.1 with olot `--root-dir models` so nested model paths are
-  preserved. Pre-convert Docker-distribution manifests in the base OCI layout
-  (and remove leftover Docker manifest blobs) before multi-batch `olot` runs,
-  working around [containers/olot#216](https://github.com/containers/olot/pull/216)
-  until that fix ships in task-runner (olot >= 1.2.1).
+- Bump task-runner to 3.1.2 (`olot` 1.2.1), which includes the multi-batch
+  Docker→OCI conversion fix from
+  [containers/olot#216](https://github.com/containers/olot/pull/216). Keep
+  `--root-dir models` so nested model paths are preserved, and drop the
+  in-task Docker→OCI pre-batch conversion workaround.
