@@ -13,6 +13,7 @@
 |output-image| Fully Qualified Output Image| None| build-container:IMAGE ; build-image-index:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:input|
+|release-only-if-version-bumped| Release the task bundle only when the app.kubernetes.io/version is different| true| build-container:RELEASE_ONLY_IF_VERSION_BUMPED|
 |revision| Revision of the Source Repository| | clone-repository:revision ; build-container:REVISION|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:TARGET_DIRS ; sast-unicode-check:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
@@ -115,6 +116,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|RELEASE_ONLY_IF_VERSION_BUMPED| Release the task bundle only when the app.kubernetes.io/version is different| true| '$(params.release-only-if-version-bumped)'|
 |REVISION| Revision| None| '$(params.revision)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
 |STEPS_IMAGE_STEP_NAMES| Optional comma- or space-separated step names to control which steps are updated with STEPS_IMAGE. If names are prefixed with ! then all steps except those are updated. Otherwise only the listed steps are updated. If empty, all step images are updated.| ""| |

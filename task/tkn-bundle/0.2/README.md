@@ -12,6 +12,7 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 |STEPS_IMAGE_STEP_NAMES|Optional comma- or space-separated step names to update with STEPS_IMAGE. If empty, all step images are updated.|""|false|
 |URL|Source code Git URL||true|
 |REVISION|Revision||true|
+|RELEASE_ONLY_IF_VERSION_BUMPED|Release the task bundle only when the app.kubernetes.io/version is different|true|false|
 
 ## Results
 |name|description|

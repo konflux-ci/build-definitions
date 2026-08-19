@@ -24,6 +24,11 @@ spec:
     - name: IMAGE
       description: Reference of the image task will produce.
       type: string
+    - name: RELEASE_ONLY_IF_VERSION_BUMPED
+      description: Release the task bundle only when the app.kubernetes.io/version
+        is different
+      type: string
+      default: "true"
     - name: REVISION
       description: Revision
       type: string
@@ -214,6 +219,8 @@ spec:
           value: $(params.URL)
         - name: REVISION
           value: $(params.REVISION)
+        - name: RELEASE_ONLY_IF_VERSION_BUMPED
+          value: $(params.RELEASE_ONLY_IF_VERSION_BUMPED)
       script: |
         #!/bin/env bash
 

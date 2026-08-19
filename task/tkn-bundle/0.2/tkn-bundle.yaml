@@ -41,6 +41,10 @@ spec:
   - name: REVISION
     type: string
     description: Revision
+  - name: RELEASE_ONLY_IF_VERSION_BUMPED
+    type: string
+    description: Release the task bundle only when the app.kubernetes.io/version is different
+    default: "true"
   results:
   - description: Digest of the image just built
     name: IMAGE_DIGEST
@@ -197,6 +201,8 @@ spec:
       value: $(params.URL)
     - name: REVISION
       value: $(params.REVISION)
+    - name: RELEASE_ONLY_IF_VERSION_BUMPED
+      value: $(params.RELEASE_ONLY_IF_VERSION_BUMPED)
     computeResources:
       limits:
         memory: 64Mi
