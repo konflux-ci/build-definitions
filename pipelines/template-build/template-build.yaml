@@ -76,7 +76,7 @@ spec:
       taskRef:
         name: init
         # A pointer for referencing the correct version of task in the built pipeline bundles.
-        version: "0.4"
+        version: current
     - name: clone-repository
       runAfter:
         - init
@@ -87,7 +87,7 @@ spec:
           value: "$(params.revision)"
       taskRef:
         name: git-clone
-        version: "0.2"
+        version: current
       workspaces:
         - name: output
           workspace: workspace
@@ -103,7 +103,7 @@ spec:
         - clone-repository
       taskRef:
         name: prefetch-dependencies
-        version: "0.10"
+        version: current
       workspaces:
         - name: source
           workspace: workspace
@@ -124,7 +124,7 @@ spec:
         - build-container
       taskRef:
         name: build-image-index
-        version: "0.3"
+        version: current
       params:
       - name: IMAGE
         value: $(params.output-image)
@@ -144,7 +144,7 @@ spec:
         - build-image-index
       taskRef:
         name: source-build
-        version: "0.3"
+        version: current
       params:
         - name: BINARY_IMAGE
           value: "$(tasks.build-image-index.results.IMAGE_URL)"
@@ -276,7 +276,7 @@ spec:
         - build-image-index
       taskRef:
         name: apply-tags
-        version: "0.3"
+        version: current
       params:
       - name: IMAGE_URL
         value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -287,7 +287,7 @@ spec:
       - build-image-index
       taskRef:
         name: push-dockerfile
-        version: "0.3"
+        version: current
       params:
       - name: IMAGE
         value: $(tasks.build-image-index.results.IMAGE_URL)
