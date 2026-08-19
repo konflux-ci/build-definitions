@@ -38,6 +38,8 @@
     value: $(params.git-url)
   - name: REVISION
     value: $(params.revision)
+  - name: RELEASE_ONLY_IF_VERSION_BUMPED
+    value: $(params.release-only-if-version-bumped)
 # Remove tasks that assume a binary image
 - op: remove
   path: /spec/tasks/15  # rpms-signature-scan
@@ -84,3 +86,11 @@
 #      3	BUILDAH_FORMAT
 - op: remove
   path: /spec/tasks/4/params/3  # BUILDAH_FORMAT
+
+- op: add
+  path: /spec/params/-
+  value:
+    name: release-only-if-version-bumped
+    description: Release the task bundle only when the app.kubernetes.io/version is different
+    type: string
+    default: "true"

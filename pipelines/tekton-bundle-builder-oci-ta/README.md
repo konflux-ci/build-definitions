@@ -13,6 +13,7 @@
 |output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.10:ociStorage ; build-container:0.2:IMAGE ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.10:input|
+|release-only-if-version-bumped| Release the task bundle only when the app.kubernetes.io/version is different| true| build-container:0.2:RELEASE_ONLY_IF_VERSION_BUMPED|
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision ; build-container:0.2:REVISION|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
@@ -122,6 +123,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|RELEASE_ONLY_IF_VERSION_BUMPED| Release the task bundle only when the app.kubernetes.io/version is different| true| '$(params.release-only-if-version-bumped)'|
 |REVISION| Revision| None| '$(params.revision)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
