@@ -45,7 +45,7 @@
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
+|depth| Perform a shallow clone, fetching only the most recent N commits.| 1| '2'|
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
