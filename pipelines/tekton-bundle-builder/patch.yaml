@@ -100,3 +100,10 @@
   value:
     name: SHOULD_RELEASE
     value: $(tasks.build-container.results.SHOULD_RELEASE)
+
+# git-clone: Fetch parent commit so tkn-bundle can compare task versions
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: depth
+    value: "2"
