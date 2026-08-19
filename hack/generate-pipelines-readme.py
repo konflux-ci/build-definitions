@@ -155,7 +155,7 @@ def main():
                     matches = [param_regex.search(v) for v in iter_values(param['value'])]
                     for match in filter(None, matches):
                         uses_param = match.group(1)
-                        task_param_name = f"{task_dict['name']}:{task_dict['refversion']}:{param['name']}"
+                        task_param_name = f"{task_dict['name']}:{param['name']}"
 
                         for pipeline_param in pipelines_info[pipeline_name]['params']:
                             if uses_param == pipeline_param['name']:
@@ -224,7 +224,7 @@ def main():
                 if pipeline_description:
                     f.write(f"{pipeline_description}")
                 f.write(f"\n## Parameters\n")
-                f.write("|name|description|default value|used in (taskname:taskrefversion:taskparam)|\n")
+                f.write("|name|description|default value|used in (taskname:taskparam)|\n")
                 f.write("|---|---|---|---|\n")
                 for param in sorted(items['params'], key=lambda x: x['name']):
                     used = " ; ".join(param['used'])
@@ -237,7 +237,7 @@ def main():
                     if not task['params']:
                         continue
 
-                    f.write(f"### {task['name']}:{task['version']} task parameters\n")
+                    f.write(f"### {task['name']} task parameters\n")
                     f.write("|name|description|default value|already set by|\n")
                     f.write("|---|---|---|---|\n")
 
@@ -277,8 +277,8 @@ def main():
                     if not task['results']:
                         continue
 
-                    f.write(f"### {task['name']}:{task['version']} task results\n")
-                    f.write("|name|description|used in params (taskname:taskrefversion:taskparam)\n")
+                    f.write(f"### {task['name']} task results\n")
+                    f.write("|name|description|used in params (taskname:taskparam)\n")
                     f.write("|---|---|---|\n")
 
                     for result in sorted(task['results'], key=lambda x: x['name']):
@@ -293,7 +293,7 @@ def main():
                             for task_param in task_info['params']:
                                 matches = [result_regex.match(v) for v in iter_values(task_param['value'])]
                                 for match in filter(None, matches):
-                                    task_param_name = f"{task_info['name']}:{task_info['refversion']}:{task_param['name']}"
+                                    task_param_name = f"{task_info['name']}:{task_param['name']}"
                                     used_in_params.append(task_param_name)
 
                         used = " ; ".join(used_in_params)
@@ -309,7 +309,7 @@ def main():
                     for task in items['tasks']:
                         for workspace_in_task in task['workspaces']:
                             if workspace_in_task['workspace'] == workspace['name']:
-                                task_workspace_name = f"{task['name']}:{task['refversion']}:{workspace_in_task['name']}"
+                                task_workspace_name = f"{task['name']}:{workspace_in_task['name']}"
                                 used_in_tasks.append(task_workspace_name)
 
                     used = " ; ".join(used_in_tasks)
@@ -322,7 +322,7 @@ def main():
                     if not task['workspaces']:
                         continue
 
-                    f.write(f"### {task['name']}:{task['version']} task workspaces\n")
+                    f.write(f"### {task['name']} task workspaces\n")
                     f.write("|name|description|optional|workspace from pipeline\n")
                     f.write("|---|---|---|---|\n")
 

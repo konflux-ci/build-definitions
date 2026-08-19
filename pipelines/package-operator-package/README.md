@@ -4,26 +4,26 @@ Given a git repository, a reference (as in, tag or commit) and a path within the
 The process of how a pko package is defined and packaged is documented [here](https://package-operator.run/docs/guides/packaging-an-application/). This task expects the package definition, will build it using `kubectl-package` and push the created package to the given OCI registry destination.
 
 ## Parameters
-|name|description|default value|used in (taskname:taskrefversion:taskparam)|
+|name|description|default value|used in (taskname:taskparam)|
 |---|---|---|---|
-|build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:ALWAYS_BUILD_INDEX|
 |build-source-image| Build a source image.| false| |
-|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.3:BUILDAH_FORMAT|
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.10:enable-package-registry-proxy|
-|git-url| Source Repository URL| None| clone-repository:0.2:url|
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:BUILDAH_FORMAT|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:enable-cache-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:enable-package-registry-proxy|
+|git-url| Source Repository URL| None| clone-repository:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
-|labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
-|output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.3:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.10:input|
-|revision| Revision of the Source Repository| | clone-repository:0.2:revision|
-|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
+|labels| Additional key=value labels to add to the OCI  image.| []| build-container:LABELS|
+|output-image| Fully Qualified Output Image| None| build-container:DST_URL ; build-image-index:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:SRC_PATH|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:input|
+|revision| Revision of the Source Repository| | clone-repository:revision|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:TARGET_DIRS ; sast-shell-check:TARGET_DIRS ; sast-unicode-check:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks
-### apply-tags:0.3 task parameters
+### apply-tags task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
@@ -32,7 +32,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |LOG_LEVEL| Log level to use in the task. See golang logrus docs for available levels.| info| |
-### build-image-index:0.3 task parameters
+### build-image-index task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
@@ -44,7 +44,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### clair-scan:0.3 task parameters
+### clair-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -53,7 +53,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-platform| The platform built by.| ""| |
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### clamav-scan:0.3 task parameters
+### clamav-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -63,7 +63,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |image-arch| Image arch.| ""| |
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### deprecated-image-check:0.5 task parameters
+### deprecated-image-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of base build images.| ""| |
@@ -73,7 +73,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
 |POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
-### ecosystem-cert-preflight-checks:0.2 task parameters
+### ecosystem-cert-preflight-checks task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |artifact-type| The type of artifact. Select from application, operatorbundle, or introspect.| introspect| |
@@ -81,7 +81,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |platform| The platform the image is built on.| ""| |
-### git-clone:0.2 task parameters
+### git-clone task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -108,17 +108,17 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |symlinkCheckIgnorePattern| CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. | ""| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
-### init:0.4 task parameters
+### init task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### package-operator-package:0.1 task parameters
+### package-operator-package task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |DST_URL| URL where to push the generated pko package to.| None| '$(params.output-image)'|
 |LABELS| Additional key=value labels to add to the OCI image.| []| '['$(params.labels[*])']'|
 |SRC_PATH| Path of the directory within the repository that contains package manifest.| None| '$(params.path-context)'|
-### prefetch-dependencies:0.10 task parameters
+### prefetch-dependencies task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -133,7 +133,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |pip-index-url| Python package index URL to use when prefetching pip dependencies. Used as a fallback when requirements.txt does not specify --index-url. When empty (default), the standard PyPI index is used.| ""| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
-### rpms-signature-scan:0.2 task parameters
+### rpms-signature-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -141,7 +141,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
-### sast-shell-check:0.1 task parameters
+### sast-shell-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |IMP_FINDINGS_ONLY| Whether to include important findings only| true| |
@@ -153,7 +153,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-snyk-check:0.5 task parameters
+### sast-snyk-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ARGS| Append arguments.| ""| |
@@ -168,7 +168,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Digest of the image to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.4 task parameters
+### sast-unicode-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -180,7 +180,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### source-build:0.3 task parameters
+### source-build task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |BASE_IMAGES| By default, the task inspects the SBOM of the binary image to find the base image. With this parameter, you can override that behavior and pass the base image directly. The value should be a newline-separated list of images, in the same order as the FROM instructions specified in a multistage Dockerfile.| ""| |
@@ -198,40 +198,40 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### build-image-index task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.3:image-digest ; sast-snyk-check:0.5:image-digest ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; apply-tags:0.3:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| build-source-image:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:IMAGE_DIGEST ; clair-scan:image-digest ; sast-snyk-check:image-digest ; clamav-scan:image-digest ; sast-shell-check:image-digest ; sast-unicode-check:image-digest ; apply-tags:IMAGE_DIGEST ; rpms-signature-scan:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.3:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.5:image-url ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; apply-tags:0.3:IMAGE_URL ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-source-image:BINARY_IMAGE ; deprecated-base-image-check:IMAGE_URL ; clair-scan:image-url ; ecosystem-cert-preflight-checks:image-url ; sast-snyk-check:image-url ; clamav-scan:image-url ; sast-shell-check:image-url ; sast-unicode-check:image-url ; apply-tags:IMAGE_URL ; rpms-signature-scan:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### clair-scan:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### clair-scan task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |REPORTS| Mapping of image digests to report digests| |
 |SCAN_OUTPUT| Clair scan result.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### clamav-scan:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### clamav-scan task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### deprecated-image-check:0.5 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### deprecated-image-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### ecosystem-cert-preflight-checks:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### ecosystem-cert-preflight-checks task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |ARTIFACT_TYPE| The artifact type, either introspected or set.| |
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
 |IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
-### git-clone:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### git-clone task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
@@ -240,38 +240,38 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.| |
 |url| The precise URL that was fetched by this Task.| |
-### init:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### init task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
 |no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
-### package-operator-package:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### package-operator-package task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the package just built| |
 |IMAGE_REF| Image reference of the built package| |
-|IMAGE_URL| Image repository and tag where the built package was pushed| build-image-index:0.3:IMAGES|
+|IMAGE_URL| Image repository and tag where the built package was pushed| build-image-index:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### rpms-signature-scan:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### rpms-signature-scan task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-shell-check:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-shell-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-snyk-check:0.5 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-snyk-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-unicode-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### source-build:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### source-build task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |BUILD_RESULT| Build result.| |
 |IMAGE_REF| Image reference of the built image.| |
@@ -281,39 +281,39 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.10:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.10:netrc|
-|workspace| |False| clone-repository:0.2:output ; prefetch-dependencies:0.10:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.5:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:basic-auth ; prefetch-dependencies:git-basic-auth|
+|netrc| |True| prefetch-dependencies:netrc|
+|workspace| |False| clone-repository:output ; prefetch-dependencies:source ; build-container:package ; build-source-image:workspace ; sast-snyk-check:workspace ; sast-shell-check:workspace ; sast-unicode-check:workspace|
 ## Available workspaces from tasks
-### git-clone:0.2 task workspaces
+### git-clone task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |output| The git repo will be cloned onto the volume backing this Workspace.| False| workspace|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### package-operator-package:0.1 task workspaces
+### package-operator-package task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### prefetch-dependencies:0.10 task workspaces
+### prefetch-dependencies task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, prefetch artifacts will be stored on the workspace as well| False| workspace|
-### sast-shell-check:0.1 task workspaces
+### sast-shell-check task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-snyk-check:0.5 task workspaces
+### sast-snyk-check task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.4 task workspaces
+### sast-unicode-check task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### source-build:0.3 task workspaces
+### source-build task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| The workspace where source code is included.| False| workspace|
