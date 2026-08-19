@@ -10,14 +10,14 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |build-source-image| Build a source image.| false| |
 |buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-image-index:0.3:BUILDAH_FORMAT|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.7:enable-package-registry-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.2:url|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
 |labels| Additional key=value labels to add to the OCI  image.| []| build-container:0.1:LABELS|
 |output-image| Fully Qualified Output Image| None| build-container:0.1:DST_URL ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.1:SRC_PATH|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.7:input|
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
@@ -118,7 +118,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |DST_URL| URL where to push the generated pko package to.| None| '$(params.output-image)'|
 |LABELS| Additional key=value labels to add to the OCI image.| []| '['$(params.labels[*])']'|
 |SRC_PATH| Path of the directory within the repository that contains package manifest.| None| '$(params.path-context)'|
-### prefetch-dependencies:0.3 task parameters
+### prefetch-dependencies:0.7 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -280,9 +280,9 @@ The process of how a pko package is defined and packaged is documented [here](ht
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.3:netrc|
-|workspace| |False| clone-repository:0.2:output ; prefetch-dependencies:0.3:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.5:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.7:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.7:netrc|
+|workspace| |False| clone-repository:0.2:output ; prefetch-dependencies:0.7:source ; build-container:0.1:package ; build-source-image:0.3:workspace ; sast-snyk-check:0.5:workspace ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
 ## Available workspaces from tasks
 ### git-clone:0.2 task workspaces
 |name|description|optional|workspace from pipeline
@@ -294,7 +294,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| Workspace containing the source code to build.| False| workspace|
-### prefetch-dependencies:0.3 task workspaces
+### prefetch-dependencies:0.7 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|

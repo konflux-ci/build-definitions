@@ -14,14 +14,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-source-image| Build a source image.| false| |
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| fbc-inject-lifecycle:0.1:DOCKERFILE ; build-images:0.10:DOCKERFILE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.7:enable-package-registry-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.2:url|
 |hermetic| Execute the build with network isolation| true| build-images:0.10:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; fbc-inject-lifecycle:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-images:0.10:IMAGE_EXPIRES_AFTER|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; fbc-inject-lifecycle:0.1:ociArtifactExpiresAfter ; run-opm-command:0.1:ociArtifactExpiresAfter ; prefetch-dependencies:0.7:ociArtifactExpiresAfter ; build-images:0.10:IMAGE_EXPIRES_AFTER|
 |omit-history| When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.| false| build-images:0.10:OMIT_HISTORY|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; fbc-inject-lifecycle:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-images:0.10:IMAGE ; build-image-index:0.3:IMAGE|
+|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; fbc-inject-lifecycle:0.1:ociStorage ; run-opm-command:0.1:ociStorage ; prefetch-dependencies:0.7:ociStorage ; build-images:0.10:IMAGE ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| fbc-inject-lifecycle:0.1:CONTEXT ; build-images:0.10:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-images:0.10:PREFETCH_INPUT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.7:input ; build-images:0.10:PREFETCH_INPUT|
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision|
 |rewrite-timestamp| When "true", clamp file modification times in the image layers to at most source-date-epoch. Does nothing unless source-date-epoch is set.| false| build-images:0.10:REWRITE_TIMESTAMP|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| |
@@ -176,7 +176,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### prefetch-dependencies-oci-ta:0.3 task parameters
+### prefetch-dependencies-oci-ta:0.7 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -271,7 +271,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-images:0.10:HTTP_PROXY|
 |no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-images:0.10:NO_PROXY|
-### prefetch-dependencies-oci-ta:0.3 task results
+### prefetch-dependencies-oci-ta:0.7 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-images:0.10:CACHI2_ARTIFACT|
@@ -279,7 +279,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### run-opm-command-oci-ta:0.1 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code with generated file-based catalog from catalog-template.yml.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code with generated file-based catalog from catalog-template.yml.| prefetch-dependencies:0.7:SOURCE_ARTIFACT|
 ### validate-fbc:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -293,15 +293,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.3:netrc|
+|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.7:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.7:netrc|
 ## Available workspaces from tasks
 ### git-clone-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies-oci-ta:0.3 task workspaces
+### prefetch-dependencies-oci-ta:0.7 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
