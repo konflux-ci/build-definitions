@@ -10,14 +10,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |build-source-image| Build a source image.| false| |
 |default-base-image| Default base image for ko| | build-container:0.1:KO_DEFAULTBASEIMAGE|
 |enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.10:enable-package-registry-proxy|
 |git-url| Source Repository URL| None| clone-repository:0.2:url|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-container:0.1:IMAGE_EXPIRES_AFTER|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; prefetch-dependencies:0.10:ociArtifactExpiresAfter ; build-container:0.1:IMAGE_EXPIRES_AFTER|
 |import-path| Import path to build| | build-container:0.1:IMPORT_PATH|
 |ko-docker-repo| Setting for KO_DOCKER_REPO| | build-container:0.1:KO_DOCKER_REPO|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-image-index:0.3:IMAGE|
+|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.10:ociStorage ; build-image-index:0.3:IMAGE|
 |pr-tag| PR tag to use on image| pr-tag| build-container:0.1:TAG|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.10:input|
 |preprocessing-script| Preprocessing script for source code| | |
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-snyk-check:0.5:TARGET_DIRS ; sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
@@ -127,7 +127,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |TAG| Tag of PR to add to image| None| '$(params.pr-tag)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-### prefetch-dependencies-oci-ta:0.3 task parameters
+### prefetch-dependencies-oci-ta:0.10 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -143,6 +143,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
+|pip-index-url| Python package index URL to use when prefetching pip dependencies. Used as a fallback when requirements.txt does not specify --index-url. When empty (default), the standard PyPI index is used.| ""| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
 ### rpms-signature-scan:0.2 task parameters
 |name|description|default value|already set by|
@@ -256,7 +257,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.10:SOURCE_ARTIFACT|
 |commit| The precise commit SHA that was fetched by this Task.| build-container:0.1:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
@@ -274,7 +275,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.3:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### prefetch-dependencies-oci-ta:0.3 task results
+### prefetch-dependencies-oci-ta:0.10 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| |
@@ -308,15 +309,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.3:netrc|
+|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.10:git-basic-auth|
+|netrc| |True| prefetch-dependencies:0.10:netrc|
 ## Available workspaces from tasks
 ### git-clone-oci-ta:0.2 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies-oci-ta:0.3 task workspaces
+### prefetch-dependencies-oci-ta:0.10 task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
