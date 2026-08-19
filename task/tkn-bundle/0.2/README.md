@@ -20,6 +20,7 @@ Creates and pushes a Tekton bundle containing the specified Tekton YAML files.
 |IMAGE_DIGEST|Digest of the image just built|
 |IMAGE_URL|Image repository and tag where the built image was pushed with tag only|
 |IMAGE_REF|Image reference of the built image|
+|SHOULD_RELEASE|Whether the task bundle should be released|
 
 ## Workspaces
 |name|description|optional|

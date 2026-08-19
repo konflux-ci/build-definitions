@@ -94,3 +94,9 @@
     description: Release the task bundle only when the app.kubernetes.io/version is different
     type: string
     default: "true"
+
+- op: add
+  path: /spec/results/-
+  value:
+    name: SHOULD_RELEASE
+    value: $(tasks.build-container.results.SHOULD_RELEASE)

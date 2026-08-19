@@ -137,6 +137,7 @@
 |CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
+|SHOULD_RELEASE| |$(tasks.build-container.results.SHOULD_RELEASE)|
 ## Available results from tasks
 ### build-image-index:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -181,6 +182,7 @@
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.3:IMAGES|
+|SHOULD_RELEASE| Whether the task bundle should be released| |
 
 ## Workspaces
 |name|description|optional|used in tasks
