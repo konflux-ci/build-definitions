@@ -196,7 +196,7 @@ spec:
       value: $(params.enable-cache-proxy)
     taskRef:
       name: init
-      version: "0.4"
+      version: current
   - name: clone-repository
     params:
     - name: url
@@ -207,7 +207,7 @@ spec:
     - init
     taskRef:
       name: git-clone
-      version: "0.2"
+      version: current
     workspaces:
     - name: output
       workspace: workspace
@@ -223,7 +223,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies
-      version: "0.10"
+      version: current
     workspaces:
     - name: source
       workspace: workspace
@@ -277,7 +277,7 @@ spec:
     - prefetch-dependencies
     taskRef:
       name: buildah-remote
-      version: "0.10"
+      version: current
     workspaces:
     - name: source
       workspace: workspace
@@ -296,7 +296,7 @@ spec:
     - build-images
     taskRef:
       name: build-image-index
-      version: "0.3"
+      version: current
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
@@ -307,7 +307,7 @@ spec:
     - build-image-index
     taskRef:
       name: source-build
-      version: "0.3"
+      version: current
     when:
     - input: $(params.build-source-image)
       operator: in
@@ -461,7 +461,7 @@ spec:
     - build-image-index
     taskRef:
       name: apply-tags
-      version: "0.3"
+      version: current
   - name: push-dockerfile
     params:
     - name: IMAGE
@@ -476,7 +476,7 @@ spec:
     - build-image-index
     taskRef:
       name: push-dockerfile
-      version: "0.3"
+      version: current
     workspaces:
     - name: workspace
       workspace: workspace
