@@ -58,6 +58,8 @@ spec:
     - name: IMAGE_URL
       description: Image repository and tag where the built image was pushed
         with tag only
+    - name: SHOULD_RELEASE
+      description: Whether the task bundle should be released
   volumes:
     - name: workdir
       emptyDir: {}
@@ -397,6 +399,7 @@ spec:
         echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
         echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
         echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
+        echo -n "true" >"$(results.SHOULD_RELEASE.path)"
 
         # cleanup task file
         # shellcheck disable=SC2153

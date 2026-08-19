@@ -52,6 +52,8 @@ spec:
     name: IMAGE_URL
   - description: Image reference of the built image
     name: IMAGE_REF
+  - description: Whether the task bundle should be released
+    name: SHOULD_RELEASE
   stepTemplate:
     env:
     - name: HOME
@@ -386,6 +388,7 @@ spec:
       echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
       echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
       echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
+      echo -n "true" >"$(results.SHOULD_RELEASE.path)"
 
       # cleanup task file
       # shellcheck disable=SC2153
