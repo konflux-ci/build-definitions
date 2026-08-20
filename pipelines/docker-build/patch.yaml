@@ -41,7 +41,7 @@
   path: /spec/tasks/3/taskRef
   value:
     name: buildah
-    version: "0.10"
+    version: "0.13"
 - op: add
   path: /spec/params/-
   value:
@@ -85,6 +85,13 @@
     type: string
     default: "false"
 - op: add
+  path: /spec/params/-
+  value:
+    name: compression-format
+    description: Compression format to use when pushing the image (gzip, zstd:chunked or dual). Empty means buildah's default (gzip). dual is a tech preview that pushes both gzip and zstd:chunked variants bundled in a per-arch OCI index; it requires buildah-format=oci. See ADR 0070 in konflux-ci/architecture.
+    type: string
+    default: ""
+- op: add
   path: /spec/tasks/3/params
   value:
   - name: IMAGE
@@ -112,6 +119,8 @@
     value: "$(tasks.clone-repository.results.url)"
   - name: BUILDAH_FORMAT
     value: "$(params.buildah-format)"
+  - name: COMPRESSION_FORMAT
+    value: "$(params.compression-format)"
   - name: HTTP_PROXY
     value: "$(tasks.init.results.http-proxy)"
   - name: NO_PROXY
