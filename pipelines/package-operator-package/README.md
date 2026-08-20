@@ -44,15 +44,6 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### clair-scan:0.3 task parameters
-|name|description|default value|already set by|
-|---|---|---|---|
-|ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
-|ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|docker-auth| unused, should be removed in next task version.| ""| |
-|image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
-|image-platform| The platform built by.| ""| |
-|image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 ### clamav-scan:0.3 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -133,6 +124,18 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |pip-index-url| Python package index URL to use when prefetching pip dependencies. Used as a fallback when requirements.txt does not specify --index-url. When empty (default), the standard PyPI index is used.| ""| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
+### roxctl-scan:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|image-digest| Image digest to scan.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
+|image-url| Full name of image to scan.  SHA 256 digest may be included to ensure scan of sequental runs with same tag. Examples: 'gcr.io/rox/sample:5.0-rc1', '$(params.IMAGE)', '$(params.IMAGE)@$(tasks.buildah.results.IMAGE_DIGEST)' | ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
+|insecure-skip-tls-verify| Do not verify TLS certificates.  When set to "true", skip verifying the TLS certs of the Central endpoint. | false| |
+|output_format| Results output format (json | csv | table)| json| |
+|rox_central_endpoint| The address:port tuple for RHACS Stackrox Central.| https://acs-d4dgfbkto15c73biblcg.acs.rhcloud.com| |
+|rox_config_dir| Path to the roxtl config directory within the roxctl-config workspace. The path must be prefixed with "/roxctl-config". | ""| |
+|rox_image| This param is no longer used. Its value will be ignored.| ""| |
+|rox_token_file| Path to the API Token file (if authentication through API token). Mutually exclusive with rox_config_dir. The path must be prefixed with "/rox-api-token-auth". Example "/rox-api-token-auth/rox_api_token" | ""| |
+|skip-upload| If true, skips uploading the report to the registry. Useful for testing.| false| |
 ### rpms-signature-scan:0.2 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -202,17 +205,10 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; clair-scan:0.3:image-digest ; sast-snyk-check:0.5:image-digest ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; apply-tags:0.3:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| build-source-image:0.3:BINARY_IMAGE_DIGEST ; deprecated-base-image-check:0.5:IMAGE_DIGEST ; roxctl-scan:0.1:image-digest ; sast-snyk-check:0.5:image-digest ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; apply-tags:0.3:IMAGE_DIGEST ; rpms-signature-scan:0.2:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; clair-scan:0.3:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.5:image-url ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; apply-tags:0.3:IMAGE_URL ; rpms-signature-scan:0.2:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-source-image:0.3:BINARY_IMAGE ; deprecated-base-image-check:0.5:IMAGE_URL ; roxctl-scan:0.1:image-url ; ecosystem-cert-preflight-checks:0.2:image-url ; sast-snyk-check:0.5:image-url ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; apply-tags:0.3:IMAGE_URL ; rpms-signature-scan:0.2:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### clair-scan:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
-|---|---|---|
-|IMAGES_PROCESSED| Images processed in the task.| |
-|REPORTS| Mapping of image digests to report digests| |
-|SCAN_OUTPUT| Clair scan result.| |
-|TEST_OUTPUT| Tekton task test output.| |
 ### clamav-scan:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
@@ -252,6 +248,13 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |IMAGE_REF| Image reference of the built package| |
 |IMAGE_URL| Image repository and tag where the built package was pushed| build-image-index:0.3:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
+### roxctl-scan:0.1 task results
+|name|description|used in params (taskname:taskrefversion:taskparam)
+|---|---|---|
+|IMAGES_PROCESSED| Images processed in the task.| |
+|REPORTS| Mapping of image digests to report digests| |
+|SCAN_OUTPUT| Rox scan result.| |
+|TEST_OUTPUT| Tekton task test output.| |
 ### rpms-signature-scan:0.2 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
 |---|---|---|
