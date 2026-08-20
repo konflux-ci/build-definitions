@@ -193,7 +193,7 @@ spec:
       operator: in
       values:
       - "false"
-  - name: clair-scan
+  - name: roxctl-scan
     params:
     - name: image-digest
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -202,8 +202,8 @@ spec:
     runAfter:
     - build-image-index
     taskRef:
-      name: clair-scan
-      version: "0.3"
+      name: roxctl-scan
+      version: "0.1"
     when:
     - input: $(params.skip-checks)
       operator: in
