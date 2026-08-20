@@ -1,24 +1,24 @@
 # "tekton-bundle-builder pipeline"
 
 ## Parameters
-|name|description|default value|used in (taskname:taskrefversion:taskparam)|
+|name|description|default value|used in (taskname:taskparam)|
 |---|---|---|---|
-|build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:ALWAYS_BUILD_INDEX|
 |dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| |
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.10:enable-package-registry-proxy|
-|git-url| Source Repository URL| None| clone-repository:0.2:url ; build-container:0.2:URL|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:enable-cache-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:enable-package-registry-proxy|
+|git-url| Source Repository URL| None| clone-repository:url ; build-container:URL|
 |hermetic| Execute the build with network isolation| false| |
 |image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | |
-|output-image| Fully Qualified Output Image| None| build-container:0.2:IMAGE ; build-image-index:0.3:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.10:input|
-|revision| Revision of the Source Repository| | clone-repository:0.2:revision ; build-container:0.2:REVISION|
-|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
+|output-image| Fully Qualified Output Image| None| build-container:IMAGE ; build-image-index:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:input|
+|revision| Revision of the Source Repository| | clone-repository:revision ; build-container:REVISION|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:TARGET_DIRS ; sast-unicode-check:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
 
 ## Available params from tasks
-### apply-tags:0.3 task parameters
+### apply-tags task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ADDITIONAL_TAGS| Additional tags that will be applied to the image in the registry.| []| |
@@ -27,7 +27,7 @@
 |IMAGE_DIGEST| Image digest of the built image.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |IMAGE_URL| Image repository and tag reference of the the built image.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |LOG_LEVEL| Log level to use in the task. See golang logrus docs for available levels.| info| |
-### build-image-index:0.3 task parameters
+### build-image-index task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
@@ -39,7 +39,7 @@
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### git-clone:0.2 task parameters
+### git-clone task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -66,11 +66,11 @@
 |symlinkCheckIgnorePattern| CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. | ""| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
-### init:0.4 task parameters
+### init task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### prefetch-dependencies:0.10 task parameters
+### prefetch-dependencies task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -85,7 +85,7 @@
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |pip-index-url| Python package index URL to use when prefetching pip dependencies. Used as a fallback when requirements.txt does not specify --index-url. When empty (default), the standard PyPI index is used.| ""| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
-### sast-shell-check:0.1 task parameters
+### sast-shell-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |IMP_FINDINGS_ONLY| Whether to include important findings only| true| |
@@ -97,7 +97,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check:0.4 task parameters
+### sast-unicode-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |FIND_UNICODE_CONTROL_ARGS| arguments for find-unicode-control command.| -p bidi -v -d -t| |
@@ -109,7 +109,7 @@
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### tkn-bundle:0.2 task parameters
+### tkn-bundle task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
@@ -128,16 +128,16 @@
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### build-image-index task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; apply-tags:0.3:IMAGE_DIGEST|
+|IMAGE_DIGEST| Digest of the image just built| sast-shell-check:image-digest ; sast-unicode-check:image-digest ; apply-tags:IMAGE_DIGEST|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; apply-tags:0.3:IMAGE_URL|
+|IMAGE_URL| Image repository and tag where the built image was pushed| sast-shell-check:image-url ; sast-unicode-check:image-url ; apply-tags:IMAGE_URL|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### git-clone:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### git-clone task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
@@ -146,54 +146,54 @@
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.| |
 |url| The precise URL that was fetched by this Task.| |
-### init:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### init task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| |
 |no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| |
-### sast-shell-check:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-shell-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-unicode-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### tkn-bundle:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### tkn-bundle task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.3:IMAGES|
+|IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:IMAGES|
 
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.10:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.10:netrc|
-|workspace| |False| clone-repository:0.2:output ; prefetch-dependencies:0.10:source ; build-container:0.2:source ; sast-shell-check:0.1:workspace ; sast-unicode-check:0.4:workspace|
+|git-auth| |True| clone-repository:basic-auth ; prefetch-dependencies:git-basic-auth|
+|netrc| |True| prefetch-dependencies:netrc|
+|workspace| |False| clone-repository:output ; prefetch-dependencies:source ; build-container:source ; sast-shell-check:workspace ; sast-unicode-check:workspace|
 ## Available workspaces from tasks
-### git-clone:0.2 task workspaces
+### git-clone task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |output| The git repo will be cloned onto the volume backing this Workspace.| False| workspace|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies:0.10 task workspaces
+### prefetch-dependencies task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |netrc| Workspace containing a .netrc file. Prefetch will use the credentials in this file when performing http(s) requests. | True| netrc|
 |source| Workspace with the source code, prefetch artifacts will be stored on the workspace as well| False| workspace|
-### sast-shell-check:0.1 task workspaces
+### sast-shell-check task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### sast-unicode-check:0.4 task workspaces
+### sast-unicode-check task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |workspace| | False| workspace|
-### tkn-bundle:0.2 task workspaces
+### tkn-bundle task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |source| | False| workspace|

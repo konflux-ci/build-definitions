@@ -119,7 +119,7 @@ spec:
       value: $(params.enable-cache-proxy)
     taskRef:
       name: init
-      version: "0.4"
+      version: current
   - name: clone-repository
     params:
     - name: url
@@ -134,7 +134,7 @@ spec:
     - init
     taskRef:
       name: git-clone-oci-ta-min
-      version: "0.2"
+      version: current
     workspaces:
     - name: basic-auth
       workspace: git-auth
@@ -154,7 +154,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies-oci-ta-min
-      version: "0.10"
+      version: current
     workspaces:
     - name: git-basic-auth
       workspace: git-auth
@@ -205,7 +205,7 @@ spec:
     - prefetch-dependencies
     taskRef:
       name: buildah-oci-ta-min
-      version: "0.10"
+      version: current
     workspaces: []
   - name: build-image-index
     params:
@@ -222,7 +222,7 @@ spec:
     - build-container
     taskRef:
       name: build-image-index-min
-      version: "0.3"
+      version: current
   - name: deprecated-base-image-check
     params:
     - name: IMAGE_URL
