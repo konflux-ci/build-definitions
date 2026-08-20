@@ -15,11 +15,9 @@ sources:
         - gitops-auth
       required_task_results:
         # Certain EC rules rely on the presence of these results when validating an image.
-        - task: clair-scan
-          result: CLAIR_SCAN_RESULT
-          version: "0.1"
-        - task: clair-scan
+        - task: roxctl-scan
           result: SCAN_OUTPUT
+          version: "0.1"
         - task: rpms-signature-scan
           result: RPMS_DATA
     config:
