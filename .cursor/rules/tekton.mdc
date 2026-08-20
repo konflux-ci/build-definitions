@@ -49,3 +49,10 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 ### Variant tasks
 - When a change applies to multiple variant tasks, apply the same version bump and changelog update to each affected variant (e.g., `git-clone`, `git-clone-oci-ta`, `git-clone-oci-ta-min`, and `pnc-prebuild-git-clone-oci-ta`).
 - Differences between variants can sometimes be warranted in changelog content, but version numbers must always match across all variants of the same task.
+
+## Tekton pipelines
+
+### Pipeline propagation model
+- Pipeline definitions in `pipelines/` are copied into user repositories at Konflux onboarding time. After onboarding, changes to pipeline definitions here do NOT automatically propagate to existing users.
+- When adding or modifying pipeline parameters, existing user pipelines need a migration mechanism so the change reaches them. How that migration is delivered varies by team (e.g., the build-maintainers use scripts under `konflux-ci/build-pipeline-tasks task/init/migrations/`).
+- When modifying pipeline parameters, verify that kustomize outputs for downstream pipeline variants (core-services, fbc-builder) still look as expected — the diffs will be visible in the PR.
