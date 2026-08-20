@@ -154,6 +154,7 @@ spec:
         - name: workspace
           workspace: workspace
     - name: deprecated-base-image-check
+      retries: 2
       when:
       - input: $(params.skip-checks)
         operator: in
@@ -184,6 +185,7 @@ spec:
       - name: image-url
         value: $(tasks.build-image-index.results.IMAGE_URL)
     - name: ecosystem-cert-preflight-checks
+      retries: 2
       when:
       - input: $(params.skip-checks)
         operator: in
@@ -301,6 +303,7 @@ spec:
       - name: workspace
         workspace: workspace
     - name: rpms-signature-scan
+      retries: 2
       when:
       - input: $(params.skip-checks)
         operator: in
