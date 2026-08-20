@@ -95,6 +95,13 @@ spec:
       etc.) from the resulting image.
     name: omit-history
     type: string
+  - default: ""
+    description: Compression format to use when pushing the image (gzip, zstd:chunked
+      or dual). Empty means buildah's default (gzip). dual is a tech preview that
+      pushes both gzip and zstd:chunked variants bundled in a per-arch OCI index;
+      it requires buildah-format=oci. See ADR 0070 in konflux-ci/architecture.
+    name: compression-format
+    type: string
   - default:
     - linux/x86_64
     description: List of platforms to build the container images on. The available
@@ -225,6 +232,8 @@ spec:
       value: $(params.build-args-file)
     - name: SOURCE_URL
       value: $(tasks.clone-repository.results.url)
+    - name: COMPRESSION_FORMAT
+      value: $(params.compression-format)
     - name: HTTP_PROXY
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
@@ -245,7 +254,7 @@ spec:
     - clone-repository
     taskRef:
       name: buildah-remote-oci-ta
-      version: "0.10"
+      version: "0.13"
     workspaces: []
   - name: build-image-index
     params:
