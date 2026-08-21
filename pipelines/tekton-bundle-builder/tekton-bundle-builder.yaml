@@ -62,6 +62,11 @@ spec:
       Multiple values should be separated with commas.
     name: sast-target-dirs
     type: string
+  - default: "true"
+    description: Release the task bundle only when the app.kubernetes.io/version is
+      different
+    name: release-only-if-version-bumped
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -71,6 +76,8 @@ spec:
     value: $(tasks.clone-repository.results.url)
   - name: CHAINS-GIT_COMMIT
     value: $(tasks.clone-repository.results.commit)
+  - name: SHOULD_RELEASE
+    value: $(tasks.build-container.results.SHOULD_RELEASE)
   tasks:
   - name: init
     params:
@@ -85,6 +92,8 @@ spec:
       value: $(params.git-url)
     - name: revision
       value: $(params.revision)
+    - name: depth
+      value: "2"
     runAfter:
     - init
     taskRef:
@@ -123,6 +132,8 @@ spec:
       value: $(params.git-url)
     - name: REVISION
       value: $(params.revision)
+    - name: RELEASE_ONLY_IF_VERSION_BUMPED
+      value: $(params.release-only-if-version-bumped)
     runAfter:
     - prefetch-dependencies
     taskRef:

@@ -13,6 +13,7 @@
 |output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.10:ociStorage ; build-container:0.2:IMAGE ; build-image-index:0.3:IMAGE|
 |path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.2:CONTEXT|
 |prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.10:input|
+|release-only-if-version-bumped| Release the task bundle only when the app.kubernetes.io/version is different| true| build-container:0.2:RELEASE_ONLY_IF_VERSION_BUMPED|
 |revision| Revision of the Source Repository| | clone-repository:0.2:revision ; build-container:0.2:REVISION|
 |sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
@@ -44,7 +45,7 @@
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-|depth| Perform a shallow clone, fetching only the most recent N commits.| 1| |
+|depth| Perform a shallow clone, fetching only the most recent N commits.| 1| '2'|
 |enableSymlinkCheck| Check symlinks in the repo. If they're pointing outside of the repo, the build will fail. | true| |
 |fetchTags| Fetch all tags for the repo.| false| |
 |httpProxy| HTTP proxy server for non-SSL requests.| ""| |
@@ -122,6 +123,7 @@
 |CONTEXT| Path to the directory to use as context.| .| '$(params.path-context)'|
 |HOME| Value for the HOME environment variable.| /tekton/home| |
 |IMAGE| Reference of the image task will produce.| None| '$(params.output-image)'|
+|RELEASE_ONLY_IF_VERSION_BUMPED| Release the task bundle only when the app.kubernetes.io/version is different| true| '$(params.release-only-if-version-bumped)'|
 |REVISION| Revision| None| '$(params.revision)'|
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |STEPS_IMAGE| An optional image to configure task steps with in the bundle| ""| |
@@ -135,6 +137,7 @@
 |CHAINS-GIT_URL| |$(tasks.clone-repository.results.url)|
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
+|SHOULD_RELEASE| |$(tasks.build-container.results.SHOULD_RELEASE)|
 ## Available results from tasks
 ### build-image-index:0.3 task results
 |name|description|used in params (taskname:taskrefversion:taskparam)
@@ -179,6 +182,7 @@
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
 |IMAGE_URL| Image repository and tag where the built image was pushed with tag only| build-image-index:0.3:IMAGES|
+|SHOULD_RELEASE| Whether the task bundle should be released| |
 
 ## Workspaces
 |name|description|optional|used in tasks
