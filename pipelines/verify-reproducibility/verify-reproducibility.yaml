@@ -1,0 +1,206 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: verify-reproducibility
+spec:
+  description: |
+    Rebuilds an image from the source it claims to have been built from,
+    using the same reproducibility params, and checks whether the two
+    digests match. Run it on demand against an image you want to verify -
+    it isn't part of the automatic build flow. The rebuild pushes to a
+    separate, caller-supplied scratch repository, never to the repo of the
+    image being verified, so running this never changes that image.
+
+    Single-arch images only, for now: this pipeline rebuilds through one
+    buildah-oci-ta run, so its digest can never match a multi-platform
+    image index digest (from docker-build-multi-platform-oci-ta /
+    build-image-index). Multi-arch manifest ordering is still open work
+    (see ADR-0069).
+
+    A matching digest proves the same source, params, and task version
+    produce the same bytes on this platform - it does not prove an
+    independent platform would agree. If the platform running this
+    pipeline is the same one that built the original image, and that
+    platform were tampered with in a way that doesn't break its own
+    determinism, both builds would agree with each other while still
+    being wrong. Catching that needs an independent platform rebuilding
+    from the provenance recipe, which ADR-0069 calls out as a stronger
+    property this pipeline's shape could grow into, but isn't what it
+    does today.
+
+    This can only be as faithful as the params it's given: if the original
+    build used a non-default value for something this pipeline exposes
+    (source-date-epoch, image-expires-after, hermetic, ...), pass the same
+    value here, or you'll get a false "not reproducible" result that has
+    nothing to do with real non-determinism.
+  params:
+    - name: image-repository
+      type: string
+      description: Repository (no tag or digest) of the image being verified.
+    - name: image-digest
+      type: string
+      description: Digest (sha256:...) of the image being verified.
+    - name: verify-repository
+      type: string
+      description: |
+        Scratch repository the rebuild pushes to, tagged
+        verify-<pipelineRun-uid>. Must be a different repository than
+        image-repository: buildah-oci-ta signs every push whenever the
+        cluster has keyless signing configured, and cosign's signature tag
+        is repo-scoped, so pushing the rebuild into the same repo as the
+        image being verified would overwrite that image's own signature
+        (and SBOM/attestation tags) just by inspecting it.
+    - name: source-artifact
+      type: string
+      description: |
+        Trusted Artifact URI for the exact source the original image was
+        built from (the SOURCE_ARTIFACT result from that build's
+        clone-repository or prefetch-dependencies task). This expires on
+        the same schedule as the original build's image-expires-after, so
+        verification generally needs to run before that window closes.
+    - name: cachi2-artifact
+      type: string
+      default: ""
+      description: Trusted Artifact URI for prefetched hermetic dependencies (CACHI2_ARTIFACT result). Set alongside hermetic=true for a faithful hermetic rebuild.
+    - name: git-url
+      type: string
+      description: |
+        Source repository URL the original image was built from. Must
+        match the original build's git URL exactly - it's baked into a
+        digest-affecting label, so a mismatch here alone causes a false
+        "not reproducible" result.
+    - name: revision
+      type: string
+      description: |
+        Resolved commit SHA (not a branch name) the original image was
+        built from. Must match the original build exactly, same reason as
+        git-url above.
+    - name: dockerfile
+      type: string
+      default: Dockerfile
+      description: Path to the Dockerfile inside path-context. Must match the original build.
+    - name: path-context
+      type: string
+      default: "."
+      description: Path to the source code to build. Must match the original build.
+    - name: hermetic
+      type: string
+      default: "false"
+      description: Whether the original build ran with network access disabled. Must match the original build.
+    - name: prefetch-input
+      type: string
+      default: ""
+      description: Prefetch config the original build used, if hermetic. Must match the original build.
+    - name: build-args
+      type: array
+      default: []
+      description: --build-arg values the original build used. Must match the original build.
+    - name: build-args-file
+      type: string
+      default: ""
+      description: Path to a build-args file, if the original build used one. Must match the original build.
+    - name: privileged-nested
+      type: string
+      default: "false"
+      description: Whether the original build ran in privileged mode. Must match the original build.
+    - name: buildah-format
+      type: string
+      default: docker
+      description: Image mediaType the original build used (oci or docker). Must match the original build.
+    - name: image-expires-after
+      type: string
+      default: ""
+      description: |
+        The image-expires-after value the original build used (leave
+        empty if it didn't set one). Echoed straight through to the
+        rebuild - buildah bakes this into a quay.expires-after label in
+        the image config, so a mismatch here alone causes a false "not
+        reproducible" result. This is not a cleanup knob for the verify-*
+        tag this pipeline pushes - use a registry-side auto-prune policy
+        scoped to that tag pattern for that instead.
+    - name: source-date-epoch
+      type: string
+      default: ""
+      description: The source-date-epoch value the original build used. Must match the original build.
+    - name: rewrite-timestamp
+      type: string
+      default: "false"
+      description: The rewrite-timestamp value the original build used. Must match the original build.
+    - name: omit-history
+      type: string
+      default: "false"
+      description: The omit-history value the original build used. Must match the original build.
+    - name: skip-sbom-generation
+      type: string
+      default: "true"
+      description: |
+        Skips SBOM generation, SBOM upload, and SBOM attestation signing
+        on the rebuild. Doesn't affect the digest comparison - the
+        rebuild's IMAGE_DIGEST is set before any SBOM step runs. Defaults
+        on since the rebuild's SBOM has nowhere useful to go. Set to
+        "false" if you're using this pipeline to check whether syft
+        produces byte-identical SBOMs across rebuilds (ADR-0069's open
+        question on that).
+  results:
+    - name: REPRODUCIBLE
+      value: $(tasks.compare.results.REPRODUCIBLE)
+    - name: TEST_OUTPUT
+      value: $(tasks.compare.results.TEST_OUTPUT)
+    - name: REBUILT_IMAGE_REF
+      value: $(tasks.rebuild.results.IMAGE_REF)
+  tasks:
+    - name: rebuild
+      params:
+        - name: IMAGE
+          value: $(params.verify-repository):verify-$(context.pipelineRun.uid)
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+        - name: CONTEXT
+          value: $(params.path-context)
+        - name: HERMETIC
+          value: $(params.hermetic)
+        - name: PREFETCH_INPUT
+          value: $(params.prefetch-input)
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.image-expires-after)
+        - name: COMMIT_SHA
+          value: $(params.revision)
+        - name: BUILD_ARGS
+          value:
+            - $(params.build-args[*])
+        - name: BUILD_ARGS_FILE
+          value: $(params.build-args-file)
+        - name: PRIVILEGED_NESTED
+          value: $(params.privileged-nested)
+        - name: SOURCE_URL
+          value: $(params.git-url)
+        - name: BUILDAH_FORMAT
+          value: $(params.buildah-format)
+        - name: SOURCE_DATE_EPOCH
+          value: $(params.source-date-epoch)
+        - name: REWRITE_TIMESTAMP
+          value: $(params.rewrite-timestamp)
+        - name: OMIT_HISTORY
+          value: $(params.omit-history)
+        - name: SOURCE_ARTIFACT
+          value: $(params.source-artifact)
+        - name: CACHI2_ARTIFACT
+          value: $(params.cachi2-artifact)
+        - name: SKIP_SBOM_GENERATION
+          value: $(params.skip-sbom-generation)
+      taskRef:
+        name: buildah-oci-ta
+        version: "0.10"
+      workspaces: []
+    - name: compare
+      runAfter:
+        - rebuild
+      params:
+        - name: ORIGINAL_IMAGE_REF
+          value: $(params.image-repository)@$(params.image-digest)
+        - name: REBUILT_IMAGE_REF
+          value: $(tasks.rebuild.results.IMAGE_REF)
+      taskRef:
+        name: verify-reproducibility
+        version: "0.1"

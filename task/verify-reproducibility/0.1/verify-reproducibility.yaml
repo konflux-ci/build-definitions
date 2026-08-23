@@ -1,0 +1,93 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-reproducibility
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.21.0
+    tekton.dev/tags: security, reproducibility
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |
+    Compares the digest of a freshly rebuilt image against the digest of
+    the original image it's supposed to match, and reports the outcome as
+    a REPRODUCIBLE result plus a TEST_OUTPUT summary. Meant to run right
+    after a rebuild task, as the last step of the verify-reproducibility
+    pipeline (see ADR-0069).
+  params:
+    - name: ORIGINAL_IMAGE_REF
+      description: Reference (repo@sha256:...) of the original image being verified.
+      type: string
+    - name: REBUILT_IMAGE_REF
+      description: Reference (repo@sha256:...) of the freshly rebuilt image to compare against.
+      type: string
+  results:
+    - name: REPRODUCIBLE
+      description: 'true if the rebuilt image''s digest matches the original image''s digest, false otherwise'
+    - name: TEST_OUTPUT
+      description: JSON formatted test results for the reproducibility comparison
+  steps:
+    - name: compare-digests
+      image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+      env:
+        - name: PARAM_ORIGINAL_IMAGE_REF
+          value: $(params.ORIGINAL_IMAGE_REF)
+        - name: PARAM_REBUILT_IMAGE_REF
+          value: $(params.REBUILT_IMAGE_REF)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # the digest is just whatever comes after the last '@' in the ref
+        original_digest="${PARAM_ORIGINAL_IMAGE_REF##*@}"
+        rebuilt_digest="${PARAM_REBUILT_IMAGE_REF##*@}"
+
+        digest_re='^sha256:[0-9a-f]{64}$'
+        if ! [[ "$original_digest" =~ $digest_re ]]; then
+          echo "ERROR: ORIGINAL_IMAGE_REF has no valid digest: ${PARAM_ORIGINAL_IMAGE_REF}" >&2
+          exit 1
+        fi
+        if ! [[ "$rebuilt_digest" =~ $digest_re ]]; then
+          echo "ERROR: REBUILT_IMAGE_REF has no valid digest: ${PARAM_REBUILT_IMAGE_REF}" >&2
+          exit 1
+        fi
+
+        if [ "$original_digest" = "$rebuilt_digest" ]; then
+          reproducible="true"
+          result="SUCCESS"
+          successes=1
+          failures=0
+        else
+          reproducible="false"
+          result="FAILURE"
+          successes=0
+          failures=1
+        fi
+
+        note="original=${PARAM_ORIGINAL_IMAGE_REF} rebuilt=${PARAM_REBUILT_IMAGE_REF}"
+        test_entry=$(printf '{"name":"digest-comparison","result":"%s","note":"%s"}' "$result" "$note")
+
+        test_output=$(cat <<EOF
+        {
+          "result": "$result",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "namespace": "reproducibility",
+          "successes": $successes,
+          "failures": $failures,
+          "warnings": 0,
+          "tests": [$test_entry]
+        }
+        EOF
+        )
+
+        # A mismatch is a real, useful answer, not a task failure - so we
+        # don't exit non-zero for it. We only bail out above when a ref
+        # can't even be read as a digest, since that's a real error.
+        printf '%s' "$reproducible" >"$(results.REPRODUCIBLE.path)"
+        printf '%s' "$test_output" >"$(results.TEST_OUTPUT.path)"
+
+        echo "=== Reproducibility check ==="
+        echo "original digest: $original_digest"
+        echo "rebuilt digest:  $rebuilt_digest"
+        echo "REPRODUCIBLE: $reproducible"

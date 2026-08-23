@@ -1,0 +1,21 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-verify-reproducibility-malformed
+  annotations:
+    test/assert-task-failure: run-task
+spec:
+  description: |
+    Test verify-reproducibility with a ref that has no digest: expect the
+    TaskRun itself to fail. Unlike a mismatch, a ref we can't even parse
+    is a real error, not a verification result.
+  tasks:
+    - name: run-task
+      taskRef:
+        name: verify-reproducibility
+      params:
+        - name: ORIGINAL_IMAGE_REF
+          value: quay.io/example/repo:latest
+        - name: REBUILT_IMAGE_REF
+          value: quay.io/example/scratch:verify-abc123@sha256:1111111111111111111111111111111111111111111111111111111111111111

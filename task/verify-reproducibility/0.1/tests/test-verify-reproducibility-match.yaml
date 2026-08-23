@@ -1,0 +1,52 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-verify-reproducibility-match
+spec:
+  description: |
+    Test verify-reproducibility with matching digests: expect REPRODUCIBLE=true.
+  tasks:
+    - name: run-task
+      taskRef:
+        name: verify-reproducibility
+      params:
+        - name: ORIGINAL_IMAGE_REF
+          value: quay.io/example/repo@sha256:1111111111111111111111111111111111111111111111111111111111111111
+        - name: REBUILT_IMAGE_REF
+          value: quay.io/example/scratch:verify-abc123@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    - name: check-result
+      params:
+        - name: REPRODUCIBLE
+          value: $(tasks.run-task.results.REPRODUCIBLE)
+        - name: TEST_OUTPUT
+          value: $(tasks.run-task.results.TEST_OUTPUT)
+      taskSpec:
+        params:
+          - name: REPRODUCIBLE
+          - name: TEST_OUTPUT
+        steps:
+          - name: check-result
+            env:
+              - name: REPRODUCIBLE
+                value: $(params.REPRODUCIBLE)
+              - name: TEST_OUTPUT
+                value: $(params.TEST_OUTPUT)
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            script: |
+              #!/usr/bin/env sh
+              set -eux
+
+              if [ "$REPRODUCIBLE" != "true" ]; then
+                echo "ERROR: expected REPRODUCIBLE=true, got: $REPRODUCIBLE"
+                exit 1
+              fi
+
+              if ! echo "$TEST_OUTPUT" | grep -q '"result": "SUCCESS"'; then
+                echo "ERROR: expected TEST_OUTPUT to report SUCCESS, got: $TEST_OUTPUT"
+                exit 1
+              fi
+
+              echo "SUCCESS: matching-digest test passed"
+      runAfter:
+        - run-task
