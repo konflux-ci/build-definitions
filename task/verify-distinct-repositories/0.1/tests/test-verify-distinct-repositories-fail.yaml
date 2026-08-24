@@ -1,0 +1,20 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-verify-distinct-repositories-fail
+  annotations:
+    test/assert-task-failure: run-task
+spec:
+  description: |
+    Test verify-distinct-repositories with the same repository given
+    twice: expect the TaskRun to fail.
+  tasks:
+    - name: run-task
+      taskRef:
+        name: verify-distinct-repositories
+      params:
+        - name: REPOSITORY_A
+          value: quay.io/example/repo-a
+        - name: REPOSITORY_B
+          value: quay.io/example/repo-a

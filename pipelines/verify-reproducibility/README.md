@@ -41,7 +41,7 @@ nothing to do with real non-determinism.
 |hermetic| Whether the original build ran with network access disabled. Must match the original build.| false| rebuild:0.10:HERMETIC|
 |image-digest| Digest (sha256:...) of the image being verified.| None| |
 |image-expires-after| The image-expires-after value the original build used (leave empty if it didn't set one). Echoed straight through to the rebuild - buildah bakes this into a quay.expires-after label in the image config, so a mismatch here alone causes a false "not reproducible" result. This is not a cleanup knob for the verify-* tag this pipeline pushes - use a registry-side auto-prune policy scoped to that tag pattern for that instead. | | rebuild:0.10:IMAGE_EXPIRES_AFTER|
-|image-repository| Repository (no tag or digest) of the image being verified.| None| compare:0.1:ORIGINAL_IMAGE_REF|
+|image-repository| Repository (no tag or digest) of the image being verified.| None| validate-params:0.1:REPOSITORY_A ; compare:0.1:ORIGINAL_IMAGE_REF|
 |omit-history| The omit-history value the original build used. Must match the original build.| false| rebuild:0.10:OMIT_HISTORY|
 |path-context| Path to the source code to build. Must match the original build.| .| rebuild:0.10:CONTEXT|
 |prefetch-input| Prefetch config the original build used, if hermetic. Must match the original build.| | rebuild:0.10:PREFETCH_INPUT|
@@ -51,7 +51,7 @@ nothing to do with real non-determinism.
 |skip-sbom-generation| Skips SBOM generation, SBOM upload, and SBOM attestation signing on the rebuild. Doesn't affect the digest comparison - the rebuild's IMAGE_DIGEST is set before any SBOM step runs. Defaults on since the rebuild's SBOM has nowhere useful to go. Set to "false" if you're using this pipeline to check whether syft produces byte-identical SBOMs across rebuilds (ADR-0069's open question on that). | true| rebuild:0.10:SKIP_SBOM_GENERATION|
 |source-artifact| Trusted Artifact URI for the exact source the original image was built from (the SOURCE_ARTIFACT result from that build's clone-repository or prefetch-dependencies task). This expires on the same schedule as the original build's image-expires-after, so verification generally needs to run before that window closes. | None| rebuild:0.10:SOURCE_ARTIFACT|
 |source-date-epoch| The source-date-epoch value the original build used. Must match the original build.| | rebuild:0.10:SOURCE_DATE_EPOCH|
-|verify-repository| Scratch repository the rebuild pushes to, tagged verify-<pipelineRun-uid>. Must be a different repository than image-repository: buildah-oci-ta signs every push whenever the cluster has keyless signing configured, and cosign's signature tag is repo-scoped, so pushing the rebuild into the same repo as the image being verified would overwrite that image's own signature (and SBOM/attestation tags) just by inspecting it. | None| rebuild:0.10:IMAGE|
+|verify-repository| Scratch repository the rebuild pushes to, tagged verify-<pipelineRun-uid>. Must be a different repository than image-repository: buildah-oci-ta signs every push whenever the cluster has keyless signing configured, and cosign's signature tag is repo-scoped, so pushing the rebuild into the same repo as the image being verified would overwrite that image's own signature (and SBOM/attestation tags) just by inspecting it. | None| validate-params:0.1:REPOSITORY_B ; rebuild:0.10:IMAGE|
 
 ## Available params from tasks
 ### buildah-oci-ta:0.10 task parameters
@@ -111,6 +111,11 @@ nothing to do with real non-determinism.
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
+### verify-distinct-repositories:0.1 task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|REPOSITORY_A| First repository to compare.| None| '$(params.image-repository)'|
+|REPOSITORY_B| Second repository to compare.| None| '$(params.verify-repository)'|
 ### verify-reproducibility:0.1 task parameters
 |name|description|default value|already set by|
 |---|---|---|---|

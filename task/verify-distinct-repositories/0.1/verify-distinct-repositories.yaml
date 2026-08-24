@@ -1,0 +1,42 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-distinct-repositories
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.21.0
+    tekton.dev/tags: security, reproducibility
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |
+    Fails if REPOSITORY_A and REPOSITORY_B are the same string. Meant to
+    run before a rebuild that pushes to REPOSITORY_B, to catch the case
+    where it was accidentally set to the same repository as the image
+    being verified in REPOSITORY_A (see the verify-reproducibility
+    pipeline, ADR-0069).
+  params:
+    - name: REPOSITORY_A
+      description: First repository to compare.
+      type: string
+    - name: REPOSITORY_B
+      description: Second repository to compare.
+      type: string
+  steps:
+    - name: verify
+      image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+      env:
+        - name: PARAM_REPOSITORY_A
+          value: $(params.REPOSITORY_A)
+        - name: PARAM_REPOSITORY_B
+          value: $(params.REPOSITORY_B)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        if [ "$PARAM_REPOSITORY_A" = "$PARAM_REPOSITORY_B" ]; then
+          echo "ERROR: REPOSITORY_A and REPOSITORY_B must be different (both are '${PARAM_REPOSITORY_A}')." >&2
+          exit 1
+        fi
+
+        echo "OK: '${PARAM_REPOSITORY_A}' and '${PARAM_REPOSITORY_B}' are different repositories."
