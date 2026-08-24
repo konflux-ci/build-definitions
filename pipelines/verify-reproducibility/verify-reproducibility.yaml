@@ -150,7 +150,40 @@ spec:
     - name: REBUILT_IMAGE_REF
       value: $(tasks.rebuild.results.IMAGE_REF)
   tasks:
+    - name: validate-params
+      params:
+        - name: IMAGE_REPOSITORY
+          value: $(params.image-repository)
+        - name: VERIFY_REPOSITORY
+          value: $(params.verify-repository)
+      taskSpec:
+        params:
+          - name: IMAGE_REPOSITORY
+          - name: VERIFY_REPOSITORY
+        steps:
+          - name: validate
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            env:
+              - name: IMAGE_REPOSITORY
+                value: $(params.IMAGE_REPOSITORY)
+              - name: VERIFY_REPOSITORY
+                value: $(params.VERIFY_REPOSITORY)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # if these match, the rebuild would overwrite the verified
+              # image's own signature and SBOM/attestation tags. fail here,
+              # before the rebuild runs, so that never happens.
+              if [ "$IMAGE_REPOSITORY" = "$VERIFY_REPOSITORY" ]; then
+                echo "ERROR: verify-repository must be different from image-repository (both are '${IMAGE_REPOSITORY}')." >&2
+                echo "Pushing the rebuild into the same repo as the image being verified would" >&2
+                echo "overwrite that image's own signature and SBOM/attestation tags." >&2
+                exit 1
+              fi
     - name: rebuild
+      runAfter:
+        - validate-params
       params:
         - name: IMAGE
           value: $(params.verify-repository):verify-$(context.pipelineRun.uid)

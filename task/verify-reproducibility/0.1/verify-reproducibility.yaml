@@ -66,20 +66,24 @@ spec:
         fi
 
         note="original=${PARAM_ORIGINAL_IMAGE_REF} rebuilt=${PARAM_REBUILT_IMAGE_REF}"
-        test_entry=$(printf '{"name":"digest-comparison","result":"%s","note":"%s"}' "$result" "$note")
 
-        test_output=$(cat <<EOF
-        {
-          "result": "$result",
-          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-          "namespace": "reproducibility",
-          "successes": $successes,
-          "failures": $failures,
-          "warnings": 0,
-          "tests": [$test_entry]
-        }
-        EOF
-        )
+        # build the JSON with jq instead of hand-quoting it, so we never have
+        # to think about escaping whatever ends up in the image refs
+        test_output=$(jq -n \
+          --arg result "$result" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --argjson successes "$successes" \
+          --argjson failures "$failures" \
+          --arg note "$note" \
+          '{
+            result: $result,
+            timestamp: $timestamp,
+            namespace: "reproducibility",
+            successes: $successes,
+            failures: $failures,
+            warnings: 0,
+            tests: [{name: "digest-comparison", result: $result, note: $note}]
+          }')
 
         # A mismatch is a real, useful answer, not a task failure - so we
         # don't exit non-zero for it. We only bail out above when a ref

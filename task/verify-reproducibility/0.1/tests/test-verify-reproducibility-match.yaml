@@ -42,8 +42,9 @@ spec:
                 exit 1
               fi
 
-              if ! echo "$TEST_OUTPUT" | grep -q '"result": "SUCCESS"'; then
-                echo "ERROR: expected TEST_OUTPUT to report SUCCESS, got: $TEST_OUTPUT"
+              actual_result=$(echo "$TEST_OUTPUT" | jq -r '.result')
+              if [ "$actual_result" != "SUCCESS" ]; then
+                echo "ERROR: expected TEST_OUTPUT.result=SUCCESS, got: $actual_result"
                 exit 1
               fi
 

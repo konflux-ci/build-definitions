@@ -44,8 +44,9 @@ spec:
                 exit 1
               fi
 
-              if ! echo "$TEST_OUTPUT" | grep -q '"result": "FAILURE"'; then
-                echo "ERROR: expected TEST_OUTPUT to report FAILURE, got: $TEST_OUTPUT"
+              actual_result=$(echo "$TEST_OUTPUT" | jq -r '.result')
+              if [ "$actual_result" != "FAILURE" ]; then
+                echo "ERROR: expected TEST_OUTPUT.result=FAILURE, got: $actual_result"
                 exit 1
               fi
 
