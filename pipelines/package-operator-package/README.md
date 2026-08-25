@@ -257,6 +257,7 @@ The process of how a pko package is defined and packaged is documented [here](ht
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
+|SCAN_LOG| Diagnostic log from the RPM scan (e.g. selective extraction info).| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### sast-shell-check task results
 |name|description|used in params (taskname:taskparam)

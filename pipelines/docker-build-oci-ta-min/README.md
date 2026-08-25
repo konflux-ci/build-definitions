@@ -277,6 +277,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
+|SCAN_LOG| Diagnostic log from the RPM scan (e.g. selective extraction info).| |
 |TEST_OUTPUT| Tekton task test output.| |
 ### sast-shell-check-oci-ta-min task results
 |name|description|used in params (taskname:taskparam)
