@@ -16,8 +16,7 @@
 #                   `quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest`
 # OUTPUT_IMAGE    - Conftest OCI bundle to write the trusted task list to, defaults
 #                   to `$INPUT_IMAGE`
-# QUAY_NAMESPACES - Quay namespaces to query for Task bundles (defaults to
-#                   `redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog`)
+# QUAY_NAMESPACES - Quay namespaces to query for Task bundles (defaults to `konflux-ci/tekton-catalog`)
 # TASK_MATCH      - If set, only update tasks that match the specified task name.
 #                   Use this to save time if you know a particular task is missing.
 
@@ -26,9 +25,7 @@ set -o nounset
 set -o pipefail
 
 mapfile -td ' ' COLLECT < <(echo -n "${COLLECT:-git oci}")
-mapfile -td ' ' QUAY_NAMESPACES < <(
-    echo -n "${QUAY_NAMESPACES:-"redhat-appstudio-tekton-catalog konflux-ci/tekton-catalog"}"
-)
+mapfile -td ' ' QUAY_NAMESPACES < <(echo -n "${QUAY_NAMESPACES:-"konflux-ci/tekton-catalog"}")
 
 INPUT_IMAGE=${INPUT_IMAGE:-quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest}
 OUTPUT_IMAGE=${OUTPUT_IMAGE:-$INPUT_IMAGE}
