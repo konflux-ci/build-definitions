@@ -1,6 +1,6 @@
 # update-infra-deployments task
 
-Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' parameter, generates pull-request for redhat-appstudio/infra-deployments repository.
+Clones konflux-ci/infra-deployments repository, runs script in 'SCRIPT' parameter, generates pull-request for konflux-ci/infra-deployments repository.
 
 
 ## Parameters
@@ -9,7 +9,7 @@ Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' pa
 |SCRIPT|Bash script for changing the infra-deployments||true|
 |ORIGIN_REPO|URL of github repository which was built by the Pipeline||true|
 |REVISION|Git reference which was built by the Pipeline||true|
-|TARGET_GH_REPO|GitHub repository of the infra-deployments code|redhat-appstudio/infra-deployments|false|
+|TARGET_GH_REPO|GitHub repository of the infra-deployments code|konflux-ci/infra-deployments|false|
 |GIT_IMAGE|Deprecated. Has no effect. Will be removed in the future.|""|false|
 |SCRIPT_IMAGE|Deprecated. Has no effect. Will be removed in the future.|""|false|
 |shared-secret|secret in the namespace which contains private key for the GitHub App|infra-deployments-pr-creator|false|
