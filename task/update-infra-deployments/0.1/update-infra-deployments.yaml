@@ -9,7 +9,7 @@ metadata:
   name: update-infra-deployments
 spec:
   description: |
-    Clones redhat-appstudio/infra-deployments repository, runs script in 'SCRIPT' parameter, generates pull-request for redhat-appstudio/infra-deployments repository.
+    Clones konflux-ci/infra-deployments repository, runs script in 'SCRIPT' parameter, generates pull-request for konflux-ci/infra-deployments repository.
   params:
     - name: SCRIPT
       description: Bash script for changing the infra-deployments
@@ -19,7 +19,7 @@ spec:
       description: Git reference which was built by the Pipeline
     - name: TARGET_GH_REPO
       description: GitHub repository of the infra-deployments code
-      default: redhat-appstudio/infra-deployments
+      default: konflux-ci/infra-deployments
     - name: GIT_IMAGE
       description: Deprecated. Has no effect. Will be removed in the future.
       default: ""
@@ -153,7 +153,7 @@ spec:
 
         git clone "https://github.com/${TARGET_GH_REPO}.git" cloned
     - name: run-update-script
-      image: quay.io/redhat-appstudio/update-infra-deployments-task-script-image@sha256:2748f1a4f1af4e35214745aed4e56a9d06f6bdbd30572e7ade13729e67f23cc9
+      image: quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b
       volumeMounts:
         - name: shared-dir
           mountPath: /shared
