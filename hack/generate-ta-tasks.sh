@@ -21,7 +21,8 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 TASK_DIR="$(realpath "${ROOT_DIR}/task")"
 TRUSTED_ARTIFACTS="task-generator/trusted-artifacts"
 
-tashdir="$(mktemp --dry-run)"
+tashdir="$(mktemp -d)"
+trap 'rm -rf "${tashdir}"' EXIT
 if [[ -d "${TRUSTED_ARTIFACTS}" ]]; then
     tashbin=${tashdir}/trusted-artifacts
     GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -C "${TRUSTED_ARTIFACTS}" -o "${tashbin}"
@@ -34,7 +35,6 @@ else
     fi
     tashbin=${bin[0]}
 fi
-trap 'rm -r "${tashdir}"' EXIT
 
 tash() {
   "${tashbin}" "$@"
@@ -61,7 +61,8 @@ fi
 
 cd "${TASK_DIR}"
 for recipe_path in **/recipe.yaml; do
-    task_path="${recipe_path%/recipe.yaml}/$(basename "${recipe_path%/*/*}").yaml"
+    task_name="${recipe_path%%/*}"
+    task_path="${recipe_path%/*}/${task_name}.yaml"
     sponge=$(tash "${TASK_DIR}/${recipe_path}")
     echo "${sponge}" > "${task_path}"
     readme_path="${recipe_path%/recipe.yaml}/README.md"

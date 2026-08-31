@@ -10,4 +10,13 @@ echo '{"auths":{}}' | kubectl create secret generic dummy-secret \
   --type=kubernetes.io/dockerconfigjson \
   -n "$TEST_NS" --dry-run=client -o yaml | kubectl apply -f - -n "$TEST_NS"
 
-echo "Pre-requirements setup complete" 
+# Kind registry TLS is not reliably trusted via the mounted trusted-ca bundle
+# under deploy-local CI. Opt the task into insecure registry mode for tests only.
+yq -i '
+  .spec.stepTemplate.env = (.spec.stepTemplate.env // []) + [
+    {"name": "INSECURE_REGISTRY", "value": "true"},
+    {"name": "ORAS_OPTIONS", "value": "--insecure"}
+  ]
+' "$TASK_COPY"
+
+echo "Pre-requirements setup complete"

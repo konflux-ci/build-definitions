@@ -66,6 +66,7 @@ The following is the list of supported options:
 | `removeVolumes`      | sequence of strings                              | Names of Task Volumes to remove |
 | `removeWorkspaces`   | sequence of strings                              | Names of Workspaces to remove |
 | `replacements`       | map of strings keys and string values            | Replacements to perform, keys will be replaced with the values |
+| `stepWhen`           | map of string keys and sequence of when expression values | Attach Tekton step `when` expressions to steps by name |
 | `suffix`             | string                                           | Additional text to place to the Task name from the non-Trusted Artifacts Task to the Trusted Artifacts Task (default: `"-oci-ta"`) |
 
 #### Additional steps

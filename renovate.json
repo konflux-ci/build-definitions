@@ -25,35 +25,37 @@
       ]
     },
     {
+      "groupName": "e2e-tests",
+      "matchPackageNames": [
+        "quay.io/redhat-user-workloads/konflux-qe-team-tenant/konflux-e2e/konflux-e2e-tests"
+      ],
+      "matchFileNames": [
+        ".tekton/tasks/e2e-test.yaml"
+      ]
+    },
+    {
       "groupName": "build",
       "matchFileNames": [
         "external-task/apply-tags/**",
+        "external-task/build-image-index-min/**",
+        "external-task/build-image-index/**",
+        "external-task/buildah-oci-ta-min/**",
+        "external-task/buildah-oci-ta/**",
+        "external-task/buildah-remote-oci-ta/**",
+        "external-task/buildah-remote/**",
+        "external-task/buildah/**",
+        "external-task/git-clone-oci-ta-min/**",
+        "external-task/git-clone-oci-ta/**",
+        "external-task/git-clone/**",
         "external-task/init/**",
         "external-task/push-dockerfile-oci-ta/**",
         "external-task/push-dockerfile/**",
         "external-task/source-build-oci-ta/**",
         "external-task/source-build/**",
-        "task/apply-tags/**",
-        "task/build-image-index-min/**",
-        "task/build-image-index/**",
-        "task/build-image-manifest/**",
-        "task/buildah-oci-ta-min/**",
-        "task/buildah-oci-ta/**",
-        "task/buildah-remote-oci-ta/**",
-        "task/buildah-remote/**",
-        "task/buildah/**",
         "task/generate-labels/**",
-        "task/git-clone-oci-ta-min/**",
-        "task/git-clone-oci-ta/**",
-        "task/git-clone/**",
-        "task/pnc-prebuild-git-clone-oci-ta/**",
-        "task/push-dockerfile-oci-ta/**",
-        "task/push-dockerfile/**",
         "task/show-sbom/**",
         "task/slack-webhook-notification-oci-ta/**",
         "task/slack-webhook-notification/**",
-        "task/source-build-oci-ta/**",
-        "task/source-build/**",
         "task/summary/**",
         "task/update-infra-deployments/**"
       ]
@@ -63,10 +65,7 @@
       "matchFileNames": [
         "external-task/prefetch-dependencies-oci-ta-min/**",
         "external-task/prefetch-dependencies-oci-ta/**",
-        "external-task/prefetch-dependencies/**",
-        "task/prefetch-dependencies-oci-ta-min/**",
-        "task/prefetch-dependencies-oci-ta/**",
-        "task/prefetch-dependencies/**"
+        "external-task/prefetch-dependencies/**"
       ]
     },
     {
@@ -85,31 +84,9 @@
         "external-task/clair-scan/**",
         "external-task/clamav-scan-min/**",
         "external-task/clamav-scan/**",
-        "external-task/coverity-availability-check/**",
         "external-task/deprecated-image-check/**",
-        "external-task/fbc-fips-check-matrix-based-oci-ta/**",
-        "external-task/fbc-fips-check-oci-ta/**",
-        "external-task/fbc-fips-check/**",
-        "external-task/fbc-fips-prepare-oci-ta/**",
-        "external-task/fbc-target-index-pruning-check/**",
-        "external-task/fips-operator-bundle-check-oci-ta/**",
-        "external-task/fips-operator-bundle-check/**",
-        "external-task/github-sarif-upload/**",
         "external-task/roxctl-scan/**",
-        "external-task/run-opm-command-oci-ta/**",
-        "external-task/sast-coverity-check-oci-ta/**",
-        "external-task/sast-coverity-check/**",
-        "external-task/sast-shell-check-oci-ta-min/**",
-        "external-task/sast-shell-check-oci-ta/**",
-        "external-task/sast-shell-check/**",
-        "external-task/sast-snyk-check-oci-ta/**",
-        "external-task/sast-snyk-check/**",
-        "external-task/sast-unicode-check-oci-ta-min/**",
-        "external-task/sast-unicode-check-oci-ta/**",
-        "external-task/sast-unicode-check/**",
         "external-task/tpa-scan/**",
-        "external-task/validate-fbc/**",
-        "stepactions/fips-operator-check-step-action/**",
         "task/sbom-json-check/**"
       ]
     },
@@ -279,6 +256,39 @@
         "task/package-operator-package-oci-ta/**",
         "task/package-operator-package/**"
       ]
+    },
+    {
+      "groupName": "sast",
+      "matchFileNames": [
+        "external-task/coverity-availability-check/**",
+        "external-task/sast-coverity-check-oci-ta/**",
+        "external-task/sast-coverity-check/**",
+        "external-task/sast-shell-check-oci-ta-min/**",
+        "external-task/sast-shell-check-oci-ta/**",
+        "external-task/sast-shell-check/**",
+        "external-task/sast-snyk-check-oci-ta/**",
+        "external-task/sast-snyk-check/**",
+        "external-task/sast-unicode-check-oci-ta-min/**",
+        "external-task/sast-unicode-check-oci-ta/**",
+        "external-task/sast-unicode-check/**"
+      ]
+    },
+    {
+      "groupName": "operator",
+      "matchFileNames": [
+        "external-task/fbc-fips-check-matrix-based-oci-ta/**",
+        "external-task/fbc-fips-check-oci-ta/**",
+        "external-task/fbc-fips-check/**",
+        "external-task/fbc-fips-prepare-oci-ta/**",
+        "external-task/fbc-inject-lifecycle-oci-ta/**",
+        "external-task/fbc-target-index-pruning-check/**",
+        "external-task/fips-operator-bundle-check-oci-ta/**",
+        "external-task/fips-operator-bundle-check/**",
+        "external-task/github-sarif-upload/**",
+        "external-task/run-opm-command-oci-ta/**",
+        "external-task/validate-fbc/**",
+        "stepactions/fips-operator-check-step-action/**"
+      ]
     }
   ],
   "postUpdateOptions": [
@@ -302,11 +312,11 @@
         "^external-task/.*/.*/.*\\.yaml$"
       ],
       "matchStrings": [
-        "task_bundle: (?<depName>quay\\.io/konflux-ci/(?:konflux-vanguard|tekton-catalog)/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+        "(?:# renovate: bumpVersion=(?<bumpVersion>true|false)\\s)?task_bundle: (?<depName>quay\\.io/konflux-ci/(?:konflux-vanguard|tekton-catalog)/[^:]+):(?<currentValue>[^@]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
-      "autoReplaceStringTemplate": "task_bundle: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker",
-      "extractVersionTemplate": "{{currentValue}}"
+      "versioningTemplate": "semver-coerced",
+      "extractVersionTemplate": "{{#unless (equals bumpVersion 'true')}}{{currentValue}}{{/unless}}"
     },
     {
       "customType": "regex",
@@ -355,6 +365,16 @@
       "autoReplaceStringTemplate": "image: {{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "redhat"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "\\.go$"
+      ],
+      "matchStrings": [
+        "(?<depName>quay\\.io/conforma/tekton-task):(?<currentValue>[a-zA-Z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "ignorePaths": [

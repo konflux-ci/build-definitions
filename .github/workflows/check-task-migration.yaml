@@ -16,26 +16,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Create k8s Kind Cluster
-        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           cluster_name: kind
-      - uses: tektoncd/actions/setup-tektoncd@main
-        id: setup-tektoncd
+      - uses: tektoncd/actions/setup-tektoncd@2b126ef971bbfda195d8a6c9b7c4eb3bfda452bf # main
         with:
-          pipeline_version: latest
-        continue-on-error: true
-      - name: Describe setup-tektoncd failure
-        if: steps.setup-tektoncd.outcome != 'success'
-        run: |
-          curl -s https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq
-          echo "The previous action setup-tektoncd seems to have failed due to a known issue caused by hitting the rate-limit"
-          echo "For more information, follow the following issue: https://github.com/tektoncd/actions/issues/9"
-          echo "The only known workaround at the moment is to re-run this workflow."
-          exit 1
+          pipeline_version: v1.14.0
       - name: Run check
         run: |
           DEBIAN_FRONTEND=noninteractive \

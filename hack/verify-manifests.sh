@@ -1,4 +1,5 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
 
 # <TEMPLATED FILE!>
 # This file comes from the templates at https://github.com/konflux-ci/task-repo-shared-ci.

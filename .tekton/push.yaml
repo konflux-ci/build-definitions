@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/git-clone/0.2/git-clone.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
+    pipelinesascode.tekton.dev/task: "[task/update-infra-deployments/0.1/update-infra-deployments.yaml, task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -41,7 +41,14 @@ spec:
           - name: depth
             value: "0"
         taskRef:
-          name: git-clone
+          resolver: bundles
+          params:
+            - name: bundle
+              value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.4@sha256:bb787553da840e226ea72147a7ccbe8553f887efef2ca24664c9ba2052018adf
+            - name: name
+              value: git-clone
+            - name: kind
+              value: task
         workspaces:
           - name: output
             workspace: workspace
@@ -89,31 +96,6 @@ spec:
                 set -e
                 git config --global --add safe.directory "$PWD"
                 ./hack/build-and-push.sh
-            - name: build-bundles-redhat-appstudio
-              image: "$(params.image-target)"
-              workingDir: $(workspaces.source.path)/source
-              env:
-                - name: QUAY_NAMESPACE
-                  value: redhat-appstudio-tekton-catalog
-                - name: BUILD_TAG
-                  value: "$(params.revision)"
-                - name: SKIP_BUILD
-                  value: "1"
-                - name: SKIP_INSTALL
-                  value: "1"
-                - name: OUTPUT_TASK_BUNDLE_LIST
-                  value: $(workspaces.source.path)/task-bundle-list-appstudio
-                - name: OUTPUT_PIPELINE_BUNDLE_LIST
-                  value: $(workspaces.source.path)/pipeline-bundle-list-appstudio
-              script: |
-                #!/bin/bash
-                set -e
-                git config --global --add safe.directory "$PWD"
-                ./hack/build-and-push.sh
-              volumeMounts:
-                - mountPath: /home/taskuser/.docker/config.json
-                  subPath: .dockerconfigjson
-                  name: quay-secret
             - name: update-acceptable-bundles
               image: "$(params.image-target)"
               workingDir: $(workspaces.source.path)/source
@@ -151,12 +133,6 @@ spec:
               args:
                 - $(workspaces.source.path)/task-bundle-list-konflux-ci
                 - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
-                - $(workspaces.source.path)/task-bundle-list-appstudio
-                - $(workspaces.source.path)/pipeline-bundle-list-appstudio
-          volumes:
-          - name: quay-secret
-            secret:
-              secretName: redhat-appstudio-tekton-catalog-build-definitions-pull-secret
           workspaces:
             - name: source
 

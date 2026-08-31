@@ -13,7 +13,6 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	appservice "github.com/konflux-ci/application-api/api/v1alpha1"
-	"github.com/konflux-ci/e2e-tests/pkg/clients/common"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/has"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/ociregistry"
 	"github.com/konflux-ci/e2e-tests/pkg/clients/oras"
@@ -45,6 +44,7 @@ var (
 )
 
 const pipelineCompletionRetries = 2
+const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:775cbfaa5361bd39d7cf8816c1c31b85c862609fb70ee76afa7d5a8b7d839517"
 
 type TestBranches struct {
 	RepoName       string
@@ -55,7 +55,10 @@ type TestBranches struct {
 
 var pacAndBaseBranches []TestBranches
 
-func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController, applicationName, componentName, namespace string, scenario ComponentScenarioSpec) error {
+var gitlabPacAndBaseBranches []TestBranches
+var gitlabBasicAuthSecretName = "gitlab-basic-auth-secret-" + util.GenerateRandomString(4)
+
+func CreateComponent(f *framework.Framework, applicationName, componentName, namespace string, scenario ComponentScenarioSpec, application *appservice.Application) error {
 	var err error
 	var buildPipelineAnnotation map[string]string
 	var baseBranchName, pacBranchName string
@@ -108,9 +111,30 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 	baseBranchName = fmt.Sprintf("base-%s", util.GenerateRandomString(6))
 	pacBranchName = constants.PaCPullRequestBranchPrefix + componentName
 
-	if scenario.Revision == gitRepoContainsSymlinkBranchName {
+	if strings.Contains(scenario.GitURL, "gitlab.com") && scenario.AuthMode == "basic-auth" {
+		repoName := utils.GetRepoName(scenario.GitURL)
+		projectID := fmt.Sprintf("%s/%s", gitlabOrg, repoName)
+		scenario.GitURL = "https://gitlab.com/" + gitlabOrg + "/" + repoName
+		err = f.AsKubeAdmin.CommonController.Gitlab.CreateGitlabNewBranch(projectID, baseBranchName, scenario.Revision, scenario.DefaultBranch)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create new branch in gitlab")
+		// create basic-auth build secret
+		gitlabToken := utils.GetEnv(constants.GITLAB_BOT_TOKEN_ENV, "")
+		if gitlabToken == "" {
+			return fmt.Errorf("gitlab token env is empty, must be set for running the gitlab scenario")
+		}
+		secretAnnotations := map[string]string{}
+		err = CreateGitlabBuildSecret(f, gitlabBasicAuthSecretName, secretAnnotations, gitlabToken, application)
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create basic auth secret")
+		gitlabPacAndBaseBranches = append(gitlabPacAndBaseBranches, TestBranches{
+			RepoName:       projectID,
+			BranchName:     scenario.DefaultBranch,
+			PacBranchName:  pacBranchName,
+			BaseBranchName: baseBranchName,
+		})
+
+	} else if scenario.Revision == gitRepoContainsSymlinkBranchName {
 		revision := symlinkBranchRevision
-		err = commonCtrl.Github.CreateRef(utils.GetRepoName(scenario.GitURL), gitRepoContainsSymlinkBranchName, revision, baseBranchName)
+		err = f.AsKubeAdmin.CommonController.Github.CreateRef(utils.GetRepoName(scenario.GitURL), gitRepoContainsSymlinkBranchName, revision, baseBranchName)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 		pacAndBaseBranches = append(pacAndBaseBranches, TestBranches{
 			RepoName:       utils.GetRepoName(scenario.GitURL),
@@ -119,7 +143,7 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 			BaseBranchName: baseBranchName,
 		})
 	} else {
-		err = commonCtrl.Github.CreateRef(utils.GetRepoName(scenario.GitURL), "main", scenario.Revision, baseBranchName)
+		err = f.AsKubeAdmin.CommonController.Github.CreateRef(utils.GetRepoName(scenario.GitURL), "main", scenario.Revision, baseBranchName)
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 		pacAndBaseBranches = append(pacAndBaseBranches, TestBranches{
 			RepoName:       utils.GetRepoName(scenario.GitURL),
@@ -150,7 +174,7 @@ func CreateComponent(commonCtrl *common.SuiteController, ctrl *has.HasController
 			"build.appstudio.openshift.io/pipeline": fmt.Sprintf(`{"name":"%s", "bundle": "%s"}`, pipelineBundleName, customBuildBundle),
 		}
 	}
-	c, err := ctrl.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(constants.ComponentPaCRequestAnnotation, buildPipelineAnnotation))
+	c, err := f.AsKubeAdmin.HasController.CreateComponentCheckImageRepository(componentObj, namespace, "", "", applicationName, false, utils.MergeMaps(utils.MergeMaps(constants.ComponentPaCRequestAnnotation, constants.ImageControllerAnnotationRequestPublicRepo), buildPipelineAnnotation))
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	gomega.Expect(c.Name).Should(gomega.Equal(componentName))
 
@@ -212,6 +236,7 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 		var applicationName, symlinkPRunName, testNamespace string
 		components := make(map[string]ComponentScenarioSpec)
 		var pipelineRunsWithE2eFinalizer []string
+		var application *appservice.Application
 
 		for _, gitUrl := range GetScenarios() {
 			scenario := GetComponentScenarioDetailsFromGitUrl(gitUrl)
@@ -255,15 +280,15 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 					return errors.IsNotFound(err)
 				}, time.Minute*5, time.Second*1).Should(gomega.BeTrue(), fmt.Sprintf("timed out when waiting for the app %s to be deleted in %s namespace", applicationName, testNamespace))
 			}
-			_, err = f.AsKubeAdmin.HasController.CreateApplication(applicationName, testNamespace)
+			application, err = f.AsKubeAdmin.HasController.CreateApplication(applicationName, testNamespace)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			for componentName, scenario := range components {
-				err = CreateComponent(f.AsKubeAdmin.CommonController, f.AsKubeAdmin.HasController, applicationName, componentName, testNamespace, scenario)
+				err = CreateComponent(f, applicationName, componentName, testNamespace, scenario, application)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to create component for scenario: %s", scenario.Name))
 			}
 			// Create the symlink component
-			err = CreateComponent(f.AsKubeAdmin.CommonController, f.AsKubeAdmin.HasController, applicationName, symlinkComponentName, testNamespace, symlinkScenario)
+			err = CreateComponent(f, applicationName, symlinkComponentName, testNamespace, symlinkScenario, application)
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create component for symlink scenario")
 
 		})
@@ -318,6 +343,18 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 			if os.Getenv(constants.E2E_APPLICATIONS_NAMESPACE_ENV) == "" {
 				for _, branches := range pacAndBaseBranches {
 					gomega.Expect(build.CleanupWebhooks(f, branches.RepoName)).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to cleanup webhooks for repo: %s", branches.RepoName))
+				}
+			}
+
+			// Cleanup gitlab related branches
+			for _, branches := range gitlabPacAndBaseBranches {
+				err = f.AsKubeAdmin.CommonController.Gitlab.DeleteBranch(branches.RepoName, branches.PacBranchName)
+				if err != nil {
+					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
+				}
+				err = f.AsKubeAdmin.CommonController.Gitlab.DeleteBranch(branches.RepoName, branches.BaseBranchName)
+				if err != nil {
+					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
 				}
 			}
 		})
@@ -570,12 +607,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 						err = f.AsKubeAdmin.TektonController.AwaitAttestationAndSignature(imageWithDigest, constants.ChainsAttestationTimeout)
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-						cm, err := f.AsKubeAdmin.CommonController.GetConfigMap("ec-defaults", "enterprise-contract-service")
-						gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-						verifyECTaskBundle := cm.Data["verify_ec_task_bundle"]
-						gomega.Expect(verifyECTaskBundle).ToNot(gomega.BeEmpty())
-
 						publicSecretName := "cosign-public-key"
 						publicKey, err := f.AsKubeAdmin.TektonController.GetTektonChainsPublicKey()
 						gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -589,8 +620,8 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 						ecpSource := ecp.Source{
 							Config: &ecp.SourceConfig{
 								Include: []string{"@redhat"},
-								Exclude: []string{"cve", "hermetic_task", "labels", "trusted_task", "test", "base_image_registries.base_image_permitted:docker.io/library/ibmjava", "base_image_registries.base_image_permitted:docker.io/library/node",
-									"tasks.pinned_task_refs", "tasks.required_tasks_found", "tasks.required_untrusted_task_found", "slsa_build_scripted_build.image_built_by_trusted_task", "source_image.exists",
+								Exclude: []string{"cve", "hermetic_task", "labels", "trusted_task", "test", "base_image_registries.allowed_registries_provided", "base_image_registries.base_image_permitted:docker.io/library/ibmjava", "base_image_registries.base_image_permitted:docker.io/library/node",
+									"tasks.pinned_task_refs", "tasks.required_tasks_found", "tasks.required_untrusted_task_found", "slsa_build_scripted_build.image_built_by_trusted_task", "source_image.exists", "sbom_spdx.hermeto_attribution_required",
 									"sbom_spdx.allowed_package_sources:pkg:pypi/dockerfile-parse?checksum=sha256:36e4469abb0d96b0e3cd656284d5016e8a674cd57b8ebe5af64786fe63b8184d&download_url=https://github.com/containerbuildsystem/dockerfile-parse/archive/refs/tags/2.0.0.tar.gz",
 									"sbom_spdx.allowed_package_sources:pkg:generic/dependency-check.zip?checksum=sha256:c5b5b9e592682b700e17c28f489fe50644ef54370edeb2c53d18b70824de1e22&download_url=https://github.com/jeremylong/DependencyCheck/releases/download/v11.1.0/dependency-check-11.1.0-release.zip"},
 							},

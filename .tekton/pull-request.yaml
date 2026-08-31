@@ -5,7 +5,7 @@ metadata:
   name: build-definitions-pull-request
   annotations:
     pipelinesascode.tekton.dev/on-cel-expression: (event == "pull_request" && target_branch == "main" && ( !has(body.pull_request) || !body.pull_request.draft) ) || (event == "push" && target_branch.startsWith("gh-readonly-queue/main/") && body.head_commit != "null" )
-    pipelinesascode.tekton.dev/task: "[task/git-clone/0.2/git-clone.yaml, .tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/task-lint.yaml, .tekton/tasks/e2e-test.yaml, .tekton/tasks/task-switchboard.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -27,7 +27,14 @@ spec:
     tasks:
       - name: clone-repository
         taskRef:
-          name: git-clone
+          resolver: bundles
+          params:
+            - name: bundle
+              value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.4@sha256:bb787553da840e226ea72147a7ccbe8553f887efef2ca24664c9ba2052018adf
+            - name: name
+              value: git-clone
+            - name: kind
+              value: task
         workspaces:
           - name: output
             workspace: workspace
@@ -208,37 +215,6 @@ spec:
           - task-switchboard
         taskRef:
           name: ec-checks
-        workspaces:
-          - name: source
-            workspace: workspace
-      - name: check-task-migration-md
-        when:
-          - input: "tasks"
-            operator: "in"
-            values: ["$(tasks.task-switchboard.results.bindings[*])"]
-        runAfter:
-          - task-switchboard
-        taskSpec:
-          steps:
-            - name: check-task-migration-md
-              image: registry.redhat.io/openshift4/ose-tools-rhel8:v4.12@sha256:c24dbe19be6cd9b2a8ab9a76f50607b123b75fcf8a3aeeed45ac91a7bde107a0
-              workingDir: $(workspaces.source.path)/source
-              script: |
-                #!/usr/bin/env bash
-                EXIT=0
-                for TASK_DIR in $(ls task); do
-                  # Do not check on initial version of task
-                  for VERSION in $(ls -d task/$TASK_DIR/*/ | sort --version-sort | tail -n+2); do
-                    MIGRATION_FILE=${VERSION}MIGRATION.md
-                    if [ ! -f $MIGRATION_FILE ]; then
-                       echo "Missing file $MIGRATION_FILE"
-                       EXIT=1
-                    fi
-                  done
-                done
-                exit $EXIT
-          workspaces:
-            - name: source
         workspaces:
           - name: source
             workspace: workspace

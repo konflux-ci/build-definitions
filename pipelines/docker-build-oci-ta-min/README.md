@@ -7,28 +7,31 @@ _Uses `buildah` to create a container image leveraging [trusted artifacts](https
 This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-docker-build-oci-ta?tab=tags)_
 
 ## Parameters
-|name|description|default value|used in (taskname:taskrefversion:taskparam)|
+|name|description|default value|used in (taskname:taskparam)|
 |---|---|---|---|
-|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:0.10:BUILD_ARGS|
-|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:0.10:BUILD_ARGS_FILE|
-|build-image-index| Add built image into an OCI image index| false| build-image-index:0.3:ALWAYS_BUILD_INDEX|
-|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:0.10:BUILDAH_FORMAT ; build-image-index:0.3:BUILDAH_FORMAT|
-|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:0.10:DOCKERFILE|
-|enable-cache-proxy| Enable cache proxy configuration| false| init:0.4:enable-cache-proxy|
-|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:0.3:enable-package-registry-proxy|
-|git-url| Source Repository URL| None| clone-repository:0.2:url|
-|hermetic| Execute the build with network isolation| false| build-container:0.10:HERMETIC|
-|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:0.2:ociArtifactExpiresAfter ; prefetch-dependencies:0.3:ociArtifactExpiresAfter ; build-container:0.10:IMAGE_EXPIRES_AFTER|
-|output-image| Fully Qualified Output Image| None| clone-repository:0.2:ociStorage ; prefetch-dependencies:0.3:ociStorage ; build-container:0.10:IMAGE ; build-image-index:0.3:IMAGE|
-|path-context| Path to the source code of an application's component from where to build image.| .| build-container:0.10:CONTEXT|
-|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:0.3:input ; build-container:0.10:PREFETCH_INPUT|
-|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:0.10:PRIVILEGED_NESTED|
-|revision| Revision of the Source Repository| | clone-repository:0.2:revision|
-|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:0.1:TARGET_DIRS ; sast-unicode-check:0.4:TARGET_DIRS|
+|build-args| Array of --build-arg values ("arg=value" strings) for buildah| []| build-container:BUILD_ARGS|
+|build-args-file| Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file| | build-container:BUILD_ARGS_FILE|
+|build-image-index| Add built image into an OCI image index| false| build-image-index:ALWAYS_BUILD_INDEX|
+|buildah-format| The format for the resulting image's mediaType. Valid values are oci or docker.| docker| build-container:BUILDAH_FORMAT ; build-image-index:BUILDAH_FORMAT|
+|dockerfile| Path to the Dockerfile inside the context specified by parameter path-context| Dockerfile| build-container:DOCKERFILE|
+|enable-cache-proxy| Enable cache proxy configuration| false| init:enable-cache-proxy|
+|enable-package-registry-proxy| Use the package registry proxy when prefetching dependencies| true| prefetch-dependencies:enable-package-registry-proxy|
+|git-url| Source Repository URL| None| clone-repository:url|
+|hermetic| Execute the build with network isolation| false| build-container:HERMETIC|
+|image-expires-after| Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.| | clone-repository:ociArtifactExpiresAfter ; prefetch-dependencies:ociArtifactExpiresAfter ; build-container:IMAGE_EXPIRES_AFTER|
+|omit-history| When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.| false| build-container:OMIT_HISTORY|
+|output-image| Fully Qualified Output Image| None| clone-repository:ociStorage ; prefetch-dependencies:ociStorage ; build-container:IMAGE ; build-image-index:IMAGE|
+|path-context| Path to the source code of an application's component from where to build image.| .| build-container:CONTEXT|
+|prefetch-input| Build dependencies to be prefetched| | prefetch-dependencies:input ; build-container:PREFETCH_INPUT|
+|privileged-nested| Whether to enable privileged mode, should be used only with remote VMs| false| build-container:PRIVILEGED_NESTED|
+|revision| Revision of the Source Repository| | clone-repository:revision|
+|rewrite-timestamp| When "true", clamp file modification times in the image layers to at most source-date-epoch. Does nothing unless source-date-epoch is set.| false| build-container:REWRITE_TIMESTAMP|
+|sast-target-dirs| Target directories in component's source code to scan with SAST tools. Multiple values should be separated with commas.| .| sast-shell-check:TARGET_DIRS ; sast-unicode-check:TARGET_DIRS|
 |skip-checks| Skip checks against built image| false| |
+|source-date-epoch| Sets the image created time and the SOURCE_DATE_EPOCH build argument. On its own, it does not change file timestamps inside the layers (set rewrite-timestamp to "true" for that). Leave empty to keep the actual build time.| | build-container:SOURCE_DATE_EPOCH|
 
 ## Available params from tasks
-### build-image-index-min:0.3 task parameters
+### build-image-index-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ALWAYS_BUILD_INDEX| Build an image index even if IMAGES is of length 1. Default true. If the image index generation is skipped, the task will forward values for params.IMAGES[0] to results.IMAGE_*. In order to properly set all results, use the repository:tag@sha256:digest format for the IMAGES parameter.| true| '$(params.build-image-index)'|
@@ -40,7 +43,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |TLSVERIFY| Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)| true| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from| trusted-ca| |
-### buildah-oci-ta-min:0.10 task parameters
+### buildah-oci-ta-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -70,12 +73,13 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |LABELS| Additional key=value labels that should be applied to the image| []| |
 |LOG_LEVEL| Log level for the build command.| info| |
 |NO_PROXY| Comma separated list of hosts or domains which should bypass the HTTP/HTTPS proxy.| ""| '$(tasks.init.results.no-proxy)'|
-|OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| |
+|OMIT_HISTORY| Omit build history information from the resulting image. Improves reproducibility by excluding timestamps and layer metadata.| false| '$(params.omit-history)'|
 |PREFETCH_INPUT| In case it is not empty, the prefetched content should be made available to the build.| ""| '$(params.prefetch-input)'|
 |PRIVILEGED_NESTED| Whether to enable privileged mode, should be used only with remote VMs| false| '$(params.privileged-nested)'|
 |PROXY_CA_TRUST_CONFIG_MAP_KEY| The name of the key in the ConfigMap that contains the proxy CA bundle data.| ca-bundle.crt| |
 |PROXY_CA_TRUST_CONFIG_MAP_NAME| The name of the ConfigMap to read proxy CA bundle data from.| caching-ca-bundle| |
-|REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| |
+|REWRITE_TIMESTAMP| Clamp mtime of all files to at most SOURCE_DATE_EPOCH. Does nothing if SOURCE_DATE_EPOCH is not defined.| false| '$(params.rewrite-timestamp)'|
+|RHSM_MOUNT_CA_CERTS| Mount /etc/rhsm/ca from the host machine into the build. Valid values are 'always', 'auto' (default), 'never'. Only effective if HERMETIC=false and ACTIVATION_KEY or ENTITLEMENT_SECRET is set.| auto| |
 |SBOM_SKIP_VALIDATION| Flag to enable or disable SBOM validation before save. Validation is optional - use this if you are experiencing performance issues.| true| |
 |SBOM_SOURCE_SCAN_ENABLED| Flag to enable or disable SBOM generation from source code. The scanner of the source code is enabled only for non-hermetic builds and can be disabled if the SBOM_SYFT_SELECT_CATALOGERS can't turn off catalogers that cause false positives on source code scanning.| true| |
 |SBOM_SYFT_SELECT_CATALOGERS| Extra option to customize Syft's default catalogers when generating SBOMs. The value corresponds to Syft's CLI flag --select-catalogers. The details about available catalogers can be found here: https://github.com/anchore/syft/wiki/Package-Cataloger-Selection| ""| |
@@ -84,7 +88,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |SKIP_SBOM_GENERATION| Skip SBOM-related operations. This will likely cause EC policies to fail if enabled| false| |
 |SKIP_UNUSED_STAGES| Whether to skip stages in Containerfile that seem unused by subsequent stages| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
-|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| |
+|SOURCE_DATE_EPOCH| Timestamp in seconds since Unix epoch for reproducible builds. Sets image created time and SOURCE_DATE_EPOCH build arg. Conflicts with BUILD_TIMESTAMP.| ""| '$(params.source-date-epoch)'|
 |SOURCE_URL| The image is built from this URL.| ""| '$(tasks.clone-repository.results.url)'|
 |SQUASH| Squash all new and previous layers added as a part of this build, as per --squash| false| |
 |STORAGE_DRIVER| Storage driver to configure for buildah| overlay| |
@@ -96,7 +100,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |YUM_REPOS_D_TARGET| Target path on the container in which yum repository files should be made available| /etc/yum.repos.d| |
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
-### clamav-scan-min:0.3 task parameters
+### clamav-scan-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -107,7 +111,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-digest| Image digest to scan.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |skip-upload| If true, skips uploading the results to the image registry. Useful for read-only tests.| false| |
-### deprecated-image-check:0.5 task parameters
+### deprecated-image-check task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |BASE_IMAGES_DIGESTS| Digests of base build images.| ""| |
@@ -117,7 +121,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_URL| Fully qualified image name.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |POLICY_DIR| Path to directory containing Conftest policies.| /project/repository/| |
 |POLICY_NAMESPACE| Namespace for Conftest policy.| required_checks| |
-### git-clone-oci-ta-min:0.2 task parameters
+### git-clone-oci-ta-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -141,13 +145,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |sslVerify| Set the `http.sslVerify` global git config. Setting this to `false` is not advised unless you are sure that you trust your git remote.| true| |
 |submodulePaths| Comma-separated list of specific submodule paths to initialize and fetch. Only submodules in the specified directories and their subdirectories will be fetched. Empty string fetches all submodules. Parameter "submodules" must be set to "true" to make this parameter applicable.| ""| |
 |submodules| Initialize and fetch git submodules.| true| |
+|symlinkCheckIgnorePattern| CSV list of path patterns to exclude from the symlink check. Symlinks whose paths match are not checked. Patterns are relative to the checkout directory and must not start with '/'. Use '*' and '?' as wildcards ('*' matches across '/'). Quote patterns containing commas using CSV double quotes. | ""| |
 |targetBranch| The target branch to merge into the revision (if mergeTargetBranch is true).| main| |
 |url| Repository URL to clone from.| None| '$(params.git-url)'|
-### init:0.4 task parameters
+### init task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |enable-cache-proxy| Enable cache proxy configuration| false| '$(params.enable-cache-proxy)'|
-### prefetch-dependencies-oci-ta-min:0.3 task parameters
+### prefetch-dependencies-oci-ta-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ACTIVATION_KEY| Name of secret which contains subscription activation key| activation-key| |
@@ -163,8 +168,9 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |mode| Control how input requirement violations are handled: strict (errors) or permissive (warnings).| strict| |
 |ociArtifactExpiresAfter| Expiration date for the trusted artifacts created in the OCI repository. An empty string means the artifacts do not expire.| ""| '$(params.image-expires-after)'|
 |ociStorage| The OCI repository where the Trusted Artifacts are stored.| None| '$(params.output-image).prefetch'|
+|pip-index-url| Python package index URL to use when prefetching pip dependencies. Used as a fallback when requirements.txt does not specify --index-url. When empty (default), the standard PyPI index is used.| ""| |
 |sbom-type| Select the SBOM format to generate. Valid values: spdx, cyclonedx.| spdx| |
-### rpms-signature-scan:0.2 task parameters
+### rpms-signature-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -172,7 +178,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |image-digest| Image digest to scan| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |workdir| Directory that will be used for storing temporary files produced by this task. | /tmp| |
-### sast-shell-check-oci-ta-min:0.1 task parameters
+### sast-shell-check-oci-ta-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
@@ -180,13 +186,14 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |KFP_GIT_URL| Known False Positives (KFP) git URL (optionally taking a revision delimited by \#). Defaults to "SITE_DEFAULT", which means the default value "https://gitlab.cee.redhat.com/osh/known-false-positives.git" for internal Konflux instance and empty string for external Konflux instance. If set to an empty string, the KFP filtering is disabled.| SITE_DEFAULT| |
 |PROJECT_NAME| Name of the scanned project, used to find path exclusions. By default, the Konflux component name will be used.| ""| |
 |RECORD_EXCLUDED| Whether to record the excluded findings (default to false). If `true`, the excluded findings will be stored in `excluded-findings.json`. | false| |
+|SKIP_JINJA| Whether to skip files containing Jinja2 template syntax ({{ }}, {% %}, {# #}). ShellCheck cannot parse Jinja2 constructs, so scanning such files produces unreliable findings.| true| |
 |SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| None| '$(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)'|
 |TARGET_DIRS| Target directories in component's source code. Multiple values should be separated with commas.| .| '$(params.sast-target-dirs)'|
 |caTrustConfigMapKey| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest to report findings for.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL.| ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### sast-unicode-check-oci-ta-min:0.4 task parameters
+### sast-unicode-check-oci-ta-min task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| ""| '$(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)'|
@@ -200,7 +207,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |caTrustConfigMapName| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-digest| Image digest used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Image URL used for ORAS upload.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
-### tpa-scan:0.1 task parameters
+### tpa-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
 |ca-trust-config-map-key| The name of the key in the ConfigMap that contains the CA bundle data.| ca-bundle.crt| |
@@ -219,68 +226,69 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |IMAGE_DIGEST| |$(tasks.build-image-index.results.IMAGE_DIGEST)|
 |IMAGE_URL| |$(tasks.build-image-index.results.IMAGE_URL)|
 ## Available results from tasks
-### build-image-index-min:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### build-image-index-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES| List of all referenced image manifests| |
-|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:0.5:IMAGE_DIGEST ; clamav-scan:0.3:image-digest ; sast-shell-check:0.1:image-digest ; sast-unicode-check:0.4:image-digest ; rpms-signature-scan:0.2:image-digest ; tpa-scan:0.1:image-digest|
+|IMAGE_DIGEST| Digest of the image just built| deprecated-base-image-check:IMAGE_DIGEST ; clamav-scan:image-digest ; sast-shell-check:image-digest ; sast-unicode-check:image-digest ; rpms-signature-scan:image-digest ; tpa-scan:image-digest|
 |IMAGE_REF| Image reference of the built image containing both the repository and the digest| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:0.5:IMAGE_URL ; clamav-scan:0.3:image-url ; sast-shell-check:0.1:image-url ; sast-unicode-check:0.4:image-url ; rpms-signature-scan:0.2:image-url ; tpa-scan:0.1:image-url|
+|IMAGE_URL| Image repository and tag where the built image was pushed| deprecated-base-image-check:IMAGE_URL ; clamav-scan:image-url ; sast-shell-check:image-url ; sast-unicode-check:image-url ; rpms-signature-scan:image-url ; tpa-scan:image-url|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### buildah-oci-ta-min:0.10 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### buildah-oci-ta-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGE_DIGEST| Digest of the image just built| |
 |IMAGE_REF| Image reference of the built image| |
-|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:0.3:IMAGES|
+|IMAGE_URL| Image repository and tag where the built image was pushed| build-image-index:IMAGES|
 |SBOM_BLOB_URL| Reference of SBOM blob digest to enable digest-based verification from provenance| |
-### clamav-scan-min:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### clamav-scan-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### deprecated-image-check:0.5 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### deprecated-image-check task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |TEST_OUTPUT| Tekton task test output.| |
-### git-clone-oci-ta-min:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### git-clone-oci-ta-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |CHAINS-GIT_COMMIT| The precise commit SHA that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
 |CHAINS-GIT_URL| The precise URL that was fetched by this Task. This result uses Chains type hinting to include in the provenance.| |
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:0.3:SOURCE_ARTIFACT|
-|commit| The precise commit SHA that was fetched by this Task.| build-container:0.10:COMMIT_SHA|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| prefetch-dependencies:SOURCE_ARTIFACT|
+|commit| The precise commit SHA that was fetched by this Task.| build-container:COMMIT_SHA|
 |commit-timestamp| The commit timestamp of the checkout| |
 |merged_sha| The SHA of the commit after merging the target branch (if the param mergeTargetBranch is true).| |
 |short-commit| Abbreviated commit SHA for the checkout. At least params.shortCommitLength characters; longer if Git requires more for uniqueness.| |
-|url| The precise URL that was fetched by this Task.| build-container:0.10:SOURCE_URL|
-### init:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+|url| The precise URL that was fetched by this Task.| build-container:SOURCE_URL|
+### init task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
-|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-container:0.10:HTTP_PROXY|
-|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-container:0.10:NO_PROXY|
-### prefetch-dependencies-oci-ta-min:0.3 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+|http-proxy| HTTP proxy URL for cache proxy (when enable-cache-proxy is true)| build-container:HTTP_PROXY|
+|no-proxy| NO_PROXY value for cache proxy (when enable-cache-proxy is true)| build-container:NO_PROXY|
+### prefetch-dependencies-oci-ta-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
-|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:0.10:CACHI2_ARTIFACT ; sast-shell-check:0.1:CACHI2_ARTIFACT ; sast-unicode-check:0.4:CACHI2_ARTIFACT|
-|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:0.10:SOURCE_ARTIFACT ; sast-shell-check:0.1:SOURCE_ARTIFACT ; sast-unicode-check:0.4:SOURCE_ARTIFACT|
-### rpms-signature-scan:0.2 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+|CACHI2_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the prefetched dependencies.| build-container:CACHI2_ARTIFACT ; sast-shell-check:CACHI2_ARTIFACT ; sast-unicode-check:CACHI2_ARTIFACT|
+|SOURCE_ARTIFACT| The Trusted Artifact URI pointing to the artifact with the application source code.| build-container:SOURCE_ARTIFACT ; sast-shell-check:SOURCE_ARTIFACT ; sast-unicode-check:SOURCE_ARTIFACT|
+### rpms-signature-scan task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |RPMS_DATA| Information about signed and unsigned RPMs| |
+|SCAN_LOG| Diagnostic log from the RPM scan (e.g. selective extraction info).| |
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-shell-check-oci-ta-min:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-shell-check-oci-ta-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### sast-unicode-check-oci-ta-min:0.4 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### sast-unicode-check-oci-ta-min task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |TEST_OUTPUT| Tekton task test output.| |
-### tpa-scan:0.1 task results
-|name|description|used in params (taskname:taskrefversion:taskparam)
+### tpa-scan task results
+|name|description|used in params (taskname:taskparam)
 |---|---|---|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |REPORTS| Mapping of image digests to report digests| |
@@ -290,15 +298,15 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ## Workspaces
 |name|description|optional|used in tasks
 |---|---|---|---|
-|git-auth| |True| clone-repository:0.2:basic-auth ; prefetch-dependencies:0.3:git-basic-auth|
-|netrc| |True| prefetch-dependencies:0.3:netrc|
+|git-auth| |True| clone-repository:basic-auth ; prefetch-dependencies:git-basic-auth|
+|netrc| |True| prefetch-dependencies:netrc|
 ## Available workspaces from tasks
-### git-clone-oci-ta-min:0.2 task workspaces
+### git-clone-oci-ta-min task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before any git commands are run. Any other files in this Workspace are ignored. It is strongly recommended to use ssh-directory over basic-auth whenever possible and to bind a Secret to this Workspace over other volume types. | True| git-auth|
 |ssh-directory| A .ssh directory with private key, known_hosts, config, etc. Copied to the user's home before git commands are executed. Used to authenticate with the git remote when performing the clone. Binding a Secret to this Workspace is strongly recommended over other volume types. | True| |
-### prefetch-dependencies-oci-ta-min:0.3 task workspaces
+### prefetch-dependencies-oci-ta-min task workspaces
 |name|description|optional|workspace from pipeline
 |---|---|---|---|
 |git-basic-auth| A Workspace containing a .gitconfig and .git-credentials file or username and password. These will be copied to the user's home before prefetch is run. Any other files in this Workspace are ignored. It is strongly recommended to bind a Secret to this Workspace over other volume types. | True| git-auth|

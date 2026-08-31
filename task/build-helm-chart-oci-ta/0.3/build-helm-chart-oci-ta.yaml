@@ -4,7 +4,7 @@ kind: Task
 metadata:
   name: build-helm-chart-oci-ta
   labels:
-    app.kubernetes.io/version: "0.3"
+    app.kubernetes.io/version: "0.3.1"
 spec:
   description: |-
     The task packages and pushes a Helm chart to an OCI repository.
@@ -101,7 +101,7 @@ spec:
         name: workdir
   steps:
     - name: use-trusted-artifact
-      image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
       args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
@@ -117,7 +117,7 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: package-and-push
-      image: quay.io/konflux-ci/tools@sha256:a188f7f1e5f23275ac76ba78e3494f14fc3c7a1c75991bb1cadb37e34693eca5
+      image: quay.io/konflux-ci/tools@sha256:2112b51ba80d1041c120c32b67b871d371fde4e5775b32a3c7bf01a2f9ec0964
       workingDir: /var/workdir
       env:
         - name: IMAGE
@@ -288,8 +288,8 @@ spec:
           while read -r repo_url; do
             if [ -n "$repo_url" ]; then
               proto=$(echo "$repo_url" | cut -d: -f1)
-              if [ "$proto" = "oci" ]; then
-                echo "Skipping adding helm repository for OCI dependency: $repo_url"
+              if [ "$proto" = "oci" ] || [ "$proto" = "file" ]; then
+                echo "Skipping adding helm repository for $proto dependency: $repo_url"
               else
                 http_repo_used=true
                 repo_name=$(echo "$repo_url" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*$||' | sed 's|\.|_|g')

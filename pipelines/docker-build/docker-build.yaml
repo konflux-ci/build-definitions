@@ -89,6 +89,22 @@ spec:
       VMs
     name: privileged-nested
     type: string
+  - default: ""
+    description: Sets the image created time and the SOURCE_DATE_EPOCH build argument.
+      On its own, it does not change file timestamps inside the layers (set rewrite-timestamp
+      to "true" for that). Leave empty to keep the actual build time.
+    name: source-date-epoch
+    type: string
+  - default: "false"
+    description: When "true", clamp file modification times in the image layers to
+      at most source-date-epoch. Does nothing unless source-date-epoch is set.
+    name: rewrite-timestamp
+    type: string
+  - default: "false"
+    description: When "true", omit the build history (history timestamps, layer metadata,
+      etc.) from the resulting image.
+    name: omit-history
+    type: string
   results:
   - name: IMAGE_URL
     value: $(tasks.build-image-index.results.IMAGE_URL)
@@ -106,7 +122,7 @@ spec:
     retries: 2
     taskRef:
       name: init
-      version: "0.4"
+      version: current
   - name: clone-repository
     params:
     - name: url
@@ -118,7 +134,7 @@ spec:
     - init
     taskRef:
       name: git-clone
-      version: "0.2"
+      version: current
     workspaces:
     - name: output
       workspace: workspace
@@ -134,7 +150,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies
-      version: "0.3"
+      version: current
     workspaces:
     - name: source
       workspace: workspace
@@ -173,11 +189,17 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
+    - name: REWRITE_TIMESTAMP
+      value: $(params.rewrite-timestamp)
+    - name: OMIT_HISTORY
+      value: $(params.omit-history)
     runAfter:
     - prefetch-dependencies
     taskRef:
       name: buildah
-      version: "0.10"
+      version: current
     workspaces:
     - name: source
       workspace: workspace
@@ -196,7 +218,7 @@ spec:
     - build-container
     taskRef:
       name: build-image-index
-      version: "0.3"
+      version: current
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
@@ -207,7 +229,7 @@ spec:
     - build-image-index
     taskRef:
       name: source-build
-      version: "0.3"
+      version: current
     when:
     - input: $(params.build-source-image)
       operator: in
@@ -351,7 +373,7 @@ spec:
     - build-image-index
     taskRef:
       name: apply-tags
-      version: "0.3"
+      version: current
   - name: push-dockerfile
     params:
     - name: IMAGE
@@ -366,7 +388,7 @@ spec:
     - build-image-index
     taskRef:
       name: push-dockerfile
-      version: "0.3"
+      version: current
     workspaces:
     - name: workspace
       workspace: workspace

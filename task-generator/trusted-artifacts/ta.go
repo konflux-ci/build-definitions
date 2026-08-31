@@ -372,5 +372,11 @@ func perform(task *pipeline.Task, recipe *Recipe) error {
 		task.Spec.Steps = slices.Insert(task.Spec.Steps, additional.At, additional.Step)
 	}
 
+	for i := range task.Spec.Steps {
+		if when, ok := recipe.StepWhen[task.Spec.Steps[i].Name]; ok {
+			task.Spec.Steps[i].When = when
+		}
+	}
+
 	return nil
 }

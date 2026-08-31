@@ -4,9 +4,7 @@
 #
 # - Normal tasks, which are written as Tekton Task resource.
 #
-# - kustomized tasks. A kustomized task is based on another task by
-#   kustomization, e.g. task pnc-prebuild-git-clone-oci-ta is based on task 
-#   git-clone-oci-ta.
+# - kustomized tasks. A kustomized task is based on another task by kustomization.
 #
 # Task are built and pushed to the registry as Tekton task bundles. There are
 # two kinds of tags in a single task bundle repository.
@@ -60,30 +58,8 @@ declare -r SKOPEO_ES_IMAGE_NOT_FOUND=2
 
 
 function is_official_repo() {
-    # match e.g.
-    #   redhat-appstudio-tekton-catalog
-    #   quay.io/redhat-appstudio-tekton-catalog/.*
-    #   konflux-ci/tekton-catalog
-    #   quay.io/konflux-ci/tekton-catalog/.*
-    grep -Eq '^(quay\.io/)?(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)(/.*)?$' <<< "$1"
-}
-
-function should_skip_repo() {
-    local -r quay_namespace="$1"
-    local -r repo_name="$2"
-
-    # only skip repos in the redhat-appstudio-tekton-catalog namespace
-    if [ "$quay_namespace" != redhat-appstudio-tekton-catalog ]; then
-        return 1
-    fi
-
-    local http_code
-    http_code=$(
-        curl -I -s -L -w "%{http_code}\n" -o /dev/null "https://quay.io/v2/${quay_namespace}/${repo_name}/tags/list"
-    )
-
-    # and only skip them if they don't already exist
-    [ "$http_code" != "200" ]
+    # match konflux-ci/tekton-catalog or quay.io/konflux-ci/tekton-catalog/.*
+    grep -Eq '^(quay\.io/)?konflux-ci/tekton-catalog(/.*)?$' <<< "$1"
 }
 
 : "${HERE:=}"
@@ -671,11 +647,6 @@ build_push_tasks() {
             continue
         fi
 
-        if should_skip_repo "$QUAY_NAMESPACE" "task-${task_name}"; then
-            echo "NOTE: not pushing task-$task_name:$task_version to $QUAY_NAMESPACE; the repo does not exist and $QUAY_NAMESPACE is deprecated"
-            continue
-        fi
-
         echo "info: build and push task $task_dir" 1>&2
 
         if is_normal_task "$task_dir" "$task_name";  then
@@ -766,11 +737,6 @@ if [ -n "$ENABLE_SOURCE_BUILD" ]; then
     for pipeline_yaml in "$GENERATED_PIPELINES_DIR"/*.yaml; do
         yq e '(.spec.params[] | select(.name == "build-source-image") | .default) = "true"' -i "$pipeline_yaml"
     done
-fi
-
-if [ "$QUAY_NAMESPACE" == redhat-appstudio-tekton-catalog ]; then
-    echo "NOTE: not pushing any pipelines to $QUAY_NAMESPACE; the namespace is deprecated"
-    exit 0
 fi
 
 # Build Pipeline bundle with pipelines pointing to newly built task bundles

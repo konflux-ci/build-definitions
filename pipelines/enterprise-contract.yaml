@@ -1,3 +1,9 @@
+# DEPRECATED: The source of truth for this pipeline has moved to:
+#   https://github.com/conforma/cli/blob/main/pipelines/enterprise-contract/0.1/enterprise-contract.yaml
+# It is also published to:
+#   https://github.com/conforma/tekton-catalog/blob/main/pipelines/enterprise-contract/0.1/enterprise-contract.yaml
+# This copy is retained for backward compatibility but will not receive updates.
+#
 # The purpose of this pipeline is to execute the verify-enterprise-contract-v2 task for container
 # images that are built but not automatically released in order to provide early feedback to users.
 # When auto release is enabled, the task is executed by the release pipeline immediately after the
@@ -50,7 +56,7 @@ spec:
     - name: WORKERS
       type: string
       description: Number of parallel workers to use for policy evaluation.
-      default: "1"
+      default: "2"
     - name: CA_TRUST_CONFIGMAP_NAME
       type: string
       description: The name of the ConfigMap to read CA bundle data from.
@@ -94,7 +100,7 @@ spec:
         resolver: bundles
         params:
           - name: bundle
-            value: quay.io/conforma/tekton-task:konflux
+            value: quay.io/conforma/tekton-task:konflux@sha256:775cbfaa5361bd39d7cf8816c1c31b85c862609fb70ee76afa7d5a8b7d839517
           - name: name
             value: collect-keyless-params
           - name: kind
@@ -148,7 +154,7 @@ spec:
         resolver: bundles
         params:
           - name: bundle
-            value: quay.io/conforma/tekton-task:konflux
+            value: quay.io/conforma/tekton-task:konflux@sha256:775cbfaa5361bd39d7cf8816c1c31b85c862609fb70ee76afa7d5a8b7d839517
           - name: name
             value: verify-enterprise-contract
           - name: kind

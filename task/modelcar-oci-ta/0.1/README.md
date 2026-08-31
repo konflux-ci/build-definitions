@@ -12,7 +12,8 @@ OCI image layout directory. Then all files included in the OCI artifact specifie
 MODEL_IMAGE parameter are copied on top.
 
 An SBOM report defining the Model and Base Images as descendants of the ModelCar image is also
-generated in the process.
+generated in the process. Mobster Syft-scans the base image and merges those packages under the
+base image node so release can populate the package database.
 
 ## Parameters
 |name|description|default value|required|
@@ -29,6 +30,10 @@ generated in the process.
 |IMAGE_EXPIRES_AFTER|Image tag expiration time for quay.expires-after label|""|false|
 |SOURCE_DATE_EPOCH|Timestamp in seconds since Unix epoch for reproducible builds. Sets org.opencontainers.image.created and build-date labels.|""|false|
 |CPE|CPE identifier label required for on-prem product releases|""|false|
+|IMAGE_NAME|Value for the image `name` label (must match the release destination path, e.g. `rhai/modelcar-foo`). When empty, defaults to `IMAGE_NAME_PREFIX`/`<IMAGE repository basename>`.|""|false|
+|IMAGE_NAME_PREFIX|Namespace prefix used when `IMAGE_NAME` is empty (e.g. `rhai` or `rhelai1`).|rhai|false|
+|caTrustConfigMapKey|The name of the key in the ConfigMap that contains the CA bundle data.|ca-bundle.crt|false|
+|caTrustConfigMapName|The name of the ConfigMap to read CA bundle data from.|trusted-ca|false|
 
 ## Results
 |name|description|

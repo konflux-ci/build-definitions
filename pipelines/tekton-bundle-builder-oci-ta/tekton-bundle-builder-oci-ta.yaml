@@ -48,10 +48,6 @@ spec:
     name: image-expires-after
     type: string
   - default: "false"
-    description: Build a source image.
-    name: build-source-image
-    type: string
-  - default: "false"
     description: Add built image into an OCI image index
     name: build-image-index
     type: string
@@ -83,7 +79,7 @@ spec:
     retries: 2
     taskRef:
       name: init
-      version: "0.4"
+      version: current
   - name: clone-repository
     params:
     - name: url
@@ -99,7 +95,7 @@ spec:
     - init
     taskRef:
       name: git-clone-oci-ta
-      version: "0.2"
+      version: current
     workspaces:
     - name: basic-auth
       workspace: git-auth
@@ -119,7 +115,7 @@ spec:
     - clone-repository
     taskRef:
       name: prefetch-dependencies-oci-ta
-      version: "0.3"
+      version: current
     workspaces:
     - name: git-basic-auth
       workspace: git-auth
@@ -156,7 +152,7 @@ spec:
     - build-container
     taskRef:
       name: build-image-index
-      version: "0.3"
+      version: current
   - name: sast-shell-check
     params:
     - name: image-digest
@@ -213,7 +209,7 @@ spec:
     - build-image-index
     taskRef:
       name: apply-tags
-      version: "0.3"
+      version: current
   workspaces:
   - name: git-auth
     optional: true

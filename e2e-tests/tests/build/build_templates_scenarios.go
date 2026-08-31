@@ -4,14 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	appservice "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/konflux-ci/e2e-tests/pkg/constants"
+	"github.com/konflux-ci/e2e-tests/pkg/framework"
 	"github.com/konflux-ci/e2e-tests/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type ComponentScenarioSpec struct {
 	Name                string
 	GitURL              string
 	Revision            string
+	DefaultBranch       string
+	AuthMode            string
 	ContextDir          string
 	DockerFilePath      string
 	PipelineBundleNames []constants.BuildPipelineType
@@ -30,6 +36,8 @@ func (s ComponentScenarioSpec) DeepCopy() ComponentScenarioSpec {
 		Name:                s.Name,
 		GitURL:              s.GitURL,
 		Revision:            s.Revision,
+		DefaultBranch:       s.DefaultBranch,
+		AuthMode:            s.AuthMode,
 		ContextDir:          s.ContextDir,
 		DockerFilePath:      s.DockerFilePath,
 		PipelineBundleNames: pipelineBundleNames,
@@ -49,7 +57,7 @@ var componentScenarios = []ComponentScenarioSpec{
 		Revision:            "47fc22092005aabebce233a9b6eab994a8152bbd",
 		ContextDir:          ".",
 		DockerFilePath:      constants.DockerFilePath,
-		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuild, constants.DockerBuildOciTA, constants.DockerBuildOciTAMin},
+		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuild, constants.DockerBuildOciTA},
 		EnableHermetic:      false,
 		PrefetchInput:       "",
 		ManifestMediaType:   "oci",
@@ -87,6 +95,18 @@ var componentScenarios = []ComponentScenarioSpec{
 		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuildMultiPlatformOciTa},
 		EnableHermetic:      false,
 		PrefetchInput:       "",
+		ManifestMediaType:   "docker",
+	},
+	{
+		Name:                "sample-gitlab-basic-auth",
+		GitURL:              "https://gitlab.com/konflux-qe/sample-python-basic",
+		Revision:            "47fc22092005aabebce233a9b6eab994a8152bbd",
+		DefaultBranch:       "main",
+		AuthMode:            "basic-auth",
+		ContextDir:          ".",
+		DockerFilePath:      constants.DockerFilePath,
+		PipelineBundleNames: []constants.BuildPipelineType{constants.DockerBuildOciTAMin},
+		EnableHermetic:      false,
 		ManifestMediaType:   "docker",
 	},
 	{
@@ -322,4 +342,37 @@ func GetScenarios() []string {
 		fmt.Println("Files changed are not hermeto related, running basic scenarios")
 		return basicScenarioUrls
 	}
+}
+
+// CreateGitlabBuildSecret creates a Kubernetes secret for GitLab build credentials
+func CreateGitlabBuildSecret(f *framework.Framework, secretName string, annotations map[string]string, token string, application *appservice.Application) error {
+	ownerRef := metav1.OwnerReference{
+		APIVersion: "appstudio.redhat.com/v1alpha1",
+		Kind:       "Application",
+		Name:       application.Name,
+		UID:        application.UID,
+	}
+	buildSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            secretName,
+			Namespace:       f.UserNamespace,
+			OwnerReferences: []metav1.OwnerReference{ownerRef},
+			Labels: map[string]string{
+				"appstudio.redhat.com/credentials": "scm",
+				"appstudio.redhat.com/scm.host":    "gitlab.com",
+			},
+		},
+		Type: "kubernetes.io/basic-auth",
+		StringData: map[string]string{
+			"password": token,
+		},
+	}
+	if annotations != nil {
+		buildSecret.Annotations = annotations
+	}
+	_, err := f.AsKubeAdmin.CommonController.CreateSecret(f.UserNamespace, &buildSecret)
+	if err != nil {
+		return fmt.Errorf("error creating build secret: %v", err)
+	}
+	return nil
 }

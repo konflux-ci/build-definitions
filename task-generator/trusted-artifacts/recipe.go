@@ -17,25 +17,26 @@ type AdditionalStep struct {
 }
 
 type Recipe struct {
-	Add                []string              `json:"add"`
-	AddEnvironment     []core.EnvVar         `json:"addEnvironment"`
-	AdditionalSteps    []AdditionalStep      `json:"additionalSteps"`
-	AddParams          pipeline.ParamSpecs   `json:"addParams"`
-	AddResult          []pipeline.TaskResult `json:"addResult"`
-	AddVolume          []core.Volume         `json:"addVolume"`
-	AddVolumeMount     []core.VolumeMount    `json:"addVolumeMount"`
-	AddTAVolumeMount   []core.VolumeMount    `json:"addTAVolumeMount"`
-	Base               string                `json:"base"`
-	Description        string                `json:"description"`
-	DisplaySuffix      string                `json:"displaySuffix"`
-	PreferStepTemplate bool                  `json:"preferStepTemplate"`
-	UseTAVolumeMount   bool                  `json:"useTAVolumeMount"`
-	RegexReplacements  map[string]string     `json:"regexReplacements"`
-	RemoveParams       []string              `json:"removeParams"`
-	RemoveVolumes      []string              `json:"removeVolumes"`
-	RemoveWorkspaces   []string              `json:"removeWorkspaces"`
-	Replacements       map[string]string     `json:"replacements"`
-	Suffix             string                `json:"suffix"`
+	Add                []string                                `json:"add"`
+	AddEnvironment     []core.EnvVar                           `json:"addEnvironment"`
+	AdditionalSteps    []AdditionalStep                        `json:"additionalSteps"`
+	AddParams          pipeline.ParamSpecs                     `json:"addParams"`
+	AddResult          []pipeline.TaskResult                   `json:"addResult"`
+	AddVolume          []core.Volume                           `json:"addVolume"`
+	AddVolumeMount     []core.VolumeMount                      `json:"addVolumeMount"`
+	AddTAVolumeMount   []core.VolumeMount                      `json:"addTAVolumeMount"`
+	Base               string                                  `json:"base"`
+	Description        string                                  `json:"description"`
+	DisplaySuffix      string                                  `json:"displaySuffix"`
+	PreferStepTemplate bool                                    `json:"preferStepTemplate"`
+	UseTAVolumeMount   bool                                    `json:"useTAVolumeMount"`
+	RegexReplacements  map[string]string                       `json:"regexReplacements"`
+	RemoveParams       []string                                `json:"removeParams"`
+	RemoveVolumes      []string                                `json:"removeVolumes"`
+	RemoveWorkspaces   []string                                `json:"removeWorkspaces"`
+	Replacements       map[string]string                       `json:"replacements"`
+	StepWhen           map[string]pipeline.StepWhenExpressions `json:"stepWhen"`
+	Suffix             string                                  `json:"suffix"`
 	createPrefetch     bool
 	createSource       bool
 	usePrefetch        bool

@@ -79,6 +79,22 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - default: ""
+    description: Sets the image created time and the SOURCE_DATE_EPOCH build argument.
+      On its own, it does not change file timestamps inside the layers (set rewrite-timestamp
+      to "true" for that). Leave empty to keep the actual build time.
+    name: source-date-epoch
+    type: string
+  - default: "false"
+    description: When "true", clamp file modification times in the image layers to
+      at most source-date-epoch. Does nothing unless source-date-epoch is set.
+    name: rewrite-timestamp
+    type: string
+  - default: "false"
+    description: When "true", omit the build history (history timestamps, layer metadata,
+      etc.) from the resulting image.
+    name: omit-history
+    type: string
   - default:
     - linux/x86_64
     description: List of platforms to build the container images on. The available
@@ -102,7 +118,7 @@ spec:
     retries: 2
     taskRef:
       name: init
-      version: "0.4"
+      version: current
   - name: clone-repository
     params:
     - name: url
@@ -118,14 +134,34 @@ spec:
     - init
     taskRef:
       name: git-clone-oci-ta
-      version: "0.2"
+      version: current
     workspaces:
     - name: basic-auth
       workspace: git-auth
-  - name: run-opm-command
+  - name: fbc-inject-lifecycle
     params:
     - name: SOURCE_ARTIFACT
       value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+    - name: ociStorage
+      value: $(params.output-image).lifecycle
+    - name: ociArtifactExpiresAfter
+      value: $(params.image-expires-after)
+    - name: CONTEXT
+      value: $(params.path-context)
+    - name: DOCKERFILE
+      value: $(params.dockerfile)
+    - name: BUILD_ARGS
+      value:
+      - $(params.build-args[*])
+    runAfter:
+    - clone-repository
+    taskRef:
+      name: fbc-inject-lifecycle-oci-ta
+      version: "0.1"
+  - name: run-opm-command
+    params:
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.fbc-inject-lifecycle.results.SOURCE_ARTIFACT)
     - name: ociStorage
       value: $(params.output-image).opm
     - name: ociArtifactExpiresAfter
@@ -137,7 +173,7 @@ spec:
     - name: IDMS_PATH
       value: ""
     runAfter:
-    - clone-repository
+    - fbc-inject-lifecycle
     taskRef:
       name: run-opm-command-oci-ta
       version: "0.1"
@@ -157,7 +193,7 @@ spec:
     - run-opm-command
     taskRef:
       name: prefetch-dependencies-oci-ta
-      version: "0.3"
+      version: current
     workspaces:
     - name: git-basic-auth
       workspace: git-auth
@@ -195,6 +231,12 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: SOURCE_DATE_EPOCH
+      value: $(params.source-date-epoch)
+    - name: REWRITE_TIMESTAMP
+      value: $(params.rewrite-timestamp)
+    - name: OMIT_HISTORY
+      value: $(params.omit-history)
     - name: SOURCE_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
@@ -205,7 +247,7 @@ spec:
     - clone-repository
     taskRef:
       name: buildah-remote-oci-ta
-      version: "0.10"
+      version: current
     workspaces: []
   - name: build-image-index
     params:
@@ -220,7 +262,7 @@ spec:
     - build-images
     taskRef:
       name: build-image-index
-      version: "0.3"
+      version: current
   - name: deprecated-base-image-check
     params:
     - name: IMAGE_URL
@@ -247,7 +289,7 @@ spec:
     - build-image-index
     taskRef:
       name: apply-tags
-      version: "0.3"
+      version: current
   - name: validate-fbc
     params:
     - name: IMAGE_URL
@@ -258,7 +300,7 @@ spec:
     - build-image-index
     taskRef:
       name: validate-fbc
-      version: "0.1"
+      version: "0.3"
     when:
     - input: $(params.skip-checks)
       operator: in

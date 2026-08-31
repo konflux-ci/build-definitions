@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/version: "0.1.1"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -70,7 +70,7 @@ spec:
       - name: STORAGE_DRIVER
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
-        value: 'registry.access.redhat.com/ubi9/buildah:9.8-1782883468'
+        value: 'registry.access.redhat.com/ubi9/buildah:9.8-1787017371'
       - name: PLATFORM
         value: $(params.PLATFORM)
       - name: IMAGE_APPEND_PLATFORM
@@ -83,7 +83,7 @@ spec:
         name: varlibcontainers
   steps:
     - name: use-trusted-artifact
-      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:470ce04569ca7219f30dfdccdd282ed4f47201b344b05c67a3497ddcd967e2b3
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:f72b62c8bc6ca56bab2e5526c6acf227ff532c9d3e2a9fae1e28bb216fc8f240
       computeResources:
         limits:
           memory: 64Mi
@@ -94,7 +94,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: validate-bib-config
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
       computeResources:
         limits:
           memory: 64Mi
@@ -143,13 +143,18 @@ spec:
         echo "declare TAGGED_AS=${TAGGED_AS}" >> /var/workdir/vars
 
     - name: build
-      image: quay.io/konflux-ci/buildah-task:latest@sha256:4c470b5a153c4acd14bf4f8731b5e36c61d7faafe09c2bf376bb81ce84aa5709
+      image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
       computeResources:
         limits:
           memory: 128Mi
         requests:
           cpu: 250m
           memory: 128Mi
+      env:
+      - name: HOME
+        value: /root
+      securityContext:
+        runAsUser: 0
       script: |-
         #!/bin/bash
         set -o verbose
@@ -244,7 +249,7 @@ spec:
         # import retry function
         # remove line with bash
         # shellcheck disable=SC2002
-        cat /usr/bin/retry | sed 1d >> scripts/script-build.sh
+        cat /usr/local/bin/retry | sed 1d >> scripts/script-build.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-build.sh <<'REMOTESSHEOF'
@@ -340,7 +345,7 @@ spec:
         # import retry function
         # remove line with bash
         # shellcheck disable=SC2002
-        cat /usr/bin/retry | sed 1d >> scripts/script-push.sh
+        cat /usr/local/bin/retry | sed 1d >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
