@@ -9,6 +9,14 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+## 0.2.5
+
+### Changed
+
+- No longer requires the `app.kubernetes.io/version` label if the input file
+  doesn't have `kind: Task`. This allows the tkn-bundle task to build `Pipeline`
+  bundles (pipeline files do not tend to have a version label).
+
 ## 0.2.4
 
 ### Removed

@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.2.4
+    app.kubernetes.io/version: 0.2.5
     build.appstudio.redhat.com/build_type: tkn-bundle
 spec:
   description: Creates and pushes a Tekton bundle containing the specified
@@ -283,7 +283,7 @@ spec:
 
         actual_task_version=$(get_actual_task_version "${FILES[0]}")
 
-        if [[ -z "$actual_task_version" ]]; then
+        if [[ "$(yq .kind "${FILES[0]}")" == Task && -z "$actual_task_version" ]]; then
           printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
           exit 1
         fi
@@ -292,7 +292,7 @@ spec:
         migration_image_digest=
         migration_image_tag=
         migration_file_path="${task_dir}/migrations/${actual_task_version}.sh"
-        if [[ -f "$migration_file_path" ]]; then
+        if [[ -n "$actual_task_version" && -f "$migration_file_path" ]]; then
           sha256_checksum=$(sha256sum "$migration_file_path" | cut -d' ' -f1)
           # Migration image tag is in form: migration-<actual task version>-<sha256sum>-<timestamp>
           image_repo=${IMAGE%:*}      # remove tag
@@ -342,7 +342,10 @@ spec:
         ANNOTATIONS+=("org.opencontainers.image.source=${URL}")
         ANNOTATIONS+=("org.opencontainers.image.revision=${REVISION}")
         ANNOTATIONS+=("org.opencontainers.image.url=${URL}/tree/${REVISION}/${CONTEXT}")
-        ANNOTATIONS+=("org.opencontainers.image.version=${actual_task_version}")
+
+        if [[ -n "$actual_task_version" ]]; then
+          ANNOTATIONS+=("org.opencontainers.image.version=${actual_task_version}")
+        fi
 
         if [ -f "${task_dir}/README.md" ]; then
           ANNOTATIONS+=("org.opencontainers.image.documentation=${URL}/tree/${REVISION}/${CONTEXT}/README.md")
