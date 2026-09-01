@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	imagev1 "github.com/google/go-containerregistry/pkg/v1"
 	remoteimg "github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -452,6 +453,21 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 						ginkgo.Fail(fmt.Sprintf("Unknown ManifestMediaType value %s in scenario \n", scenario.ManifestMediaType))
 					}
 
+				})
+
+				ginkgo.It("should ensure pruning labels are set", func() {
+					var image *imagev1.ConfigFile
+					gomega.Eventually(func() error {
+						image, err = build.ImageFromPipelineRun(pr)
+						return err
+					}, time.Minute*2, time.Second*10).Should(gomega.Succeed(), "timed out while trying fetch image config")
+
+					labels := image.Config.Labels
+					gomega.Expect(labels).ToNot(gomega.BeEmpty())
+
+					expiration, ok := labels["quay.expires-after"]
+					gomega.Expect(ok).To(gomega.BeTrue())
+					gomega.Expect(expiration).To(gomega.Equal(constants.DefaultImageTagExpiration))
 				})
 
 				ginkgo.It("check for source images if enabled in pipeline", ginkgo.Label(buildTemplatesTestLabel, sourceBuildTestLabel), func() {
