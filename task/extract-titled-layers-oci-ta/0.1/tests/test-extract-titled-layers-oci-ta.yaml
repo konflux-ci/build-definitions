@@ -1,0 +1,190 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-extract-titled-layers-oci-ta
+spec:
+  description: |
+    Push a fake ModelCar-style image (titled tar layers), run extract-titled-layers-oci-ta,
+    and check matching files land in the output artifact while weights do not.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: mock-inputs
+      params:
+        - name: ociStorage
+          value: registry-service.kind-registry/extract-titled-layers:source
+        - name: image
+          value: registry-service.kind-registry/extract-titled-layers:image
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        results:
+          - name: SOURCE_ARTIFACT
+            type: string
+          - name: IMAGE_URL
+            type: string
+          - name: IMAGE_DIGEST
+            type: string
+        workspaces:
+          - name: tests-workspace
+        volumes:
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        params:
+          - name: ociStorage
+          - name: image
+        stepTemplate:
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              subPath: ca-bundle.crt
+              readOnly: true
+        steps:
+          - name: mock-source-and-image
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            workingDir: $(workspaces.tests-workspace.path)
+            env:
+              - name: IMAGE
+                value: $(params.image)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              mkdir -p source layers/keep/models layers/skip/models
+              echo "from git" > source/README.md
+              echo '{"ok":true}' > layers/keep/models/config.json
+              echo 'WEIGHTS' > layers/skip/models/model.safetensors
+
+              tar -cf /tmp/keep.tar -C layers/keep models/config.json
+              tar -cf /tmp/skip.tar -C layers/skip models/model.safetensors
+              printf '{"architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}' > /tmp/config.json
+
+              push_blob() {
+                local file="$1"
+                oras blob push --insecure --no-tty --descriptor "${IMAGE}" "${file}" | jq -r .digest
+              }
+              keep_digest="$(push_blob /tmp/keep.tar)"
+              skip_digest="$(push_blob /tmp/skip.tar)"
+              config_digest="$(push_blob /tmp/config.json)"
+              keep_size="$(wc -c < /tmp/keep.tar | tr -d ' ')"
+              skip_size="$(wc -c < /tmp/skip.tar | tr -d ' ')"
+              config_size="$(wc -c < /tmp/config.json | tr -d ' ')"
+
+              cat > /tmp/manifest.json <<EOF
+              {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "config": {
+                  "mediaType": "application/vnd.oci.image.config.v1+json",
+                  "digest": "${config_digest}",
+                  "size": ${config_size}
+                },
+                "layers": [
+                  {
+                    "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                    "digest": "${keep_digest}",
+                    "size": ${keep_size},
+                    "annotations": {"org.opencontainers.image.title": "models/config.json"}
+                  },
+                  {
+                    "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                    "digest": "${skip_digest}",
+                    "size": ${skip_size},
+                    "annotations": {"org.opencontainers.image.title": "models/model.safetensors"}
+                  }
+                ]
+              }
+              EOF
+              digest="$(oras manifest push --insecure --no-tty --descriptor "${IMAGE}" /tmp/manifest.json | jq -r .digest)"
+              echo -n "${IMAGE%:*}" > "$(results.IMAGE_URL.path)"
+              echo -n "${digest}" > "$(results.IMAGE_DIGEST.path)"
+          - name: create-trusted-artifact
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
+            env:
+              - name: ORAS_OPTIONS
+                value: --insecure
+              - name: CA_FILE
+                value: /etc/pki/tls/certs/ca-custom-bundle.crt
+            args:
+              - create
+              - --store
+              - $(params.ociStorage)
+              - $(results.SOURCE_ARTIFACT.path)=$(workspaces.tests-workspace.path)/source
+    - name: run-extract
+      runAfter:
+        - mock-inputs
+      taskRef:
+        name: extract-titled-layers-oci-ta
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.mock-inputs.results.SOURCE_ARTIFACT)
+        - name: image-url
+          value: $(tasks.mock-inputs.results.IMAGE_URL)
+        - name: image-digest
+          value: $(tasks.mock-inputs.results.IMAGE_DIGEST)
+        - name: ociStorage
+          value: registry-service.kind-registry/extract-titled-layers:out
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+    - name: verify
+      runAfter:
+        - run-extract
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.run-extract.results.SOURCE_ARTIFACT)
+        - name: caTrustConfigMapName
+          value: trusted-ca
+        - name: caTrustConfigMapKey
+          value: ca-bundle.crt
+      taskSpec:
+        params:
+          - name: SOURCE_ARTIFACT
+        volumes:
+          - name: workdir
+            emptyDir: {}
+          - name: trusted-ca
+            configMap:
+              items:
+                - key: $(params.caTrustConfigMapKey)
+                  path: ca-bundle.crt
+              name: $(params.caTrustConfigMapName)
+        stepTemplate:
+          volumeMounts:
+            - mountPath: /var/workdir
+              name: workdir
+            - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+              name: trusted-ca
+              readOnly: true
+              subPath: ca-bundle.crt
+        steps:
+          - name: use-trusted-artifact
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
+            env:
+              - name: ORAS_OPTIONS
+                value: --insecure
+              - name: CA_FILE
+                value: /etc/pki/tls/certs/ca-custom-bundle.crt
+            args:
+              - use
+              - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+          - name: check-files
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              test -f /var/workdir/source/README.md
+              test -f /var/workdir/source/models/config.json
+              if [[ -e /var/workdir/source/models/model.safetensors ]]; then
+                echo "weights must not be extracted" >&2
+                exit 1
+              fi
+              echo "ok"

@@ -1,0 +1,179 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: extract-titled-layers-oci-ta
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/tags: image-build, konflux
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: |-
+    Restore SOURCE_ARTIFACT, then fetch titled container-image layers matching
+    EXTRA_ARTIFACT_FILTER from image-url@image-digest into that tree and emit a
+    new SOURCE_ARTIFACT.
+
+    Intended for ModelCar/olot images: untitled base-image layers and
+    non-matching blobs (e.g. weights) are not pulled. Image indexes are
+    resolved to linux/amd64. SAST tasks stay unchanged and just scan the
+    resulting artifact.
+  params:
+    - name: SOURCE_ARTIFACT
+      description: Trusted Artifact URI of the git source to restore first.
+      type: string
+    - name: image-url
+      description: Container image repository (no digest).
+      type: string
+    - name: image-digest
+      description: Digest of the image or image index to extract from.
+      type: string
+    - name: EXTRA_ARTIFACT_FILTER
+      description: Extended regex matched against org.opencontainers.image.title.
+      type: string
+      default: '(^|/)(Dockerfile|Containerfile|[^/]+\.(json|jinja|py|rb|pl|js|mjs|cjs|ts|ps1|sh|bash|zsh|ksh|md|yaml|yml|txt|model))$'
+    - name: ociStorage
+      description: OCI repository where the output Trusted Artifact is stored.
+      type: string
+    - name: ociArtifactExpiresAfter
+      description: Expiration for the created trusted artifact. Empty means no expiry.
+      type: string
+      default: ""
+    - name: caTrustConfigMapKey
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      type: string
+      default: ca-bundle.crt
+    - name: caTrustConfigMapName
+      description: The name of the ConfigMap to read CA bundle data from.
+      type: string
+      default: trusted-ca
+  results:
+    - name: SOURCE_ARTIFACT
+      description: Trusted Artifact URI with git source plus extracted titled layers.
+  volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: trusted-ca
+      configMap:
+        items:
+          - key: $(params.caTrustConfigMapKey)
+            path: ca-bundle.crt
+        name: $(params.caTrustConfigMapName)
+        optional: true
+  stepTemplate:
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /var/workdir
+        name: workdir
+      - mountPath: /etc/pki/tls/certs/ca-custom-bundle.crt
+        name: trusted-ca
+        readOnly: true
+        subPath: ca-bundle.crt
+    env:
+      - name: CA_FILE
+        value: /etc/pki/tls/certs/ca-custom-bundle.crt
+  steps:
+    - name: use-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
+      args:
+        - use
+        - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+      computeResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 512Mi
+    - name: extract-titled-layers
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
+      workingDir: /var/workdir
+      env:
+        - name: IMAGE_URL
+          value: $(params.image-url)
+        - name: IMAGE_DIGEST
+          value: $(params.image-digest)
+        - name: EXTRA_ARTIFACT_FILTER
+          value: $(params.EXTRA_ARTIFACT_FILTER)
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        SOURCE_ROOT=/var/workdir/source
+        mkdir -p "${SOURCE_ROOT}"
+
+        if [[ -z "${IMAGE_URL}" || -z "${IMAGE_DIGEST}" ]]; then
+          echo "INFO: image-url/image-digest missing, skipping titled-layer extract"
+          exit 0
+        fi
+
+        declare -a oras_opts=()
+        # shellcheck source=/dev/null
+        source /usr/local/bin/oras_opts.sh
+
+        authfile="$(mktemp)"
+        trap 'rm -f "${authfile}"' EXIT
+        /usr/local/bin/select-oci-auth.sh "${IMAGE_URL}" >"${authfile}"
+
+        retry oras manifest fetch "${oras_opts[@]}" --registry-config "${authfile}" \
+          "${IMAGE_URL}@${IMAGE_DIGEST}" > /tmp/manifest.json
+
+        if jq -e '.manifests? | length > 0' /tmp/manifest.json >/dev/null; then
+          child="$(jq -r '
+            (.manifests // []) as $m
+            | ($m | map(select(.platform.architecture == "amd64" and ((.platform.os // "linux") == "linux"))) | .[0].digest)
+              // ($m[0].digest) // empty
+          ' /tmp/manifest.json)"
+          if [[ -z "${child}" || "${child}" == "null" ]]; then
+            echo "ERROR: image index has no manifests to resolve"
+            exit 1
+          fi
+          echo "INFO: Resolving image index to ${child}"
+          retry oras manifest fetch "${oras_opts[@]}" --registry-config "${authfile}" \
+            "${IMAGE_URL}@${child}" > /tmp/manifest.json
+        fi
+
+        fetched=0
+        while IFS=$'\t' read -r digest media_type title; do
+          [[ -n "${title}" ]] || continue
+          [[ "${title}" != *..* ]] || { echo "WARN: skipping ${title}"; continue; }
+          printf '%s\n' "${title}" | grep -Eq "${EXTRA_ARTIFACT_FILTER}" || continue
+
+          tmp="$(mktemp)"
+          echo "INFO: Fetching layer ${digest} (${title})"
+          retry oras blob fetch "${oras_opts[@]}" --registry-config "${authfile}" \
+            "${IMAGE_URL}@${digest}" --output "${tmp}"
+          if [[ "${media_type}" == *gzip* ]]; then
+            tar -xzf "${tmp}" -C "${SOURCE_ROOT}"
+          else
+            tar -xf "${tmp}" -C "${SOURCE_ROOT}"
+          fi
+          rm -f "${tmp}"
+          fetched=$((fetched + 1))
+        done < <(jq -r '
+          (.layers // [])[]
+          | [.digest, (.mediaType // ""), (.annotations["org.opencontainers.image.title"] // "")]
+          | @tsv
+        ' /tmp/manifest.json)
+
+        echo "INFO: Extracted ${fetched} titled layer(s) into SOURCE_ARTIFACT"
+    - name: create-trusted-artifact
+      image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:7b4f5bbf8b8aa663beaf18bfef4fd16ba1cb5ce846d1fc776a64b312c52ee28c
+      args:
+        - create
+        - --store
+        - $(params.ociStorage)
+        - $(results.SOURCE_ARTIFACT.path)=/var/workdir/source
+      env:
+        - name: IMAGE_EXPIRES_AFTER
+          value: $(params.ociArtifactExpiresAfter)
+      computeResources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
