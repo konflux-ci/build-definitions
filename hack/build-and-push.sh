@@ -168,12 +168,6 @@ GENERATED_PIPELINES_DIR=$(mktemp -d -p "$WORKDIR" pipelines.XXXXXXXX)
 declare -r GENERATED_PIPELINES_DIR
 oc kustomize --output "$GENERATED_PIPELINES_DIR" pipelines/
 
-# Generate YAML files separately since pipelines for core services have same .metadata.name.
-CORE_SERVICES_PIPELINES_DIR=$(mktemp -d -p "$WORKDIR" core-services-pipelines.XXXXXXXX)
-declare -r CORE_SERVICES_PIPELINES_DIR
-oc kustomize --output "$CORE_SERVICES_PIPELINES_DIR" pipelines/core-services/
-
-
 inject_bundle_ref_to_pipelines() {
     local -r task_name=$1
     local -r task_version=$2
@@ -188,7 +182,7 @@ inject_bundle_ref_to_pipelines() {
     }"
     echo "Bundle ref: ${bundle_ref}"
     local -r task_selector="select(.name == \"${task_name}\" and .version == \"${task_version}\")"
-    find "$GENERATED_PIPELINES_DIR" "$CORE_SERVICES_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
+    find "$GENERATED_PIPELINES_DIR" -maxdepth 1 -type f -name '*.yaml' | \
         while read -r pipeline_file; do
             echo "Processing file: ${pipeline_file}"
             yq e "(.spec.tasks[].taskRef | ${task_selector}) |= ${bundle_ref}" -i "${pipeline_file}"
@@ -740,16 +734,11 @@ if [ -n "$ENABLE_SOURCE_BUILD" ]; then
 fi
 
 # Build Pipeline bundle with pipelines pointing to newly built task bundles
-for pipeline_yaml in "$GENERATED_PIPELINES_DIR"/*.yaml "$CORE_SERVICES_PIPELINES_DIR"/*.yaml
+for pipeline_yaml in "$GENERATED_PIPELINES_DIR"/*.yaml
 do
     pipeline_name=$(yq e '.metadata.name' "$pipeline_yaml")
     pipeline_description=$(yq e '.spec.description' "$pipeline_yaml" | head -n 1)
     pipeline_dir="pipelines/${pipeline_name}/"
-    core_services_ci=$(yq e '.metadata.annotations."appstudio.openshift.io/core-services-ci" // ""' "$pipeline_yaml")
-    if [ "$core_services_ci" == "1" ]; then
-        pipeline_name="core-services-${pipeline_name}"
-        BUILD_TAG=latest
-    fi
 
     repository=${TEST_REPO_NAME:-pipeline-${pipeline_name}}
     tag=${TEST_REPO_NAME:+${pipeline_name}-}$BUILD_TAG

@@ -29,7 +29,6 @@ There is an option to push all bundles to a single quay.io repository (this meth
 
 The pipelines can be found in the `pipelines` directory.
 
-- `core-services`: contains pipelines for the CI of Konflux core services e.g., `application-service` and `build-service`.
 - `template-build`: contains a common template used to generate `docker-build`, `fbc-builder` and other pipelines.
 
 ### Tasks
