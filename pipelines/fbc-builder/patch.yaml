@@ -15,8 +15,14 @@
     "pipelines.openshift.io/used-by": "build-cloud"
     "pipelines.openshift.io/runtime": "fbc"
     "pipelines.openshift.io/strategy": "fbc"
+
+# The base template-build pipeline uses a shared PVC workspace. FBC uses
+# trusted artifacts instead, so drop the workspace.
+- op: remove
+  path: /spec/workspaces/0  # workspace
+
 # Customize parameters
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.params.[].name" | nl -v 0
+# $ yq ".spec.params.[].name" pipelines/template-build/template-build.yaml | nl -v 0
 #  0	git-url
 #  1	revision
 #  2	output-image
@@ -32,48 +38,64 @@
 # 12	enable-cache-proxy
 # 13	enable-package-registry-proxy
 # 14	sast-target-dirs
-# 15	build-args
-# 16	build-args-file
-# 17	privileged-nested
-# 18	build-platforms
-
-- op: remove
-  path: /spec/params/17  # privileged-nested
 - op: remove
   path: /spec/params/11  # buildah-format - FBC is always OCI
 - op: replace
   path: /spec/params/6/default  # hermetic
   value: "true"
+- op: replace
+  path: /spec/params/10/default  # build-image-index
+  value: "true"
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-args
+    description: Array of --build-arg values ("arg=value" strings) for buildah
+    type: array
+    default: []
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-args-file
+    description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
+    type: string
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: source-date-epoch
+    description: Sets the image created time and the SOURCE_DATE_EPOCH build argument. On its own, it does not change file timestamps inside the layers (set rewrite-timestamp to "true" for that). Leave empty to keep the actual build time.
+    type: string
+    default: ""
+- op: add
+  path: /spec/params/-
+  value:
+    name: rewrite-timestamp
+    description: When "true", clamp file modification times in the image layers to at most source-date-epoch. Does nothing unless source-date-epoch is set.
+    type: string
+    default: "false"
+- op: add
+  path: /spec/params/-
+  value:
+    name: omit-history
+    description: When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.
+    type: string
+    default: "false"
+- op: add
+  path: /spec/params/-
+  value:
+    name: build-platforms
+    description: List of platforms to build the container images on. The available set of values is determined by the configuration of the multi-platform-controller.
+    type: array
+    default:
+      - "linux/x86_64"
 
-# Remove params
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.3.params.[].name" | nl -v 0
-#      0  IMAGE
-#      1  DOCKERFILE
-#      2  CONTEXT
-#      3  HERMETIC
-#      4  PREFETCH_INPUT
-#      5  IMAGE_EXPIRES_AFTER
-#      6  COMMIT_SHA
-#      7  BUILD_ARGS
-#      8  BUILD_ARGS_FILE
-#      9  PRIVILEGED_NESTED
-#     10  SOURCE_URL
-#     11  BUILDAH_FORMAT
-#     12  HTTP_PROXY
-#     13  NO_PROXY
-#     14  SOURCE_ARTIFACT
-#     15  CACHI2_ARTIFACT
-#     16  IMAGE_APPEND_PLATFORM
-- op: remove
-  path: /spec/tasks/3/params/11  # BUILDAH_FORMAT - FBC is always OCI
-- op: remove
-  path: /spec/tasks/3/params/9  # PRIVILEGED_NESTED
-# Remove tasks
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.[].name" | nl -v 0
+# Customize tasks
+# $ yq ".spec.tasks.[].name" pipelines/template-build/template-build.yaml | nl -v 0
 #      0  init
 #      1  clone-repository
 #      2  prefetch-dependencies
-#      3  build-images
+#      3  build-container
 #      4  build-image-index
 #      5  build-source-image
 #      6  deprecated-base-image-check
@@ -86,35 +108,158 @@
 #     13  apply-tags
 #     14  push-dockerfile
 #     15  rpms-signature-scan
+
+# KEEP removal operations before adding operations, otherwise you will die from
+# counting correct index numbers.
+
+# Remove tasks not needed for FBC (highest index first).
 - op: remove
   path: /spec/tasks/15  # rpms-signature-scan
 - op: remove
   path: /spec/tasks/14  # push-dockerfile
 - op: remove
-  path: /spec/tasks/12  # sast-unicode-scan
+  path: /spec/tasks/12  # sast-unicode-check
 - op: remove
-  path: /spec/tasks/11  # sast-shell-scan
+  path: /spec/tasks/11  # sast-shell-check
 - op: remove
   path: /spec/tasks/10  # clamav-scan
 - op: remove
-  path: /spec/tasks/9  # sast-snyk-check
+  path: /spec/tasks/9   # sast-snyk-check
 - op: remove
-  path: /spec/tasks/8  # ecosystem-cert-preflight-checks
+  path: /spec/tasks/8   # ecosystem-cert-preflight-checks
 - op: remove
-  path: /spec/tasks/7  # clair-scan
+  path: /spec/tasks/7   # clair-scan
 - op: remove
-  path: /spec/tasks/5  # build-source-image
-# Remove build-image-index task params
-# $ kustomize build pipelines/docker-build-multi-platform-oci-ta | yq ".spec.tasks.4.params.[].name" | nl -v 0
-#      0  IMAGE
-#      1  ALWAYS_BUILD_INDEX
-#      2  IMAGES
-#      3  BUILDAH_FORMAT
+  path: /spec/tasks/5   # build-source-image
+
+# Remaining tasks after the removals above:
+#      0  init
+#      1  clone-repository
+#      2  prefetch-dependencies
+#      3  build-container
+#      4  build-image-index
+#      5  deprecated-base-image-check
+#      6  apply-tags
+
+# clone-repository: convert to trusted artifacts
+- op: replace
+  path: /spec/tasks/1/taskRef/name
+  value: git-clone-oci-ta
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).git
+- op: add
+  path: /spec/tasks/1/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/1/workspaces/0  # output
+
+# prefetch-dependencies: convert to trusted artifacts. It consumes the source
+# artifact produced by run-opm-command (added further below).
+- op: replace
+  path: /spec/tasks/2/taskRef/name
+  value: prefetch-dependencies-oci-ta
+- op: replace
+  path: /spec/tasks/2/runAfter/0
+  value: run-opm-command
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: SOURCE_ARTIFACT
+    value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociStorage
+    value: $(params.output-image).prefetch
+- op: add
+  path: /spec/tasks/2/params/-
+  value:
+    name: ociArtifactExpiresAfter
+    value: $(params.image-expires-after)
+- op: remove
+  path: /spec/tasks/2/workspaces/0  # source
+
+# build-container: convert to a matrix of remote, multi-platform, trusted
+# artifact buildah builds.
+- op: replace
+  path: /spec/tasks/3/name
+  value: build-images
+- op: replace
+  path: /spec/tasks/3/taskRef
+  value:
+    name: buildah-remote-oci-ta
+    version: current
+- op: replace
+  path: /spec/tasks/3/runAfter/0
+  value: clone-repository
+- op: replace
+  path: /spec/tasks/3/workspaces
+  value: []
+- op: add
+  path: /spec/tasks/3/matrix
+  value:
+    params:
+      - name: PLATFORM
+        value: ["$(params.build-platforms)"]
+- op: add
+  path: /spec/tasks/3/params
+  value:
+  - name: IMAGE
+    value: $(params.output-image)
+  - name: DOCKERFILE
+    value: $(params.dockerfile)
+  - name: CONTEXT
+    value: $(params.path-context)
+  - name: HERMETIC
+    value: "$(params.hermetic)"
+  - name: PREFETCH_INPUT
+    value: "$(params.prefetch-input)"
+  - name: IMAGE_EXPIRES_AFTER
+    value: "$(params.image-expires-after)"
+  - name: COMMIT_SHA
+    value: "$(tasks.clone-repository.results.commit)"
+  - name: BUILD_ARGS
+    value:
+      - $(params.build-args[*])
+  - name: BUILD_ARGS_FILE
+    value: "$(params.build-args-file)"
+  - name: SOURCE_URL
+    value: "$(tasks.clone-repository.results.url)"
+  - name: HTTP_PROXY
+    value: "$(tasks.init.results.http-proxy)"
+  - name: NO_PROXY
+    value: "$(tasks.init.results.no-proxy)"
+  - name: SOURCE_DATE_EPOCH
+    value: "$(params.source-date-epoch)"
+  - name: REWRITE_TIMESTAMP
+    value: "$(params.rewrite-timestamp)"
+  - name: OMIT_HISTORY
+    value: "$(params.omit-history)"
+  - name: SOURCE_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+  - name: CACHI2_ARTIFACT
+    value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+  - name: IMAGE_APPEND_PLATFORM
+    value: "true"
+
+# build-image-index
+- op: replace
+  path: /spec/tasks/4/runAfter/0
+  value: build-images
+- op: replace
+  path: /spec/tasks/4/params/2/value  # IMAGES
+  value:
+    - $(tasks.build-images.results.IMAGE_REF[*])
 - op: remove
   path: /spec/tasks/4/params/3  # BUILDAH_FORMAT - FBC is always OCI
 
-
-# KEEP removal operations before adding operations, otherwise you will die from counting correct index numbers
+# Insert the FBC-specific tasks between clone-repository and
+# prefetch-dependencies.
 - op: add
   path: /spec/tasks/2
   value:
@@ -160,15 +305,8 @@
         value: ""
       - name: IDMS_PATH
         value: ""
-- op: replace
-  path: /spec/tasks/4/runAfter/0
-  value: run-opm-command
-- op: replace
-  path: /spec/tasks/4/params/2/value
-  value: $(tasks.run-opm-command.results.SOURCE_ARTIFACT)
-- op: replace
-  path: /spec/tasks/5/runAfter/0
-  value: clone-repository
+
+# Append the FBC verification tasks.
 - op: add
   path: /spec/tasks/-
   value:
