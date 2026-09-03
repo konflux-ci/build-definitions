@@ -29,7 +29,7 @@ There is an option to push all bundles to a single quay.io repository (this meth
 
 The pipelines can be found in the `pipelines` directory.
 
-- `template-build`: contains a common template used to generate `docker-build`, `fbc-builder` and other pipelines.
+- `template-build`: contains a common template used to generate `fbc-builder` and other pipelines.
 
 ### Tasks
 

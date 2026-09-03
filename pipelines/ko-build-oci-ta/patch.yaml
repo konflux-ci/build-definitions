@@ -89,7 +89,7 @@
 - op: remove
   path: /spec/workspaces/0
 
-# Order of Tasks from the base docker-build Pipeline:
+# Order of Tasks from the base template-build Pipeline:
 # $ kustomize build pipelines/template-build | yq .spec.tasks.[].name | nl -v 0
 #   0	init
 #   1	clone-repository
@@ -205,7 +205,7 @@
   path: /spec/tasks/9/taskRef/name
   value: sast-snyk-check-oci-ta
 - op: add
-  # In the docker-build Pipeline, the snyk Task does not receive any parameters, so we cannot
+  # In the template-build Pipeline, the snyk Task does not receive any parameters, so we cannot
   # append to it.
   path: /spec/tasks/9/params/-
   value:
