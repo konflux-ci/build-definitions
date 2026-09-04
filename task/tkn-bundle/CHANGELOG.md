@@ -9,6 +9,17 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+## 0.2.6
+
+### Added
+
+- Support for conditional releases based on the `SHOULD_RELEASE` result. A task bundle will only be
+  released if its `app.kubernetes.io/version` has changed.
+
+> [!NOTE]
+>
+> To disable this feature, set the pipeline parameter `release-only-if-version-bumped` to `false`.
+
 ## 0.2.5
 
 ### Changed
@@ -49,4 +60,3 @@ If that's not something you ever plan to do, consider removing this section.
 ### Added
 
 Version 0.2.2 now supports updating specific step images instead of every step.
-

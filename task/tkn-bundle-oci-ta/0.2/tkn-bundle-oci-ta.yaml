@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.2.5
+    app.kubernetes.io/version: 0.2.6
     build.appstudio.redhat.com/build_type: tkn-bundle
 spec:
   description: Creates and pushes a Tekton bundle containing the specified
@@ -24,6 +24,11 @@ spec:
     - name: IMAGE
       description: Reference of the image task will produce.
       type: string
+    - name: RELEASE_ONLY_IF_VERSION_BUMPED
+      description: Release the task bundle only when the app.kubernetes.io/version
+        is different
+      type: string
+      default: "true"
     - name: REVISION
       description: Revision
       type: string
@@ -53,6 +58,8 @@ spec:
     - name: IMAGE_URL
       description: Image repository and tag where the built image was pushed
         with tag only
+    - name: SHOULD_RELEASE
+      description: Whether the task bundle should be released
   volumes:
     - name: workdir
       emptyDir: {}
@@ -214,6 +221,8 @@ spec:
           value: $(params.URL)
         - name: REVISION
           value: $(params.REVISION)
+        - name: RELEASE_ONLY_IF_VERSION_BUMPED
+          value: $(params.RELEASE_ONLY_IF_VERSION_BUMPED)
       script: |
         #!/bin/env bash
 
@@ -268,9 +277,30 @@ spec:
           yq ".metadata.labels.\"${LABEL_ACTUAL_TASK_VERSION}\"" "$task_file" | sed '/null/d' | tr -d '[:space:]'
         }
 
+        get_previous_task_version() {
+          local -r task_file=$1
+          local -r task_relpath="${task_file#*/"${SOURCE_CODE_DIR}"/}"
+
+          local previous_yaml
+          if ! previous_yaml=$(git -C "${SOURCE_CODE_DIR}" show "HEAD^:${task_relpath}"); then
+            echo "Could not get previous task version" >&2
+            return 0
+          fi
+          yq ".metadata.labels.\"${LABEL_ACTUAL_TASK_VERSION}\"" <<<"${previous_yaml}" | sed '/null/d' | tr -d '[:space:]'
+        }
+
         # task_dir is where the task definition reside
         # this task run for only one task file, so extracting it from the first element is enough
         task_dir=$(echo "${FILES[0]}" | awk -F'/' '{NF--; print $0}' OFS='/')
+
+        original_task_file=""
+        for f in "${FILES[@]}"; do
+          if [[ -n "$(get_actual_task_version "$f")" ]]; then
+            original_task_file="$f"
+            break
+          fi
+        done
+        : "${original_task_file:=${FILES[0]}}"
 
         # If task is kustomized, generate it and replace the FILES value with the value of the generated task
         # All other files will be ignored.
@@ -282,10 +312,26 @@ spec:
         fi
 
         actual_task_version=$(get_actual_task_version "${FILES[0]}")
+        echo "Found actual task version: $actual_task_version"
 
         if [[ "$(yq .kind "${FILES[0]}")" == Task && -z "$actual_task_version" ]]; then
           printf "Label %s is not set in task file %s\n" "$LABEL_ACTUAL_TASK_VERSION" "${FILES[0]}" >&2
           exit 1
+        fi
+
+        SHOULD_RELEASE="false"
+        if [[ "$RELEASE_ONLY_IF_VERSION_BUMPED" == "true" ]]; then
+          current_task_version=$(get_actual_task_version "${original_task_file}")
+          previous_task_version=$(get_previous_task_version "${original_task_file}")
+
+          echo "Found current task version: $current_task_version"
+          echo "Found previous task version: $previous_task_version"
+
+          if [[ "$current_task_version" != "$previous_task_version" ]]; then
+            SHOULD_RELEASE="true"
+          fi
+        else
+          SHOULD_RELEASE="true"
         fi
 
         # Push migration to registry if there is
@@ -390,6 +436,7 @@ spec:
         echo -n "$IMAGE" >"$(results.IMAGE_URL.path)"
         echo -n "${digest}" >"$(results.IMAGE_DIGEST.path)"
         echo -n "${IMAGE_REF}" >"$(results.IMAGE_REF.path)"
+        echo -n "${SHOULD_RELEASE}" >"$(results.SHOULD_RELEASE.path)"
 
         # cleanup task file
         # shellcheck disable=SC2153
