@@ -70,6 +70,7 @@ spec:
       default: "."
   tasks:
     - name: init
+      retries: 2
       params:
         - name: enable-cache-proxy
           value: "$(params.enable-cache-proxy)"
@@ -78,6 +79,7 @@ spec:
         # A pointer for referencing the correct version of task in the built pipeline bundles.
         version: current
     - name: clone-repository
+      retries: 2
       runAfter:
         - init
       params:
