@@ -23,14 +23,16 @@ const (
 	pythonComponentRepoName = "devfile-sample-python-basic"
 
 	githubUrlFormat = "https://github.com/%s/%s"
+
+	fbcComponentGitHubURL = "https://github.com/konflux-qe-bd/fbc-sample-repo"
 )
 
 var (
 	additionalTags           = []string{"test-tag1", "test-tag2"}
-	componentUrls            = strings.Split(utils.GetEnv(COMPONENT_REPO_URLS_ENV, pythonComponentGitHubURL), ",")
+	componentUrls            = strings.Split(utils.GetEnv(COMPONENT_REPO_URLS_ENV, fbcComponentGitHubURL), ",")
 	githubOrg                = utils.GetEnv(constants.GITHUB_E2E_ORGANIZATION_ENV, "redhat-appstudio-qe")
 	gitlabOrg                = utils.GetEnv(constants.GITLAB_QE_ORG_ENV, "konflux-qe")
 	pythonComponentGitHubURL = fmt.Sprintf(githubUrlFormat, githubOrg, pythonComponentRepoName)
-	basicScenarioUrls        = []string{"https://github.com/konflux-qe-bd/devfile-sample-python-basic", "https://github.com/konflux-qe-bd/devfile-sample-python-basic-clone", "https://github.com/konflux-qe-bd/multiarch-sample-repo", "https://github.com/konflux-qe-bd/multiarch-sample-repo-clone", "https://github.com/konflux-qe-bd/fbc-sample-repo", "https://github.com/konflux-qe-bd/docker-file-from-scratch", "https://github.com/konflux-qe-bd/oci-archive-test", "https://gitlab.com/konflux-qe/sample-python-basic"}
-	hermeticScenarioUrls     = []string{"https://github.com/konflux-qe-bd/retrodep", "https://github.com/konflux-qe-bd/pip-e2e-test", "https://github.com/konflux-qe-bd/ruby-bundler-sample-app", "https://github.com/konflux-qe-bd/rust-cargo-sample-app", "https://github.com/konflux-qe-bd/nodejs-npm-sample-repo", "https://github.com/konflux-qe-bd/nodejs-yarn-sample-app", "https://github.com/konflux-qe-bd/nodejs-yarn-modern-sample-app", "https://github.com/konflux-qe-bd/rpm-sample-app", "https://github.com/konflux-qe-bd/generic-fetcher-sample-app"}
+	basicScenarioUrls        = []string{fbcComponentGitHubURL}
+	hermeticScenarioUrls     = []string{}
 )
