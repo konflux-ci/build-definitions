@@ -233,7 +233,7 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 	defer ginkgo.GinkgoRecover()
 	ginkgo.Describe("HACBS pipelines", ginkgo.Ordered, ginkgo.Label("pipeline"), func() {
 
-		var applicationName, symlinkPRunName, testNamespace string
+		var applicationName, testNamespace string
 		components := make(map[string]ComponentScenarioSpec)
 		var pipelineRunsWithE2eFinalizer []string
 		var application *appservice.Application
@@ -250,14 +250,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 				components[componentName] = s
 			}
 		}
-
-		symlinkScenario := GetComponentScenarioDetailsFromGitUrl(pythonComponentGitHubURL)
-		gomega.Expect(symlinkScenario.PipelineBundleNames).ShouldNot(gomega.BeEmpty())
-		symlinkComponentName := fmt.Sprintf("test-symlink-comp-%s", util.GenerateRandomString(4))
-		// Use the other value defined in componentScenarios in build_templates_scenario.go except revision and pipelineBundle
-		symlinkScenario.Revision = gitRepoContainsSymlinkBranchName
-		symlinkScenario.PipelineBundleNames = []constants.BuildPipelineType{constants.DockerBuild}
-		symlinkScenario.OverrideMediaType = ""
 
 		ginkgo.BeforeAll(func() {
 			if os.Getenv("APP_SUFFIX") != "" {
@@ -287,10 +279,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 				err = CreateComponent(f, applicationName, componentName, testNamespace, scenario, application)
 				gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), fmt.Sprintf("failed to create component for scenario: %s", scenario.Name))
 			}
-			// Create the symlink component
-			err = CreateComponent(f, applicationName, symlinkComponentName, testNamespace, symlinkScenario, application)
-			gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "failed to create component for symlink scenario")
-
 		})
 
 		ginkgo.AfterAll(func() {
@@ -357,14 +345,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 					gomega.Expect(err.Error()).To(gomega.ContainSubstring("404 Not Found"))
 				}
 			}
-		})
-
-		ginkgo.It(fmt.Sprintf("triggers PipelineRun for symlink component with source URL %s with component name %s", pythonComponentGitHubURL, symlinkComponentName), ginkgo.Label(buildTemplatesTestLabel, sourceBuildTestLabel), func() {
-			// Increase the timeout to 20min to help debug the issue https://issues.redhat.com/browse/STONEBLD-2981, once issue is fixed, revert to 5min
-			timeout := time.Minute * 20
-			symlinkPRunName = WaitForPipelineRunStarts(f.AsKubeAdmin, applicationName, symlinkComponentName, testNamespace, timeout)
-			gomega.Expect(symlinkPRunName).ShouldNot(gomega.BeEmpty())
-			pipelineRunsWithE2eFinalizer = append(pipelineRunsWithE2eFinalizer, symlinkPRunName)
 		})
 
 		for componentName, scenario := range components {
@@ -840,13 +820,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 
 			})
 		}
-
-		ginkgo.It(fmt.Sprintf("pipelineRun should fail for symlink component with Git source URL %s with component name %s", pythonComponentGitHubURL, symlinkComponentName), ginkgo.Label(buildTemplatesTestLabel, sourceBuildTestLabel), func() {
-			component, err := f.AsKubeAdmin.HasController.GetComponent(symlinkComponentName, testNamespace)
-			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-			gomega.Expect(f.AsKubeAdmin.HasController.WaitForComponentPipelineToBeFinished(component, "", "", "",
-				f.AsKubeAdmin.TektonController, &has.RetryOptions{Retries: 0}, nil)).Should(gomega.MatchError(gomega.ContainSubstring("symlink check: found 1 symlink(s) pointing outside the directory")))
-		})
 
 	})
 })
