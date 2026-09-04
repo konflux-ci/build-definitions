@@ -2,14 +2,9 @@ package build
 
 import (
 	"fmt"
-	"strings"
 
-	appservice "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/konflux-ci/e2e-tests/pkg/constants"
-	"github.com/konflux-ci/e2e-tests/pkg/framework"
 	"github.com/konflux-ci/e2e-tests/pkg/utils"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type ComponentScenarioSpec struct {
@@ -64,33 +59,6 @@ var componentScenarios = []ComponentScenarioSpec{
 	},
 }
 
-func IsDockerBuildGitURL(gitURL string) bool {
-	for _, componentScenario := range componentScenarios {
-		//check repo name for both the giturls is same
-		if utils.GetRepoName(componentScenario.GitURL) == utils.GetRepoName(gitURL) {
-			for _, pipeline := range componentScenario.PipelineBundleNames {
-				if !strings.HasPrefix(string(pipeline), string(constants.DockerBuild)) {
-					return false
-				}
-			}
-			return true
-		}
-	}
-	return false
-}
-
-func IsDockerBuildPipeline(pipelineName string) bool {
-	return strings.HasPrefix(pipelineName, string(constants.DockerBuild))
-}
-
-func IsFBCBuildPipeline(pipelineName string) bool {
-	return pipelineName == "fbc-builder"
-}
-
-func IsDockerMinBuildPipeline(pipelineName string) bool {
-	return pipelineName == "docker-build-oci-ta-min"
-}
-
 func GetComponentScenarioDetailsFromGitUrl(gitUrl string) ComponentScenarioSpec {
 	for _, componentScenario := range componentScenarios {
 		//check repo name for both the giturls is same
@@ -116,37 +84,4 @@ func GetScenarios() []string {
 		fmt.Println("Files changed are not hermeto related, running basic scenarios")
 		return basicScenarioUrls
 	}
-}
-
-// CreateGitlabBuildSecret creates a Kubernetes secret for GitLab build credentials
-func CreateGitlabBuildSecret(f *framework.Framework, secretName string, annotations map[string]string, token string, application *appservice.Application) error {
-	ownerRef := metav1.OwnerReference{
-		APIVersion: "appstudio.redhat.com/v1alpha1",
-		Kind:       "Application",
-		Name:       application.Name,
-		UID:        application.UID,
-	}
-	buildSecret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            secretName,
-			Namespace:       f.UserNamespace,
-			OwnerReferences: []metav1.OwnerReference{ownerRef},
-			Labels: map[string]string{
-				"appstudio.redhat.com/credentials": "scm",
-				"appstudio.redhat.com/scm.host":    "gitlab.com",
-			},
-		},
-		Type: "kubernetes.io/basic-auth",
-		StringData: map[string]string{
-			"password": token,
-		},
-	}
-	if annotations != nil {
-		buildSecret.Annotations = annotations
-	}
-	_, err := f.AsKubeAdmin.CommonController.CreateSecret(f.UserNamespace, &buildSecret)
-	if err != nil {
-		return fmt.Errorf("error creating build secret: %v", err)
-	}
-	return nil
 }
