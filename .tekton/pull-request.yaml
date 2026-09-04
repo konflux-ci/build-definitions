@@ -140,14 +140,6 @@ spec:
             - name: e2e_test_namespace
               type: string
           results:
-          - name: custom-docker-build-bundle
-            description: "custom bundle for docker-build pipeline"
-          - name: custom-docker-build-oci-ta-bundle
-            description: "custom bundle for docker-build-oci-ta pipeline"
-          - name: custom-docker-build-oci-ta-min-bundle
-            description: "custom bundle for docker-build-oci-ta-min pipeline"
-          - name: custom-docker-build-multi-platform-oci-ta-bundle
-            description: "custom bundle for docker-build-multi-platform-oci-ta"
           - name: custom-fbc-builder-bundle
             description: "custom bundle for fbc-builder pipeline"
           steps:
@@ -168,10 +160,6 @@ spec:
                 ENABLE_HERMETIC_BUILD=1 \
                 hack/build-and-push.sh
                 eval "source bundle_values.env"
-                echo -n "$CUSTOM_DOCKER_BUILD_PIPELINE_BUNDLE" | tee "$(results.custom-docker-build-bundle.path)"
-                echo -n "$CUSTOM_DOCKER_BUILD_OCI_TA_PIPELINE_BUNDLE" | tee "$(results.custom-docker-build-oci-ta-bundle.path)"
-                echo -n "$CUSTOM_DOCKER_BUILD_OCI_TA_MIN_PIPELINE_BUNDLE" | tee "$(results.custom-docker-build-oci-ta-min-bundle.path)"
-                echo -n "$CUSTOM_DOCKER_BUILD_MULTI_PLATFORM_OCI_TA_PIPELINE_BUNDLE" | tee "$(results.custom-docker-build-multi-platform-oci-ta-bundle.path)"
                 echo -n "$CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE" | tee "$(results.custom-fbc-builder-bundle.path)"
           workspaces:
             - name: source
