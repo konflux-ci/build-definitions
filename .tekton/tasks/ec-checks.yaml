@@ -22,7 +22,7 @@ spec:
         value: /tekton/home
   steps:
   - name: gather-tasks
-    image: quay.io/konflux-ci/task-runner:1.7.0
+    image: quay.io/konflux-ci/task-runner:1.8.1
     # per https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
     # the cluster will set imagePullPolicy to IfNotPresent
     workingDir: $(workspaces.source.path)/source
@@ -37,7 +37,7 @@ spec:
       stepactions_dir stepactions-ec
   - name: validate-all-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/conforma/cli:konflux@sha256:89331620b873411802cfb69a2ddba0de61541f02181c3b878caa334f5e09e844
+    image: quay.io/conforma/cli:konflux@sha256:b87bab27cdbb6abdc9e41106629a5ae8c5d04c1e2d859d67bc4fc76c5f7f277a
     script: |
       set -euo pipefail
 
@@ -51,7 +51,7 @@ spec:
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-build-tasks
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/conforma/cli:konflux@sha256:89331620b873411802cfb69a2ddba0de61541f02181c3b878caa334f5e09e844
+    image: quay.io/conforma/cli:konflux@sha256:b87bab27cdbb6abdc9e41106629a5ae8c5d04c1e2d859d67bc4fc76c5f7f277a
     script: |
       set -euo pipefail
 
@@ -65,7 +65,7 @@ spec:
       ec validate input --policy "${policy}" --output yaml --strict=true ${args[*]}
   - name: validate-step-actions
     workingDir: "$(workspaces.source.path)/source"
-    image: quay.io/conforma/cli:konflux@sha256:89331620b873411802cfb69a2ddba0de61541f02181c3b878caa334f5e09e844
+    image: quay.io/conforma/cli:konflux@sha256:b87bab27cdbb6abdc9e41106629a5ae8c5d04c1e2d859d67bc4fc76c5f7f277a
     script: |
       #!/bin/bash
       set -euo pipefail
