@@ -30,7 +30,7 @@ spec:
           resolver: bundles
           params:
             - name: bundle
-              value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.4@sha256:bb787553da840e226ea72147a7ccbe8553f887efef2ca24664c9ba2052018adf
+              value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.6@sha256:0d3092d5f0800ace9f64cfa2b9585feca5fa4ded584b39e9e83535a5a61baa55
             - name: name
               value: git-clone
             - name: kind
@@ -81,7 +81,7 @@ spec:
                 echo $? > partner-tasks-code.out
                 cat partner-tasks.out
             - name: create-comment
-              image: registry.access.redhat.com/ubi9/python-39:9.7-1776644933@sha256:ee2a11266ec90665de33302f74d913d556cf2dc67d68208cada62de15a6859b9
+              image: registry.access.redhat.com/ubi9/python-39:9.8-1788412580@sha256:44068cf7ea834e1b4a18dd99bdfb8c879150685178355b7181455306195ee425
               volumeMounts:
                 - name: infra-deployments-pr-creator
                   mountPath: /secrets/deploy-key
@@ -221,7 +221,7 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:5ae89e3ac5763088c1d346e1cc44c5263f2d2d55668234513b0d2f3fc6b2a6c8
+              image: registry.redhat.io/openshift4/ose-cli:v4.12@sha256:f898cc139974e7753982d864b1351d28069e778bab9be89dcbf7b910e239fc01
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service
