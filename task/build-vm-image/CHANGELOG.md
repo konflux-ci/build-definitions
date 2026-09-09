@@ -9,7 +9,14 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
-*Nothing yet.*
+### Fixed
+
+- Populate the disk-image artifact manifest config with `architecture`/`os`
+  (via `--artifact-config`) instead of the empty OCI config (`{}`). Previously
+  the child artifact manifest carried no platform data, so the resulting image
+  index had `platform: null`, and downstream release tasks
+  (`get-image-architectures` / `apply_mapping`) failed with
+  `KeyError: 'platform'`.
 
 ## 0.3
 
