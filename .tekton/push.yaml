@@ -96,43 +96,6 @@ spec:
                 set -e
                 git config --global --add safe.directory "$PWD"
                 ./hack/build-and-push.sh
-            - name: update-acceptable-bundles
-              image: "$(params.image-target)"
-              workingDir: $(workspaces.source.path)/source
-              env:
-              - name: REVISION
-                value: "$(params.revision)"
-              - name: GIT_URL
-                value: "$(params.git-url)"
-              - name: GITHUB_TOKEN
-                valueFrom:
-                  secretKeyRef:
-                    name: "{{ git_auth_secret }}"
-                    key: "git-provider-token"
-              script: |
-                #!/bin/bash
-                set -euo pipefail
-
-                # shellcheck disable=SC1091
-                source .tekton/scripts/install-ec-gh.sh
-
-                git config --global --add safe.directory /workspace/source/source
-
-                DATA_BUNDLE_REPO=quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles
-                DATA_BUNDLE_TAG=$(date '+%s')
-                export DATA_BUNDLE_REPO DATA_BUNDLE_TAG
-
-                list=()
-                for f in "$@"; do
-                  [[ -f "$f" ]] && list+=("$f")
-                done
-
-                .tekton/scripts/build-acceptable-bundles.sh "${list[@]}"
-
-                echo -n "${DATA_BUNDLE_TAG}" > acceptable_bundle_tag
-              args:
-                - $(workspaces.source.path)/task-bundle-list-konflux-ci
-                - $(workspaces.source.path)/pipeline-bundle-list-konflux-ci
           workspaces:
             - name: source
 
