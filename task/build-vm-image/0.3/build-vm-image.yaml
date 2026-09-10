@@ -82,6 +82,16 @@ spec:
         value: $(params.STORAGE_DRIVER)
       - name: BUILDAH_IMAGE
         value: 'registry.access.redhat.com/ubi9/buildah:9.8-1787017371'
+      # Image the `oras` binary is extracted from on the remote builder VM.
+      # oras is not packaged in the UBI9 repos available on the (RHSM-unregistered)
+      # builder VM, so we cannot `dnf install oras`. Instead we `podman cp` the
+      # binary out of this pinned, trusted Konflux image and mount it into the
+      # buildah push container. Keeping ubi9/buildah as the push container
+      # preserves pigz (parallel gzip) and xz for compressing large disk images.
+      # This is the same image (and digest) used for the Tekton steps above.
+      # See AIPCC-1307.
+      - name: ORAS_SOURCE_IMAGE
+        value: 'quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35'
       - name: PLATFORM
         value: $(params.PLATFORM)
       - name: IMAGE_APPEND_PLATFORM
@@ -292,6 +302,7 @@ spec:
         export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
         export STORAGE_DRIVER="$STORAGE_DRIVER"
         export BUILDAH_IMAGE="$BUILDAH_IMAGE"
+        export ORAS_SOURCE_IMAGE="$ORAS_SOURCE_IMAGE"
 
         REMOTESSHEOF
 
@@ -369,10 +380,31 @@ spec:
           $ENTITLEMENT_VOLUME \
           $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
 
+        # Extract the oras binary from the pinned, trusted Konflux task-runner
+        # image and mount it into the buildah push container. oras is not
+        # available in the UBI9 repos on the (RHSM-unregistered) builder VM, so
+        # it cannot be dnf-installed. Pulling the binary out of a digest-pinned
+        # Konflux image keeps us inside trusted registries (Conforma-friendly)
+        # and works under hermetic builds: the image is pulled here (network is
+        # available for image pulls), then extraction is purely local. We keep
+        # ubi9/buildah as the push container so pigz/xz stay available for
+        # compressing large disk images. See AIPCC-1307.
+        echo "EXTRACTING oras FROM $ORAS_SOURCE_IMAGE"
+        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" "$ORAS_SOURCE_IMAGE"
+        then
+            echo "Failed to pull oras source image ${ORAS_SOURCE_IMAGE}"
+            exit 1
+        fi
+        ORAS_CTR=$(sudo podman create "$ORAS_SOURCE_IMAGE")
+        sudo podman cp "${ORAS_CTR}:/usr/local/bin/oras" "$BUILD_DIR/oras"
+        sudo podman rm "$ORAS_CTR"
+        sudo chmod +x "$BUILD_DIR/oras"
+
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/.docker:/.docker -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           -v $BUILD_DIR/scripts/script-push.sh:/script-push.sh \
+          -v $BUILD_DIR/oras:/usr/bin/oras:ro \
           -v $BUILD_DIR/tekton-results:/tekton-results \
           "$BUILDAH_IMAGE" \
           /script-push.sh
@@ -402,7 +434,11 @@ spec:
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
-        dnf -y install buildah skopeo oras pigz jq tar xz
+        # oras is mounted into this container at /usr/bin/oras (extracted from the
+        # pinned Konflux task-runner image on the VM); it is not dnf-installable
+        # here because it is not in the UBI9 repos. See AIPCC-1307.
+        dnf -y install buildah skopeo pigz jq tar xz
+        oras version
 
         # Determine the OCI architecture name. Prefer OCI_ARCH (derived from the
         # PLATFORM param on the pod, already in OCI naming). Fall back to the

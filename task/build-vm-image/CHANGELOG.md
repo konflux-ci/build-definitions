@@ -22,6 +22,14 @@ If that's not something you ever plan to do, consider removing this section.
   is the correct topology for a single-arch disk-image artifact. This also
   removes the `--digestfile` workaround: the digest is now obtained from
   `oras resolve`. See AIPCC-1307.
+- Provide `oras` on the remote builder VM by extracting `/usr/local/bin/oras`
+  from the pinned Konflux `task-runner` image (`podman create` + `podman cp`) and
+  mounting it into the `ubi9/buildah` push container. `oras` is not packaged in
+  the UBI9 repos available on the (RHSM-unregistered) builder VM, so it cannot be
+  `dnf`-installed. Sourcing the binary from a digest-pinned, trusted registry
+  image keeps the task Conforma-compliant and works under hermetic builds, while
+  keeping `ubi9/buildah` as the push container preserves `pigz`/`xz` for
+  compressing large disk images. See AIPCC-1307.
 
 ### Fixed
 
