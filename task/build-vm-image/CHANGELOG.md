@@ -9,7 +9,19 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
-*Nothing yet.*
+### Fixed
+
+- Resolve the pushed artifact manifest digest from the local manifest list
+  (`buildah manifest inspect`) instead of relying on
+  `buildah manifest push --digestfile`. Against some registries (e.g. quay.io)
+  a `manifest push --all` of a length-1 list writes only the child manifest and
+  never the list itself, leaving the digestfile empty while the push still
+  exits 0. The empty digest produced a bare `$REPO@` reference and crashed the
+  task with `invalid reference format`. The list only ever holds a single
+  artifact manifest and the index is discarded (the tag is re-pointed at the
+  child), so the locally-read child digest is authoritative and
+  registry-independent. A post-push `skopeo inspect` guard confirms the child
+  manifest is present on the registry before re-tagging (issue #3832).
 
 ## 0.3
 
