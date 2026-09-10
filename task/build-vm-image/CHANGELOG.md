@@ -17,6 +17,12 @@ If that's not something you ever plan to do, consider removing this section.
   index had `platform: null`, and downstream release tasks
   (`get-image-architectures` / `apply_mapping`) failed with
   `KeyError: 'platform'`.
+- Use OCI architecture names (`amd64`/`arm64`) in the artifact manifest config
+  instead of the kernel names returned by `$(arch)` on the remote builder VM
+  (`x86_64`/`aarch64`). The `--artifact-config` blob is stored verbatim with no
+  normalization (unlike buildah's `--arch` flag), so a non-standard value would
+  otherwise reach downstream release tasks that key on `platform.architecture`.
+  The architecture is now derived from the `PLATFORM` param.
 
 ## 0.3
 

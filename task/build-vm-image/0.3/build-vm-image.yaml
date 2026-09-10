@@ -387,6 +387,11 @@ spec:
 
         export OUTPUT_IMAGE="$OUTPUT_IMAGE"
         export IMAGE_TYPE="$IMAGE_TYPE"
+        # ARCH is derived from the PLATFORM param (see above) and is already in
+        # OCI naming (amd64/arm64). Pass it into the remote push script so the
+        # artifact config uses OCI arch names, NOT the remote host's kernel arch
+        # ($(arch)/uname -m returns x86_64/aarch64). See AIPCC-1307.
+        export OCI_ARCH="$ARCH"
 
         REMOTESSHEOF
 
@@ -409,8 +414,20 @@ spec:
         # entry's platform from this config, and downstream release tasks
         # (get-image-architectures / apply_mapping) require platform.architecture.
         # See AIPCC-1307.
+        # Determine the OCI architecture name. Prefer OCI_ARCH (derived from the
+        # PLATFORM param on the pod, already in OCI naming). Fall back to the
+        # remote host's kernel arch only if OCI_ARCH is unset, and normalize it:
+        # the archs returned by uname (x86_64/aarch64) are not the names used by
+        # OCI manifests (amd64/arm64), and the --artifact-config blob is stored
+        # verbatim with no normalization (unlike buildah's --arch flag). See AIPCC-1307.
+        OCI_ARCH="${OCI_ARCH:-$(arch)}"
+        case "$OCI_ARCH" in
+          x86_64)  OCI_ARCH=amd64 ;;
+          aarch64) OCI_ARCH=arm64 ;;
+        esac
+
         ARTIFACT_CONFIG_FILE=$(mktemp)
-        jq -cn --arg arch "$(arch)" --arg os "linux" \
+        jq -cn --arg arch "$OCI_ARCH" --arg os "linux" \
           '{architecture: $arch, os: $os}' > "$ARTIFACT_CONFIG_FILE"
         ARTIFACT_CONFIG_ARGS=(--artifact-config "$ARTIFACT_CONFIG_FILE" \
           --artifact-config-type application/vnd.oci.image.config.v1+json)
