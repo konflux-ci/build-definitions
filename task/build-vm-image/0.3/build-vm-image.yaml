@@ -389,16 +389,26 @@ spec:
         # available for image pulls), then extraction is purely local. We keep
         # ubi9/buildah as the push container so pigz/xz stay available for
         # compressing large disk images. See AIPCC-1307.
+        # Extract the oras binary by running the task-runner container and copying
+        # the binary to stdout. We deliberately use `sudo podman run` (the same
+        # invocation the build/push containers already use) rather than
+        # `podman create` + `podman cp`: the builder VM's sudoers does not grant
+        # passwordless sudo for `podman cp`, so a create/cp/rm sequence fails with
+        # "sudo: a password is required". `podman run ... cat` needs only the
+        # already-permitted `podman run`. The file is written by the (non-root)
+        # ssh user via the redirect, so the subsequent chmod needs no sudo.
+        # See AIPCC-1307.
         echo "EXTRACTING oras FROM $ORAS_SOURCE_IMAGE"
-        if ! time retry sudo podman pull --authfile=$BUILD_DIR/.docker/config.json --retry "$buildah_retries" "$ORAS_SOURCE_IMAGE"
+        if ! time retry sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm --pull=newer --entrypoint="" "$ORAS_SOURCE_IMAGE" cat /usr/local/bin/oras > "$BUILD_DIR/oras"
         then
-            echo "Failed to pull oras source image ${ORAS_SOURCE_IMAGE}"
+            echo "Failed to extract oras from ${ORAS_SOURCE_IMAGE}"
             exit 1
         fi
-        ORAS_CTR=$(sudo podman create "$ORAS_SOURCE_IMAGE")
-        sudo podman cp "${ORAS_CTR}:/usr/local/bin/oras" "$BUILD_DIR/oras"
-        sudo podman rm "$ORAS_CTR"
-        sudo chmod +x "$BUILD_DIR/oras"
+        if [ ! -s "$BUILD_DIR/oras" ]; then
+            echo "Extracted oras binary is empty (expected /usr/local/bin/oras in ${ORAS_SOURCE_IMAGE})" >&2
+            exit 1
+        fi
+        chmod +x "$BUILD_DIR/oras"
 
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/.docker:/.docker -v $(pwd)/output:/output \

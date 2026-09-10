@@ -23,7 +23,8 @@ If that's not something you ever plan to do, consider removing this section.
   removes the `--digestfile` workaround: the digest is now obtained from
   `oras resolve`. See AIPCC-1307.
 - Provide `oras` on the remote builder VM by extracting `/usr/local/bin/oras`
-  from the pinned Konflux `task-runner` image (`podman create` + `podman cp`) and
+  from the pinned Konflux `task-runner` image (`podman run ... cat` — the builder
+  VM's sudoers does not permit `podman cp`, so create/cp/rm is avoided) and
   mounting it into the `ubi9/buildah` push container. `oras` is not packaged in
   the UBI9 repos available on the (RHSM-unregistered) builder VM, so it cannot be
   `dnf`-installed. Sourcing the binary from a digest-pinned, trusted registry
