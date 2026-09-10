@@ -402,67 +402,68 @@ spec:
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
-        dnf -y install buildah skopeo pigz jq tar xz
+        dnf -y install buildah skopeo oras pigz jq tar xz
 
-        # Build an image index of length 1 referring to an image manifest with the content
-        buildah manifest create "$OUTPUT_IMAGE"
-
-        # Write a real OCI image config for the artifact manifest so it carries
-        # architecture/os. Without this, buildah uses the empty config
-        # (application/vnd.oci.empty.v1+json, i.e. "{}"), which leaves the child
-        # manifest with no platform data. build-image-index derives the index
-        # entry's platform from this config, and downstream release tasks
-        # (get-image-architectures / apply_mapping) require platform.architecture.
-        # See AIPCC-1307.
         # Determine the OCI architecture name. Prefer OCI_ARCH (derived from the
         # PLATFORM param on the pod, already in OCI naming). Fall back to the
         # remote host's kernel arch only if OCI_ARCH is unset, and normalize it:
         # the archs returned by uname (x86_64/aarch64) are not the names used by
-        # OCI manifests (amd64/arm64), and the --artifact-config blob is stored
-        # verbatim with no normalization (unlike buildah's --arch flag). See AIPCC-1307.
+        # OCI manifests (amd64/arm64). See AIPCC-1307.
         OCI_ARCH="${OCI_ARCH:-$(arch)}"
         case "$OCI_ARCH" in
           x86_64)  OCI_ARCH=amd64 ;;
           aarch64) OCI_ARCH=arm64 ;;
         esac
 
-        ARTIFACT_CONFIG_FILE=$(mktemp)
-        jq -cn --arg arch "$OCI_ARCH" --arg os "linux" \
-          '{architecture: $arch, os: $os}' > "$ARTIFACT_CONFIG_FILE"
-        ARTIFACT_CONFIG_ARGS=(--artifact-config "$ARTIFACT_CONFIG_FILE" \
-          --artifact-config-type application/vnd.oci.image.config.v1+json)
-
         # show contents of /output
         ls -alR /output
 
+        # Locate the disk-image output for this IMAGE_TYPE and set the artifact
+        # media type + file path. We push a SINGLE OCI artifact manifest directly
+        # (oras / oci-copy pattern) rather than wrapping the image in a length-1
+        # manifest list. quay's index validator returns HTTP 500 for an OCI index
+        # whose only child is an artifact manifest carrying a real (non-empty)
+        # {architecture,os} config, so the manifest-list path is impossible on
+        # quay once we ship a real platform config. A single artifact manifest
+        # avoids the index entirely, still carries a real config (for platform),
+        # and is the correct topology for a single-arch disk-image artifact. The
+        # multi-arch index, when needed, is built later by build-image-index,
+        # which derives each entry's platform from this child config. See AIPCC-1307.
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
           # don't zip qcow2 images, it is already compressed.
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.qcow2 $OUTPUT_IMAGE /output/qcow2/disk.qcow2
+          ARTIFACT_TYPE=application/vnd.diskimage.qcow2
+          ARTIFACT_FILE=/output/qcow2/disk.qcow2
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
           pigz /output/image/disk.raw
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.raw.gzip
+          ARTIFACT_FILE=/output/image/disk.raw.gz
         elif [ -f "/output/bootiso/install.iso" ]; then
           echo -e "Found iso image."
           pigz /output/bootiso/install.iso
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.iso.gzip
+          ARTIFACT_FILE=/output/bootiso/install.iso.gz
         elif [ -f "/output/vpc/disk.vhd" ]; then
           echo -e "Found vhd image."
           pigz /output/vpc/disk.vhd
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.vhd.gzip
+          ARTIFACT_FILE=/output/vpc/disk.vhd.gz
         elif [ -f "/output/gce/image.tar.gz" ]; then
           echo -e "Found gce image."
           # already compressed.
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.gce.tgz
+          ARTIFACT_FILE=/output/gce/image.tar.gz
         elif [ -f "/output/vmdk/disk.vmdk" ]; then
           echo -e "Found vmdk image."
           pigz /output/vmdk/disk.vmdk
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.vmdk.gzip $OUTPUT_IMAGE /output/vmdk/disk.vmdk.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.vmdk.gzip
+          ARTIFACT_FILE=/output/vmdk/disk.vmdk.gz
         elif [ -f "/output/archive/image.ova" ]; then
           echo -e "Found ova image."
           pigz /output/archive/image.ova
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.ova.gzip $OUTPUT_IMAGE /output/archive/image.ova.gz
+          ARTIFACT_TYPE=application/vnd.diskimage.ova.gzip
+          ARTIFACT_FILE=/output/archive/image.ova.gz
         # NOTE: pxe-tar-xz handling covers two different bootc-image-builder versions:
         #
         # 1. New image-builder multicall binary (osbuild/image-builder):
@@ -479,36 +480,92 @@ spec:
         # the archive from the old raw tree.
         elif [ -f "/output/xz/pxe.tar.xz" ]; then
           echo -e "Found pxe-tar-xz image (new image-builder)."
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/xz/pxe.tar.xz
+          ARTIFACT_TYPE=application/vnd.diskimage.pxe.tar.xz
+          ARTIFACT_FILE=/output/xz/pxe.tar.xz
         elif [ -d "/output/bootc-pxe-tree" ]; then
           echo -e "Found pxe tree directory (old BIB), creating tar.xz archive."
           tar -cJf /output/bootc-pxe-tree.tar.xz -C /output/bootc-pxe-tree .
-          buildah manifest add --arch $(arch) --os linux --artifact "${ARTIFACT_CONFIG_ARGS[@]}" --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/bootc-pxe-tree.tar.xz
+          ARTIFACT_TYPE=application/vnd.diskimage.pxe.tar.xz
+          ARTIFACT_FILE=/output/bootc-pxe-tree.tar.xz
         else
           echo "No output artifact found for IMAGE_TYPE=${IMAGE_TYPE}. Check BIB output in /output." >&2
           ls -alR /output >&2
           exit 1
         fi
 
-        buildah_retries=3
-        echo "Pushing image $OUTPUT_IMAGE to registry"
-        if ! retry buildah manifest push --digestfile image-digest --authfile /.docker/config.json --retry "$buildah_retries" --all $OUTPUT_IMAGE
+        REPO=${OUTPUT_IMAGE%:*}
+
+        # --- Build and push a single OCI artifact manifest directly (oras) ---
+        #
+        # 1. Push the OCI image config blob carrying the real platform. The
+        #    {architecture,os} config is what build-image-index / apply_mapping
+        #    read to derive platform.architecture (an empty config yields
+        #    platform: null downstream — the original AIPCC-1307 KeyError).
+        CONFIG_FILE=$(mktemp)
+        jq -cn --arg arch "$OCI_ARCH" --arg os "linux" \
+          '{architecture: $arch, os: $os}' > "$CONFIG_FILE"
+        CONFIG_MEDIA_TYPE=application/vnd.oci.image.config.v1+json
+
+        echo "Pushing config blob to ${REPO}"
+        if ! retry oras blob push --registry-config /.docker/config.json \
+              "${REPO}" --media-type "${CONFIG_MEDIA_TYPE}" "${CONFIG_FILE}"
         then
-            echo "Failed to push image ${OUTPUT_IMAGE} to registry"
+            echo "Failed to push config blob to ${REPO}" >&2
+            exit 1
+        fi
+        CONFIG_DESC=$(retry oras blob fetch --registry-config /.docker/config.json \
+          --descriptor "${REPO}@sha256:$(sha256sum "${CONFIG_FILE}" | awk '{print $1}')")
+
+        # 2. Push the disk-image blob (the artifact layer).
+        echo "Pushing disk image blob ${ARTIFACT_FILE} to ${REPO}"
+        if ! retry oras blob push --registry-config /.docker/config.json \
+              "${REPO}" --media-type "${ARTIFACT_TYPE}" "${ARTIFACT_FILE}"
+        then
+            echo "Failed to push disk image blob to ${REPO}" >&2
+            exit 1
+        fi
+        LAYER_DESC=$(retry oras blob fetch --registry-config /.docker/config.json \
+          --descriptor "${REPO}@sha256:$(sha256sum "${ARTIFACT_FILE}" | awk '{print $1}')")
+        # Annotate the layer with its media type and a title (filename).
+        LAYER_DESC=$(echo "$LAYER_DESC" | jq -c \
+          --arg mt "$ARTIFACT_TYPE" --arg title "$(basename "$ARTIFACT_FILE")" \
+          '.mediaType = $mt | .annotations."org.opencontainers.image.title" = $title')
+
+        # 3. Hand-build the OCI artifact manifest: single config + single layer.
+        ARTIFACT_MANIFEST=$(mktemp)
+        jq -n \
+          --arg at "$ARTIFACT_TYPE" \
+          --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --argjson config "$CONFIG_DESC" \
+          --argjson layer "$LAYER_DESC" \
+          '{
+            schemaVersion: 2,
+            mediaType: "application/vnd.oci.image.manifest.v1+json",
+            artifactType: $at,
+            config: ($config | .mediaType = "application/vnd.oci.image.config.v1+json"),
+            layers: [$layer],
+            annotations: {"org.opencontainers.image.created": $created}
+          }' > "$ARTIFACT_MANIFEST"
+        echo "Artifact manifest:"
+        cat "$ARTIFACT_MANIFEST"
+
+        # 4. Push the artifact manifest to the output tag.
+        echo "Pushing artifact manifest to ${OUTPUT_IMAGE}"
+        if ! retry oras manifest push --registry-config /.docker/config.json \
+              "${OUTPUT_IMAGE}" "${ARTIFACT_MANIFEST}"
+        then
+            echo "Failed to push artifact manifest to ${OUTPUT_IMAGE}" >&2
             exit 1
         fi
 
-        # At this point, we have pushed an image index of length 1 to the registry.
-        # Next, extract a reference to the image manifest and expose that, throwing away the image index.
-        IMAGE_INDEX_DIGEST=$(cat image-digest)
-        REPO=${OUTPUT_IMAGE%:*}
-        MANIFEST_DIGEST=$(buildah manifest inspect --authfile /.docker/config.json $REPO@$IMAGE_INDEX_DIGEST | jq -r '.manifests[0].digest')
-
-        # Overwrite the image index pullspec tag with the image manifest one
-        echo "Overwriting image $OUTPUT_IMAGE in registry"
-        if ! retry skopeo copy --authfile /.docker/config.json docker://$REPO@$MANIFEST_DIGEST docker://$OUTPUT_IMAGE
+        # 5. Resolve the digest of the pushed manifest.
+        if ! MANIFEST_DIGEST=$(retry oras resolve --registry-config /.docker/config.json "${OUTPUT_IMAGE}")
         then
-            echo "Failed to overwrite image ${OUTPUT_IMAGE} in registry"
+            echo "Failed to resolve digest for ${OUTPUT_IMAGE} from registry" >&2
+            exit 1
+        fi
+        if [ -z "$MANIFEST_DIGEST" ] || [ "$MANIFEST_DIGEST" = "null" ]; then
+            echo "Resolved an empty digest for ${OUTPUT_IMAGE}; refusing to build a bare reference" >&2
             exit 1
         fi
 

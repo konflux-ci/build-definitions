@@ -9,6 +9,20 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
+### Changed
+
+- Push the disk image as a single OCI artifact manifest directly (via `oras`)
+  instead of wrapping it in a length-1 manifest list/index and pushing with
+  `buildah manifest push --all`. quay's index validator returns HTTP 500 for an
+  OCI index whose only child is an artifact manifest carrying a real
+  (non-empty) `{architecture,os}` config, which made the manifest-list path
+  impossible on quay once a real platform config was shipped. A single artifact
+  manifest avoids the index entirely, still carries a real config (so
+  `build-image-index` / `apply_mapping` can derive `platform.architecture`), and
+  is the correct topology for a single-arch disk-image artifact. This also
+  removes the `--digestfile` workaround: the digest is now obtained from
+  `oras resolve`. See AIPCC-1307.
+
 ### Fixed
 
 - Populate the disk-image artifact manifest config with `architecture`/`os`
