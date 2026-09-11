@@ -389,14 +389,16 @@ spec:
         # available for image pulls), then extraction is purely local. We keep
         # ubi9/buildah as the push container so pigz/xz stay available for
         # compressing large disk images. See AIPCC-1307.
-        # Extract the oras binary by running the task-runner container and copying
-        # the binary to stdout. We deliberately use `sudo podman run` (the same
-        # invocation the build/push containers already use) rather than
-        # `podman create` + `podman cp`: the builder VM's sudoers does not grant
-        # passwordless sudo for `podman cp`, so a create/cp/rm sequence fails with
-        # "sudo: a password is required". `podman run ... cat` needs only the
-        # already-permitted `podman run`. The file is written by the (non-root)
-        # ssh user via the redirect, so the subsequent chmod needs no sudo.
+        # Extract the oras binary AND the select-oci-auth helper by running the
+        # task-runner container and copying each file to stdout. We deliberately
+        # use `sudo podman run` (the same invocation the build/push containers
+        # already use) rather than `podman create` + `podman cp`: the builder VM's
+        # sudoers does not grant passwordless sudo for `podman cp`, so a
+        # create/cp/rm sequence fails with "sudo: a password is required".
+        # `podman run ... cat` needs only the already-permitted `podman run`. The
+        # files are written by the (non-root) ssh user via the redirect, so the
+        # subsequent chmod needs no sudo.
+        #
         # See AIPCC-1307.
         echo "EXTRACTING oras FROM $ORAS_SOURCE_IMAGE"
         if ! time retry sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm --pull=newer --entrypoint="" "$ORAS_SOURCE_IMAGE" cat /usr/local/bin/oras > "$BUILD_DIR/oras"
@@ -540,6 +542,28 @@ spec:
         fi
 
         REPO=${OUTPUT_IMAGE%:*}
+        REGISTRY=${REPO%%/*}
+
+        # Build a REGISTRY-scoped auth file for oras. The Konflux
+        # .docker/config.json contains REPOSITORY-scoped tokens (e.g. an entry
+        # keyed on the full repo path). buildah/skopeo match those, but oras only
+        # matches REGISTRY-scoped tokens and otherwise returns HTTP 401. Mirror
+        # what the konflux `select-oci-auth` helper does: find the token for the
+        # repo (walking up parent paths), then re-key it under the bare registry
+        # so oras can use it. See AIPCC-1307.
+        ORAS_AUTH=$(mktemp)
+        AUTH_TOKEN=$(jq -r --arg repo "$REPO" --arg reg "$REGISTRY" '
+          .auths as $a
+          | ($repo | split("/")) as $parts
+          | [range(($parts|length); 0; -1) | $parts[0:.] | join("/")] as $candidates
+          | ( ($candidates[] | select($a[.] != null) | $a[.]) // $a[$reg] // empty )
+          | @json' /.docker/config.json | head -n1)
+        if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "null" ]; then
+            echo "No auth token found for ${REPO} in /.docker/config.json" >&2
+            exit 1
+        fi
+        jq -n --arg reg "$REGISTRY" --argjson tok "$AUTH_TOKEN" \
+          '{auths: {($reg): $tok}}' > "$ORAS_AUTH"
 
         # --- Build and push a single OCI artifact manifest directly (oras) ---
         #
@@ -553,24 +577,24 @@ spec:
         CONFIG_MEDIA_TYPE=application/vnd.oci.image.config.v1+json
 
         echo "Pushing config blob to ${REPO}"
-        if ! retry oras blob push --registry-config /.docker/config.json \
+        if ! retry oras blob push --registry-config "$ORAS_AUTH" \
               "${REPO}" --media-type "${CONFIG_MEDIA_TYPE}" "${CONFIG_FILE}"
         then
             echo "Failed to push config blob to ${REPO}" >&2
             exit 1
         fi
-        CONFIG_DESC=$(retry oras blob fetch --registry-config /.docker/config.json \
+        CONFIG_DESC=$(retry oras blob fetch --registry-config "$ORAS_AUTH" \
           --descriptor "${REPO}@sha256:$(sha256sum "${CONFIG_FILE}" | awk '{print $1}')")
 
         # 2. Push the disk-image blob (the artifact layer).
         echo "Pushing disk image blob ${ARTIFACT_FILE} to ${REPO}"
-        if ! retry oras blob push --registry-config /.docker/config.json \
+        if ! retry oras blob push --registry-config "$ORAS_AUTH" \
               "${REPO}" --media-type "${ARTIFACT_TYPE}" "${ARTIFACT_FILE}"
         then
             echo "Failed to push disk image blob to ${REPO}" >&2
             exit 1
         fi
-        LAYER_DESC=$(retry oras blob fetch --registry-config /.docker/config.json \
+        LAYER_DESC=$(retry oras blob fetch --registry-config "$ORAS_AUTH" \
           --descriptor "${REPO}@sha256:$(sha256sum "${ARTIFACT_FILE}" | awk '{print $1}')")
         # Annotate the layer with its media type and a title (filename).
         LAYER_DESC=$(echo "$LAYER_DESC" | jq -c \
@@ -597,7 +621,7 @@ spec:
 
         # 4. Push the artifact manifest to the output tag.
         echo "Pushing artifact manifest to ${OUTPUT_IMAGE}"
-        if ! retry oras manifest push --registry-config /.docker/config.json \
+        if ! retry oras manifest push --registry-config "$ORAS_AUTH" \
               "${OUTPUT_IMAGE}" "${ARTIFACT_MANIFEST}"
         then
             echo "Failed to push artifact manifest to ${OUTPUT_IMAGE}" >&2
@@ -605,7 +629,7 @@ spec:
         fi
 
         # 5. Resolve the digest of the pushed manifest.
-        if ! MANIFEST_DIGEST=$(retry oras resolve --registry-config /.docker/config.json "${OUTPUT_IMAGE}")
+        if ! MANIFEST_DIGEST=$(retry oras resolve --registry-config "$ORAS_AUTH" "${OUTPUT_IMAGE}")
         then
             echo "Failed to resolve digest for ${OUTPUT_IMAGE} from registry" >&2
             exit 1

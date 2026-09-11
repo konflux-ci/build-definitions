@@ -25,7 +25,11 @@ If that's not something you ever plan to do, consider removing this section.
 - Provide `oras` on the remote builder VM by extracting `/usr/local/bin/oras`
   from the pinned Konflux `task-runner` image (`podman run ... cat` — the builder
   VM's sudoers does not permit `podman cp`, so create/cp/rm is avoided) and
-  mounting it into the `ubi9/buildah` push container. `oras` is not packaged in
+  mounting it into the `ubi9/buildah` push container. oras is invoked with a
+  registry-scoped auth file derived from `.docker/config.json`: the Konflux auth
+  file uses repository-scoped tokens, which buildah/skopeo match but oras does
+  not (oras only matches registry-scoped tokens and otherwise returns HTTP 401),
+  so the token is re-keyed under the bare registry (mirroring `select-oci-auth`). `oras` is not packaged in
   the UBI9 repos available on the (RHSM-unregistered) builder VM, so it cannot be
   `dnf`-installed. Sourcing the binary from a digest-pinned, trusted registry
   image keeps the task Conforma-compliant and works under hermetic builds, while
