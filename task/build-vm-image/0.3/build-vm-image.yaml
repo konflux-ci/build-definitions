@@ -64,6 +64,13 @@ spec:
     - description: Reference of SBOM blob digest to enable digest-based verification from provenance
       name: SBOM_BLOB_URL
       type: string
+    - description: >-
+        OCI platform ("linux/<arch>") of the disk image built by this task run,
+        derived from the PLATFORM param. Lets build-image-index set the platform
+        on each child descriptor of the multi-arch index, since the artifact
+        manifest itself carries an empty config with no platform information.
+      name: PLATFORM
+      type: string
   stepTemplate:
     env:
       - name: OUTPUT_IMAGE
@@ -266,6 +273,15 @@ spec:
 
         ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
         echo "ARCH: '${ARCH}'"
+
+        # Record the OCI platform for this single-arch task run. Disk-image
+        # artifacts carry an empty config (application/vnd.oci.empty.v1+json),
+        # so the multi-arch index built later by build-image-index cannot infer
+        # each child's platform. Emitting it here lets build-image-index set the
+        # platform on each descriptor explicitly. The OS is always linux for VM
+        # disk images; the arch comes from the PLATFORM param (OCI names, e.g.
+        # amd64/arm64), never from uname/$(arch) on the remote builder.
+        echo -n "linux/${ARCH}" | tee "$(results.PLATFORM.path)"
 
         valid_pullspec_characters="0-9a-zA-Z@:/._-"
         if [[ "${OUTPUT_IMAGE}" =~ [^$valid_pullspec_characters] ]]; then
