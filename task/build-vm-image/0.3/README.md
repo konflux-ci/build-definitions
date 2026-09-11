@@ -25,6 +25,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |IMAGE_URL|Image repository where the built manifest list was pushed|
 |IMAGE_REFERENCE|Image reference (IMAGE_URL + IMAGE_DIGEST)|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
+|PLATFORM|OCI platform ("linux/<arch>") of the disk image built by this task run, derived from the PLATFORM param. Lets build-image-index set the platform on each child descriptor of the multi-arch index, since the artifact manifest itself carries an empty config with no platform information.|
 
 
 ## Additional info
