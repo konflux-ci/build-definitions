@@ -5,17 +5,14 @@ go 1.26
 require (
 	github.com/conforma/crds/api v0.1.7
 	github.com/devfile/library/v2 v2.2.1-0.20230418160146-e75481b7eebd
-	github.com/google/go-containerregistry v0.21.0
 	github.com/konflux-ci/application-api v0.0.0-20260529131129-a9594acdc104
 	github.com/konflux-ci/e2e-tests v0.0.0-20260707100404-eca3dcc01e3c
 	github.com/onsi/ginkgo/v2 v2.28.0
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc
-	github.com/tektoncd/pipeline v1.9.2
+	github.com/tektoncd/pipeline v1.9.3
 	k8s.io/apiextensions-apiserver v0.35.2
 	k8s.io/apimachinery v0.35.2
 	sigs.k8s.io/controller-runtime v0.22.4
-	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -83,6 +80,7 @@ require (
 	github.com/google/cel-go v0.27.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/go-containerregistry v0.21.0 // indirect
 	github.com/google/go-github/v66 v66.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
@@ -116,6 +114,7 @@ require (
 	github.com/openshift-pipelines/pipelines-as-code v0.34.0 // indirect
 	github.com/openshift/api v0.0.0-20260112161841-5b45879294d5 // indirect
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13 // indirect
+	github.com/openshift/library-go v0.0.0-20220525173854-9b950a41acdc // indirect
 	github.com/operator-framework/operator-lib v0.19.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.5.0 // indirect
@@ -176,6 +175,7 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 replace (
