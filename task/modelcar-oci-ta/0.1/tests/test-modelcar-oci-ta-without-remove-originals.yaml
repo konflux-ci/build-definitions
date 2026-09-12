@@ -45,7 +45,7 @@ spec:
               readOnly: true
         steps:
           - name: mock-source
-            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            image: quay.io/konflux-ci/task-runner:3.2.0@sha256:ba5789d2bc04146431e492083c67b86de26d5b17891dc27f67db850a397b66d3
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -67,7 +67,7 @@ spec:
               ls -la "$(workspaces.tests-workspace.path)/source"
               find "$(workspaces.tests-workspace.path)/source" -type f -exec echo "  {}" \;
           - name: mock-model
-            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            image: quay.io/konflux-ci/task-runner:3.2.0@sha256:ba5789d2bc04146431e492083c67b86de26d5b17891dc27f67db850a397b66d3
             workingDir: $(workspaces.tests-workspace.path)
             env:
               - name: MODEL_PATH
@@ -86,7 +86,7 @@ spec:
                 oras push --insecure --no-tty "${MODEL_PATH}" "${files[@]}"
               )
           - name: record-model-digest
-            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            image: quay.io/konflux-ci/task-runner:3.2.0@sha256:ba5789d2bc04146431e492083c67b86de26d5b17891dc27f67db850a397b66d3
             env:
               - name: MODEL_PATH
                 value: $(params.modelPath)
@@ -100,7 +100,7 @@ spec:
               echo "Share location of the mocked model"
               echo -n "${MODEL_PATH}@${digest}" > "$(results.MODEL_PATH.path)"
           - name: create-trusted-artifact
-            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:15d7dc86012e41b10d1eb37679ec03ee75c96436224fadd0938a49dc537aa4ad
+            image: quay.io/konflux-ci/build-trusted-artifacts:latest@sha256:dba00133c3f4d6a7b071c6b83977729da2c4b7469ee5e3e9acdf4ef6d1c6b3e2
             env:
               # Consumed by oras_opts.sh inside build-trusted-artifacts.
               - name: ORAS_OPTIONS
@@ -179,7 +179,7 @@ spec:
                 value: $(params.IMAGE_URL)
               - name: SBOM_BLOB_URL
                 value: $(params.SBOM_BLOB_URL)
-            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            image: quay.io/konflux-ci/task-runner:3.2.0@sha256:ba5789d2bc04146431e492083c67b86de26d5b17891dc27f67db850a397b66d3
             securityContext:
               runAsUser: 0
               runAsNonRoot: false
