@@ -85,6 +85,7 @@ echo "mock: pushed with digest ${DIGEST}"
 echo -n "${OUTPUT_IMAGE}" > /tekton/results/IMAGE_URL
 echo -n "${DIGEST}" > /tekton/results/IMAGE_DIGEST
 echo -n "${OUTPUT_IMAGE}@${DIGEST}" > /tekton/results/IMAGE_REFERENCE
+echo -n "${OUTPUT_IMAGE}@${DIGEST}=linux/${PLATFORM##*/}" > /tekton/results/IMAGE_PLATFORM_MAP
 echo "mock: results written"
 '
 yq -i '

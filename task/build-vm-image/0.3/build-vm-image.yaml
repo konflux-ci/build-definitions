@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.3.1"
+    app.kubernetes.io/version: "0.3.2"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -70,6 +70,16 @@ spec:
         on each child descriptor of the multi-arch index, since the artifact
         manifest itself carries an empty config with no platform information.
       name: PLATFORM
+      type: string
+    - description: >-
+        Combined "<IMAGE_REFERENCE>=linux/<arch>" entry for this task run,
+        ready to be fanned into build-image-index's IMAGE_PLATFORM_MAP
+        parameter (one entry per matrix leg via the [*] aggregate). The
+        image reference and platform are joined here, in-task, because
+        Tekton does not support zipping two separately-aggregated result
+        arrays produced by a matrixed PipelineTask (see IMAGE_REFERENCE
+        above for the same rationale applied to URL+digest).
+      name: IMAGE_PLATFORM_MAP
       type: string
   stepTemplate:
     env:
@@ -519,6 +529,14 @@ spec:
 
         ssh -v "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
         rsync -e "ssh ${SSH_ARGS[*]}" -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
+
+        # Combine the just-synced IMAGE_REFERENCE with this leg's platform into
+        # a single "imageRef=os/arch" entry for build-image-index's
+        # IMAGE_PLATFORM_MAP param. ARCH was computed above from the PLATFORM
+        # param. Done here (pod-side, post-sync) rather than inside the remote
+        # script, since both inputs are already available and it keeps the
+        # remote build script unchanged.
+        echo -n "$(cat /tekton/results/IMAGE_REFERENCE)=linux/${ARCH}" | tee "$(results.IMAGE_PLATFORM_MAP.path)"
 
       volumeMounts:
         - mountPath: /ssh

@@ -163,3 +163,55 @@ spec:
               echo "All checks passed"
       runAfter:
         - run-build-vm-image
+
+    - name: verify-image-platform-map
+      params:
+        - name: IMAGE_PLATFORM_MAP
+          value: $(tasks.run-build-vm-image.results.IMAGE_PLATFORM_MAP)
+        - name: IMAGE_URL
+          value: $(tasks.run-build-vm-image.results.IMAGE_URL)
+        - name: IMAGE_DIGEST
+          value: $(tasks.run-build-vm-image.results.IMAGE_DIGEST)
+      taskSpec:
+        params:
+          - name: IMAGE_PLATFORM_MAP
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+        steps:
+          - name: check-image-platform-map
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            env:
+              - name: IMAGE_PLATFORM_MAP
+                value: $(params.IMAGE_PLATFORM_MAP)
+              - name: IMAGE_URL
+                value: $(params.IMAGE_URL)
+              - name: IMAGE_DIGEST
+                value: $(params.IMAGE_DIGEST)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              EXPECTED="${IMAGE_URL}@${IMAGE_DIGEST}=linux/amd64"
+              echo "Verifying IMAGE_PLATFORM_MAP result: ${IMAGE_PLATFORM_MAP}"
+
+              echo "=== Check 1: IMAGE_PLATFORM_MAP is non-empty ==="
+              if [ -z "${IMAGE_PLATFORM_MAP}" ]; then
+                echo "FAIL: IMAGE_PLATFORM_MAP is empty" && exit 1
+              fi
+              echo "PASS: IMAGE_PLATFORM_MAP is non-empty"
+
+              echo "=== Check 2: IMAGE_PLATFORM_MAP matches imageRef=os/arch form ==="
+              if [[ ! "${IMAGE_PLATFORM_MAP}" =~ ^.+@sha256:[0-9a-f]{64}=linux/amd64$ ]]; then
+                echo "FAIL: IMAGE_PLATFORM_MAP '${IMAGE_PLATFORM_MAP}' does not match '<ref>@sha256:<digest>=linux/amd64'" && exit 1
+              fi
+              echo "PASS: IMAGE_PLATFORM_MAP matches expected form"
+
+              echo "=== Check 3: IMAGE_PLATFORM_MAP is keyed by this run's own IMAGE_REFERENCE ==="
+              if [ "${IMAGE_PLATFORM_MAP}" != "${EXPECTED}" ]; then
+                echo "FAIL: expected '${EXPECTED}', got '${IMAGE_PLATFORM_MAP}'" && exit 1
+              fi
+              echo "PASS: IMAGE_PLATFORM_MAP == ${EXPECTED}"
+
+              echo "All checks passed"
+      runAfter:
+        - run-build-vm-image

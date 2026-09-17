@@ -11,6 +11,13 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.2
+
+### Added
+
+- New result `PLATFORM`: OCI platform (`linux/<arch>`) of the disk image built by this task run. Lets `build-image-index` set the platform on each child descriptor of a multi-arch index, since disk-image OCI artifacts carry an empty config with no platform information for buildah to infer from.
+- New result `IMAGE_PLATFORM_MAP`: combined `<IMAGE_REFERENCE>=linux/<arch>` entry for this task run, ready to be fanned (via `[*]`) into `build-image-index`'s `IMAGE_PLATFORM_MAP` parameter. The reference and platform are joined in-task because Tekton cannot zip two separately-aggregated result arrays produced by a matrixed `PipelineTask` (same rationale as the existing `IMAGE_REFERENCE` result).
+
 ## 0.3.1
 
 ### Fixed
