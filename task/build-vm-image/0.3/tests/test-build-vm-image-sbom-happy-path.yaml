@@ -36,7 +36,7 @@ spec:
 
               echo "Pushing dummy source container image"
               cd /tmp && echo "source-content" > source.txt
-              oras push --no-tty "${SOURCE_IMAGE}" source.txt
+              oras push --insecure --no-tty "${SOURCE_IMAGE}" source.txt
 
               echo "Creating test SBOM with a known package"
               cat > test-sbom.json <<'EOF'
@@ -63,7 +63,7 @@ spec:
               EOF
 
               echo "Attaching SBOM to source image"
-              cosign attach sbom --sbom test-sbom.json --type spdx "${SOURCE_IMAGE}"
+              cosign attach sbom --allow-insecure-registry --sbom test-sbom.json --type spdx "${SOURCE_IMAGE}"
               echo "Setup complete"
 
     - name: run-build-vm-image
@@ -129,7 +129,7 @@ spec:
               echo "Verifying SBOM on disk image: ${IMAGE_REF}"
 
               echo "=== Check 1: SBOM can be downloaded ==="
-              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              SBOM=$(cosign download sbom --allow-insecure-registry "${IMAGE_REF}")
               echo "${SBOM}" | jq .
 
               echo "=== Check 2: SBOM has packages ==="
