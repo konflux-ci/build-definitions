@@ -38,13 +38,13 @@ spec:
               echo "=== Pushing per-arch images ==="
               cd /tmp
               echo "amd64-content" > amd64.txt
-              oras push --no-tty "${REPO}:amd64" amd64.txt
-              AMD64_DIGEST=$(oras resolve "${REPO}:amd64")
+              oras push --insecure --no-tty "${REPO}:amd64" amd64.txt
+              AMD64_DIGEST=$(oras resolve --insecure "${REPO}:amd64")
               echo "amd64 digest: ${AMD64_DIGEST}"
 
               echo "arm64-content" > arm64.txt
-              oras push --no-tty "${REPO}:arm64" arm64.txt
-              ARM64_DIGEST=$(oras resolve "${REPO}:arm64")
+              oras push --insecure --no-tty "${REPO}:arm64" arm64.txt
+              ARM64_DIGEST=$(oras resolve --insecure "${REPO}:arm64")
               echo "arm64 digest: ${ARM64_DIGEST}"
 
               echo "=== Creating OCI image index ==="
@@ -56,13 +56,13 @@ spec:
                   {
                     "mediaType": "application/vnd.oci.image.manifest.v1+json",
                     "digest": "${AMD64_DIGEST}",
-                    "size": $(skopeo inspect --raw "docker://${REPO}@${AMD64_DIGEST}" | wc -c),
+                    "size": $(skopeo inspect --tls-verify=false --raw "docker://${REPO}@${AMD64_DIGEST}" | wc -c),
                     "platform": { "architecture": "amd64", "os": "linux" }
                   },
                   {
                     "mediaType": "application/vnd.oci.image.manifest.v1+json",
                     "digest": "${ARM64_DIGEST}",
-                    "size": $(skopeo inspect --raw "docker://${REPO}@${ARM64_DIGEST}" | wc -c),
+                    "size": $(skopeo inspect --tls-verify=false --raw "docker://${REPO}@${ARM64_DIGEST}" | wc -c),
                     "platform": { "architecture": "arm64", "os": "linux" }
                   }
                 ]
@@ -73,18 +73,14 @@ spec:
               # Push the index manifest directly via the registry API
               INDEX_CT="application/vnd.oci.image.index.v1+json"
               REGISTRY="registry-service.kind-registry"
-              curl -fsSL -X PUT \
+              # kind registry serves HTTPS with an untrusted CA; -k skips verification (test-only)
+              curl -fsSL -k -X PUT \
                 -H "Content-Type: ${INDEX_CT}" \
                 -d @index.json \
-                "https://${REGISTRY}/v2/test-source/manifests/test" \
-                --cacert /etc/pki/tls/certs/ca-custom-bundle.crt || \
-              curl -fsSL -X PUT \
-                -H "Content-Type: ${INDEX_CT}" \
-                -d @index.json \
-                "http://${REGISTRY}/v2/test-source/manifests/test"
+                "https://${REGISTRY}/v2/test-source/manifests/test"
 
               echo "=== Verifying index ==="
-              skopeo inspect --raw "docker://${REPO}:test" | jq .
+              skopeo inspect --tls-verify=false --raw "docker://${REPO}:test" | jq .
 
               echo "=== Attaching SBOM to amd64 manifest only ==="
               cat > test-sbom.json <<'SBOM_EOF'
@@ -110,12 +106,12 @@ spec:
               }
               SBOM_EOF
 
-              cosign attach sbom --sbom test-sbom.json --type spdx "${REPO}@${AMD64_DIGEST}"
+              cosign attach sbom --allow-insecure-registry --sbom test-sbom.json --type spdx "${REPO}@${AMD64_DIGEST}"
               echo "SBOM attached to amd64 manifest (not index)"
 
               echo "=== Verify: index-level SBOM should NOT exist ==="
-              INDEX_DIGEST=$(oras resolve "${REPO}:test")
-              if cosign download sbom "${REPO}@${INDEX_DIGEST}" 2>/dev/null; then
+              INDEX_DIGEST=$(oras resolve --insecure "${REPO}:test")
+              if cosign download sbom --allow-insecure-registry "${REPO}@${INDEX_DIGEST}" 2>/dev/null; then
                 echo "WARNING: index has its own SBOM (unexpected but not fatal)"
               else
                 echo "OK: no SBOM at index level — task must resolve to per-arch"
@@ -186,7 +182,7 @@ spec:
               echo "Verifying SBOM on disk image: ${IMAGE_REF}"
 
               echo "=== Check 1: SBOM can be downloaded ==="
-              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              SBOM=$(cosign download sbom --allow-insecure-registry "${IMAGE_REF}")
               echo "${SBOM}" | jq .
 
               echo "=== Check 2: SBOM has packages ==="

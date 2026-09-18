@@ -36,7 +36,7 @@ spec:
 
               echo "Pushing dummy source container image (no SBOM attached)"
               cd /tmp && echo "source-content-no-sbom" > source.txt
-              oras push --no-tty "${SOURCE_IMAGE}" source.txt
+              oras push --insecure --no-tty "${SOURCE_IMAGE}" source.txt
               echo "Setup complete — source image has no SBOM"
 
     - name: run-build-vm-image
@@ -102,7 +102,7 @@ spec:
               echo "Verifying placeholder SBOM on disk image: ${IMAGE_REF}"
 
               echo "=== Check 1: SBOM can be downloaded ==="
-              SBOM=$(cosign download sbom "${IMAGE_REF}")
+              SBOM=$(cosign download sbom --allow-insecure-registry "${IMAGE_REF}")
               echo "${SBOM}" | jq .
 
               echo "=== Check 2: SBOM has placeholder comment ==="

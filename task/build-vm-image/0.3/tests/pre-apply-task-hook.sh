@@ -21,6 +21,10 @@ yq -i '.spec.volumes += [{"name": "trusted-ca", "configMap": {"name": "trusted-c
 # Add trusted-ca volumeMount to stepTemplate
 yq -i '.spec.stepTemplate.volumeMounts += [{"name": "trusted-ca", "mountPath": "/etc/pki/tls/certs/ca-custom-bundle.crt", "subPath": "ca-bundle.crt", "readOnly": true}]' "$TASK_COPY"
 
+# Kind registry TLS is not reliably trusted via the mounted trusted-ca bundle
+# under deploy-local CI. Opt the task into insecure registry mode for tests only.
+yq -i '.spec.stepTemplate.env += [{"name": "INSECURE_REGISTRY", "value": "true"}]' "$TASK_COPY"
+
 # --- Step replacements ---
 
 # 1. Replace use-trusted-artifact with a no-op
@@ -64,16 +68,24 @@ if [ "${IMAGE_APPEND_PLATFORM}" == "true" ]; then
   OUTPUT_IMAGE="${OUTPUT_IMAGE}-${PLATFORM//[^a-zA-Z0-9]/-}"
 fi
 
+# INSECURE_REGISTRY is set to "true" for task tests (see above); the kind
+# registry CA is not reliably trusted, so oras must talk to it insecurely.
+ORAS_INSECURE_OPTS=()
+if [ "${INSECURE_REGISTRY:-false}" == "true" ]; then
+  ORAS_INSECURE_OPTS=(--insecure)
+fi
+
 echo "mock: pushing dummy disk image artifact to ${OUTPUT_IMAGE}"
 cd /tmp && echo "test-disk-content" > disk.qcow2
-oras push --no-tty "${OUTPUT_IMAGE}" disk.qcow2
+oras push --no-tty "${ORAS_INSECURE_OPTS[@]}" "${OUTPUT_IMAGE}" disk.qcow2
 
-DIGEST=$(oras resolve "${OUTPUT_IMAGE}")
+DIGEST=$(oras resolve "${ORAS_INSECURE_OPTS[@]}" "${OUTPUT_IMAGE}")
 echo "mock: pushed with digest ${DIGEST}"
 
 echo -n "${OUTPUT_IMAGE}" > /tekton/results/IMAGE_URL
 echo -n "${DIGEST}" > /tekton/results/IMAGE_DIGEST
 echo -n "${OUTPUT_IMAGE}@${DIGEST}" > /tekton/results/IMAGE_REFERENCE
+echo -n "${OUTPUT_IMAGE}@${DIGEST}=linux/${PLATFORM##*/}" > /tekton/results/IMAGE_PLATFORM_MAP
 echo "mock: results written"
 '
 yq -i '

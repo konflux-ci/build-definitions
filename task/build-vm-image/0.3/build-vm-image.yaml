@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.3"
+    app.kubernetes.io/version: "0.3.1"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -63,6 +63,23 @@ spec:
       name: IMAGE_REFERENCE
     - description: Reference of SBOM blob digest to enable digest-based verification from provenance
       name: SBOM_BLOB_URL
+      type: string
+    - description: >-
+        OCI platform ("linux/<arch>") of the disk image built by this task run,
+        derived from the PLATFORM param. Lets build-image-index set the platform
+        on each child descriptor of the multi-arch index, since the artifact
+        manifest itself carries an empty config with no platform information.
+      name: PLATFORM
+      type: string
+    - description: >-
+        Combined "<IMAGE_REFERENCE>=linux/<arch>" entry for this task run,
+        ready to be fanned into build-image-index's IMAGE_PLATFORM_MAP
+        parameter (one entry per matrix leg via the [*] aggregate). The
+        image reference and platform are joined here, in-task, because
+        Tekton does not support zipping two separately-aggregated result
+        arrays produced by a matrixed PipelineTask (see IMAGE_REFERENCE
+        above for the same rationale applied to URL+digest).
+      name: IMAGE_PLATFORM_MAP
       type: string
   stepTemplate:
     env:
@@ -266,6 +283,15 @@ spec:
 
         ARCH=$(sed 's/.*\///' <<<"$PLATFORM")
         echo "ARCH: '${ARCH}'"
+
+        # Record the OCI platform for this single-arch task run. Disk-image
+        # artifacts carry an empty config (application/vnd.oci.empty.v1+json),
+        # so the multi-arch index built later by build-image-index cannot infer
+        # each child's platform. Emitting it here lets build-image-index set the
+        # platform on each descriptor explicitly. The OS is always linux for VM
+        # disk images; the arch comes from the PLATFORM param (OCI names, e.g.
+        # amd64/arm64), never from uname/$(arch) on the remote builder.
+        echo -n "linux/${ARCH}" | tee "$(results.PLATFORM.path)"
 
         valid_pullspec_characters="0-9a-zA-Z@:/._-"
         if [[ "${OUTPUT_IMAGE}" =~ [^$valid_pullspec_characters] ]]; then
@@ -504,6 +530,14 @@ spec:
         ssh -v "${SSH_ARGS[@]}" "$SSH_HOST" "$BUILD_DIR/scripts/script-build.sh"
         rsync -e "ssh ${SSH_ARGS[*]}" -ra "$SSH_HOST:$BUILD_DIR/tekton-results/" "/tekton/results/"
 
+        # Combine the just-synced IMAGE_REFERENCE with this leg's platform into
+        # a single "imageRef=os/arch" entry for build-image-index's
+        # IMAGE_PLATFORM_MAP param. ARCH was computed above from the PLATFORM
+        # param. Done here (pod-side, post-sync) rather than inside the remote
+        # script, since both inputs are already available and it keeps the
+        # remote build script unchanged.
+        echo -n "$(cat /tekton/results/IMAGE_REFERENCE)=linux/${ARCH}" | tee "$(results.IMAGE_PLATFORM_MAP.path)"
+
       volumeMounts:
         - mountPath: /ssh
           name: ssh
@@ -544,14 +578,22 @@ spec:
 
         mkdir -p /tmp/auth && select-oci-auth "${SOURCE_IMAGE}" > /tmp/auth/config.json
 
+        # INSECURE_REGISTRY is only set for task tests (see pre-apply-task-hook.sh)
+        COSIGN_TLS_OPTS=()
+        SKOPEO_TLS_OPTS=()
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          COSIGN_TLS_OPTS=(--allow-insecure-registry)
+          SKOPEO_TLS_OPTS=(--tls-verify=false)
+        fi
+
         COSIGN_ARGS=()
-        if DOCKER_CONFIG=/tmp/auth skopeo inspect --raw "docker://${SOURCE_IMAGE}" 2>/dev/null \
+        if DOCKER_CONFIG=/tmp/auth skopeo inspect "${SKOPEO_TLS_OPTS[@]}" --raw "docker://${SOURCE_IMAGE}" 2>/dev/null \
           | jq -e '.manifests' > /dev/null 2>&1; then
           echo "Source is a multi-arch index, downloading SBOM for linux/${ARCH}"
           COSIGN_ARGS=(--platform="linux/${ARCH}")
         fi
 
-        if DOCKER_CONFIG=/tmp/auth retry cosign download sbom "${COSIGN_ARGS[@]}" \
+        if DOCKER_CONFIG=/tmp/auth retry cosign download sbom "${COSIGN_TLS_OPTS[@]}" "${COSIGN_ARGS[@]}" \
             "${SOURCE_IMAGE}" > /var/workdir/sbom.json 2>/tmp/cosign-err.log \
           && jq empty /var/workdir/sbom.json 2>/dev/null; then
           SBOM_SIZE=$(wc -c < /var/workdir/sbom.json)
@@ -639,8 +681,14 @@ spec:
 
         mkdir -p /tmp/auth && select-oci-auth "${IMAGE_REF}" > /tmp/auth/config.json
 
+        # INSECURE_REGISTRY is only set for task tests (see pre-apply-task-hook.sh)
+        COSIGN_TLS_OPTS=()
+        if [ "${INSECURE_REGISTRY:-false}" = "true" ]; then
+          COSIGN_TLS_OPTS=(--allow-insecure-registry)
+        fi
+
         echo "Attaching SBOM to disk image: ${IMAGE_REF}"
-        if ! DOCKER_CONFIG=/tmp/auth retry cosign attach sbom --sbom /var/workdir/sbom.json --type "${SBOM_TYPE}" "${IMAGE_REF}"; then
+        if ! DOCKER_CONFIG=/tmp/auth retry cosign attach sbom "${COSIGN_TLS_OPTS[@]}" --sbom /var/workdir/sbom.json --type "${SBOM_TYPE}" "${IMAGE_REF}"; then
           echo "Failed to attach SBOM to disk image"
           exit 1
         fi
