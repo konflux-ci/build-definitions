@@ -75,7 +75,7 @@ spec:
 
               echo "=== Check 2: No SBOM attached to disk image ==="
               IMAGE_REF="${IMAGE_URL}@${IMAGE_DIGEST}"
-              if cosign download sbom "${IMAGE_REF}" > /dev/null 2>&1; then
+              if cosign download sbom --allow-insecure-registry "${IMAGE_REF}" > /dev/null 2>&1; then
                 echo "FAIL: SBOM should not be attached when SKIP_SBOM_GENERATION=true" && exit 1
               fi
               echo "PASS: No SBOM attached to disk image"
