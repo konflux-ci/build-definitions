@@ -11,6 +11,12 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.1
+
+### Fixed
+
+- Fixed the `IMAGE_DIGEST` result being written with a trailing newline (`echo` without `-n`). The extra newline broke exact-string digest matching in downstream SLSA provenance consumers (e.g. Conforma's `sbom.found` check via `SBOM_BLOB_URL`), which silently failed to associate the task's SBOM with the built image. This was previously masked by other SBOM discovery mechanisms.
+
 ## 0.3
 
 ### Fixed
