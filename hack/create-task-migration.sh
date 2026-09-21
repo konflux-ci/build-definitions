@@ -79,6 +79,10 @@ set -euo pipefail
 
 # Created for task: ${task_name}@${task_version}
 # Creation time: ${creation_time}
+#
+# generate-ta-tasks: sync-oci-ta-migration=true
+# Set to false if the corresponding -oci-ta migration should not be overwritten
+# by hack/generate-ta-tasks.sh.
 
 declare -r pipeline_file=\${1:missing pipeline file}
 

@@ -73,6 +73,33 @@ for recipe_path in **/recipe.yaml; do
     if ! git diff --quiet HEAD "${readme_path}"; then
         emit "task/${readme_path}" "${msg}"
     fi
+
+    recipe_dir="${TASK_DIR}/${recipe_path%/*}"
+    base=$(yq -r '.base' "${recipe_dir}/recipe.yaml")
+    base_dir="$(cd "${recipe_dir}" && cd "$(dirname "${base}")" && pwd)"
+    base_yaml="${base_dir}/$(basename "${base}")"
+    version=$(yq -r '.metadata.labels."app.kubernetes.io/version"' "${base_yaml}")
+    src="${base_dir}/migrations/${version}.sh"
+    dst="${recipe_dir}/migrations/${version}.sh"
+    # Sync marker in the base migration (see create-task-migration.sh / SHARED-CI.md):
+    #   # generate-ta-tasks: sync-oci-ta-migration=true
+    #   # generate-ta-tasks: sync-oci-ta-migration=false
+    if [[ -f "${src}" ]]; then
+        sync_migration=false
+        if [[ ! -f "${dst}" ]]; then
+            sync_migration=true
+        elif grep -qF '# generate-ta-tasks: sync-oci-ta-migration=true' "${src}"; then
+            sync_migration=true
+        fi
+        if [[ "${sync_migration}" == true ]]; then
+            mkdir -p "${recipe_dir}/migrations"
+            cp "${src}" "${dst}"
+            if ! git diff --quiet HEAD -- "${dst}" \
+                || [[ -n "$(git ls-files --others --exclude-standard -- "${dst}")" ]]; then
+                emit "task/${recipe_path%/*}/migrations/${version}.sh" "${msg}"
+            fi
+        fi
+    fi
 done
 
 if [[ ${changes} -gt 0 ]]; then
