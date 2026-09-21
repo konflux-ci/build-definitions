@@ -297,19 +297,21 @@ $task_dir_path"
                     echo "$origin_path"
                 fi
                 ;;
-            D | M)
-                # Migration immutability applies to active tasks under task/ only.
-                # Deleting archived migrations, or migrations of a task moved to
-                # external-task/, is fine.
+            D)
                 if [[ "$origin_path" != task/* ]]; then
+                    # Deleting archived migrations is fine
                     continue
                 fi
                 task_name=$(awk -F '/' '{ print $2 }' <<<"$origin_path")
-                if [[ $status == D && -e "external-task/$task_name" ]]; then
+                if [[ ! -e "task/$task_name" ]]; then
+                    # Deleting migrations of a deleted task is fine
                     continue
                 fi
-
-                error "It is not allowed to delete or modify existing migration file: $origin_path"
+                error "It is not allowed to delete existing migration file: $origin_path"
+                exit 1
+                ;;
+            M)
+                error "It is not allowed to modify existing migration file: $origin_path"
                 error "Please bump task version in the label '${LABEL_TASK_VERSION}' and create a new migration file."
                 exit 1
                 ;;
