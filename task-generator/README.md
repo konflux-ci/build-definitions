@@ -1,4 +1,6 @@
 # Task generator
-The Task generator is a collection of tools used for generating various versions of tasks.
 
-Each tool has its own subdirectory with a README.
+> [!WARNING]
+> The trusted-artifacts task generator has moved to the
+> [task-repo-shared-ci](https://github.com/konflux-ci/task-repo-shared-ci/tree/main/ta-generator)
+> repository. Please apply any changes there instead.
