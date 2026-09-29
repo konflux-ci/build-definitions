@@ -112,6 +112,13 @@ JSON schema for the `oci-copy.yaml` file.
                     "sha256sum": {
                         "description": "Digest of the artifact to be checked before copy",
                         "type": "string"
+                    },
+                    "extra_headers": {
+                        "description": "Optional HTTP headers passed to curl when downloading the artifact",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             }
