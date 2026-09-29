@@ -25,3 +25,14 @@ Copy content from arbitrary urls into the OCI registry. Downloads and pushes fil
 
 
 ## Additional info
+Each entry in the OCI copy file's `artifacts` list may include an optional `extra_headers` list. Each header is passed to `curl` as a `-H` argument when downloading that artifact.
+
+```yaml
+artifacts:
+  - filename: model.bin
+    source: https://example.com/model.bin
+    type: application/octet-stream
+    sha256sum: <sha256 digest>
+    extra_headers:
+      - 'X-Custom-Header: custom-value'
+```

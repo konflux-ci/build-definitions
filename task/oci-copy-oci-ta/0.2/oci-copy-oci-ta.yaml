@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.2"
+    app.kubernetes.io/version: 0.2.1
     build.appstudio.redhat.com/build_type: oci-copy
 spec:
   description: |-
@@ -115,10 +115,15 @@ spec:
             echo "declare OCI_FILENAME=${filename}"
             echo "declare OCI_ARTIFACT_TYPE=${artifact_type}"
             echo "declare OCI_ARTIFACT_DIGEST=${artifact_digest}"
+            echo "declare -a OCI_EXTRA_HEADERS=()"
           } >"/var/workdir/vars/$varfile"
 
-          echo "Wrote /var/workdir/vars/$varfile with contents:"
-          cat "/var/workdir/vars/$varfile"
+          while IFS= read -r extra_header; do
+            printf -v quoted_header '%q' "$extra_header"
+            echo "OCI_EXTRA_HEADERS+=( ${quoted_header} )" >>"/var/workdir/vars/$varfile"
+          done < <(printf '%s' "$entry" | yq -r '.extra_headers // [] | .[]')
+
+          echo "Wrote /var/workdir/vars/$varfile"
         done
       computeResources:
         limits:
@@ -241,6 +246,14 @@ spec:
         download() {
           local url="$1"
           local file="$2"
+          local extra_header
+          local -a curl_args=(--fail --silent --show-error)
+
+          if [ "${#OCI_EXTRA_HEADERS[@]}" -gt 0 ]; then
+            for extra_header in "${OCI_EXTRA_HEADERS[@]}"; do
+              curl_args+=(-H "$extra_header")
+            done
+          fi
 
           local directory
           directory=$(dirname "${file}")
@@ -285,9 +298,9 @@ spec:
 
             echo "HuggingFace URL detected but no HF CLI found, falling back to curl"
             if [ -n "${BEARER_TOKEN:-}" ]; then
-              curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+              curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
             else
-              curl --fail --silent --show-error --location "$url" -o "$file"
+              curl "${curl_args[@]}" --location "$url" -o "$file"
             fi
             return
           fi
@@ -342,7 +355,7 @@ spec:
             else
               # URL doesn't look like S3, fall back to curl
               echo "URL doesn't match known S3 patterns, falling back to curl"
-              curl --fail --silent --show-error --location "$url" -o "$file"
+              curl "${curl_args[@]}" --location "$url" -o "$file"
               return
             fi
 
@@ -362,9 +375,9 @@ spec:
             fi
           elif [ -n "${BEARER_TOKEN:-}" ]; then
             echo "Found bearer token. Using it for authentication."
-            curl --fail --silent --show-error -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
+            curl "${curl_args[@]}" -H "Authorization: Bearer ${BEARER_TOKEN}" --location "$url" -o "$file"
           else
-            curl --fail --silent --show-error --location "$url" -o "$file"
+            curl "${curl_args[@]}" --location "$url" -o "$file"
           fi
         }
 
