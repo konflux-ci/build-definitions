@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.2.1"
+    app.kubernetes.io/version: "0.2.2"
     build.appstudio.redhat.com/build_type: oci-copy
   name: oci-copy
 spec:
@@ -528,6 +528,10 @@ spec:
         echo -n "$RESULTING_DIGEST" | tee "$(results.IMAGE_DIGEST.path)"
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
+
+        # Remove custom field (not compatible with mobster)
+        OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
+        yq -i 'del(.artifacts[].extra_headers)' "$OCI_COPY_FILE_PATH"
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
