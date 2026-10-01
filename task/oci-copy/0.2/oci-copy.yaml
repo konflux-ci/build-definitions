@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.2.2"
+    app.kubernetes.io/version: "0.2.3"
     build.appstudio.redhat.com/build_type: oci-copy
   name: oci-copy
 spec:
@@ -55,6 +55,8 @@ spec:
     env:
       - name: OCI_COPY_FILE
         value: $(params.OCI_COPY_FILE)
+      - name: MOBSTER_OCI_COPY_FILE_PATH
+        value: /var/oci-copy-scratch/oci-copy-clean.yaml
       - name: IMAGE
         value: $(params.IMAGE)
       - name: SBOM_TYPE
@@ -62,6 +64,9 @@ spec:
       - name: PARALLEL_JOBS
         value: $(params.PARALLEL_JOBS)
     imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /var/oci-copy-scratch
+        name: oci-copy-scratch
   steps:
     - name: prepare
       image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
@@ -529,9 +534,9 @@ spec:
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
 
-        # Remove custom field (not compatible with mobster)
+        # Mobster does not support extra_headers; create a clean copy for SBOM generation.
         OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
-        yq -i 'del(.artifacts[].extra_headers)' "$OCI_COPY_FILE_PATH"
+        yq 'del(.artifacts[].extra_headers)' "$OCI_COPY_FILE_PATH" > "$MOBSTER_OCI_COPY_FILE_PATH"
       volumeMounts:
         - mountPath: /var/lib/containers
           name: varlibcontainers
@@ -550,12 +555,10 @@ spec:
 
         IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
         IMAGE_DIGEST=$(cat "$(results.IMAGE_DIGEST.path)")
-        OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
-
         mobster generate \
           --output sbom.json \
           oci-artifact \
-          --oci-copy-yaml "$OCI_COPY_FILE_PATH" \
+          --oci-copy-yaml "$MOBSTER_OCI_COPY_FILE_PATH" \
           --image-pullspec "$IMAGE_URL" \
           --image-digest "$IMAGE_DIGEST" \
           --sbom-type "$SBOM_TYPE"
@@ -596,6 +599,8 @@ spec:
   volumes:
     - emptyDir: {}
       name: varlibcontainers
+    - emptyDir: {}
+      name: oci-copy-scratch
   workspaces:
     - description: Workspace containing the source artifacts to copy
       name: source

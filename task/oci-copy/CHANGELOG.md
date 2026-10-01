@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+### Fixed
+
+- Preserve the input OCI copy file by removing `extra_headers` only from the temporary file passed to Mobster for SBOM generation, fixing file permission errors.
+
 ## 0.2.2
 
 ### Fixed

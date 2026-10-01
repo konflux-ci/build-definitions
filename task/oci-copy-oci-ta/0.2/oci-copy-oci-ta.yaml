@@ -7,7 +7,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: 0.2.2
+    app.kubernetes.io/version: 0.2.3
     build.appstudio.redhat.com/build_type: oci-copy
 spec:
   description: |-
@@ -66,6 +66,8 @@ spec:
     - name: SBOM_BLOB_URL
       description: Link to the SBOM blob pushed to the registry.
   volumes:
+    - name: oci-copy-scratch
+      emptyDir: {}
     - name: varlibcontainers
       emptyDir: {}
     - name: workdir
@@ -74,6 +76,8 @@ spec:
     env:
       - name: IMAGE
         value: $(params.IMAGE)
+      - name: MOBSTER_OCI_COPY_FILE_PATH
+        value: /var/oci-copy-scratch/oci-copy-clean.yaml
       - name: OCI_COPY_FILE
         value: $(params.OCI_COPY_FILE)
       - name: PARALLEL_JOBS
@@ -82,6 +86,8 @@ spec:
         value: $(params.SBOM_TYPE)
     imagePullPolicy: IfNotPresent
     volumeMounts:
+      - mountPath: /var/oci-copy-scratch
+        name: oci-copy-scratch
       - mountPath: /var/workdir
         name: workdir
   steps:
@@ -550,9 +556,9 @@ spec:
         echo -n "$IMAGE" | tee "$(results.IMAGE_URL.path)"
         echo -n "${IMAGE}@${RESULTING_DIGEST}" >"$(results.IMAGE_REF.path)"
 
-        # Remove custom field (not compatible with mobster)
+        # Mobster does not support extra_headers; create a clean copy for SBOM generation.
         OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
-        yq -i 'del(.artifacts[].extra_headers)' "$OCI_COPY_FILE_PATH"
+        yq 'del(.artifacts[].extra_headers)' "$OCI_COPY_FILE_PATH" >"$MOBSTER_OCI_COPY_FILE_PATH"
       computeResources:
         limits:
           memory: 4Gi
@@ -572,12 +578,10 @@ spec:
 
         IMAGE_URL=$(cat "$(results.IMAGE_URL.path)")
         IMAGE_DIGEST=$(cat "$(results.IMAGE_DIGEST.path)")
-        OCI_COPY_FILE_PATH="$(pwd)/source/$OCI_COPY_FILE"
-
         mobster generate \
           --output sbom.json \
           oci-artifact \
-          --oci-copy-yaml "$OCI_COPY_FILE_PATH" \
+          --oci-copy-yaml "$MOBSTER_OCI_COPY_FILE_PATH" \
           --image-pullspec "$IMAGE_URL" \
           --image-digest "$IMAGE_DIGEST" \
           --sbom-type "$SBOM_TYPE"
