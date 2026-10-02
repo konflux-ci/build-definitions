@@ -107,7 +107,7 @@ spec:
           readOnly: true
           subPath: ca-bundle.crt
     - name: build
-      image: quay.io/konflux-ci/ko-builder:latest@sha256:9f4104c3c4a5ab1360382fea0bfc436c616b0e0996ce918069bb9837c3945747
+      image: quay.io/konflux-ci/ko-builder:latest@sha256:265a960dbdf66eeefa9dbb92568e6ba47811225632004276b374282afbc15655
       workingDir: /var/workdir/source
       computeResources:
         requests:
@@ -174,7 +174,7 @@ spec:
         echo -n "${url}" >"$(results.IMAGE_URL.path)"
         echo "Completed."
     - name: prepare-sbom
-      image: quay.io/konflux-ci/mobster@sha256:4e39b6a8f1d544a8a8330ceeb50b32cd59a4959bd5fed7cdfd06bdb6fd5e38f7
+      image: quay.io/konflux-ci/mobster@sha256:a787a806ef58500effbb70ab29f1b6c5df727b7a8c3ae96694726f9a35cb3792
       args:
         - --additional-base-images
         - $(params.ADDITIONAL_BASE_IMAGES[*])
