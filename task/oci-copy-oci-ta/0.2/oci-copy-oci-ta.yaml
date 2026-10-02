@@ -91,7 +91,7 @@ spec:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir/source
     - name: prepare
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.3.0@sha256:0428af436f6942544009e38ef452a6b747e9ec79ab22fd402a3d59585984cf81
       workingDir: /var/workdir
       script: |
         #!/bin/bash
@@ -132,7 +132,7 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: oci-copy
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.3.0@sha256:0428af436f6942544009e38ef452a6b747e9ec79ab22fd402a3d59585984cf81
       workingDir: /var/workdir
       volumeMounts:
         - mountPath: /var/lib/containers
@@ -588,7 +588,7 @@ spec:
           cpu: 50m
           memory: 64Mi
     - name: upload-sbom
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.3.0@sha256:0428af436f6942544009e38ef452a6b747e9ec79ab22fd402a3d59585984cf81
       workingDir: /var/workdir
       script: |
         # Pre-select the correct credentials to work around cosign not supporting the containers-auth.json spec
@@ -604,7 +604,7 @@ spec:
         runAsNonRoot: false
         runAsUser: 0
     - name: report-sbom-url
-      image: quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e
+      image: quay.io/konflux-ci/task-runner:3.3.0@sha256:0428af436f6942544009e38ef452a6b747e9ec79ab22fd402a3d59585984cf81
       workingDir: /var/workdir
       script: |
         #!/bin/bash
