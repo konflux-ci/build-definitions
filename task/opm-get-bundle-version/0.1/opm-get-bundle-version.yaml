@@ -20,7 +20,7 @@ spec:
     imagePullPolicy: IfNotPresent
   steps:
     - name: opm-render-bundle
-      image: "registry.redhat.io/openshift4/ose-operator-registry:latest@sha256:fb659a4c2942db5f1073c6b66be5c7ac2e4aed30432cce4aff08b9d5874010e9"
+      image: "registry.redhat.io/openshift4/ose-operator-registry:latest@sha256:c015158f008a6d0671715b0d8eb1ab6833cf4879a4c0c93a39fc4cedc7de4674"
       computeResources:
         limits:
           memory: 64Mi
@@ -37,7 +37,7 @@ spec:
         set -xe
         opm render "${BUNDLE_IMAGE}" > "$(workspaces.workspace.path)/bundle.json"
     - name: jq-get-olm-package-version
-      image: "quay.io/konflux-ci/task-runner:1.4.1@sha256:d9feec6f2ce9b10cfb76b45ea14f83b5ed9f231de7d6083291550aebe8eb09ea"
+      image: "quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e"
       computeResources:
         limits:
           memory: 64Mi
