@@ -6,7 +6,7 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "push"
     pipelinesascode.tekton.dev/on-target-branch: "main"
-    pipelinesascode.tekton.dev/task: "[task/slack-webhook-notification/0.1/slack-webhook-notification.yaml, .tekton/tasks/ec-checks.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/ec-checks.yaml]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
@@ -165,7 +165,14 @@ spec:
     finally:
       - name: slack-webhook-notification
         taskRef:
-          name: slack-webhook-notification
+          resolver: git
+          params:
+          - name: url
+            value: https://github.com/konflux-ci/tekton-integration-catalog.git
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: tasks/slack-webhook-notification/0.1/slack-webhook-notification.yaml
         when:
         - input: $(params.slack-webhook-notification-team)
           operator: notin
