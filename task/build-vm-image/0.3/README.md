@@ -12,6 +12,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |IMAGE_TYPE|The type of VM image to build, valid values are ami, anaconda-iso, bootc-installer, gce, iso, ova, pxe-tar-xz, qcow2, raw, vhd and vmdk||true|
 |BIB_CONFIG_FILE|The config file specifying what to build and the builder to build it with|bib.yaml|false|
 |CONFIG_TOML_FILE|The path for the config.toml file within the source repository|""|false|
+|CONFIG_TOML_OVERLAY_FILE|Optional filesystem-only TOML overlay within the source repository; requires CONFIG_TOML_FILE|""|false|
 |ENTITLEMENT_SECRET|Name of secret which contains the entitlement certificates|etc-pki-entitlement|false|
 |ACTIVATION_KEY|Name of secret which contains subscription activation key|activation-key|false|
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
@@ -30,3 +31,35 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 
 
 ## Additional info
+
+### Filesystem overlays
+
+Set `CONFIG_TOML_FILE` to the base profile and optionally set
+`CONFIG_TOML_OVERLAY_FILE` to a filesystem-only TOML file in the same source
+repository. For example, a downstream root minimum can be supplied without
+copying the base profile's provider kernel settings:
+
+```toml
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "100 GiB"
+```
+
+The overlay accepts only `customizations.filesystem` entries with `mountpoint`
+and `minsize`. Entries are matched by mountpoint: supplied fields override the
+matching base entry, and new mountpoints are appended. Other base customizations
+and filesystem entries are preserved. Duplicate mountpoints in either input
+are rejected. The legacy base filesystem `size` alias is normalized to `minsize`.
+The minimum is passed through to BIB, which validates size units; it is not an
+exact image size or a maximum.
+
+An overlay requires an explicit base file. Both paths must resolve within the
+source workspace. Python's standard-library TOML parser reads each input once
+and rejects duplicate key or table definitions. Both inputs are validated before
+writing JSON. The task creates one effective JSON config outside the source
+tree and mounts it as `/config.json` with `--config=/config.json`. With no overlay,
+the existing `/config.toml` path and repository-root fallback are unchanged.
+
+Run the configuration tests locally with `bash tests/test-config-overlay.sh`
+from this task directory. The Tekton test pipeline runs the same tests against
+the real config script, before the test hook's SBOM-specific mocks are applied.

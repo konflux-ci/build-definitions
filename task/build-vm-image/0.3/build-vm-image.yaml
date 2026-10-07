@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.3.2"
+    app.kubernetes.io/version: "0.3.3"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -34,6 +34,10 @@ spec:
       default: ""
       type: string
       description: The path for the config.toml file within the source repository
+    - name: CONFIG_TOML_OVERLAY_FILE
+      default: ""
+      type: string
+      description: Optional filesystem-only TOML overlay within the source repository; requires CONFIG_TOML_FILE
     - default: etc-pki-entitlement
       description: Name of secret which contains the entitlement certificates
       name: ENTITLEMENT_SECRET
@@ -89,6 +93,8 @@ spec:
         value: $(params.BIB_CONFIG_FILE)
       - name: CONFIG_TOML_FILE
         value: $(params.CONFIG_TOML_FILE)
+      - name: CONFIG_TOML_OVERLAY_FILE
+        value: $(params.CONFIG_TOML_OVERLAY_FILE)
       - name: IMAGE_TYPE
         value: $(params.IMAGE_TYPE)
       - name: ENTITLEMENT_SECRET
@@ -170,13 +176,92 @@ spec:
           echo "BIB_CONFIG_FILE escapes source directory: ${BIB_CONFIG_FILE}" >&2; exit 1
         fi
 
-        if [ -n "${CONFIG_TOML_FILE}" ]; then
-          CONFIG_TOML_FILE_CLEAN="${CONFIG_TOML_FILE#/}"
-          CONFIG_TOML_PATH="/var/workdir/source/${CONFIG_TOML_FILE_CLEAN}"
-          CONFIG_TOML_REAL="$(realpath -m "${CONFIG_TOML_PATH}")"
-          if [[ "${CONFIG_TOML_REAL}" != /var/workdir/source/* ]]; then
-            echo "CONFIG_TOML_FILE escapes source directory: ${CONFIG_TOML_FILE}" >&2; exit 1
+        if [ -n "${CONFIG_TOML_OVERLAY_FILE}" ] && [ -z "${CONFIG_TOML_FILE}" ]; then
+          echo "CONFIG_TOML_OVERLAY_FILE requires CONFIG_TOML_FILE" >&2; exit 1
+        fi
+
+        for CONFIG_INPUT in CONFIG_TOML_FILE CONFIG_TOML_OVERLAY_FILE; do
+          CONFIG_INPUT_VALUE="${!CONFIG_INPUT}"
+          if [ -z "${CONFIG_INPUT_VALUE}" ]; then
+            continue
           fi
+          CONFIG_INPUT_PATH="/var/workdir/source/${CONFIG_INPUT_VALUE#/}"
+          CONFIG_INPUT_REAL="$(realpath -m "${CONFIG_INPUT_PATH}")"
+          if [[ "${CONFIG_INPUT_REAL}" != /var/workdir/source/* ]]; then
+            echo "${CONFIG_INPUT} escapes source directory: ${CONFIG_INPUT_VALUE}" >&2; exit 1
+          fi
+          if [ -n "${CONFIG_TOML_OVERLAY_FILE}" ] && [ ! -f "${CONFIG_INPUT_REAL}" ]; then
+            echo "${CONFIG_INPUT} is not a file: ${CONFIG_INPUT_VALUE}" >&2; exit 1
+          fi
+        done
+
+        BIB_CUSTOM_CONFIG_FILE="/var/workdir/source/${CONFIG_TOML_FILE:-config.toml}"
+        BIB_CUSTOM_CONFIG_NAME=config.toml
+        BIB_CUSTOM_CONFIG_ARGUMENT=""
+        if [ -n "${CONFIG_TOML_OVERLAY_FILE}" ]; then
+          echo "Merging ${CONFIG_TOML_FILE} with filesystem overlay ${CONFIG_TOML_OVERLAY_FILE}"
+          # Parse both inputs before writing JSON, so invalid TOML leaves no output.
+          python3 -c '
+        import json
+        import sys
+        import tomllib
+
+        configs = []
+        for path in sys.argv[1:]:
+            try:
+                with open(path, "rb") as config:
+                    configs.append(tomllib.load(config))
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                sys.exit(f"Error: invalid TOML in {path}: {exc}")
+
+        for config, path in zip(configs, ("/var/workdir/base-config.json", "/var/workdir/overlay-config.json")):
+            with open(path, "w") as output:
+                json.dump(config, output)
+        ' "/var/workdir/source/${CONFIG_TOML_FILE#/}" "/var/workdir/source/${CONFIG_TOML_OVERLAY_FILE#/}"
+          jq -s '
+            def valid_size:
+              if type == "number" then . > 0 and . == floor
+              elif type == "string" then length > 0
+              else false end;
+            def filesystems:
+              if type != "array" then error("filesystem must be an array")
+              elif any(.[]; type != "object") then error("filesystem entries must be tables")
+              elif any(.[]; (.mountpoint | type) != "string") then error("filesystem mountpoint must be a string")
+              elif any(.[]; (.mountpoint | startswith("/")) | not) then error("filesystem mountpoint must be absolute")
+              elif (map(.mountpoint) | unique | length) != length then error("duplicate mountpoint in filesystem")
+              else . end;
+            def normalize_size:
+              if (.size != null and .size != 0) and (.minsize != null and .minsize != 0)
+              then error("size and minsize cannot both be set")
+              else
+                (if (.minsize // 0) == 0 then .minsize = .size else . end)
+                | del(.size)
+                | if (.minsize | valid_size) then . else error("filesystem minsize must be a positive integer or size string") end
+              end;
+
+            (.[0] // {}) as $base | .[1] as $overlay
+            | if ($base | type) != "object" or (($base.customizations // {}) | type) != "object"
+              then error("base configuration and customizations must be tables") else . end
+            | if ($overlay | type) != "object" or ($overlay | keys) != ["customizations"]
+              or ($overlay.customizations | type) != "object" or ($overlay.customizations | keys) != ["filesystem"]
+              then error("overlay must contain only customizations.filesystem") else . end
+            | ($overlay.customizations.filesystem | filesystems) as $overlay_fs
+            | if any($overlay_fs[]; (keys - ["mountpoint", "minsize"] | length) > 0)
+              then error("unsupported filesystem overlay field") else . end
+            | if any($overlay_fs[]; (.minsize | valid_size) | not)
+              then error("overlay minsize must be a positive integer or size string") else . end
+            | ($base.customizations.filesystem | if . == null then [] else . end | filesystems | map(normalize_size)) as $base_fs
+            | (reduce $overlay_fs[] as $entry ($base_fs;
+                if any(.[]; .mountpoint == $entry.mountpoint)
+                then map(if .mountpoint == $entry.mountpoint then . + $entry else . end)
+                else . + [$entry] end)) as $merged_fs
+            | $base | .customizations.filesystem = $merged_fs
+          ' /var/workdir/base-config.json /var/workdir/overlay-config.json > /var/workdir/config.json
+          BIB_CUSTOM_CONFIG_FILE=/var/workdir/config.json
+          BIB_CUSTOM_CONFIG_NAME=config.json
+          BIB_CUSTOM_CONFIG_ARGUMENT=--config=/config.json
+          echo "Effective BIB configuration:"
+          cat "${BIB_CUSTOM_CONFIG_FILE}"
         fi
 
         BIB_IMAGE=$(yq -r .bootc-builder-image "${BIB_CONFIG_PATH}")
@@ -199,9 +284,14 @@ spec:
         fi
 
         # write values to a file in the workspace (printf %q escapes shell metacharacters)
-        printf 'declare BOOTC_BUILDER_IMAGE=%q\n' "${BIB_IMAGE}" > /var/workdir/vars
-        printf 'declare SOURCE_IMAGE=%q\n' "${SOURCE_IMAGE}" >> /var/workdir/vars
-        printf 'declare TAGGED_AS=%q\n' "${TAGGED_AS}" >> /var/workdir/vars
+        {
+          printf 'declare BOOTC_BUILDER_IMAGE=%q\n' "${BIB_IMAGE}"
+          printf 'declare SOURCE_IMAGE=%q\n' "${SOURCE_IMAGE}"
+          printf 'declare TAGGED_AS=%q\n' "${TAGGED_AS}"
+          printf 'declare BIB_CUSTOM_CONFIG_FILE=%q\n' "${BIB_CUSTOM_CONFIG_FILE}"
+          printf 'declare BIB_CUSTOM_CONFIG_NAME=%q\n' "${BIB_CUSTOM_CONFIG_NAME}"
+          printf 'declare BIB_CUSTOM_CONFIG_ARGUMENT=%q\n' "${BIB_CUSTOM_CONFIG_ARGUMENT}"
+        } > /var/workdir/vars
 
     - name: build
       image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
@@ -261,11 +351,11 @@ spec:
             touch /var/workdir/source/$CONFIG_TOML_FILE
           fi
         fi
-        echo "Using the following config.toml file $CONFIG_TOML_FILE:"
-        cat /var/workdir/source/$CONFIG_TOML_FILE
+        echo "Using the following BIB configuration file $BIB_CUSTOM_CONFIG_FILE:"
+        cat "$BIB_CUSTOM_CONFIG_FILE"
 
 
-        rsync -e "ssh ${SSH_ARGS[*]}" -ra "/var/workdir/source/$CONFIG_TOML_FILE" "$SSH_HOST:$BUILD_DIR/config.toml"
+        rsync -e "ssh ${SSH_ARGS[*]}" -ra "$BIB_CUSTOM_CONFIG_FILE" "$SSH_HOST:$BUILD_DIR/$BIB_CUSTOM_CONFIG_NAME"
         rsync -e "ssh ${SSH_ARGS[*]}" -ra "$HOME/.docker/" "$SSH_HOST:$BUILD_DIR/.docker/"
         # Rsync activation-key for remote registration or entitlement certificates if provided
         if [ -e "/activation-key/org" ]; then
@@ -318,6 +408,8 @@ spec:
         export IMAGE_TYPE_ARGUMENT="$IMAGE_TYPE_ARGUMENT"
         export STORAGE_DRIVER="$STORAGE_DRIVER"
         export BUILDAH_IMAGE="$BUILDAH_IMAGE"
+        export BIB_CUSTOM_CONFIG_NAME="$BIB_CUSTOM_CONFIG_NAME"
+        export BIB_CUSTOM_CONFIG_ARGUMENT="$BIB_CUSTOM_CONFIG_ARGUMENT"
 
         REMOTESSHEOF
 
@@ -389,11 +481,15 @@ spec:
         echo "RUNNING BUILD"
         echo -e "IMAGE_TYPE_ARGUMENT = $IMAGE_TYPE_ARGUMENT"
 
+        BIB_CONFIG_ARGS=()
+        if [ -n "$BIB_CUSTOM_CONFIG_ARGUMENT" ]; then
+          BIB_CONFIG_ARGS+=("$BIB_CUSTOM_CONFIG_ARGUMENT")
+        fi
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
-          -v $BUILD_DIR/config.toml:/config.toml -v $(pwd)/output:/output \
+          -v "$BUILD_DIR/$BIB_CUSTOM_CONFIG_NAME:/$BIB_CUSTOM_CONFIG_NAME" -v $(pwd)/output:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
           $ENTITLEMENT_VOLUME \
-          $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT --local $TAGGED_AS
+          $BOOTC_BUILDER_IMAGE $IMAGE_TYPE_ARGUMENT "${BIB_CONFIG_ARGS[@]}" --local $TAGGED_AS
 
         time sudo podman run --authfile=$BUILD_DIR/.docker/config.json --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t \
           -v $BUILD_DIR/.docker:/.docker -v $(pwd)/output:/output \

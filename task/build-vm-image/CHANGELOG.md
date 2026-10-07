@@ -11,6 +11,17 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.3
+
+### Added
+
+- Optional `CONFIG_TOML_OVERLAY_FILE` for filesystem-only TOML overlays. Filesystem entries are merged by mountpoint with downstream precedence; provider settings from `CONFIG_TOML_FILE` are preserved. The effective configuration is passed to BIB as JSON, and callers without an overlay retain the single-TOML behavior.
+- Configuration tests covering merge behavior, legacy filesystem size normalization, invalid inputs, source-path escapes, and callers without an overlay.
+
+### Fixed
+
+- Parse both overlay inputs once with Python's strict standard-library TOML parser and convert them to JSON, so duplicate keys or tables cannot silently replace filesystem sizes or base provider settings.
+
 ## 0.3.2
 
 ### Added

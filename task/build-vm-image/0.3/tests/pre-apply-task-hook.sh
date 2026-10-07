@@ -8,6 +8,13 @@ set -euo pipefail
 TASK_COPY="$1"
 TEST_NS="$2"
 
+# Preserve the real task scripts before applying the SBOM-specific mocks.
+TEST_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+kubectl create configmap build-vm-image-config-overlay-tests -n "$TEST_NS" \
+  --from-file=task.yaml="$TASK_COPY" \
+  --from-file=test-config-overlay.sh="$TEST_DIR/test-config-overlay.sh" \
+  --dry-run=client -o yaml | kubectl apply -n "$TEST_NS" -f -
+
 export TASK_RUNNER_IMAGE="quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b"
 
 # --- Volume fixes ---

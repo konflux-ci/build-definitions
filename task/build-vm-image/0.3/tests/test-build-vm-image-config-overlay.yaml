@@ -1,0 +1,29 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-vm-image-config-overlay
+spec:
+  description: |
+    Exercise the real build-vm-image configuration script with filesystem-only
+    overlays, including mountpoint merging and unchanged single-TOML behavior.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: verify-config-overlay
+      taskSpec:
+        volumes:
+          - name: overlay-tests
+            configMap:
+              name: build-vm-image-config-overlay-tests
+        steps:
+          - name: test-config-overlay
+            image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+            volumeMounts:
+              - name: overlay-tests
+                mountPath: /tests
+                readOnly: true
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              bash /tests/test-config-overlay.sh /tests/task.yaml
