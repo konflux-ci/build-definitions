@@ -38,7 +38,7 @@ spec:
               image: registry.redhat.io/openshift4/ose-cli:v4.15.0-202607210241.p2.g8231637.assembly.stream.el8
               script: |
                 #!/usr/bin/env bash
-                oc get pipelinerun -n $(params.e2e_test_namespace) -o jsonpath='{.items[*].metadata.name}' | xargs -n 1 -I {} oc patch pipelinerun {} -n <namespace> --type=merge -p '{"metadata":{"finalizers":[]}}'
+                oc get pipelinerun -n $(params.e2e_test_namespace) -o jsonpath='{.items[*].metadata.name}' | xargs -n 1 -I {} oc patch pipelinerun {} -n $(params.e2e_test_namespace) --type=merge -p '{"metadata":{"finalizers":[]}}'
       - name: clone-repository
         taskRef:
           resolver: bundles
