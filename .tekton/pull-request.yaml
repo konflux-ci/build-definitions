@@ -25,6 +25,22 @@ spec:
     workspaces:
       - name: workspace
     tasks:
+      - name: stale-pipelinerun-cleanup
+        params:
+          - name: e2e_test_namespace
+            value: $(params.e2e_test_namespace)
+        taskSpec:
+          params:
+            - name: e2e_test_namespace
+              type: string
+          steps:
+            - name: remove-e2e-finalizer
+              image: registry.redhat.io/openshift4/ose-cli:v4.15.0-202607210241.p2.g8231637.assembly.stream.el8
+              script: |
+                #!/usr/bin/env bash
+                set -euo pipefail
+                oc get pipelinerun -n "$(params.e2e_test_namespace)" -o name | xargs -r -n 1 oc patch -n "$(params.e2e_test_namespace)" \
+                      --type=merge -p '{"metadata":{"finalizers":[]}}' || true
       - name: clone-repository
         taskRef:
           resolver: bundles
