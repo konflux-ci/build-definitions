@@ -39,7 +39,8 @@ spec:
               script: |
                 #!/usr/bin/env bash
                 set -euo pipefail
-                oc patch pipelinerun --all -n "$(params.e2e_test_namespace)" --type=merge -p '{"metadata":{"finalizers":[]}}' || true
+                oc get pipelinerun -n "$(params.e2e_test_namespace)" -o name | xargs -r -n 1 oc patch -n "$(params.e2e_test_namespace)" \
+                      --type=merge -p '{"metadata":{"finalizers":[]}}' || true
       - name: clone-repository
         taskRef:
           resolver: bundles
