@@ -49,3 +49,14 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 ### Variant tasks
 - When a change applies to multiple variant tasks, apply the same version bump and changelog update to each affected variant (e.g., `git-clone`, `git-clone-oci-ta`, and `git-clone-oci-ta-min`).
 - Differences between variants can sometimes be warranted in changelog content, but version numbers must always match across all variants of the same task.
+
+## Repository migration status
+
+Task implementations in this repo are being migrated:
+- Task logic → [konflux-ci/tools](https://github.com/konflux-ci/tools)
+- Task definitions → [konflux-ci/tekton-tools](https://github.com/konflux-ci/tekton-tools)
+
+New changes to tasks should target those repos instead. Tasks here with
+`build.appstudio.redhat.com/expires-on` annotations are deprecated and
+will not be updated in this repo. PRs that modify deprecated tasks
+should target the successor repos above.
