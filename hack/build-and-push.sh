@@ -770,7 +770,6 @@ do
     retry tkn bundle push "${ANNOTATION_FLAGS[@]}" "$pipeline_bundle" -f "${pipeline_yaml}" | \
         save_ref "$pipeline_bundle" "$OUTPUT_PIPELINE_BUNDLE_LIST"
 
-    [ "$pipeline_name" == "fbc-builder" ] && fbc_pipeline_bundle=$pipeline_bundle
     if [ "$SKIP_DEVEL_TAG" == "" ] && is_official_repo "$QUAY_NAMESPACE" && [ -z "$TEST_REPO_NAME" ]; then
         NEW_TAG="${pipeline_bundle%:*}:devel"
         skopeo copy "docker://${pipeline_bundle}" "docker://${NEW_TAG}"
@@ -780,7 +779,6 @@ done
 if [ "$SKIP_INSTALL" == "" ]; then
     rm -f bundle_values.env
 
-    echo "export CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE=$fbc_pipeline_bundle" >> bundle_values.env
 fi
 
 
