@@ -5,7 +5,7 @@ metadata:
     tekton.dev/pipelines.minVersion: 0.12.1
     tekton.dev/tags: image-build, konflux
   labels:
-    app.kubernetes.io/version: "0.3.2"
+    app.kubernetes.io/version: "0.3.3"
     build.appstudio.redhat.com/build_type: disk-image
   name: build-vm-image
 spec:
@@ -54,6 +54,10 @@ spec:
       description: Skip SBOM propagation and attachment
       type: string
       default: "false"
+    - name: BUILD_TIMESTAMP
+      description: Build time in RFC 3339 format for the OCI created annotation. Defaults to the current UTC time. Pass the same value to every matrix leg for a shared build timestamp.
+      type: string
+      default: ""
   results:
     - description: Digest of the manifest list just built
       name: IMAGE_DIGEST
@@ -107,6 +111,8 @@ spec:
         value: $(params.SBOM_TYPE)
       - name: SKIP_SBOM_GENERATION
         value: $(params.SKIP_SBOM_GENERATION)
+      - name: BUILD_TIMESTAMP
+        value: $(params.BUILD_TIMESTAMP)
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -418,12 +424,19 @@ spec:
 
         # import retry function
         # remove line with bash
-        # shellcheck disable=SC2002
-        cat /usr/local/bin/retry | sed 1d >> scripts/script-push.sh
+        {
+          printf 'export BUILD_TIMESTAMP=%q\n' "$BUILD_TIMESTAMP"
+          # shellcheck disable=SC2002
+          cat /usr/local/bin/retry | sed 1d
+        } >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
         dnf -y install buildah skopeo pigz jq tar xz
+
+        # Artifact manifests have an empty config, so release-service needs the
+        # build time on the child manifest itself, not on its index descriptor.
+        BUILD_TIMESTAMP=$(date -u -d "${BUILD_TIMESTAMP:-now}" +'%Y-%m-%dT%H:%M:%SZ')
 
         # Build an image index of length 1 referring to an image manifest with the content
         buildah manifest create "$OUTPUT_IMAGE"
@@ -434,31 +447,31 @@ spec:
         if [ -f "/output/qcow2/disk.qcow2" ]; then
           echo -e "Found qcow2 image."
           # don't zip qcow2 images, it is already compressed.
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.qcow2 $OUTPUT_IMAGE /output/qcow2/disk.qcow2
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.qcow2 $OUTPUT_IMAGE /output/qcow2/disk.qcow2
         elif [ -f "/output/image/disk.raw" ]; then
           echo -e "Found raw image."
           pigz /output/image/disk.raw
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.raw.gzip $OUTPUT_IMAGE /output/image/disk.raw.gz
         elif [ -f "/output/bootiso/install.iso" ]; then
           echo -e "Found iso image."
           pigz /output/bootiso/install.iso
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.iso.gzip $OUTPUT_IMAGE /output/bootiso/install.iso.gz
         elif [ -f "/output/vpc/disk.vhd" ]; then
           echo -e "Found vhd image."
           pigz /output/vpc/disk.vhd
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.vhd.gzip $OUTPUT_IMAGE /output/vpc/disk.vhd.gz
         elif [ -f "/output/gce/image.tar.gz" ]; then
           echo -e "Found gce image."
           # already compressed.
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.gce.tgz $OUTPUT_IMAGE /output/gce/image.tar.gz
         elif [ -f "/output/vmdk/disk.vmdk" ]; then
           echo -e "Found vmdk image."
           pigz /output/vmdk/disk.vmdk
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.vmdk.gzip $OUTPUT_IMAGE /output/vmdk/disk.vmdk.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.vmdk.gzip $OUTPUT_IMAGE /output/vmdk/disk.vmdk.gz
         elif [ -f "/output/archive/image.ova" ]; then
           echo -e "Found ova image."
           pigz /output/archive/image.ova
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.ova.gzip $OUTPUT_IMAGE /output/archive/image.ova.gz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.ova.gzip $OUTPUT_IMAGE /output/archive/image.ova.gz
         # NOTE: pxe-tar-xz handling covers two different bootc-image-builder versions:
         #
         # 1. New image-builder multicall binary (osbuild/image-builder):
@@ -475,11 +488,11 @@ spec:
         # the archive from the old raw tree.
         elif [ -f "/output/xz/pxe.tar.xz" ]; then
           echo -e "Found pxe-tar-xz image (new image-builder)."
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/xz/pxe.tar.xz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/xz/pxe.tar.xz
         elif [ -d "/output/bootc-pxe-tree" ]; then
           echo -e "Found pxe tree directory (old BIB), creating tar.xz archive."
           tar -cJf /output/bootc-pxe-tree.tar.xz -C /output/bootc-pxe-tree .
-          buildah manifest add --arch $(arch) --os linux --artifact --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/bootc-pxe-tree.tar.xz
+          buildah manifest add --arch $(arch) --os linux --artifact --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" --artifact-type application/vnd.diskimage.pxe.tar.xz $OUTPUT_IMAGE /output/bootc-pxe-tree.tar.xz
         else
           echo "No output artifact found for IMAGE_TYPE=${IMAGE_TYPE}. Check BIB output in /output." >&2
           ls -alR /output >&2

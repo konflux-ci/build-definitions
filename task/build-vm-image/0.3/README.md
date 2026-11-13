@@ -17,6 +17,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SBOM_TYPE|The SBOM format to use for attaching the SBOM to the artifact. Valid values: spdx, cyclonedx.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM propagation and attachment|false|false|
+|BUILD_TIMESTAMP|Build time in RFC 3339 format for the OCI created annotation. Defaults to the current UTC time. Pass the same value to every matrix leg for a shared build timestamp.|""|false|
 
 ## Results
 |name|description|
@@ -26,7 +27,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |IMAGE_REFERENCE|Image reference (IMAGE_URL + IMAGE_DIGEST)|
 |SBOM_BLOB_URL|Reference of SBOM blob digest to enable digest-based verification from provenance|
 |PLATFORM|OCI platform ("linux/<arch>") of the disk image built by this task run, derived from the PLATFORM param. Lets build-image-index set the platform on each child descriptor of the multi-arch index, since the artifact manifest itself carries an empty config with no platform information.|
-|IMAGE_PLATFORM_MAP|Combined "<IMAGE_REFERENCE>=linux/<arch>" entry for this task run, ready to be fanned into build-image-index's IMAGE_PLATFORM_MAP parameter (one entry per matrix leg via the [*] aggregate).|
+|IMAGE_PLATFORM_MAP|Combined "<IMAGE_REFERENCE>=linux/<arch>" entry for this task run, ready to be fanned into build-image-index's IMAGE_PLATFORM_MAP parameter (one entry per matrix leg via the [*] aggregate). The image reference and platform are joined here, in-task, because Tekton does not support zipping two separately-aggregated result arrays produced by a matrixed PipelineTask (see IMAGE_REFERENCE above for the same rationale applied to URL+digest).|
 
 
 ## Additional info

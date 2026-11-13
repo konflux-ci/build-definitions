@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test-build-vm-image-created-annotation
+spec:
+  description: >-
+    Run the production artifact-packaging script with real Buildah for every
+    output format and both matrix architectures. Inspect the child OCI manifests
+    for a shared build timestamp and test the current-time default.
+  workspaces:
+    - name: tests-workspace
+  tasks:
+    - name: verify-created-annotation
+      taskSpec:
+        volumes:
+          - name: test-scripts
+            configMap:
+              name: build-vm-image-packaging
+          - name: storage
+            emptyDir: {}
+        steps:
+          - name: verify
+            image: registry.access.redhat.com/ubi9/buildah:9.8-1787017371
+            securityContext:
+              runAsUser: 0
+              privileged: true
+            computeResources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+            env:
+              - name: STORAGE_DRIVER
+                value: vfs
+              - name: BUILDAH_ISOLATION
+                value: chroot
+            volumeMounts:
+              - name: test-scripts
+                mountPath: /test-scripts
+                readOnly: true
+              - name: storage
+                mountPath: /var/lib/containers
+            script: |
+              #!/bin/bash
+              set -euo pipefail
+              dnf -y install buildah skopeo pigz jq tar xz
+              bash /test-scripts/test-created-annotation.sh

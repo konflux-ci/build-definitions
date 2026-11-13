@@ -10,6 +10,21 @@ TEST_NS="$2"
 
 export TASK_RUNNER_IMAGE="quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98fa7155f5c21443c285f88853864ae7cc66981cf6b543fc6ba16b81b"
 
+# Preserve the real artifact-packaging code before replacing the build step.
+# The created-annotation test runs it with Buildah against small local fixtures;
+# no remote VM or registry is needed, and the annotation is not mocked.
+PACKAGING_SCRIPT=$(yq -r '.spec.steps[] | select(.name == "build").script' "$TASK_COPY" | awk '
+  /^cat >>scripts\/script-push.sh / { packaging = 1; next }
+  packaging && /^dnf / { next }
+  packaging && /^buildah_retries=3$/ { exit }
+  packaging { print }
+')
+test -n "$PACKAGING_SCRIPT"
+"${KUBECTL_CMD:-kubectl}" -n "$TEST_NS" create configmap build-vm-image-packaging \
+  --from-literal=script-push.sh="$PACKAGING_SCRIPT" \
+  --from-file="test-created-annotation.sh=$(dirname "$0")/test-created-annotation.sh" \
+  --dry-run=client -o yaml | "${KUBECTL_CMD:-kubectl}" -n "$TEST_NS" apply -f -
+
 # --- Volume fixes ---
 
 # Make the ssh secret optional (it won't exist in kind)
