@@ -13,11 +13,17 @@ export TASK_RUNNER_IMAGE="quay.io/konflux-ci/task-runner:2.0.0@sha256:4b01fbf98f
 # Preserve the real artifact-packaging code before replacing the build step.
 # The created-annotation test runs it with Buildah against small local fixtures;
 # no remote VM or registry is needed, and the annotation is not mocked.
+# Explicit markers define this test boundary independently of script formatting.
 PACKAGING_SCRIPT=$(yq -r '.spec.steps[] | select(.name == "build").script' "$TASK_COPY" | awk '
-  /^cat >>scripts\/script-push.sh / { packaging = 1; next }
-  packaging && /^dnf / { next }
-  packaging && /^buildah_retries=3$/ { exit }
+  /^# BEGIN artifact packaging$/ { packaging = 1; starts++; next }
+  /^# END artifact packaging$/ { packaging = 0; ends++; next }
   packaging { print }
+  END {
+    if (starts != 1 || ends != 1 || packaging) {
+      print "Expected exactly one complete artifact-packaging marker pair" > "/dev/stderr"
+      exit 1
+    }
+  }
 ')
 test -n "$PACKAGING_SCRIPT"
 "${KUBECTL_CMD:-kubectl}" -n "$TEST_NS" create configmap build-vm-image-packaging \

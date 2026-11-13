@@ -30,3 +30,7 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 
 
 ## Additional info
+
+Each disk-image child artifact manifest carries an `org.opencontainers.image.created`
+annotation with its UTC build time in RFC 3339 format. This allows release-service
+to resolve `{{ timestamp }}` even though the artifact has an empty image config.

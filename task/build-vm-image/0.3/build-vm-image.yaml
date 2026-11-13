@@ -425,6 +425,7 @@ spec:
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
         dnf -y install buildah skopeo pigz jq tar xz
 
+        # BEGIN artifact packaging
         # Artifact manifests have an empty config, so release-service needs the
         # build time on the child manifest itself, not on its index descriptor.
         BUILD_TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -477,6 +478,7 @@ spec:
         buildah manifest add --arch "$(arch)" --os linux --artifact \
           --artifact-annotation "org.opencontainers.image.created=${BUILD_TIMESTAMP}" \
           --artifact-type "$ARTIFACT_TYPE" "$OUTPUT_IMAGE" "$ARTIFACT_PATH"
+        # END artifact packaging
 
         buildah_retries=3
         echo "Pushing image $OUTPUT_IMAGE to registry"
