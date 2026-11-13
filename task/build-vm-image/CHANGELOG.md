@@ -11,6 +11,20 @@ If that's not something you ever plan to do, consider removing this section.
 
 *Nothing yet.*
 
+## 0.3.3
+
+### Fixed
+
+- Add the build-time `org.opencontainers.image.created` annotation to every disk-image child artifact manifest, allowing release-service to resolve `{{ timestamp }}` even though the artifact config is empty.
+
+### Added
+
+- Regression tests exercise the production packaging script and inspect the resulting child manifests for all output formats and both matrix architectures.
+
+### Changed
+
+- Replace the per-format conditional chain with an ordered artifact table and shared compression and manifest creation, keeping selection order and output formats unchanged.
+
 ## 0.3.2
 
 ### Added
