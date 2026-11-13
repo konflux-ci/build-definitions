@@ -54,10 +54,6 @@ spec:
       description: Skip SBOM propagation and attachment
       type: string
       default: "false"
-    - name: BUILD_TIMESTAMP
-      description: Build time in RFC 3339 format for the OCI created annotation. Defaults to the current UTC time. Pass the same value to every matrix leg for a shared build timestamp.
-      type: string
-      default: ""
   results:
     - description: Digest of the manifest list just built
       name: IMAGE_DIGEST
@@ -111,8 +107,6 @@ spec:
         value: $(params.SBOM_TYPE)
       - name: SKIP_SBOM_GENERATION
         value: $(params.SKIP_SBOM_GENERATION)
-      - name: BUILD_TIMESTAMP
-        value: $(params.BUILD_TIMESTAMP)
     volumeMounts:
       - mountPath: "/var/workdir"
         name: workdir
@@ -424,11 +418,8 @@ spec:
 
         # import retry function
         # remove line with bash
-        {
-          printf 'export BUILD_TIMESTAMP=%q\n' "$BUILD_TIMESTAMP"
-          # shellcheck disable=SC2002
-          cat /usr/local/bin/retry | sed 1d
-        } >> scripts/script-push.sh
+        # shellcheck disable=SC2002
+        cat /usr/local/bin/retry | sed 1d >> scripts/script-push.sh
 
         # this quoted heredoc prevents expansions and command substitutions. the env vars are evaluated on the remote vm
         cat >>scripts/script-push.sh <<'REMOTESSHEOF'
@@ -436,7 +427,7 @@ spec:
 
         # Artifact manifests have an empty config, so release-service needs the
         # build time on the child manifest itself, not on its index descriptor.
-        BUILD_TIMESTAMP=$(date -u -d "${BUILD_TIMESTAMP:-now}" +'%Y-%m-%dT%H:%M:%SZ')
+        BUILD_TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
         # Build an image index of length 1 referring to an image manifest with the content
         buildah manifest create "$OUTPUT_IMAGE"

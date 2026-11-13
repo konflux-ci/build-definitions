@@ -17,7 +17,6 @@ Build disk images using bootc-image-builder. https://github.com/osbuild/bootc-im
 |STORAGE_DRIVER|Storage driver to configure for buildah|vfs|false|
 |SBOM_TYPE|The SBOM format to use for attaching the SBOM to the artifact. Valid values: spdx, cyclonedx.|spdx|false|
 |SKIP_SBOM_GENERATION|Skip SBOM propagation and attachment|false|false|
-|BUILD_TIMESTAMP|Build time in RFC 3339 format for the OCI created annotation. Defaults to the current UTC time. Pass the same value to every matrix leg for a shared build timestamp.|""|false|
 
 ## Results
 |name|description|

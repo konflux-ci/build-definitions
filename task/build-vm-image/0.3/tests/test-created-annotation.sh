@@ -7,10 +7,9 @@ set -euo pipefail
 test ! -e /output
 test ! -L /output
 TEST_DIR=$(mktemp -d)
-SHARED_TIMESTAMP=2026-01-02T03:04:05Z
 
 verify_artifact() {
-  local format=$1 source=$2 artifact_type=$3 timestamp=$4
+  local format=$1 source=$2 artifact_type=$3
   local case_dir output_index index_digest manifest_digest created before after
   case_dir=$(mktemp -d "${TEST_DIR}/${ARCHITECTURE}-${format}.XXXXXX")
   mkdir -p "${case_dir}/output/$(dirname "$source")"
@@ -18,7 +17,7 @@ verify_artifact() {
   ln -s "${case_dir}/output" /output
 
   export OUTPUT_IMAGE="localhost/created-annotation:${ARCHITECTURE}-${format}-${RANDOM}"
-  export IMAGE_TYPE="$format" BUILD_TIMESTAMP="$timestamp"
+  export IMAGE_TYPE="$format"
   before=$(date -u +%s)
   bash -euo pipefail "$PACKAGING_SCRIPT"
   after=$(date -u +%s)
@@ -35,27 +34,23 @@ verify_artifact() {
   jq -e --arg artifact_type "$artifact_type" \
     '.artifactType == $artifact_type and .config.mediaType == "application/vnd.oci.empty.v1+json"' "$manifest"
   created=$(jq -er '.annotations["org.opencontainers.image.created"]' "$manifest")
-  if [ -n "$timestamp" ]; then
-    test "$created" = "$SHARED_TIMESTAMP"
-  else
-    [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
-    local created_epoch
-    created_epoch=$(date -u -d "$created" +%s)
-    test "$created_epoch" -ge "$before"
-    test "$created_epoch" -le "$after"
-  fi
+  [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+  local created_epoch
+  created_epoch=$(date -u -d "$created" +%s)
+  test "$created_epoch" -ge "$before"
+  test "$created_epoch" -le "$after"
   unlink /output
   echo "PASS: ${ARCHITECTURE}/${format} created=${created}"
 }
 
 # Simulate each remote builder's architecture while using real Buildah for the
-# packaging. A shared timestamp must survive every output branch and matrix leg.
+# packaging. Every output branch must annotate its child manifest with build time.
 for ARCHITECTURE in x86_64 aarch64; do
   export ARCHITECTURE
   arch() { echo "$ARCHITECTURE"; }
   export -f arch
   while IFS='|' read -r format source artifact_type; do
-    verify_artifact "$format" "$source" "$artifact_type" "$SHARED_TIMESTAMP"
+    verify_artifact "$format" "$source" "$artifact_type"
   done <<'FORMATS'
 qcow2|qcow2/disk.qcow2|application/vnd.diskimage.qcow2
 raw|image/disk.raw|application/vnd.diskimage.raw.gzip
@@ -67,14 +62,4 @@ ova|archive/image.ova|application/vnd.diskimage.ova.gzip
 pxe-tar-xz|xz/pxe.tar.xz|application/vnd.diskimage.pxe.tar.xz
 pxe-tree|bootc-pxe-tree/vmlinuz|application/vnd.diskimage.pxe.tar.xz
 FORMATS
-  verify_artifact qcow2 qcow2/disk.qcow2 application/vnd.diskimage.qcow2 ""
 done
-
-# Invalid caller-provided dates must fail rather than publish unusable metadata.
-export BUILD_TIMESTAMP=not-a-timestamp
-if bash -euo pipefail "$PACKAGING_SCRIPT" > "${TEST_DIR}/invalid-date.log" 2>&1; then
-  echo "ERROR: invalid BUILD_TIMESTAMP was accepted" >&2
-  exit 1
-fi
-grep -q 'invalid date' "${TEST_DIR}/invalid-date.log"
-echo "PASS: invalid timestamp rejected"

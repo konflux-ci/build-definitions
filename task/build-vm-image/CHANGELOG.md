@@ -19,7 +19,6 @@ If that's not something you ever plan to do, consider removing this section.
 
 ### Added
 
-- Optional `BUILD_TIMESTAMP` parameter to share a build timestamp across matrix legs. When omitted, the artifact is annotated with the current UTC time.
 - Regression tests exercise the production packaging script and inspect the resulting child manifests for all output formats and both matrix architectures.
 
 ## 0.3.2
