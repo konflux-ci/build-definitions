@@ -445,8 +445,14 @@ spec:
           esac
           echo "Found ${artifact_type} artifact: ${candidate}"
           case "$compression" in
-            gzip) pigz "$candidate"; candidate+=.gz ;;
-            tar-xz) tar -cJf "${candidate}.tar.xz" -C "$candidate" .; candidate+=.tar.xz ;;
+            gzip)
+              pigz "$candidate"
+              candidate+=.gz
+              ;;
+            tar-xz)
+              tar -cJf "${candidate}.tar.xz" -C "$candidate" .
+              candidate+=.tar.xz
+              ;;
           esac
           ARTIFACT_PATH="$candidate"
           ARTIFACT_TYPE="application/vnd.diskimage.${artifact_type}"
