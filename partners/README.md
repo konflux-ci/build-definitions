@@ -1,5 +1,10 @@
 # Partner Tekton Task submission process
 
+> **Note:** Task implementations are being migrated to
+> [konflux-ci/tools](https://github.com/konflux-ci/tools) (task logic) and
+> [konflux-ci/tekton-tools](https://github.com/konflux-ci/tekton-tools) (task definitions).
+> New task submissions should target those repos instead.
+
 Partners can submit their Tekton Task in [build-definitions](https://github.com/konflux-ci/build-definitions) repository by sending a pull request.
 
 build-definitions repository CI job will validate the PR against a [set of checks](#checks).

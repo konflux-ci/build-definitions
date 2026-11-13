@@ -19,6 +19,11 @@ Therefore, everybody should follow its [Code of Conduct](https://github.com/konf
 This central repository contains components managed by the Konflux Build Team and other various contributors.
 See the CODEOWNERS file for more information.
 
+> **Note:** Task implementations are being migrated to
+> [konflux-ci/tools](https://github.com/konflux-ci/tools) (task logic) and
+> [konflux-ci/tekton-tools](https://github.com/konflux-ci/tekton-tools) (task definitions).
+> New task contributions should target those repos instead.
+
 Components are delivered to Konflux via the `konflux-ci/tekton-catalog` Quay organization as OCI bundles.
 See the [init-task](https://quay.io/repository/konflux-ci/tekton-catalog/task-init) as an example.
 
