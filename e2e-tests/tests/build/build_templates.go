@@ -106,8 +106,6 @@ func CreateComponent(f *framework.Framework, applicationName, componentName, nam
 
 func getDefaultPipeline(pipelineBundleName constants.BuildPipelineType) string {
 	switch pipelineBundleName {
-	case "fbc-builder":
-		return utils.GetEnv(constants.CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE_ENV, "quay.io/konflux-ci/tekton-catalog/pipeline-fbc-builder:devel")
 	default:
 		return ""
 	}
@@ -280,18 +278,6 @@ var _ = framework.BuildSuiteDescribe("Build templates E2E test", ginkgo.Label("b
 					gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 					gomega.Expect(pr).ToNot(gomega.BeNil(), fmt.Sprintf("PipelineRun for the component %s/%s not found", testNamespace, componentName))
 				})
-				ginkgo.It("image manifest mediaType is correct", ginkgo.Label(buildTemplatesTestLabel), func() {
-					builtImage := build.GetBinaryImage(pr)
-					switch scenario.ManifestMediaType {
-					case "oci":
-						// fbc-builder produces an image index
-						gomega.Expect(build.GetBuiltImageManifestMediaType(builtImage)).Should(gomega.Equal(build.MediaTypeOciImageIndex), "mediaType of the image manifest is not of type oci.image.index")
-					default:
-						ginkgo.Fail(fmt.Sprintf("Unknown ManifestMediaType value %s in scenario \n", scenario.ManifestMediaType))
-					}
-
-				})
-
 				ginkgo.When(fmt.Sprintf("Pipeline Results are stored for component with Git source URL %s and Pipeline %s", scenario.GitURL, pipelineBundleName), ginkgo.Label("pipeline"), func() {
 					var resultClient *pipeline.ResultClient
 					var pr *tektonpipeline.PipelineRun

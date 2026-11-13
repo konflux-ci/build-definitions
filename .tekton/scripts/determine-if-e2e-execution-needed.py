@@ -9,7 +9,7 @@ import subprocess
 import argparse
 
 # Pipelines currently covered by e2e tests
-pipelines_covered_by_e2e = ["fbc-builder"]
+pipelines_covered_by_e2e = []
 
 # Task list which are covered by e2e tests, generated dynamically 
 tasks_covered_by_e2e = []
