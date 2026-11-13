@@ -33,6 +33,16 @@ verify_artifact() {
   local manifest="${case_dir}/oci/blobs/sha256/${manifest_digest#sha256:}"
   jq -e --arg artifact_type "$artifact_type" \
     '.artifactType == $artifact_type and .config.mediaType == "application/vnd.oci.empty.v1+json"' "$manifest"
+  local expected_path payload_digest
+  case "$format" in
+    raw|iso|vhd|vmdk|ova) expected_path="/output/${source}.gz" ;;
+    pxe-tree) expected_path=/output/bootc-pxe-tree.tar.xz ;;
+    *) expected_path="/output/${source}" ;;
+  esac
+  jq -e --arg filename "$(basename "$expected_path")" \
+    '.layers | length == 1 and .[0].annotations["org.opencontainers.image.title"] == $filename' "$manifest"
+  payload_digest=$(jq -er '.layers[0].digest' "$manifest")
+  test "$payload_digest" = "sha256:$(sha256sum "$expected_path" | awk '{print $1}')"
   created=$(jq -er '.annotations["org.opencontainers.image.created"]' "$manifest")
   [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
   local created_epoch

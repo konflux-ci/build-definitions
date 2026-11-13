@@ -21,6 +21,10 @@ If that's not something you ever plan to do, consider removing this section.
 
 - Regression tests exercise the production packaging script and inspect the resulting child manifests for all output formats and both matrix architectures.
 
+### Changed
+
+- Share one artifact-manifest creation command across all disk-image formats, keeping artifact selection and compression behavior unchanged.
+
 ## 0.3.2
 
 ### Added
