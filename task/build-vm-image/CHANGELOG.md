@@ -23,7 +23,7 @@ If that's not something you ever plan to do, consider removing this section.
 
 ### Changed
 
-- Share one artifact-manifest creation command across all disk-image formats, keeping artifact selection and compression behavior unchanged.
+- Replace the per-format conditional chain with an ordered artifact table and shared compression and manifest creation, keeping selection order and output formats unchanged.
 
 ## 0.3.2
 

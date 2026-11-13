@@ -435,65 +435,34 @@ spec:
         # show contents of /output
         ls -alR /output
 
-        if [ -f "/output/qcow2/disk.qcow2" ]; then
-          echo -e "Found qcow2 image."
-          # don't zip qcow2 images, it is already compressed.
-          ARTIFACT_TYPE=application/vnd.diskimage.qcow2
-          ARTIFACT_PATH=/output/qcow2/disk.qcow2
-        elif [ -f "/output/image/disk.raw" ]; then
-          echo -e "Found raw image."
-          pigz /output/image/disk.raw
-          ARTIFACT_TYPE=application/vnd.diskimage.raw.gzip
-          ARTIFACT_PATH=/output/image/disk.raw.gz
-        elif [ -f "/output/bootiso/install.iso" ]; then
-          echo -e "Found iso image."
-          pigz /output/bootiso/install.iso
-          ARTIFACT_TYPE=application/vnd.diskimage.iso.gzip
-          ARTIFACT_PATH=/output/bootiso/install.iso.gz
-        elif [ -f "/output/vpc/disk.vhd" ]; then
-          echo -e "Found vhd image."
-          pigz /output/vpc/disk.vhd
-          ARTIFACT_TYPE=application/vnd.diskimage.vhd.gzip
-          ARTIFACT_PATH=/output/vpc/disk.vhd.gz
-        elif [ -f "/output/gce/image.tar.gz" ]; then
-          echo -e "Found gce image."
-          # already compressed.
-          ARTIFACT_TYPE=application/vnd.diskimage.gce.tgz
-          ARTIFACT_PATH=/output/gce/image.tar.gz
-        elif [ -f "/output/vmdk/disk.vmdk" ]; then
-          echo -e "Found vmdk image."
-          pigz /output/vmdk/disk.vmdk
-          ARTIFACT_TYPE=application/vnd.diskimage.vmdk.gzip
-          ARTIFACT_PATH=/output/vmdk/disk.vmdk.gz
-        elif [ -f "/output/archive/image.ova" ]; then
-          echo -e "Found ova image."
-          pigz /output/archive/image.ova
-          ARTIFACT_TYPE=application/vnd.diskimage.ova.gzip
-          ARTIFACT_PATH=/output/archive/image.ova.gz
-        # NOTE: pxe-tar-xz handling covers two different bootc-image-builder versions:
-        #
-        # 1. New image-builder multicall binary (osbuild/image-builder):
-        #    Exports the "xz" pipeline → /output/xz/pxe.tar.xz (pre-compressed)
-        #    No container builds exist for this variant yet (as of July 2026).
-        #
-        # 2. Old bootc-image-builder (osbuild/bootc-image-builder, archived June 2026):
-        #    Exports the "bootc-pxe-tree" pipeline → /output/bootc-pxe-tree/ which is
-        #    a raw directory tree containing vmlinuz, initrd.img, rootfs.img, EFI/,
-        #    grub.cfg, and README. This is what current BIB containers actually produce.
-        #    The task must create the tar.xz archive itself before pushing.
-        #
-        # Check for the new pre-compressed output first, fall back to creating
-        # the archive from the old raw tree.
-        elif [ -f "/output/xz/pxe.tar.xz" ]; then
-          echo -e "Found pxe-tar-xz image (new image-builder)."
-          ARTIFACT_TYPE=application/vnd.diskimage.pxe.tar.xz
-          ARTIFACT_PATH=/output/xz/pxe.tar.xz
-        elif [ -d "/output/bootc-pxe-tree" ]; then
-          echo -e "Found pxe tree directory (old BIB), creating tar.xz archive."
-          tar -cJf /output/bootc-pxe-tree.tar.xz -C /output/bootc-pxe-tree .
-          ARTIFACT_TYPE=application/vnd.diskimage.pxe.tar.xz
-          ARTIFACT_PATH=/output/bootc-pxe-tree.tar.xz
-        else
+        # First match wins. Keep already-compressed outputs as-is, and prefer
+        # the new image-builder PXE archive over the legacy BIB directory tree.
+        ARTIFACT_PATH=""
+        while read -r candidate artifact_type compression; do
+          case "$compression" in
+            tar-xz) [ -d "$candidate" ] || continue ;;
+            *) [ -f "$candidate" ] || continue ;;
+          esac
+          echo "Found ${artifact_type} artifact: ${candidate}"
+          case "$compression" in
+            gzip) pigz "$candidate"; candidate+=.gz ;;
+            tar-xz) tar -cJf "${candidate}.tar.xz" -C "$candidate" .; candidate+=.tar.xz ;;
+          esac
+          ARTIFACT_PATH="$candidate"
+          ARTIFACT_TYPE="application/vnd.diskimage.${artifact_type}"
+          break
+        done <<'ARTIFACTS'
+        /output/qcow2/disk.qcow2 qcow2 none
+        /output/image/disk.raw raw.gzip gzip
+        /output/bootiso/install.iso iso.gzip gzip
+        /output/vpc/disk.vhd vhd.gzip gzip
+        /output/gce/image.tar.gz gce.tgz none
+        /output/vmdk/disk.vmdk vmdk.gzip gzip
+        /output/archive/image.ova ova.gzip gzip
+        /output/xz/pxe.tar.xz pxe.tar.xz none
+        /output/bootc-pxe-tree pxe.tar.xz tar-xz
+        ARTIFACTS
+        if [ -z "$ARTIFACT_PATH" ]; then
           echo "No output artifact found for IMAGE_TYPE=${IMAGE_TYPE}. Check BIB output in /output." >&2
           ls -alR /output >&2
           exit 1
