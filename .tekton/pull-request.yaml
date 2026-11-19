@@ -16,7 +16,7 @@ spec:
     - name: e2e_test_namespace
       value: build-templates-e2e
     - name: image-target
-      value: "quay.io/konflux-ci/task-runner:1.8.1@sha256:b9ef0479b57a494368a12a02886c650314c9ac7391c6228f21065865aab71c9e"
+      value: "quay.io/konflux-ci/task-runner:4.0.0@sha256:ab7440e1101af1ff0418e16badede2f1590664d3189099030bf3f782371bd9da"
   pipelineSpec:
     params:
       - name: repo_url
@@ -221,7 +221,7 @@ spec:
               type: string
           steps:
             - name: e2e-cleanup
-              image: quay.io/konflux-ci/task-runner:3.1.2@sha256:e272c1e1c60a4ecc72ff9c8d65bc48da534de6f1ce0d5aba79db3ac532d11c35
+              image: $(params.image-target)
               script: |
                 #!/usr/bin/env bash
                 # Perform cleanup of resources created by gitops service
