@@ -15,12 +15,22 @@ const (
 	buildTemplatesTestLabel    = "build-templates-e2e"
 	buildTemplatesKcpTestLabel = "build-templates-kcp-e2e"
 	sourceBuildTestLabel       = "source-build-e2e"
-
-	fbcComponentGitHubURL = "https://github.com/konflux-qe-bd/fbc-sample-repo"
 )
 
 var (
-	componentUrls        = strings.Split(utils.GetEnv(COMPONENT_REPO_URLS_ENV, fbcComponentGitHubURL), ",")
-	basicScenarioUrls    = []string{fbcComponentGitHubURL}
+	componentUrls        = filterEmpty(strings.Split(utils.GetEnv(COMPONENT_REPO_URLS_ENV, ""), ","))
+	basicScenarioUrls    = []string{}
 	hermeticScenarioUrls = []string{}
 )
+
+// filterEmpty removes empty entries that result from splitting an empty or
+// trailing-comma string, so an unset COMPONENT_REPO_URLS yields no scenarios.
+func filterEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if strings.TrimSpace(s) != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}

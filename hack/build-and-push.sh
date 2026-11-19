@@ -776,10 +776,5 @@ do
     fi
 done
 
-if [ "$SKIP_INSTALL" == "" ]; then
-    rm -f bundle_values.env
-
-fi
-
 
 # vim: set et sw=4 ts=4:
