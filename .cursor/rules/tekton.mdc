@@ -49,3 +49,26 @@ Follow [ADR 0054 – Start versioning Tekton Tasks responsibly](https://github.c
 ### Variant tasks
 - When a change applies to multiple variant tasks, apply the same version bump and changelog update to each affected variant (e.g., `git-clone`, `git-clone-oci-ta`, and `git-clone-oci-ta-min`).
 - Differences between variants can sometimes be warranted in changelog content, but version numbers must always match across all variants of the same task.
+
+## Pipeline and task removal
+
+When removing a pipeline directory or task version, all references must be cleaned up in the same PR. Splitting removal and reference cleanup across multiple PRs risks breaking CI if only the first PR is merged — there is no mechanism to guarantee atomic merge of dependent PRs.
+
+### Reference search checklist
+
+After deleting a pipeline or task directory, search for and remove all stale references in these files:
+
+- `.tekton/pull-request.yaml` — result definitions and bundle reference write steps
+- `.tekton/scripts/determine-if-e2e-execution-needed.py` — pipeline/task lists used to decide e2e execution
+- `e2e-tests/` — test cases, default pipeline/task functions (e.g. `getDefaultPipeline` switch cases)
+- `hack/build-and-push.sh` — bundle capture logic and environment variable exports
+- `hack/test-builds.sh` — test invocations for the removed pipeline/task
+- `README.md` and `SHARED-CI.md` — documentation examples and references
+- `pipelines/kustomization.yaml` — resource list entries for removed pipelines
+
+### Validation
+
+After removal, verify that:
+- `yq` or `kustomize` operations on remaining pipeline/task lists still succeed (e.g. no references to deleted YAML files)
+- Go code in `e2e-tests/` compiles cleanly (`go build ./...` from the `e2e-tests/` directory)
+- no stale variable exports or bundle references remain in `hack/` scripts
