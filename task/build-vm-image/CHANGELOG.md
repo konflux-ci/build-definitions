@@ -9,7 +9,9 @@ When you make changes without bumping the version right away, document them here
 If that's not something you ever plan to do, consider removing this section.
 -->
 
-*Nothing yet.*
+### Fixed
+
+- Align `download-sbom` / `upload-sbom` `requests.memory` with `limits.memory` (256Mi) on 0.2 and 0.3 for KONFLUX-14352 / KONFLUX-16150 policy compliance (`requests.memory == limits.memory`).
 
 ## 0.3.2
 
