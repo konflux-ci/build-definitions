@@ -4,6 +4,12 @@ This repository contains components that are managed by the Konflux Build Team.
 
 This includes default Pipelines and Tasks. You need to have bootstrapped a working Konflux configuration (see `https://github.com/redhat-appstudio/infra-deployments`) for developing pipelines or new tasks.
 
+> **Note:** Task implementations in this repo are being migrated to
+> [konflux-ci/tools](https://github.com/konflux-ci/tools) (task logic) and
+> [konflux-ci/tekton-tools](https://github.com/konflux-ci/tekton-tools) (task definitions).
+> New task development should target those repos. Tasks here with
+> `build.appstudio.redhat.com/expires-on` annotations are deprecated.
+
 Pipelines and Tasks are delivered into Konflux via the quay organization `konflux-ci/tekton-catalog`.
 Pipelines are bundled and pushed into repositories prefixed with `pipeline-` and tagged with `$GIT_SHA` (the tag will be updated with every change).
 Tasks are bundled and pushed into repositories prefixed with `task-` and tagged with `$VERSION`, where `VERSION` is the task version (the tag is updated when the task file contains any change in the PR).
