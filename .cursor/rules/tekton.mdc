@@ -11,6 +11,8 @@ description: Rules how to write great tekton tasks and pipelines
 ### Base image
 - `quay.io/konflux-ci/task-runner` is usually used as task step image.
   Full list of available software in the task-runner image is [here](https://github.com/konflux-ci/task-runner/blob/main/Installed-Software.md).
+  Key tools included: `oc`, `kubectl`, `git`, `curl`, `jq`, `cosign`, `skopeo`, `buildah`, `syft`, `yq`, `tkn`, `retry`, `sha256sum`.
+  Notable absences: `diff` (use `sha256sum` for file comparison).
 
 ### Security
 - never use tekton parameters as "$(params.*)" directly in the script, make tekton env variable first in tekton task definition and use env variable in the script
