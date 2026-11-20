@@ -139,9 +139,7 @@ spec:
               type: string
             - name: e2e_test_namespace
               type: string
-          results:
-          - name: custom-fbc-builder-bundle
-            description: "custom bundle for fbc-builder pipeline"
+          results: []
           steps:
             - name: build-bundles
               image: $(params.image-target)
@@ -159,8 +157,6 @@ spec:
                 ENABLE_SOURCE_BUILD=1 \
                 ENABLE_HERMETIC_BUILD=1 \
                 hack/build-and-push.sh
-                eval "source bundle_values.env"
-                echo -n "$CUSTOM_FBC_BUILDER_PIPELINE_BUNDLE" | tee "$(results.custom-fbc-builder-bundle.path)"
           workspaces:
             - name: source
       - name: e2e-tests

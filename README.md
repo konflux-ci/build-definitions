@@ -29,7 +29,7 @@ There is an option to push all bundles to a single quay.io repository (this meth
 
 The pipelines can be found in the `pipelines` directory.
 
-- `template-build`: contains a common template used to generate `fbc-builder` and other pipelines.
+- `template-build`: contains a common template used to generate pipelines.
 
 ### Tasks
 
@@ -372,9 +372,7 @@ The migration file is a normal Bash script file:
   not duplicated in the pipeline when running the migration multiple times.
 - Pass the `shellcheck` without customizing the default rules.
 - Check whether the migration is for all kinds of Konflux pipelines or not. If
-  not, skip the pipeline in the script, e.g. skip the FBC pipeline due
-  to [many tasks are removed](https://github.com/konflux-ci/build-definitions/blob/main/pipelines/fbc-builder/patch.yaml)
-  from template-build.yaml.
+  not, skip the pipeline properly in the script.
 - The pipeline file path and name can be arbitrary. Please do not use the input
   value to check pipeline type or perform tests in `if-then-else` statements for
   conditional operations.
