@@ -45,19 +45,7 @@ func (s ComponentScenarioSpec) DeepCopy() ComponentScenarioSpec {
 	}
 }
 
-var componentScenarios = []ComponentScenarioSpec{
-	{
-		Name:                "fbc",
-		GitURL:              "https://github.com/konflux-qe-bd/fbc-sample-repo",
-		Revision:            "8e374e107fecf03f3c64c528bb53798039661414",
-		ContextDir:          "4.13",
-		DockerFilePath:      "catalog.Dockerfile",
-		PipelineBundleNames: []constants.BuildPipelineType{constants.FbcBuilder},
-		EnableHermetic:      false,
-		PrefetchInput:       "",
-		ManifestMediaType:   "oci",
-	},
-}
+var componentScenarios = []ComponentScenarioSpec{}
 
 func GetComponentScenarioDetailsFromGitUrl(gitUrl string) ComponentScenarioSpec {
 	for _, componentScenario := range componentScenarios {

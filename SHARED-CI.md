@@ -195,9 +195,7 @@ The migration file is a normal Bash script file:
   not duplicated to the pipeline when run the migration multiple times.
 - Pass the `shellcheck` without customizing the default rules.
 - Check whether the migration is for all kinds of Konflux pipelines or not. If
-  no, skip the pipeline properly in the script, e.g. skip FBC pipeline due
-  to [many tasks are removed](https://github.com/konflux-ci/build-definitions/blob/main/pipelines/fbc-builder/patch.yaml)
-  from template-build.yaml.
+  no, skip the pipeline properly in the script.
 - The pipeline file path and name can be arbitrary. Please do not use the input
   value to check pipeline type or do test in `if-then-else` statement for
   conditional operations.
