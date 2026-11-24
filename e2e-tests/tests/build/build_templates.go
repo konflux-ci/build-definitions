@@ -33,7 +33,7 @@ var (
 )
 
 const pipelineCompletionRetries = 2
-const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:e5a704109a8b2cc54ee4785589b95d1a110daf77c561721cec17efa645c8f5d9"
+const verifyECTaskBundle = "quay.io/conforma/tekton-task:konflux@sha256:8a921528a2493432b3e9a0451aa7583a728c2925e0efd81e0929b34fdcf59956"
 
 type TestBranches struct {
 	RepoName       string
