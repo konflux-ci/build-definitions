@@ -73,6 +73,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ca-trust-config-map-name| The name of the ConfigMap to read CA bundle data from.| trusted-ca| |
 |image-url| Image url to scan.| None| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |platform| The platform the image is built on.| ""| |
+### fixed-rhsa-check task parameters
+|name|description|default value|already set by|
+|---|---|---|---|
+|rhsas-found| RHSAs found from roxctl-scan| None| '$(tasks.roxctl-scan.results.ACS_RHSAS)'|
 ### git-clone-oci-ta task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
@@ -139,6 +143,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### roxctl-scan task parameters
 |name|description|default value|already set by|
 |---|---|---|---|
+|client-timeout| Client-side timeout for each roxctl image scan request, as a Go duration string (for example "10m" or "30m"). roxctl retries a failed request up to three times. | 10m| |
 |image-digest| Image digest to scan.| ""| '$(tasks.build-image-index.results.IMAGE_DIGEST)'|
 |image-url| Full name of image to scan.  SHA 256 digest may be included to ensure scan of sequental runs with same tag. Examples: 'gcr.io/rox/sample:5.0-rc1', '$(params.IMAGE)', '$(params.IMAGE)@$(tasks.buildah.results.IMAGE_DIGEST)' | ""| '$(tasks.build-image-index.results.IMAGE_URL)'|
 |insecure-skip-tls-verify| Do not verify TLS certificates.  When set to "true", skip verifying the TLS certs of the Central endpoint. | false| |
@@ -246,6 +251,10 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 |ARTIFACT_TYPE_SET_BY| How the artifact type was set.| |
 |IMAGES_PROCESSED| Collected image digests| |
 |TEST_OUTPUT| Ecosystem checks pass or fail outcome.| |
+### fixed-rhsa-check task results
+|name|description|used in params (taskname:taskparam)
+|---|---|---|
+|TEST_OUTPUT| Tekton task test output.| |
 ### git-clone-oci-ta task results
 |name|description|used in params (taskname:taskparam)
 |---|---|---|
@@ -277,6 +286,7 @@ This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/reposito
 ### roxctl-scan task results
 |name|description|used in params (taskname:taskparam)
 |---|---|---|
+|ACS_RHSAS| Critical and important found RHSAs.| fixed-rhsa-check:rhsas-found|
 |IMAGES_PROCESSED| Images processed in the task.| |
 |REPORTS| Mapping of image digests to report digests| |
 |SCAN_OUTPUT| Rox scan result.| |
