@@ -108,11 +108,14 @@
 #     13  apply-tags
 #     14  push-dockerfile
 #     15  rpms-signature-scan
+#     16  fixed-rhsa-check
 
 # KEEP removal operations before adding operations, otherwise you will die from
 # counting correct index numbers.
 
 # Remove tasks not needed for FBC (highest index first).
+- op: remove
+  path: /spec/tasks/16  # fixed-rhsa-check
 - op: remove
   path: /spec/tasks/15  # rpms-signature-scan
 - op: remove

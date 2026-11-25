@@ -177,7 +177,7 @@ spec:
         - build-image-index
       taskRef:
         name: roxctl-scan
-        version: "0.1"
+        version: "0.2"
       params:
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
@@ -315,6 +315,19 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: image-digest
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - name: fixed-rhsa-check
+      when:
+      - input: $(params.skip-checks)
+        operator: in
+        values: ["false"]
+      runAfter:
+        - roxctl-scan
+      taskRef:
+        name: fixed-rhsa-check
+        version: "0.1"
+      params:
+      - name: rhsas-found
+        value: $(tasks.roxctl-scan.results.ACS_RHSAS)
   finally: []
   results:
     - name: IMAGE_URL
