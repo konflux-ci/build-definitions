@@ -25,7 +25,7 @@ SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$SCRIPTDIR/.." || exit 1
 unset SCRIPTDIR
 
-declare -r BUILD_PIPELINE_CONFIG=https://raw.githubusercontent.com/redhat-appstudio/infra-deployments/refs/heads/main/components/build-service/base/build-pipeline-config/build-pipeline-config.yaml
+declare -r BUILD_PIPELINE_CONFIG=https://raw.githubusercontent.com/konflux-ci/konflux-ci/main/operator/upstream-kustomizations/build-service/core/build-pipeline-config.yaml
 declare -r LABEL_TASK_VERSION=app.kubernetes.io/version
 
 WORK_DIR=$(mktemp -d --suffix=-validate-migrations)
